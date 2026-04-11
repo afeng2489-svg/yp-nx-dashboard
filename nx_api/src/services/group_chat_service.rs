@@ -1,0 +1,564 @@
+//! Group Chat Service
+//!
+//! Service layer for multi-agent group discussion orchestration.
+
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use thiserror::Error;
+
+use nexus_ai::AIModelManager;
+
+use crate::models::group_chat::{
+    ConsensusStrategy, ConcludeDiscussionRequest, CreateGroupSessionRequest, DiscussionTurnInfo,
+    GetMessagesRequest, GroupConclusion, GroupMessage, GroupParticipant, GroupSession,
+    GroupSessionDetail, GroupStatus, SendMessageRequest, SpeakingStrategy, StartDiscussionRequest,
+    ToolCall, UpdateGroupSessionRequest,
+};
+use crate::services::claude_cli;
+use crate::services::group_chat_repository::{GroupChatRepository, GroupChatRepositoryError, SqliteGroupChatRepository};
+use crate::services::team_service::TeamService;
+
+/// Group chat service error
+#[derive(Debug, Error)]
+pub enum GroupChatServiceError {
+    #[error("Repository error: {0}")]
+    Repository(#[from] GroupChatRepositoryError),
+    #[error("Session not found: {0}")]
+    SessionNotFound(String),
+    #[error("Session not active: {0}")]
+    SessionNotActive(String),
+    #[error("Role not found: {0}")]
+    RoleNotFound(String),
+    #[error("Team not found: {0}")]
+    TeamNotFound(String),
+    #[error("Claude CLI error: {0}")]
+    ClaudeCli(String),
+    #[error("Max turns reached")]
+    MaxTurnsReached,
+    #[error("Service error: {0}")]
+    Service(String),
+}
+
+/// Shared group chat service
+pub type SharedGroupChatService = Arc<GroupChatService>;
+
+/// Group chat service
+pub struct GroupChatService {
+    repo: Arc<SqliteGroupChatRepository>,
+    team_service: TeamService,
+    ai_manager: Arc<AIModelManager>,
+    // In-memory state for active discussions
+    active_sessions: RwLock<HashMap<String, ActiveSessionState>>,
+}
+
+/// Active session state (in-memory)
+struct ActiveSessionState {
+    session_id: String,
+    speaking_order: Vec<String>,  // 发言顺序
+    current_speaker_index: usize,
+    last_turn: u32,
+}
+
+impl GroupChatService {
+    pub fn new(
+        repo: Arc<SqliteGroupChatRepository>,
+        team_service: TeamService,
+        ai_manager: Arc<AIModelManager>,
+    ) -> Self {
+        Self {
+            repo,
+            team_service,
+            ai_manager,
+            active_sessions: RwLock::new(HashMap::new()),
+        }
+    }
+
+    /// Create a new group session
+    pub async fn create_session(
+        &self,
+        request: CreateGroupSessionRequest,
+    ) -> Result<GroupSession, GroupChatServiceError> {
+        let session = GroupSession::new(
+            request.team_id.clone(),
+            request.name,
+            request.topic,
+            request.speaking_strategy.unwrap_or_default(),
+            request.consensus_strategy.unwrap_or_default(),
+            request.moderator_role_id,
+            request.max_turns.unwrap_or(10),
+            request.turn_policy.unwrap_or_else(|| "all".to_string()),
+        );
+
+        self.repo.create_session(&session)?;
+        Ok(session)
+    }
+
+    /// Get session by ID
+    pub async fn get_session(&self, id: &str) -> Result<GroupSession, GroupChatServiceError> {
+        self.repo
+            .get_session(id)?
+            .ok_or_else(|| GroupChatServiceError::SessionNotFound(id.to_string()))
+    }
+
+    /// Get sessions by team ID
+    pub async fn get_sessions_by_team(&self, team_id: &str) -> Result<Vec<GroupSession>, GroupChatServiceError> {
+        Ok(self.repo.get_sessions_by_team(team_id)?)
+    }
+
+    /// Get session detail with participants and conclusion
+    pub async fn get_session_detail(&self, id: &str) -> Result<GroupSessionDetail, GroupChatServiceError> {
+        let session = self.get_session(id).await?;
+        let participants = self.repo.get_participants(id)?;
+        let message_count = self.repo.get_message_count(id)?;
+        let conclusion = self.repo.get_conclusion(id)?;
+
+        Ok(GroupSessionDetail {
+            session,
+            participants,
+            message_count,
+            conclusion,
+        })
+    }
+
+    /// Update session
+    pub async fn update_session(
+        &self,
+        id: &str,
+        request: UpdateGroupSessionRequest,
+    ) -> Result<GroupSession, GroupChatServiceError> {
+        let mut session = self.get_session(id).await?;
+
+        if let Some(name) = request.name {
+            session.name = name;
+        }
+        if let Some(topic) = request.topic {
+            session.topic = topic;
+        }
+        if let Some(strategy) = request.speaking_strategy {
+            session.speaking_strategy = strategy;
+        }
+        if let Some(strategy) = request.consensus_strategy {
+            session.consensus_strategy = strategy;
+        }
+        if let Some(moderator) = request.moderator_role_id {
+            session.moderator_role_id = Some(moderator);
+        }
+        if let Some(max_turns) = request.max_turns {
+            session.max_turns = max_turns;
+        }
+
+        self.repo.update_session(&session)?;
+        Ok(session)
+    }
+
+    /// Start discussion
+    pub async fn start_discussion(
+        &self,
+        session_id: &str,
+        request: StartDiscussionRequest,
+    ) -> Result<DiscussionTurnInfo, GroupChatServiceError> {
+        let mut session = self.get_session(session_id).await?;
+
+        if session.status != GroupStatus::Pending {
+            return Err(GroupChatServiceError::SessionNotActive(session_id.to_string()));
+        }
+
+        // Add participants
+        for role_id in &request.participant_role_ids {
+            let participant = GroupParticipant {
+                role_id: role_id.clone(),
+                role_name: role_id.clone(),  // TODO: fetch actual role name
+                joined_at: chrono::Utc::now(),
+                last_spoke_at: None,
+                message_count: 0,
+            };
+            self.repo.add_participant(&participant)?;
+        }
+
+        // Update session status
+        session.status = GroupStatus::Active;
+        self.repo.update_session(&session)?;
+
+        // Initialize speaking order
+        let speaking_order = match session.speaking_strategy {
+            SpeakingStrategy::RoundRobin => {
+                request.participant_role_ids.clone()
+            }
+            SpeakingStrategy::Moderator => {
+                // Moderator speaks first
+                if let Some(ref mod_id) = session.moderator_role_id {
+                    let mut order = vec![mod_id.clone()];
+                    for id in &request.participant_role_ids {
+                        if id != mod_id {
+                            order.push(id.clone());
+                        }
+                    }
+                    order
+                } else {
+                    request.participant_role_ids.clone()
+                }
+            }
+            SpeakingStrategy::Debate => {
+                // Two sides alternate
+                let mid = request.participant_role_ids.len() / 2;
+                let mut order = Vec::new();
+                for i in 0..mid {
+                    if i < request.participant_role_ids.len() - mid {
+                        order.push(request.participant_role_ids[mid + i].clone());
+                    }
+                    order.push(request.participant_role_ids[i].clone());
+                }
+                order
+            }
+            SpeakingStrategy::Free => {
+                request.participant_role_ids.clone()
+            }
+        };
+
+        let state = ActiveSessionState {
+            session_id: session_id.to_string(),
+            speaking_order: speaking_order.clone(),
+            current_speaker_index: 0,
+            last_turn: 0,
+        };
+
+        {
+            let mut active = self.active_sessions.write().await;
+            active.insert(session_id.to_string(), state);
+        }
+
+        let next_speaker = speaking_order.first().cloned();
+
+        Ok(DiscussionTurnInfo {
+            current_turn: 0,
+            max_turns: session.max_turns,
+            next_speaker_role_id: next_speaker.clone(),
+            next_speaker_role_name: next_speaker,
+            speaking_order,
+        })
+    }
+
+    /// Send a message in the discussion
+    pub async fn send_message(
+        &self,
+        session_id: &str,
+        request: SendMessageRequest,
+    ) -> Result<GroupMessage, GroupChatServiceError> {
+        let session = self.get_session(session_id).await?;
+
+        if session.status != GroupStatus::Active {
+            return Err(GroupChatServiceError::SessionNotActive(session_id.to_string()));
+        }
+
+        // Build prompt for Claude CLI
+        let messages = self.get_conversation_history(session_id, 10).await?;
+        let prompt = self.build_discussion_prompt(&session, &messages, &request.content);
+
+        // Call Claude CLI
+        let response = claude_cli::call_claude_cli(&prompt, None)
+            .await
+            .map_err(|e| GroupChatServiceError::ClaudeCli(e))?;
+
+        // Parse response and create message
+        let turn_number = session.current_turn;
+        let message = GroupMessage::new(
+            session_id.to_string(),
+            request.role_id.clone(),
+            request.role_id.clone(),  // TODO: fetch actual role name
+            response,
+            vec![],  // TODO: parse tool calls if any
+            request.reply_to,
+            turn_number,
+        );
+
+        self.repo.create_message(&message)?;
+
+        // Update participant stats
+        self.update_participant_stats(session_id, &request.role_id).await?;
+
+        Ok(message)
+    }
+
+    /// Execute a role's turn using Claude CLI
+    pub async fn execute_role_turn(
+        &self,
+        session_id: &str,
+        role_id: &str,
+    ) -> Result<GroupMessage, GroupChatServiceError> {
+        let session = self.get_session(session_id).await?;
+
+        if session.status != GroupStatus::Active {
+            return Err(GroupChatServiceError::SessionNotActive(session_id.to_string()));
+        }
+
+        // Get conversation history
+        let messages = self.get_conversation_history(session_id, 20).await?;
+
+        // Build prompt
+        let prompt = self.build_role_prompt(&session, role_id, &messages);
+
+        // Execute with Claude CLI
+        let response = claude_cli::call_claude_cli(&prompt, None)
+            .await
+            .map_err(|e| GroupChatServiceError::ClaudeCli(e))?;
+
+        // Create message
+        let turn_number = session.current_turn;
+        let message = GroupMessage::new(
+            session_id.to_string(),
+            role_id.to_string(),
+            role_id.to_string(),  // TODO: fetch actual role name
+            response,
+            vec![],
+            None,
+            turn_number,
+        );
+
+        self.repo.create_message(&message)?;
+
+        // Update participant
+        self.update_participant_stats(session_id, role_id).await?;
+
+        // Update session turn
+        let mut updated_session = session.clone();
+        updated_session.current_turn += 1;
+        self.repo.update_session(&updated_session)?;
+
+        Ok(message)
+    }
+
+    /// Get next speaker based on strategy
+    pub async fn get_next_speaker(&self, session_id: &str) -> Result<Option<(String, String)>, GroupChatServiceError> {
+        let session = self.get_session(session_id).await?;
+
+        if session.status != GroupStatus::Active {
+            return Ok(None);
+        }
+
+        let active = self.active_sessions.read().await;
+        let state = match active.get(session_id) {
+            Some(s) => s,
+            None => return Ok(None),
+        };
+
+        if session.speaking_strategy == SpeakingStrategy::Free {
+            // In free mode, anyone can speak
+            return Ok(None);
+        }
+
+        if state.current_speaker_index >= state.speaking_order.len() {
+            return Ok(None);
+        }
+
+        let role_id = state.speaking_order[state.current_speaker_index].clone();
+        Ok(Some((role_id.clone(), role_id)))  // (role_id, role_name)
+    }
+
+    /// Advance to next speaker
+    pub async fn advance_speaker(&self, session_id: &str) -> Result<(), GroupChatServiceError> {
+        let mut active = self.active_sessions.write().await;
+        if let Some(state) = active.get_mut(session_id) {
+            state.current_speaker_index += 1;
+        }
+        Ok(())
+    }
+
+    /// Conclude discussion and generate conclusion
+    pub async fn conclude_discussion(
+        &self,
+        session_id: &str,
+        request: ConcludeDiscussionRequest,
+    ) -> Result<GroupConclusion, GroupChatServiceError> {
+        let mut session = self.get_session(session_id).await?;
+
+        if request.force != Some(true) && session.status != GroupStatus::Active {
+            return Err(GroupChatServiceError::SessionNotActive(session_id.to_string()));
+        }
+
+        // Get all messages
+        let messages = self.repo.get_messages_by_session(session_id, None, None)?;
+
+        // Generate conclusion using Claude CLI
+        let conclusion_prompt = self.build_conclusion_prompt(&session, &messages);
+        let conclusion_content = claude_cli::call_claude_cli(&conclusion_prompt, None)
+            .await
+            .unwrap_or_else(|_| "讨论已结束，未能生成结论。".to_string());
+
+        // Calculate consensus (simplified: based on agreement)
+        let participant_ids: Vec<String> = messages.iter()
+            .map(|m| m.role_id.clone())
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect();
+
+        let conclusion = GroupConclusion::new(
+            session_id.to_string(),
+            conclusion_content,
+            0.8,  // TODO: calculate actual consensus
+            HashMap::new(),
+            participant_ids,
+        );
+
+        self.repo.save_conclusion(&conclusion)?;
+
+        // Update session status
+        session.status = GroupStatus::Concluded;
+        self.repo.update_session(&session)?;
+
+        // Remove from active sessions
+        {
+            let mut active = self.active_sessions.write().await;
+            active.remove(session_id);
+        }
+
+        Ok(conclusion)
+    }
+
+    /// Get messages for a session
+    pub async fn get_messages(
+        &self,
+        session_id: &str,
+        request: GetMessagesRequest,
+    ) -> Result<Vec<GroupMessage>, GroupChatServiceError> {
+        Ok(self.repo.get_messages_by_session(
+            session_id,
+            request.limit,
+            request.before.as_deref(),
+        )?)
+    }
+
+    /// Delete a session
+    pub async fn delete_session(&self, id: &str) -> Result<(), GroupChatServiceError> {
+        // Remove from active if present
+        {
+            let mut active = self.active_sessions.write().await;
+            active.remove(id);
+        }
+
+        self.repo.delete_session(id)?;
+        Ok(())
+    }
+
+    // ============== Helper Methods ==============
+
+    /// Get conversation history
+    async fn get_conversation_history(&self, session_id: &str, limit: u32) -> Result<Vec<GroupMessage>, GroupChatServiceError> {
+        Ok(self.repo.get_messages_by_session(session_id, Some(limit), None)?)
+    }
+
+    /// Update participant stats
+    async fn update_participant_stats(&self, session_id: &str, role_id: &str) -> Result<(), GroupChatServiceError> {
+        let participants = self.repo.get_participants(session_id)?;
+        if let Some(mut p) = participants.into_iter().find(|p| p.role_id == role_id) {
+            p.message_count += 1;
+            p.last_spoke_at = Some(chrono::Utc::now());
+            self.repo.update_participant(&p)?;
+        }
+        Ok(())
+    }
+
+    /// Build discussion prompt
+    fn build_discussion_prompt(&self, session: &GroupSession, messages: &[GroupMessage], new_input: &str) -> String {
+        let mut prompt = format!(
+            r#"<system>
+你是团队讨论的参与者。
+当前讨论主题：{}
+讨论目标：{}
+
+已有发言：
+{}
+</system>"#,
+            session.topic,
+            session.name,
+            if messages.is_empty() {
+                "（暂无）".to_string()
+            } else {
+                messages.iter()
+                    .map(|m| format!("- {}: {}", m.role_name, m.content))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            }
+        );
+
+        prompt.push_str(&format!("\n\n新发言：{}\n请基于以上讨论，发表你的观点。", new_input));
+        prompt
+    }
+
+    /// Build role-specific prompt
+    fn build_role_prompt(&self, session: &GroupSession, role_id: &str, messages: &[GroupMessage]) -> String {
+        let history = if messages.is_empty() {
+            "（首次发言）".to_string()
+        } else {
+            messages.iter()
+                .map(|m| format!("- {}: {}", m.role_name, m.content))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+
+        format!(
+            r#"<system>
+当前讨论主题：{}
+讨论目标：{}
+发言历史：
+{}
+</system>
+
+<user>
+请以角色 {} 的身份，基于以上讨论历史，发表你的观点和提议。
+</user>"#,
+            session.topic,
+            session.name,
+            history,
+            role_id
+        )
+    }
+
+    /// Build conclusion prompt
+    fn build_conclusion_prompt(&self, session: &GroupSession, messages: &[GroupMessage]) -> String {
+        let all_content = messages.iter()
+            .map(|m| format!("{}: {}", m.role_name, m.content))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+
+        format!(
+            r#"<system>
+讨论主题：{}
+目标：{}
+
+所有发言记录：
+{}
+
+请总结本次讨论的主要观点和建议，并给出一个最终的结论或建议方案。
+结论应该简洁明了，便于决策。
+</system>"#,
+            session.topic,
+            session.name,
+            all_content
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_build_prompt() {
+        // Test prompt building logic
+        let session = GroupSession::new(
+            "team-1".to_string(),
+            "架构讨论".to_string(),
+            "微服务 vs 单体".to_string(),
+            SpeakingStrategy::Free,
+            ConsensusStrategy::Majority,
+            None,
+            10,
+            "all".to_string(),
+        );
+
+        // Just verify the session was created correctly
+        assert_eq!(session.name, "架构讨论");
+        assert_eq!(session.topic, "微服务 vs 单体");
+    }
+}

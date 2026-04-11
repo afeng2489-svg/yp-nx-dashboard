@@ -3,6 +3,7 @@
 pub mod team;
 pub mod project;
 pub mod skill;
+pub mod group_chat;
 
 pub use team::{
     CreateRoleRequest, CreateTeamRequest, ExecuteRoleTaskRequest, ExecuteRoleTaskResponse,
@@ -19,4 +20,11 @@ pub use project::{
 pub use skill::{
     SkillCategory, SkillDetail, SkillMetadata, SkillParameter, SkillRecord, SkillSummary,
     CreateSkillRequest, UpdateSkillRequest,
+};
+
+pub use group_chat::{
+    ConsensusStrategy, CreateGroupSessionRequest, DiscussionTurnInfo, GroupConclusion,
+    GroupMessage, GroupParticipant, GroupSession, GroupSessionDetail, GroupStatus,
+    SendMessageRequest, SpeakingStrategy, StartDiscussionRequest, ToolCall,
+    UpdateGroupSessionRequest, ConcludeDiscussionRequest, GetMessagesRequest,
 };

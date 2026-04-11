@@ -42,17 +42,26 @@ pub fn messages_to_prompt(messages: &[nexus_ai::ChatMessage]) -> String {
 /// 调用 Claude CLI 执行 prompt
 ///
 /// Claude CLI 会自动使用本地配置的模型（由 Claude Switch 修改）
-pub async fn call_claude_cli(prompt: &str) -> ClaudeCliResult {
-    call_claude_cli_with_timeout(prompt, 60).await  // 改为60秒，方便调试
+/// 如果提供了 working_directory，则使用 --project 参数切换到对应项目
+pub async fn call_claude_cli(prompt: &str, working_directory: Option<&str>) -> ClaudeCliResult {
+    call_claude_cli_with_timeout(prompt, 60, working_directory).await
 }
 
 /// 调用 Claude CLI 执行 prompt，带超时
-pub async fn call_claude_cli_with_timeout(prompt: &str, timeout_secs: u64) -> ClaudeCliResult {
+pub async fn call_claude_cli_with_timeout(prompt: &str, timeout_secs: u64, working_directory: Option<&str>) -> ClaudeCliResult {
     let timeout = tokio::time::timeout(
         std::time::Duration::from_secs(timeout_secs),
         async {
-            let output = Command::new("claude")
-                .args(["-p", prompt])
+            let mut cmd = Command::new("claude");
+            cmd.args(["-p", prompt]);
+
+            // 如果提供了 working_directory，使用 --project 参数
+            if let Some(dir) = working_directory {
+                cmd.arg("--project");
+                cmd.arg(dir);
+            }
+
+            let output = cmd
                 .output()
                 .await
                 .map_err(|e| format!("Failed to execute Claude CLI: {}", e))?;
@@ -96,7 +105,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_claude_cli_basic() {
-        let result = call_claude_cli("Say 'hello'").await;
+        let result = call_claude_cli("Say 'hello'", None).await;
         assert!(result.is_ok());
         let response = result.unwrap();
         assert!(!response.is_empty());

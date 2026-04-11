@@ -321,8 +321,12 @@ pub async fn execute_cli(
 ) -> Result<Json<ExecuteCLIResponse>, (StatusCode, String)> {
     let start = std::time::Instant::now();
     let cli = request.cli.unwrap_or(CLI::Claude);
+
+    // 先提取 working_directory，避免 move 后再借用
+    let working_dir = request.working_directory.as_deref();
+
     let context = CLIContext {
-        working_directory: request.working_directory,
+        working_directory: None, // CLI 调用时用 working_dir 参数
         env_vars: HashMap::new(),
         timeout_secs: request.timeout_secs,
         extra_params: request.extra_params,
@@ -340,7 +344,8 @@ pub async fn execute_cli(
     };
 
     // 直接调用 Claude CLI（Claude Switch 切换后自动使用新模型）
-    match call_claude_cli(&full_prompt).await {
+    // working_directory 用于 --project 参数切换项目目录
+    match call_claude_cli(&full_prompt, working_dir).await {
         Ok(output) => {
             let execution_time_ms = start.elapsed().as_millis() as u64;
             Ok(Json(ExecuteCLIResponse {
@@ -610,7 +615,7 @@ pub async fn chat_with_selected(
     let prompt = messages_to_prompt(&request.messages);
 
     // 调用 Claude CLI（Claude Switch 切换后自动使用新模型）
-    call_claude_cli(&prompt)
+    call_claude_cli(&prompt, None)
         .await
         .map(|content| {
             Json(ChatResponse {

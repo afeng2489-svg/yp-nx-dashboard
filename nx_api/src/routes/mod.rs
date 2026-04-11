@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::collections::HashMap;
 
 use crate::config::ApiConfig;
-use crate::services::{WorkflowService, ExecutionService, SessionService, SqliteSessionRepository, SqliteWorkflowRepository, SqliteWorkspaceRepository, WorkspaceService, TestGenerator, PluginService, WisdomService, SharedWisdomService, SkillService, TelegramService, SqliteTeamRepository, SqliteApiKeyRepository, ProjectService, SqliteProjectRepository, AgentTeamService, SqliteProviderRepository, ProviderService};
+use crate::services::{WorkflowService, ExecutionService, SessionService, SqliteSessionRepository, SqliteWorkflowRepository, SqliteWorkspaceRepository, WorkspaceService, TestGenerator, PluginService, WisdomService, SharedWisdomService, SkillService, TelegramService, SqliteTeamRepository, SqliteApiKeyRepository, ProjectService, SqliteProjectRepository, AgentTeamService, SqliteProviderRepository, ProviderService, GroupChatService, SqliteGroupChatRepository};
 use crate::middleware::auth::ApiKeyAuth;
 use crate::ws::TerminalWsHandler;
 use crate::routes::teams_state::TeamsAppState;
@@ -31,6 +31,7 @@ pub mod skills;
 pub mod teams;
 pub mod teams_state;
 pub mod projects;
+pub mod group_chat;
 
 /// 从环境变量加载 AI 配置
 fn load_ai_config_from_env() -> AIManagerConfig {
@@ -135,6 +136,7 @@ pub struct AppState {
     pub api_key_repository: Arc<SqliteApiKeyRepository>,
     pub project_service: Arc<ProjectService>,
     pub provider_service: Arc<ProviderService>,
+    pub group_chat_service: Arc<GroupChatService>,
 }
 
 impl AppState {
@@ -233,10 +235,24 @@ impl AppState {
 
         // 创建团队服务状态
         let teams_state = TeamsAppState::new_with_agent(
-            team_service,
+            team_service.clone(),
             TelegramService::new(),
             ai_model_manager.clone(),
             agent_team_service.clone(),
+        );
+
+        // 创建群组讨论服务
+        let group_chat_repo = Arc::new(
+            SqliteGroupChatRepository::new(&config.db_path)
+                .expect("Failed to create group chat repository")
+        );
+        group_chat_repo.init_tables().expect("Failed to init group chat tables");
+        let group_chat_service = Arc::new(
+            GroupChatService::new(
+                group_chat_repo,
+                team_service.clone(),
+                ai_model_manager.clone(),
+            )
         );
 
         Self {
@@ -255,6 +271,7 @@ impl AppState {
             api_key_repository: api_key_repo,
             project_service,
             provider_service,
+            group_chat_service,
         }
     }
 }
@@ -424,6 +441,19 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/projects/:id", delete(projects::delete_project))
         .route("/api/v1/projects/team/:team_id", get(projects::list_projects_by_team))
         .route("/api/v1/projects/:id/execute", post(projects::execute_project))
+        // 群组讨论路由
+        .route("/api/v1/group-sessions", post(group_chat::create_session))
+        .route("/api/v1/group-sessions", get(group_chat::list_sessions))
+        .route("/api/v1/group-sessions/:id", get(group_chat::get_session))
+        .route("/api/v1/group-sessions/:id", put(group_chat::update_session))
+        .route("/api/v1/group-sessions/:id", delete(group_chat::delete_session))
+        .route("/api/v1/group-sessions/:id/start", post(group_chat::start_discussion))
+        .route("/api/v1/group-sessions/:id/messages", get(group_chat::get_messages))
+        .route("/api/v1/group-sessions/:id/messages", post(group_chat::send_message))
+        .route("/api/v1/group-sessions/:id/next-speaker", get(group_chat::get_next_speaker))
+        .route("/api/v1/group-sessions/:id/advance", post(group_chat::advance_speaker))
+        .route("/api/v1/group-sessions/:id/conclude", post(group_chat::conclude_discussion))
+        .route("/api/v1/group-sessions/:id/execute-turn/:role_id", post(group_chat::execute_role_turn))
         // WebSocket 路由
         .route("/ws/executions/:id", get(executions::execution_ws))
         .route("/ws/sessions/:id", get(sessions::session_ws))

@@ -24,6 +24,8 @@ pub mod ai_provider_service;
 pub mod project_repository;
 pub mod project_service;
 pub mod claude_cli;
+pub mod group_chat_repository;
+pub mod group_chat_service;
 
 pub use workflow_repository::{SqliteWorkflowRepository, SharedWorkflowRepository, WorkflowRepository};
 pub use workflow_service::WorkflowService;
@@ -50,6 +52,8 @@ pub use ai_provider_repository::{
 pub use ai_provider_service::{ProviderService, ProviderServiceError, SharedProviderService, ConnectionTestResult};
 pub use project_repository::{ProjectRepository, SqliteProjectRepository, RepositoryError as ProjectRepositoryError};
 pub use project_service::{ProjectService, ProjectError};
+pub use group_chat_repository::{GroupChatRepository, GroupChatRepositoryError, SqliteGroupChatRepository};
+pub use group_chat_service::{GroupChatService, GroupChatServiceError, SharedGroupChatService};
 
 // Re-export PtyManager from nx_session
 pub use nx_session::pty::PtyManager;

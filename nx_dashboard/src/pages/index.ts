@@ -11,3 +11,4 @@ export { TasksPage } from './TasksPage';
 export { SearchPage } from './SearchPage';
 export { TemplatesPage } from './TemplatesPage';
 export { default as SkillsPage } from './SkillsPage';
+export { GroupChatPage } from './GroupChatPage';

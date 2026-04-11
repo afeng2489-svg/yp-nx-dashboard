@@ -293,7 +293,7 @@ Generate complete, working test code that can be run immediately.
         let full_prompt = format!("{}\n\n{}", auto_yes_prefix, prompt);
 
         // 通过 Claude CLI 执行（Claude Switch 切换后自动使用新模型）
-        let content = call_claude_cli(&full_prompt)
+        let content = call_claude_cli(&full_prompt, None)
             .await
             .map_err(|e| TestGenError::GenerationFailed(e))?;
 
