@@ -1,0 +1,44 @@
+name: skill-generator
+description: 技能生成器技能。根据描述生成新的技能定义和实现代码。
+category: development
+version: 1.0.0
+
+phases:
+  - name: parse_requirement
+    description: 需求解析阶段 - 解析技能需求
+    required: true
+  - name: design_phases
+    description: 设计阶段 - 设计技能阶段
+    required: true
+  - name: generate_impl
+    description: 生成实现阶段 - 生成技能代码
+    required: true
+  - name: validate
+    description: 验证阶段 - 验证生成的技能
+    required: true
+
+parameters:
+  - name: description
+    description: 技能描述
+    type: string
+    required: true
+  - name: category
+    description: 技能类别
+    type: string
+    required: false
+    default: development
+  - name: output_path
+    description: 输出路径
+    type: string
+    required: false
+    default: core/skills/src/generated/
+
+tags:
+  - generator
+  - skill
+  - code-generation
+
+config:
+  generate_tests: true
+  generate_docs: true
+  validate_syntax: true

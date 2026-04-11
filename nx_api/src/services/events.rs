@@ -1,0 +1,43 @@
+//! 执行事件定义
+//!
+//! 所有执行相关的事件类型定义。
+
+use serde::{Deserialize, Serialize};
+
+/// 执行事件
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ExecutionEvent {
+    /// 执行开始
+    Started { execution_id: String, workflow_id: String },
+    /// 状态更新
+    StatusChanged { execution_id: String, status: ExecutionStatus },
+    /// 阶段开始
+    StageStarted { execution_id: String, stage_name: String },
+    /// 阶段完成
+    StageCompleted { execution_id: String, stage_name: String, output: serde_json::Value },
+    /// 输出行
+    Output { execution_id: String, line: String },
+    /// 完成
+    Completed { execution_id: String },
+    /// 失败
+    Failed { execution_id: String, error: String },
+}
+
+/// 执行状态
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
+#[serde(rename_all = "lowercase")]
+pub enum ExecutionStatus {
+    /// 等待中
+    Pending,
+    /// 运行中
+    Running,
+    /// 暂停
+    Paused,
+    /// 已完成
+    Completed,
+    /// 失败
+    Failed,
+    /// 已取消
+    Cancelled,
+}

@@ -1,0 +1,1428 @@
+- generic [ref=e2]:
+  - region
+  - generic [ref=e3]:
+    - link "Skip to content" [ref=e4] [cursor=pointer]:
+      - /url: "#start-of-content"
+    - banner [ref=e6]:
+      - heading "Navigation Menu" [level=2] [ref=e7]
+      - generic [ref=e8]:
+        - link "Homepage" [ref=e10] [cursor=pointer]:
+          - /url: /
+          - img [ref=e11]
+        - generic [ref=e13]:
+          - navigation "Global" [ref=e16]:
+            - list [ref=e17]:
+              - listitem [ref=e18]:
+                - button "Platform" [ref=e20] [cursor=pointer]:
+                  - text: Platform
+                  - img [ref=e21]
+              - listitem [ref=e23]:
+                - button "Solutions" [ref=e25] [cursor=pointer]:
+                  - text: Solutions
+                  - img [ref=e26]
+              - listitem [ref=e28]:
+                - button "Resources" [ref=e30] [cursor=pointer]:
+                  - text: Resources
+                  - img [ref=e31]
+              - listitem [ref=e33]:
+                - button "Open Source" [ref=e35] [cursor=pointer]:
+                  - text: Open Source
+                  - img [ref=e36]
+              - listitem [ref=e38]:
+                - button "Enterprise" [ref=e40] [cursor=pointer]:
+                  - text: Enterprise
+                  - img [ref=e41]
+              - listitem [ref=e43]:
+                - link "Pricing" [ref=e44] [cursor=pointer]:
+                  - /url: https://github.com/pricing
+                  - generic [ref=e45]: Pricing
+          - generic [ref=e46]:
+            - button "Search or jump to…" [ref=e49] [cursor=pointer]:
+              - img [ref=e51]
+            - link "Sign in" [ref=e54] [cursor=pointer]:
+              - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fcatlog22%2FClaude-Code-Workflow
+            - link "Sign up" [ref=e55] [cursor=pointer]:
+              - /url: /signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2F%3Cuser-name%3E%2F%3Crepo-name%3E&source=header-repo&source_repo=catlog22%2FClaude-Code-Workflow
+            - button "Appearance settings" [ref=e58] [cursor=pointer]:
+              - img
+  - main [ref=e62]:
+    - generic [ref=e63]:
+      - generic [ref=e64]:
+        - generic [ref=e66]:
+          - img [ref=e67]
+          - link "catlog22" [ref=e70] [cursor=pointer]:
+            - /url: /catlog22
+          - generic [ref=e71]: /
+          - strong [ref=e72]:
+            - link "Claude-Code-Workflow" [ref=e73] [cursor=pointer]:
+              - /url: /catlog22/Claude-Code-Workflow
+          - generic [ref=e74]: Public
+        - generic [ref=e75]:
+          - list:
+            - listitem [ref=e76]:
+              - link "You must be signed in to change notification settings" [ref=e77] [cursor=pointer]:
+                - /url: /login?return_to=%2Fcatlog22%2FClaude-Code-Workflow
+                - img [ref=e78]
+                - text: Notifications
+            - listitem [ref=e80]:
+              - link "Fork 144" [ref=e81] [cursor=pointer]:
+                - /url: /login?return_to=%2Fcatlog22%2FClaude-Code-Workflow
+                - img [ref=e82]
+                - text: Fork
+                - generic "144" [ref=e84]
+            - listitem [ref=e85]:
+              - link "You must be signed in to star a repository" [ref=e87] [cursor=pointer]:
+                - /url: /login?return_to=%2Fcatlog22%2FClaude-Code-Workflow
+                - img [ref=e88]
+                - text: Star
+                - generic "1722 users starred this repository" [ref=e90]: 1.7k
+      - navigation "Repository" [ref=e91]:
+        - list [ref=e92]:
+          - listitem [ref=e93]:
+            - link "Code" [ref=e94] [cursor=pointer]:
+              - /url: /catlog22/Claude-Code-Workflow
+              - img [ref=e95]
+              - generic [ref=e97]: Code
+          - listitem [ref=e98]:
+            - link "Issues 1" [ref=e99] [cursor=pointer]:
+              - /url: /catlog22/Claude-Code-Workflow/issues
+              - img [ref=e100]
+              - generic [ref=e103]: Issues
+              - generic "1" [ref=e104]
+          - listitem [ref=e105]:
+            - link "Pull requests" [ref=e106] [cursor=pointer]:
+              - /url: /catlog22/Claude-Code-Workflow/pulls
+              - img [ref=e107]
+              - generic [ref=e109]: Pull requests
+          - listitem [ref=e110]:
+            - link "Actions" [ref=e111] [cursor=pointer]:
+              - /url: /catlog22/Claude-Code-Workflow/actions
+              - img [ref=e112]
+              - generic [ref=e114]: Actions
+          - listitem [ref=e115]:
+            - link "Projects" [ref=e116] [cursor=pointer]:
+              - /url: /catlog22/Claude-Code-Workflow/projects
+              - img [ref=e117]
+              - generic [ref=e119]: Projects
+          - listitem [ref=e120]:
+            - link "Security and quality" [ref=e121] [cursor=pointer]:
+              - /url: /catlog22/Claude-Code-Workflow/security
+              - img [ref=e122]
+              - generic [ref=e124]: Security and quality
+          - listitem [ref=e125]:
+            - link "Insights" [ref=e126] [cursor=pointer]:
+              - /url: /catlog22/Claude-Code-Workflow/pulse
+              - img [ref=e127]
+              - generic [ref=e129]: Insights
+    - generic [ref=e142]:
+      - heading "catlog22/Claude-Code-Workflow" [level=1] [ref=e144]
+      - generic [ref=e145]:
+        - generic [ref=e148]:
+          - generic [ref=e149]:
+            - generic [ref=e150]:
+              - button "main branch" [ref=e152] [cursor=pointer]:
+                - generic [ref=e153]:
+                  - generic [ref=e155]:
+                    - img [ref=e157]
+                    - generic [ref=e160]: main
+                  - generic:
+                    - img
+              - generic [ref=e161]:
+                - link "24 Branches" [ref=e162] [cursor=pointer]:
+                  - /url: /catlog22/Claude-Code-Workflow/branches
+                  - generic [ref=e163]:
+                    - generic:
+                      - img
+                    - generic [ref=e165]:
+                      - strong [ref=e166]: "24"
+                      - text: Branches
+                - link "126 Tags" [ref=e167] [cursor=pointer]:
+                  - /url: /catlog22/Claude-Code-Workflow/tags
+                  - generic [ref=e168]:
+                    - generic:
+                      - img
+                    - generic [ref=e170]:
+                      - strong [ref=e171]: "126"
+                      - text: Tags
+            - generic [ref=e172]:
+              - generic [ref=e176]:
+                - img [ref=e178]
+                - combobox "Go to file" [ref=e180]
+              - button "Code" [ref=e181] [cursor=pointer]:
+                - generic [ref=e182]:
+                  - generic:
+                    - img
+                  - generic [ref=e183]: Code
+                  - generic:
+                    - img
+          - generic [ref=e184]:
+            - generic [ref=e185]:
+              - heading "Folders and files" [level=2] [ref=e186]
+              - table "Folders and files" [ref=e187]:
+                - rowgroup:
+                  - row "Name Last commit message Last commit date":
+                    - columnheader "Name"
+                    - columnheader "Last commit message":
+                      - generic "Last commit message"
+                    - columnheader "Last commit date":
+                      - generic "Last commit date"
+                - rowgroup [ref=e188]:
+                  - 'row "Latest commit author catlog22 feat(workflow): add chain-loaded workflow planning and TDD planning s… Open commit details failure Commit dc390cc · Apr 3, 20263 days ago History 2,263 Commits" [ref=e189]':
+                    - 'cell "Latest commit author catlog22 feat(workflow): add chain-loaded workflow planning and TDD planning s… Open commit details failure Commit dc390cc · Apr 3, 20263 days ago History 2,263 Commits" [ref=e190]':
+                      - generic [ref=e191]:
+                        - heading "Latest commit" [level=2] [ref=e192]
+                        - generic [ref=e193]:
+                          - generic [ref=e195]:
+                            - img "author" [ref=e196]
+                            - generic "catlog22" [ref=e197]
+                          - generic [ref=e198]:
+                            - 'link "feat(workflow): add chain-loaded workflow planning and TDD planning s…" [ref=e201] [cursor=pointer]':
+                              - /url: /catlog22/Claude-Code-Workflow/commit/dc390cc738c59bf10aaaa32cfca373887c6f7feb
+                            - button "Open commit details" [ref=e202] [cursor=pointer]:
+                              - img [ref=e203]
+                            - button "failure" [ref=e205] [cursor=pointer]:
+                              - img [ref=e206]
+                        - generic [ref=e208]:
+                          - generic [ref=e210]:
+                            - link "Commit dc390cc" [ref=e211] [cursor=pointer]:
+                              - /url: /catlog22/Claude-Code-Workflow/commit/dc390cc738c59bf10aaaa32cfca373887c6f7feb
+                              - text: dc390cc
+                            - text: ·
+                            - generic "Apr 3, 2026, 11:12 AM GMT+8" [ref=e212]: Apr 3, 20263 days ago
+                          - generic [ref=e213]:
+                            - heading "History" [level=2] [ref=e214]
+                            - link "2,263 Commits" [ref=e215] [cursor=pointer]:
+                              - /url: /catlog22/Claude-Code-Workflow/commits/main/
+                              - generic [ref=e216]:
+                                - generic:
+                                  - img
+                                - generic [ref=e217]: 2,263 Commits
+                  - 'row ".ccw, (Directory) fix: revert json_builder references from agents/skills, add schema fa… Apr 1, 20265 days ago" [ref=e218]':
+                    - cell ".ccw, (Directory)" [ref=e219]:
+                      - generic [ref=e220]:
+                        - img [ref=e221]
+                        - link ".ccw, (Directory)" [ref=e226] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/tree/main/.ccw
+                          - text: .ccw
+                    - 'cell "fix: revert json_builder references from agents/skills, add schema fa…" [ref=e227]':
+                      - 'link "fix: revert json_builder references from agents/skills, add schema fa…" [ref=e230] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/902c5c2b0d4204379fd2eef86cb98cb9cecf8a51
+                    - cell "Apr 1, 20265 days ago" [ref=e231]:
+                      - generic [ref=e232]: Apr 1, 20265 days ago
+                  - 'row ".claude, (Directory) feat(workflow): add chain-loaded workflow planning and TDD planning s… Apr 3, 20263 days ago" [ref=e233]':
+                    - cell ".claude, (Directory)" [ref=e234]:
+                      - generic [ref=e235]:
+                        - img [ref=e236]
+                        - link ".claude, (Directory)" [ref=e241] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/tree/main/.claude
+                          - text: .claude
+                    - 'cell "feat(workflow): add chain-loaded workflow planning and TDD planning s…" [ref=e242]':
+                      - 'link "feat(workflow): add chain-loaded workflow planning and TDD planning s…" [ref=e245] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/dc390cc738c59bf10aaaa32cfca373887c6f7feb
+                    - cell "Apr 3, 20263 days ago" [ref=e246]:
+                      - generic [ref=e247]: Apr 3, 20263 days ago
+                  - 'row ".codex, (Directory) refactor: standardize Codex skill API calls to functions.request_user… Apr 3, 20263 days ago" [ref=e248]':
+                    - cell ".codex, (Directory)" [ref=e249]:
+                      - generic [ref=e250]:
+                        - img [ref=e251]
+                        - link ".codex, (Directory)" [ref=e256] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/tree/main/.codex
+                          - text: .codex
+                    - 'cell "refactor: standardize Codex skill API calls to functions.request_user…" [ref=e257]':
+                      - 'link "refactor: standardize Codex skill API calls to functions.request_user…" [ref=e260] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/e598c54d584138fce36571430d90607c17ca4599
+                    - cell "Apr 3, 20263 days ago" [ref=e261]:
+                      - generic [ref=e262]: Apr 3, 20263 days ago
+                  - 'row ".gemini, (Directory) feat: Enhance embedding management and model configuration Dec 24, 20254 months ago" [ref=e263]':
+                    - cell ".gemini, (Directory)" [ref=e264]:
+                      - generic [ref=e265]:
+                        - img [ref=e266]
+                        - link ".gemini, (Directory)" [ref=e271] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/tree/main/.gemini
+                          - text: .gemini
+                    - 'cell "feat: Enhance embedding management and model configuration" [ref=e272]':
+                      - 'link "feat: Enhance embedding management and model configuration" [ref=e275] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/b00113d212239e6326a95c1e64d2644c2c9272b0
+                    - cell "Dec 24, 20254 months ago" [ref=e276]:
+                      - generic [ref=e277]: Dec 24, 20254 months ago
+                  - 'row ".github/workflows, (Directory) fix(docs): resolve VitePress build errors with custom HTML tags Feb 28, 20262 months ago" [ref=e278]':
+                    - cell ".github/workflows, (Directory)" [ref=e279]:
+                      - generic [ref=e280]:
+                        - img [ref=e281]
+                        - link ".github/workflows, (Directory)" [ref=e286] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/tree/main/.github/workflows
+                          - text: .github/workflows
+                    - 'cell "fix(docs): resolve VitePress build errors with custom HTML tags" [ref=e287]':
+                      - 'link "fix(docs): resolve VitePress build errors with custom HTML tags" [ref=e290] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/84610661ca5314d69c152eb5559d9622138b02c4
+                    - cell "Feb 28, 20262 months ago" [ref=e291]:
+                      - generic [ref=e292]: Feb 28, 20262 months ago
+                  - 'row ".qwen, (Directory) feat(storage): implement storage manager for centralized management a… Dec 15, 20254 months ago" [ref=e293]':
+                    - cell ".qwen, (Directory)" [ref=e294]:
+                      - generic [ref=e295]:
+                        - img [ref=e296]
+                        - link ".qwen, (Directory)" [ref=e301] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/tree/main/.qwen
+                          - text: .qwen
+                    - 'cell "feat(storage): implement storage manager for centralized management a…" [ref=e302]':
+                      - 'link "feat(storage): implement storage manager for centralized management a…" [ref=e305] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/97640a517a1de9da16380601fa4a89c67cfbe15b
+                    - cell "Dec 15, 20254 months ago" [ref=e306]:
+                      - generic [ref=e307]: Dec 15, 20254 months ago
+                  - 'row "agents, (Directory) feat: Add Role Analysis Reviewer Agent and validation template Mar 5, 2026last month" [ref=e308]':
+                    - cell "agents, (Directory)" [ref=e309]:
+                      - generic [ref=e310]:
+                        - img [ref=e311]
+                        - link "agents, (Directory)" [ref=e316] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/tree/main/agents
+                          - text: agents
+                    - 'cell "feat: Add Role Analysis Reviewer Agent and validation template" [ref=e317]':
+                      - 'link "feat: Add Role Analysis Reviewer Agent and validation template" [ref=e320] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/3fd55ebd4bd46f27db01e0848468b76c26f768b2
+                    - cell "Mar 5, 2026last month" [ref=e321]:
+                      - generic [ref=e322]: Mar 5, 2026last month
+                  - 'row "archive, (Directory) chore: archive unused test scripts and temporary documents Jan 24, 20263 months ago" [ref=e323]':
+                    - cell "archive, (Directory)" [ref=e324]:
+                      - generic [ref=e325]:
+                        - img [ref=e326]
+                        - link "archive, (Directory)" [ref=e331] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/tree/main/archive
+                          - text: archive
+                    - 'cell "chore: archive unused test scripts and temporary documents" [ref=e332]':
+                      - 'link "chore: archive unused test scripts and temporary documents" [ref=e335] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/874b70726dde9cd90150c8083f61f439ab1e18e7
+                    - cell "Jan 24, 20263 months ago" [ref=e336]:
+                      - generic [ref=e337]: Jan 24, 20263 months ago
+                  - row "assets, (Directory) Refactor code structure for improved readability and maintainability Apr 1, 20265 days ago" [ref=e338]:
+                    - cell "assets, (Directory)" [ref=e339]:
+                      - generic [ref=e340]:
+                        - img [ref=e341]
+                        - link "assets, (Directory)" [ref=e346] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/tree/main/assets
+                          - text: assets
+                    - cell "Refactor code structure for improved readability and maintainability" [ref=e347]:
+                      - link "Refactor code structure for improved readability and maintainability" [ref=e350] [cursor=pointer]:
+                        - /url: /catlog22/Claude-Code-Workflow/commit/ca704043a19cdccf48f43e7ef322a46902a2e0a0
+                    - cell "Apr 1, 20265 days ago" [ref=e351]:
+                      - generic [ref=e352]: Apr 1, 20265 days ago
+                  - 'row "ccw, (Directory) refactor: remove ccw-chain phases, add @commands/ resolver, ccw chain… Apr 2, 20264 days ago" [ref=e353]':
+                    - cell "ccw, (Directory)" [ref=e354]:
+                      - generic [ref=e355]:
+                        - img [ref=e356]
+                        - link "ccw, (Directory)" [ref=e361] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/tree/main/ccw
+                          - text: ccw
+                    - 'cell "refactor: remove ccw-chain phases, add @commands/ resolver, ccw chain…" [ref=e362]':
+                      - 'link "refactor: remove ccw-chain phases, add @commands/ resolver, ccw chain…" [ref=e365] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/f93d646174ad957efbe941f7d609eaa61dd7b27b
+                    - cell "Apr 2, 20264 days ago" [ref=e366]:
+                      - generic [ref=e367]: Apr 2, 20264 days ago
+                  - 'row "docs-site/commands/claude, (Directory) refactor: update workflow commands to use /workflow:spec:setup for in… Mar 10, 2026last month" [ref=e368]':
+                    - cell "docs-site/commands/claude, (Directory)" [ref=e369]:
+                      - generic [ref=e370]:
+                        - img [ref=e371]
+                        - link "docs-site/commands/claude, (Directory)" [ref=e376] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/tree/main/docs-site/commands/claude
+                          - text: docs-site/commands/claude
+                    - 'cell "refactor: update workflow commands to use /workflow:spec:setup for in…" [ref=e377]':
+                      - 'link "refactor: update workflow commands to use /workflow:spec:setup for in…" [ref=e380] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/c50d9b21dcb906a85d303309f773197625292e8b
+                    - cell "Mar 10, 2026last month" [ref=e381]:
+                      - generic [ref=e382]: Mar 10, 2026last month
+                  - 'row "docs, (Directory) feat: Implement auto mode for CCW chain execution Apr 1, 20265 days ago" [ref=e383]':
+                    - cell "docs, (Directory)" [ref=e384]:
+                      - generic [ref=e385]:
+                        - img [ref=e386]
+                        - link "docs, (Directory)" [ref=e391] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/tree/main/docs
+                          - text: docs
+                    - 'cell "feat: Implement auto mode for CCW chain execution" [ref=e392]':
+                      - 'link "feat: Implement auto mode for CCW chain execution" [ref=e395] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/a034e7491ad79f41738ed9b6c5b609c8c4c06f6b
+                    - cell "Apr 1, 20265 days ago" [ref=e396]:
+                      - generic [ref=e397]: Apr 1, 20265 days ago
+                  - 'row "templates/role-templates, (Directory) feat: Add Role Analysis Reviewer Agent and validation template Mar 5, 2026last month" [ref=e398]':
+                    - cell "templates/role-templates, (Directory)" [ref=e399]:
+                      - generic [ref=e400]:
+                        - img [ref=e401]
+                        - link "templates/role-templates, (Directory)" [ref=e406] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/tree/main/templates/role-templates
+                          - text: templates/role-templates
+                    - 'cell "feat: Add Role Analysis Reviewer Agent and validation template" [ref=e407]':
+                      - 'link "feat: Add Role Analysis Reviewer Agent and validation template" [ref=e410] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/3fd55ebd4bd46f27db01e0848468b76c26f768b2
+                    - cell "Mar 5, 2026last month" [ref=e411]:
+                      - generic [ref=e412]: Mar 5, 2026last month
+                  - 'row ".gitattributes, (File) feat: Enhance navigation and cleanup for graph explorer view Dec 15, 20254 months ago" [ref=e413]':
+                    - cell ".gitattributes, (File)" [ref=e414]:
+                      - generic [ref=e415]:
+                        - img [ref=e416]
+                        - link ".gitattributes, (File)" [ref=e421] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/blob/main/.gitattributes
+                          - text: .gitattributes
+                    - 'cell "feat: Enhance navigation and cleanup for graph explorer view" [ref=e422]':
+                      - 'link "feat: Enhance navigation and cleanup for graph explorer view" [ref=e425] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/35485bbbb115f91f3d80dde2f33f82a4771e0628
+                    - cell "Dec 15, 20254 months ago" [ref=e426]:
+                      - generic [ref=e427]: Dec 15, 20254 months ago
+                  - 'row ".gitignore, (File) feat: Implement auto mode for CCW chain execution Apr 1, 20265 days ago" [ref=e428]':
+                    - cell ".gitignore, (File)" [ref=e429]:
+                      - generic [ref=e430]:
+                        - img [ref=e431]
+                        - link ".gitignore, (File)" [ref=e436] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/blob/main/.gitignore
+                          - text: .gitignore
+                    - 'cell "feat: Implement auto mode for CCW chain execution" [ref=e437]':
+                      - 'link "feat: Implement auto mode for CCW chain execution" [ref=e440] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/a034e7491ad79f41738ed9b6c5b609c8c4c06f6b
+                    - cell "Apr 1, 20265 days ago" [ref=e441]:
+                      - generic [ref=e442]: Apr 1, 20265 days ago
+                  - 'row ".npmignore, (File) chore: exclude workflow-tune command from git and npm packages Mar 21, 20262 weeks ago" [ref=e443]':
+                    - cell ".npmignore, (File)" [ref=e444]:
+                      - generic [ref=e445]:
+                        - img [ref=e446]
+                        - link ".npmignore, (File)" [ref=e451] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/blob/main/.npmignore
+                          - text: .npmignore
+                    - 'cell "chore: exclude workflow-tune command from git and npm packages" [ref=e452]':
+                      - 'link "chore: exclude workflow-tune command from git and npm packages" [ref=e455] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/c8840847d2f7013b35dbab91d010f5a92fdc7685
+                    - cell "Mar 21, 20262 weeks ago" [ref=e456]:
+                      - generic [ref=e457]: Mar 21, 20262 weeks ago
+                  - 'row ".temp-memory-content.txt, (File) feat(workflow): add lightweight interactive planning workflow with in… Feb 27, 20262 months ago" [ref=e458]':
+                    - cell ".temp-memory-content.txt, (File)" [ref=e459]:
+                      - generic [ref=e460]:
+                        - img [ref=e461]
+                        - link ".temp-memory-content.txt, (File)" [ref=e466] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/blob/main/.temp-memory-content.txt
+                          - text: .temp-memory-content.txt
+                    - 'cell "feat(workflow): add lightweight interactive planning workflow with in…" [ref=e467]':
+                      - 'link "feat(workflow): add lightweight interactive planning workflow with in…" [ref=e470] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/4d755ff9b41ef53ac094f34e1c2ce9de858cb342
+                    - cell "Feb 27, 20262 months ago" [ref=e471]:
+                      - generic [ref=e472]: Feb 27, 20262 months ago
+                  - 'row "11.md, (File) feat: add agent definitions API for managing Codex and Claude agent c… Mar 24, 20262 weeks ago" [ref=e473]':
+                    - cell "11.md, (File)" [ref=e474]:
+                      - generic [ref=e475]:
+                        - img [ref=e476]
+                        - link "11.md, (File)" [ref=e481] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/blob/main/11.md
+                          - text: 11.md
+                    - 'cell "feat: add agent definitions API for managing Codex and Claude agent c…" [ref=e482]':
+                      - 'link "feat: add agent definitions API for managing Codex and Claude agent c…" [ref=e485] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/9043a0d45389f49813a3d4ee0052a76be1fa034c
+                    - cell "Mar 24, 20262 weeks ago" [ref=e486]:
+                      - generic [ref=e487]: Mar 24, 20262 weeks ago
+                  - 'row "LICENSE, (File) Initial release: Claude Code Workflow (CCW) v2.0 Sep 7, 20257 months ago" [ref=e488]':
+                    - cell "LICENSE, (File)" [ref=e489]:
+                      - generic [ref=e490]:
+                        - img [ref=e491]
+                        - link "LICENSE, (File)" [ref=e496] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/blob/main/LICENSE
+                          - text: LICENSE
+                    - 'cell "Initial release: Claude Code Workflow (CCW) v2.0" [ref=e497]':
+                      - 'link "Initial release: Claude Code Workflow (CCW) v2.0" [ref=e500] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/445ac823ba8b7fb495b709c4294a1c14e7c25a1c
+                    - cell "Sep 7, 20257 months ago" [ref=e501]:
+                      - generic [ref=e502]: Sep 7, 20257 months ago
+                  - row "README.md, (File) Refactor code structure for improved readability and maintainability Apr 1, 20265 days ago" [ref=e503]:
+                    - cell "README.md, (File)" [ref=e504]:
+                      - generic [ref=e505]:
+                        - img [ref=e506]
+                        - link "README.md, (File)" [ref=e511] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/blob/main/README.md
+                          - text: README.md
+                    - cell "Refactor code structure for improved readability and maintainability" [ref=e512]:
+                      - link "Refactor code structure for improved readability and maintainability" [ref=e515] [cursor=pointer]:
+                        - /url: /catlog22/Claude-Code-Workflow/commit/ca704043a19cdccf48f43e7ef322a46902a2e0a0
+                    - cell "Apr 1, 20265 days ago" [ref=e516]:
+                      - generic [ref=e517]: Apr 1, 20265 days ago
+                  - 'row "README_CN.md, (File) feat: add investigate, security-audit, ship skills (Claude + Codex) Mar 30, 2026last week" [ref=e518]':
+                    - cell "README_CN.md, (File)" [ref=e519]:
+                      - generic [ref=e520]:
+                        - img [ref=e521]
+                        - link "README_CN.md, (File)" [ref=e526] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/blob/main/README_CN.md
+                          - text: README_CN.md
+                    - 'cell "feat: add investigate, security-audit, ship skills (Claude + Codex)" [ref=e527]':
+                      - 'link "feat: add investigate, security-audit, ship skills (Claude + Codex)" [ref=e530] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/67ff3fe3393178b440177bba6f063bab1c61415c
+                    - cell "Mar 30, 2026last week" [ref=e531]:
+                      - generic [ref=e532]: Mar 30, 2026last week
+                  - 'row "SPEC.md, (File) feat: Implement DeepWiki documentation generation tools Mar 5, 2026last month" [ref=e533]':
+                    - cell "SPEC.md, (File)" [ref=e534]:
+                      - generic [ref=e535]:
+                        - img [ref=e536]
+                        - link "SPEC.md, (File)" [ref=e541] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/blob/main/SPEC.md
+                          - text: SPEC.md
+                    - 'cell "feat: Implement DeepWiki documentation generation tools" [ref=e542]':
+                      - 'link "feat: Implement DeepWiki documentation generation tools" [ref=e545] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/fb4f6e718e041789589cb278aa76e303f21b40ba
+                    - cell "Mar 5, 2026last month" [ref=e546]:
+                      - generic [ref=e547]: Mar 5, 2026last month
+                  - row "WORKFLOW_GUIDE.md, (File) Rename workflow-lite-planex to workflow-lite-plan across documentatio… Mar 5, 2026last month" [ref=e548]:
+                    - cell "WORKFLOW_GUIDE.md, (File)" [ref=e549]:
+                      - generic [ref=e550]:
+                        - img [ref=e551]
+                        - link "WORKFLOW_GUIDE.md, (File)" [ref=e556] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/blob/main/WORKFLOW_GUIDE.md
+                          - text: WORKFLOW_GUIDE.md
+                    - cell "Rename workflow-lite-planex to workflow-lite-plan across documentatio…" [ref=e557]:
+                      - link "Rename workflow-lite-planex to workflow-lite-plan across documentatio…" [ref=e560] [cursor=pointer]:
+                        - /url: /catlog22/Claude-Code-Workflow/commit/56c06ecf3d42fead0eba2f0ed65db95d3a5ab690
+                    - cell "Mar 5, 2026last month" [ref=e561]:
+                      - generic [ref=e562]: Mar 5, 2026last month
+                  - row "WORKFLOW_GUIDE_CN.md, (File) Rename workflow-lite-planex to workflow-lite-plan across documentatio… Mar 5, 2026last month" [ref=e563]:
+                    - cell "WORKFLOW_GUIDE_CN.md, (File)" [ref=e564]:
+                      - generic [ref=e565]:
+                        - img [ref=e566]
+                        - link "WORKFLOW_GUIDE_CN.md, (File)" [ref=e571] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/blob/main/WORKFLOW_GUIDE_CN.md
+                          - text: WORKFLOW_GUIDE_CN.md
+                    - cell "Rename workflow-lite-planex to workflow-lite-plan across documentatio…" [ref=e572]:
+                      - link "Rename workflow-lite-planex to workflow-lite-plan across documentatio…" [ref=e575] [cursor=pointer]:
+                        - /url: /catlog22/Claude-Code-Workflow/commit/56c06ecf3d42fead0eba2f0ed65db95d3a5ab690
+                    - cell "Mar 5, 2026last month" [ref=e576]:
+                      - generic [ref=e577]: Mar 5, 2026last month
+                  - 'row "package-lock.json, (File) refactor: remove ccw-chain phases, add @commands/ resolver, ccw chain… Apr 2, 20264 days ago" [ref=e578]':
+                    - cell "package-lock.json, (File)" [ref=e579]:
+                      - generic [ref=e580]:
+                        - img [ref=e581]
+                        - link "package-lock.json, (File)" [ref=e586] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/blob/main/package-lock.json
+                          - text: package-lock.json
+                    - 'cell "refactor: remove ccw-chain phases, add @commands/ resolver, ccw chain…" [ref=e587]':
+                      - 'link "refactor: remove ccw-chain phases, add @commands/ resolver, ccw chain…" [ref=e590] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/f93d646174ad957efbe941f7d609eaa61dd7b27b
+                    - cell "Apr 2, 20264 days ago" [ref=e591]:
+                      - generic [ref=e592]: Apr 2, 20264 days ago
+                  - 'row "package.json, (File) chore: bump version to 7.2.30 Apr 1, 20265 days ago" [ref=e593]':
+                    - cell "package.json, (File)" [ref=e594]:
+                      - generic [ref=e595]:
+                        - img [ref=e596]
+                        - link "package.json, (File)" [ref=e601] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/blob/main/package.json
+                          - text: package.json
+                    - 'cell "chore: bump version to 7.2.30" [ref=e602]':
+                      - 'link "chore: bump version to 7.2.30" [ref=e605] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/0f8e801d6e6703541bbff84878fde33212d2ea6d
+                    - cell "Apr 1, 20265 days ago" [ref=e606]:
+                      - generic [ref=e607]: Apr 1, 20265 days ago
+                  - row "review, (File) Add subagents for discussion, document generation, and code exploration Mar 4, 2026last month" [ref=e608]:
+                    - cell "review, (File)" [ref=e609]:
+                      - generic [ref=e610]:
+                        - img [ref=e611]
+                        - link "review, (File)" [ref=e616] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/blob/main/review
+                          - text: review
+                    - cell "Add subagents for discussion, document generation, and code exploration" [ref=e617]:
+                      - link "Add subagents for discussion, document generation, and code exploration" [ref=e620] [cursor=pointer]:
+                        - /url: /catlog22/Claude-Code-Workflow/commit/e9f8a7234334fdc0588577ea7121f88697b88517
+                    - cell "Mar 4, 2026last month" [ref=e621]:
+                      - generic [ref=e622]: Mar 4, 2026last month
+                  - 'row "temp-import-memory.cjs, (File) feat(workflow): add lightweight interactive planning workflow with in… Feb 27, 20262 months ago" [ref=e623]':
+                    - cell "temp-import-memory.cjs, (File)" [ref=e624]:
+                      - generic [ref=e625]:
+                        - img [ref=e626]
+                        - link "temp-import-memory.cjs, (File)" [ref=e631] [cursor=pointer]:
+                          - /url: /catlog22/Claude-Code-Workflow/blob/main/temp-import-memory.cjs
+                          - text: temp-import-memory.cjs
+                    - 'cell "feat(workflow): add lightweight interactive planning workflow with in…" [ref=e632]':
+                      - 'link "feat(workflow): add lightweight interactive planning workflow with in…" [ref=e635] [cursor=pointer]':
+                        - /url: /catlog22/Claude-Code-Workflow/commit/4d755ff9b41ef53ac094f34e1c2ce9de858cb342
+                    - cell "Feb 27, 20262 months ago" [ref=e636]:
+                      - generic [ref=e637]: Feb 27, 20262 months ago
+            - generic [ref=e639]:
+              - generic [ref=e640]:
+                - heading "Repository files navigation" [level=2] [ref=e641]
+                - navigation "Repository files" [ref=e642]:
+                  - list [ref=e643]:
+                    - listitem [ref=e644]:
+                      - link "README" [ref=e645] [cursor=pointer]:
+                        - /url: "#"
+                        - img [ref=e647]
+                        - generic [ref=e649]: README
+                    - listitem [ref=e650]:
+                      - link "MIT license" [ref=e651] [cursor=pointer]:
+                        - /url: "#"
+                        - img [ref=e653]
+                        - generic [ref=e655]: MIT license
+                - button "Outline" [ref=e656] [cursor=pointer]:
+                  - img [ref=e657]
+              - article [ref=e660]:
+                - generic [ref=e661]:
+                  - link [ref=e662] [cursor=pointer]:
+                    - /url: https://camo.githubusercontent.com/df39707d4ad33252795032cdd96dd9462c5d452a7f183f25541f4505c89adf5b/68747470733a2f2f63617073756c652d72656e6465722e76657263656c2e6170702f6170693f747970653d776176696e6726636f6c6f723d6772616469656e7426637573746f6d436f6c6f724c6973743d362c31312c3230266865696768743d3138302673656374696f6e3d68656164657226746578743d436c61756465253230436f6465253230576f726b666c6f7726666f6e7453697a653d343226666f6e74436f6c6f723d66666626616e696d6174696f6e3d7477696e6b6c696e6726666f6e74416c69676e593d333226646573633d4d756c74692d4167656e742532304149253230446576656c6f706d656e742532304672616d65776f726b2664657363416c69676e593d3532266465736353697a653d3138
+                    - img [ref=e663]
+                  - paragraph [ref=e664]:
+                    - link "Version" [ref=e665] [cursor=pointer]:
+                      - /url: https://github.com/catlog22/Claude-Code-Workflow/releases
+                      - img "Version" [ref=e666]
+                    - link "npm" [ref=e667] [cursor=pointer]:
+                      - /url: https://www.npmjs.com/package/claude-code-workflow
+                      - img "npm" [ref=e668]
+                    - link "License" [ref=e669] [cursor=pointer]:
+                      - /url: /catlog22/Claude-Code-Workflow/blob/main/LICENSE
+                      - img "License" [ref=e670]
+                    - link "Stars" [ref=e671] [cursor=pointer]:
+                      - /url: https://github.com/catlog22/Claude-Code-Workflow/stargazers
+                      - img "Stars" [ref=e672]
+                    - link "Issues" [ref=e673] [cursor=pointer]:
+                      - /url: https://github.com/catlog22/Claude-Code-Workflow/issues
+                      - img "Issues" [ref=e674]
+                  - paragraph [ref=e675]:
+                    - strong [ref=e676]:
+                      - link "English" [ref=e677] [cursor=pointer]:
+                        - /url: /catlog22/Claude-Code-Workflow/blob/main/README.md
+                      - text: "|"
+                      - link "中文" [ref=e678] [cursor=pointer]:
+                        - /url: /catlog22/Claude-Code-Workflow/blob/main/README_CN.md
+                  - paragraph [ref=e679]:
+                    - link "Typing SVG" [ref=e680] [cursor=pointer]:
+                      - /url: https://git.io/typing-svg
+                      - img "Typing SVG" [ref=e681]
+                - generic [ref=e682]:
+                  - link "Quick Start" [ref=e683] [cursor=pointer]:
+                    - /url: "#-quick-start"
+                    - img "Quick Start" [ref=e684]
+                  - link "Guide" [ref=e685] [cursor=pointer]:
+                    - /url: /catlog22/Claude-Code-Workflow/blob/main/WORKFLOW_GUIDE.md
+                    - img "Guide" [ref=e686]
+                  - link "CLI Tools" [ref=e687] [cursor=pointer]:
+                    - /url: "#-cli-tool-installation"
+                    - img "CLI Tools" [ref=e688]
+                  - link "Architecture" [ref=e689] [cursor=pointer]:
+                    - /url: "#-architecture"
+                    - img "Architecture" [ref=e690]
+                - separator [ref=e691]
+                - generic [ref=e692]:
+                  - heading "✨ Key Features" [level=2] [ref=e693]
+                  - 'link "Permalink: ✨ Key Features" [ref=e694] [cursor=pointer]':
+                    - /url: "#-key-features"
+                    - img [ref=e695]
+                - table [ref=e699]:
+                  - rowgroup [ref=e700]:
+                    - 'row "🎯 Skill-based Workflows Permalink: 🎯 Skill-based Workflows From lite-plan (lightweight) to brainstorm (multi-role analysis) 🔄 Multi-CLI Orchestration Permalink: 🔄 Multi-CLI Orchestration Gemini, Qwen, Codex, Claude - auto-select or manual ⚡ Team Architecture v2 Permalink: ⚡ Team Architecture v2 Role-based agents with inner loop execution 🔧 Queue Scheduler Permalink: 🔧 Queue Scheduler Background queue execution service 📦 Session Lifecycle Permalink: 📦 Session Lifecycle start/resume/complete/sync workflow sessions 🖥️ Terminal Dashboard Permalink: 🖥️ Terminal Dashboard Multi-terminal grid with execution monitor 🎨 Orchestrator Editor Permalink: 🎨 Orchestrator Editor Template-based workflow visual editing 💬 A2UI Permalink: 💬 A2UI Agent-to-User interactive interface" [ref=e701]':
+                      - 'cell "🎯 Skill-based Workflows Permalink: 🎯 Skill-based Workflows From lite-plan (lightweight) to brainstorm (multi-role analysis) 🔄 Multi-CLI Orchestration Permalink: 🔄 Multi-CLI Orchestration Gemini, Qwen, Codex, Claude - auto-select or manual ⚡ Team Architecture v2 Permalink: ⚡ Team Architecture v2 Role-based agents with inner loop execution 🔧 Queue Scheduler Permalink: 🔧 Queue Scheduler Background queue execution service" [ref=e702]':
+                        - generic [ref=e703]:
+                          - heading "🎯 Skill-based Workflows" [level=3] [ref=e704]
+                          - 'link "Permalink: 🎯 Skill-based Workflows" [ref=e705] [cursor=pointer]':
+                            - /url: "#-skill-based-workflows"
+                            - img [ref=e706]
+                        - paragraph [ref=e708]:
+                          - text: From
+                          - code [ref=e709]: lite-plan
+                          - text: (lightweight) to
+                          - code [ref=e710]: brainstorm
+                          - text: (multi-role analysis)
+                        - generic [ref=e711]:
+                          - heading "🔄 Multi-CLI Orchestration" [level=3] [ref=e712]
+                          - 'link "Permalink: 🔄 Multi-CLI Orchestration" [ref=e713] [cursor=pointer]':
+                            - /url: "#-multi-cli-orchestration"
+                            - img [ref=e714]
+                        - paragraph [ref=e716]: Gemini, Qwen, Codex, Claude - auto-select or manual
+                        - generic [ref=e717]:
+                          - heading "⚡ Team Architecture v2" [level=3] [ref=e718]
+                          - 'link "Permalink: ⚡ Team Architecture v2" [ref=e719] [cursor=pointer]':
+                            - /url: "#-team-architecture-v2"
+                            - img [ref=e720]
+                        - paragraph [ref=e722]: Role-based agents with inner loop execution
+                        - generic [ref=e723]:
+                          - heading "🔧 Queue Scheduler" [level=3] [ref=e724]
+                          - 'link "Permalink: 🔧 Queue Scheduler" [ref=e725] [cursor=pointer]':
+                            - /url: "#-queue-scheduler"
+                            - img [ref=e726]
+                        - paragraph [ref=e728]: Background queue execution service
+                      - 'cell "📦 Session Lifecycle Permalink: 📦 Session Lifecycle start/resume/complete/sync workflow sessions 🖥️ Terminal Dashboard Permalink: 🖥️ Terminal Dashboard Multi-terminal grid with execution monitor 🎨 Orchestrator Editor Permalink: 🎨 Orchestrator Editor Template-based workflow visual editing 💬 A2UI Permalink: 💬 A2UI Agent-to-User interactive interface" [ref=e729]':
+                        - generic [ref=e730]:
+                          - heading "📦 Session Lifecycle" [level=3] [ref=e731]
+                          - 'link "Permalink: 📦 Session Lifecycle" [ref=e732] [cursor=pointer]':
+                            - /url: "#-session-lifecycle"
+                            - img [ref=e733]
+                        - paragraph [ref=e735]: start/resume/complete/sync workflow sessions
+                        - generic [ref=e736]:
+                          - heading "🖥️ Terminal Dashboard" [level=3] [ref=e737]
+                          - 'link "Permalink: 🖥️ Terminal Dashboard" [ref=e738] [cursor=pointer]':
+                            - /url: "#️-terminal-dashboard"
+                            - img [ref=e739]
+                        - paragraph [ref=e741]: Multi-terminal grid with execution monitor
+                        - generic [ref=e742]:
+                          - heading "🎨 Orchestrator Editor" [level=3] [ref=e743]
+                          - 'link "Permalink: 🎨 Orchestrator Editor" [ref=e744] [cursor=pointer]':
+                            - /url: "#-orchestrator-editor"
+                            - img [ref=e745]
+                        - paragraph [ref=e747]: Template-based workflow visual editing
+                        - generic [ref=e748]:
+                          - heading "💬 A2UI" [level=3] [ref=e749]
+                          - 'link "Permalink: 💬 A2UI" [ref=e750] [cursor=pointer]':
+                            - /url: "#-a2ui"
+                            - img [ref=e751]
+                        - paragraph [ref=e753]: Agent-to-User interactive interface
+                - blockquote [ref=e754]:
+                  - paragraph [ref=e755]:
+                    - text: 📖
+                    - strong [ref=e756]: New?
+                    - text: See
+                    - link "Workflow Guide" [ref=e757] [cursor=pointer]:
+                      - /url: /catlog22/Claude-Code-Workflow/blob/main/WORKFLOW_GUIDE.md
+                    - text: for complete workflow documentation.
+                - separator [ref=e758]
+                - generic [ref=e759]:
+                  - heading "🚀 Quick Start" [level=2] [ref=e760]
+                  - 'link "Permalink: 🚀 Quick Start" [ref=e761] [cursor=pointer]':
+                    - /url: "#-quick-start"
+                    - img [ref=e762]
+                - generic [ref=e764]:
+                  - heading "Install CCW" [level=3] [ref=e765]
+                  - 'link "Permalink: Install CCW" [ref=e766] [cursor=pointer]':
+                    - /url: "#install-ccw"
+                    - img [ref=e767]
+                - generic [ref=e769]:
+                  - generic [ref=e770]: npm install -g claude-code-workflow ccw install -m Global
+                  - button "Copy" [ref=e772] [cursor=pointer]:
+                    - img [ref=e773]
+                - generic [ref=e776]:
+                  - heading "Codex Configuration (Required for .codex/skills/)" [level=3] [ref=e777]:
+                    - text: Codex Configuration (Required for
+                    - code [ref=e778]: .codex/skills/
+                    - text: )
+                  - 'link "Permalink: Codex Configuration (Required for .codex/skills/)" [ref=e779] [cursor=pointer]':
+                    - /url: "#codex-configuration-required-for-codexskills"
+                    - img [ref=e780]
+                - paragraph [ref=e782]:
+                  - text: If you use
+                  - strong [ref=e783]: Codex CLI
+                  - text: with the
+                  - code [ref=e784]: .codex/skills/
+                  - text: workflow skills, add these required features to your
+                  - code [ref=e785]: ~/.codex/config.toml
+                  - text: ":"
+                - generic [ref=e786]:
+                  - generic [ref=e787]:
+                    - text: "[features] default_mode_request_user_input = true"
+                    - generic [ref=e788]: "# Enable request_user_input tool for interactive confirmations"
+                    - text: multi_agent = true
+                    - generic [ref=e789]: "# Enable multi-agent coordination (spawn_agent, wait, etc.)"
+                    - text: multi_agent_v2 = true
+                    - generic [ref=e790]: "# Enable v4 agent API (fork_context, task_name, send_message, assign_task, list_agents)"
+                    - text: enable_fanout = true
+                    - generic [ref=e791]: "# Enable spawn_agents_on_csv for parallel wave execution"
+                  - button "Copy" [ref=e793] [cursor=pointer]:
+                    - img [ref=e794]
+                - blockquote [ref=e797]:
+                  - paragraph [ref=e798]:
+                    - text: These features are required for workflow skills to function properly. Without them, interactive confirmation gates (
+                    - code [ref=e799]: request_user_input
+                    - text: ), subagent orchestration, and CSV-driven parallel execution will not work.
+                - generic [ref=e800]:
+                  - heading "Workflow Skills vs Commands" [level=3] [ref=e801]
+                  - 'link "Permalink: Workflow Skills vs Commands" [ref=e802] [cursor=pointer]':
+                    - /url: "#workflow-skills-vs-commands"
+                    - img [ref=e803]
+                - paragraph [ref=e805]: "CCW uses two types of invocations:"
+                - table [ref=e807]:
+                  - rowgroup [ref=e808]:
+                    - row "Type Format Examples" [ref=e809]:
+                      - columnheader "Type" [ref=e810]
+                      - columnheader "Format" [ref=e811]
+                      - columnheader "Examples" [ref=e812]
+                  - rowgroup [ref=e813]:
+                    - row "Skills Trigger phrase (no slash) workflow-lite-plan, brainstorm, workflow-plan" [ref=e814]:
+                      - cell "Skills" [ref=e815]:
+                        - strong [ref=e816]: Skills
+                      - cell "Trigger phrase (no slash)" [ref=e817]
+                      - cell "workflow-lite-plan, brainstorm, workflow-plan" [ref=e818]:
+                        - code [ref=e819]: workflow-lite-plan
+                        - text: ","
+                        - code [ref=e820]: brainstorm
+                        - text: ","
+                        - code [ref=e821]: workflow-plan
+                    - row "Commands Slash command /ccw, /workflow/session:start, /issue/new" [ref=e822]:
+                      - cell "Commands" [ref=e823]:
+                        - strong [ref=e824]: Commands
+                      - cell "Slash command" [ref=e825]
+                      - cell "/ccw, /workflow/session:start, /issue/new" [ref=e826]:
+                        - code [ref=e827]: /ccw
+                        - text: ","
+                        - code [ref=e828]: /workflow/session:start
+                        - text: ","
+                        - code [ref=e829]: /issue/new
+                - generic [ref=e830]:
+                  - heading "Choose Your Workflow Skill" [level=3] [ref=e831]
+                  - 'link "Permalink: Choose Your Workflow Skill" [ref=e832] [cursor=pointer]':
+                    - /url: "#choose-your-workflow-skill"
+                    - img [ref=e833]
+                - table [ref=e837]:
+                  - rowgroup [ref=e838]:
+                    - row "Skill Trigger Use Case" [ref=e839]:
+                      - columnheader "Skill Trigger" [ref=e840]
+                      - columnheader "Use Case" [ref=e841]
+                    - row "workflow-lite-plan Lightweight planning, single-module features (hands off to lite-execute)" [ref=e842]:
+                      - cell "workflow-lite-plan" [ref=e843]:
+                        - code [ref=e844]: workflow-lite-plan
+                      - cell "Lightweight planning, single-module features (hands off to lite-execute)" [ref=e845]
+                    - row "workflow-multi-cli-plan Multi-CLI collaborative analysis" [ref=e846]:
+                      - cell "workflow-multi-cli-plan" [ref=e847]:
+                        - code [ref=e848]: workflow-multi-cli-plan
+                      - cell "Multi-CLI collaborative analysis" [ref=e849]
+                    - row "workflow-plan Full planning with session persistence" [ref=e850]:
+                      - cell "workflow-plan" [ref=e851]:
+                        - code [ref=e852]: workflow-plan
+                      - cell "Full planning with session persistence" [ref=e853]
+                    - row "workflow-tdd-plan Test-driven development" [ref=e854]:
+                      - cell "workflow-tdd-plan" [ref=e855]:
+                        - code [ref=e856]: workflow-tdd-plan
+                      - cell "Test-driven development" [ref=e857]
+                    - row "workflow-test-fix Test generation and fix cycles" [ref=e858]:
+                      - cell "workflow-test-fix" [ref=e859]:
+                        - code [ref=e860]: workflow-test-fix
+                      - cell "Test generation and fix cycles" [ref=e861]
+                    - row "brainstorm Multi-role brainstorming analysis" [ref=e862]:
+                      - cell "brainstorm" [ref=e863]:
+                        - code [ref=e864]: brainstorm
+                      - cell "Multi-role brainstorming analysis" [ref=e865]
+                - generic [ref=e866]:
+                  - heading "Workflow Examples" [level=3] [ref=e867]
+                  - 'link "Permalink: Workflow Examples" [ref=e868] [cursor=pointer]':
+                    - /url: "#workflow-examples"
+                    - img [ref=e869]
+                - generic [ref=e871]:
+                  - generic [ref=e872]:
+                    - generic [ref=e873]: "# Skill triggers (no slash - just describe what you want)"
+                    - text: workflow-lite-plan
+                    - generic [ref=e874]: "\"Add JWT authentication\""
+                    - text: workflow-plan
+                    - generic [ref=e875]: "\"Implement payment gateway integration\""
+                    - text: workflow-execute
+                    - generic [ref=e876]: "# Brainstorming"
+                    - text: brainstorm
+                    - generic [ref=e877]: "\"Design real-time collaboration system\""
+                    - generic [ref=e878]: "# Slash commands for session management"
+                    - text: /workflow/session:start /workflow/session:resume /workflow/session:complete
+                  - button "Copy" [ref=e880] [cursor=pointer]:
+                    - img [ref=e881]
+                - separator [ref=e884]
+                - generic [ref=e885]:
+                  - heading "🛠️ CLI Tool Installation" [level=2] [ref=e886]
+                  - 'link "Permalink: 🛠️ CLI Tool Installation" [ref=e887] [cursor=pointer]':
+                    - /url: "#️-cli-tool-installation"
+                    - img [ref=e888]
+                - table [ref=e892]:
+                  - rowgroup [ref=e893]:
+                    - row "CLI Description Official Docs" [ref=e894]:
+                      - columnheader "CLI" [ref=e895]
+                      - columnheader "Description" [ref=e896]
+                      - columnheader "Official Docs" [ref=e897]
+                    - row "Gemini Google AI analysis google-gemini/gemini-cli" [ref=e898]:
+                      - cell "Gemini" [ref=e899]
+                      - cell "Google AI analysis" [ref=e900]
+                      - cell "google-gemini/gemini-cli" [ref=e901]:
+                        - link "google-gemini/gemini-cli" [ref=e902] [cursor=pointer]:
+                          - /url: https://github.com/google-gemini/gemini-cli
+                    - row "Codex OpenAI autonomous coding openai/codex" [ref=e903]:
+                      - cell "Codex" [ref=e904]
+                      - cell "OpenAI autonomous coding" [ref=e905]
+                      - cell "openai/codex" [ref=e906]:
+                        - link "openai/codex" [ref=e907] [cursor=pointer]:
+                          - /url: https://github.com/openai/codex
+                    - row "OpenCode Open-source multi-model opencode-ai/opencode" [ref=e908]:
+                      - cell "OpenCode" [ref=e909]
+                      - cell "Open-source multi-model" [ref=e910]
+                      - cell "opencode-ai/opencode" [ref=e911]:
+                        - link "opencode-ai/opencode" [ref=e912] [cursor=pointer]:
+                          - /url: https://github.com/opencode-ai/opencode
+                    - row "Qwen Alibaba Qwen-Code QwenLM/Qwen" [ref=e913]:
+                      - cell "Qwen" [ref=e914]
+                      - cell "Alibaba Qwen-Code" [ref=e915]
+                      - cell "QwenLM/Qwen" [ref=e916]:
+                        - link "QwenLM/Qwen" [ref=e917] [cursor=pointer]:
+                          - /url: https://github.com/QwenLM
+                - separator [ref=e918]
+                - generic [ref=e919]:
+                  - heading "🎭 Semantic CLI Invocation" [level=2] [ref=e920]
+                  - 'link "Permalink: 🎭 Semantic CLI Invocation" [ref=e921] [cursor=pointer]':
+                    - /url: "#-semantic-cli-invocation"
+                    - img [ref=e922]
+                - generic [ref=e924]:
+                  - link [ref=e925] [cursor=pointer]:
+                    - /url: https://camo.githubusercontent.com/58223e4fbc73f70787f8a94086243784094e687971b12f18967bf34bd8b336a5/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f4a7573745f44657363726962652d576861745f596f755f57616e742d3633363646313f7374796c653d666c61742d737175617265
+                    - img [ref=e926]
+                  - link [ref=e927] [cursor=pointer]:
+                    - /url: https://camo.githubusercontent.com/87ca8f8a0339cfe1450584f3ab42779ed72ddab1adea4055d308805e37fea962/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f4343575f48616e646c65732d5468655f526573742d3130423938313f7374796c653d666c61742d737175617265
+                    - img [ref=e928]
+                - paragraph [ref=e929]:
+                  - text: Users can
+                  - strong [ref=e930]: semantically specify CLI tools
+                  - text: in prompts - the system automatically invokes the corresponding CLI.
+                - generic [ref=e931]:
+                  - heading "Basic Invocation" [level=3] [ref=e932]
+                  - 'link "Permalink: Basic Invocation" [ref=e933] [cursor=pointer]':
+                    - /url: "#basic-invocation"
+                    - img [ref=e934]
+                - table [ref=e938]:
+                  - rowgroup [ref=e939]:
+                    - row "User Prompt System Action" [ref=e940]:
+                      - columnheader "User Prompt" [ref=e941]
+                      - columnheader "System Action" [ref=e942]
+                  - rowgroup [ref=e943]:
+                    - row "\"Use Gemini to analyze the auth module\" Auto-invoke gemini CLI for analysis" [ref=e944]:
+                      - cell "\"Use Gemini to analyze the auth module\"" [ref=e945]
+                      - cell "Auto-invoke gemini CLI for analysis" [ref=e946]:
+                        - text: Auto-invoke
+                        - code [ref=e947]: gemini
+                        - text: CLI for analysis
+                    - row "\"Let Codex review this code\" Auto-invoke codex CLI for review" [ref=e948]:
+                      - cell "\"Let Codex review this code\"" [ref=e949]
+                      - cell "Auto-invoke codex CLI for review" [ref=e950]:
+                        - text: Auto-invoke
+                        - code [ref=e951]: codex
+                        - text: CLI for review
+                    - row "\"Ask Qwen about performance optimization\" Auto-invoke qwen CLI for consultation" [ref=e952]:
+                      - cell "\"Ask Qwen about performance optimization\"" [ref=e953]
+                      - cell "Auto-invoke qwen CLI for consultation" [ref=e954]:
+                        - text: Auto-invoke
+                        - code [ref=e955]: qwen
+                        - text: CLI for consultation
+                - generic [ref=e956]:
+                  - heading "Multi-CLI Orchestration" [level=3] [ref=e957]
+                  - 'link "Permalink: Multi-CLI Orchestration" [ref=e958] [cursor=pointer]':
+                    - /url: "#multi-cli-orchestration"
+                    - img [ref=e959]
+                - table [ref=e963]:
+                  - rowgroup [ref=e964]:
+                    - row "Pattern User Prompt Example" [ref=e965]:
+                      - columnheader "Pattern" [ref=e966]
+                      - columnheader "User Prompt Example" [ref=e967]
+                  - rowgroup [ref=e968]:
+                    - row "Collaborative \"Use Gemini and Codex to collaboratively analyze security vulnerabilities\"" [ref=e969]:
+                      - cell "Collaborative" [ref=e970]:
+                        - strong [ref=e971]: Collaborative
+                      - cell "\"Use Gemini and Codex to collaboratively analyze security vulnerabilities\"" [ref=e972]
+                    - row "Parallel \"Have Gemini, Codex, and Qwen analyze the architecture in parallel\"" [ref=e973]:
+                      - cell "Parallel" [ref=e974]:
+                        - strong [ref=e975]: Parallel
+                      - cell "\"Have Gemini, Codex, and Qwen analyze the architecture in parallel\"" [ref=e976]
+                    - row "Iterative \"Use Gemini to diagnose, then Codex to fix, iterate until resolved\"" [ref=e977]:
+                      - cell "Iterative" [ref=e978]:
+                        - strong [ref=e979]: Iterative
+                      - cell "\"Use Gemini to diagnose, then Codex to fix, iterate until resolved\"" [ref=e980]
+                    - row "Pipeline \"Gemini designs the solution, Codex implements, Claude reviews\"" [ref=e981]:
+                      - cell "Pipeline" [ref=e982]:
+                        - strong [ref=e983]: Pipeline
+                      - cell "\"Gemini designs the solution, Codex implements, Claude reviews\"" [ref=e984]
+                - separator [ref=e985]
+                - generic [ref=e986]:
+                  - heading "🔍 ACE Tool Configuration" [level=2] [ref=e987]
+                  - 'link "Permalink: 🔍 ACE Tool Configuration" [ref=e988] [cursor=pointer]':
+                    - /url: "#-ace-tool-configuration"
+                    - img [ref=e989]
+                - paragraph [ref=e991]: ACE (Augment Context Engine) provides powerful semantic code search.
+                - table [ref=e994]:
+                  - rowgroup [ref=e995]:
+                    - row "Method Link" [ref=e996]:
+                      - columnheader "Method" [ref=e997]
+                      - columnheader "Link" [ref=e998]
+                  - rowgroup [ref=e999]:
+                    - row "Official Augment MCP Documentation" [ref=e1000]:
+                      - cell "Official" [ref=e1001]:
+                        - strong [ref=e1002]: Official
+                      - cell "Augment MCP Documentation" [ref=e1003]:
+                        - link "Augment MCP Documentation" [ref=e1004] [cursor=pointer]:
+                          - /url: https://docs.augmentcode.com/context-services/mcp/overview
+                    - row "Proxy ace-tool (GitHub)" [ref=e1005]:
+                      - cell "Proxy" [ref=e1006]:
+                        - strong [ref=e1007]: Proxy
+                      - cell "ace-tool (GitHub)" [ref=e1008]:
+                        - link "ace-tool (GitHub)" [ref=e1009] [cursor=pointer]:
+                          - /url: https://github.com/eastxiaodong/ace-tool
+                - separator [ref=e1010]
+                - generic [ref=e1011]:
+                  - heading "📚 CodexLens Local Search" [level=2] [ref=e1012]
+                  - 'link "Permalink: 📚 CodexLens Local Search" [ref=e1013] [cursor=pointer]':
+                    - /url: "#-codexlens-local-search"
+                    - img [ref=e1014]
+                - blockquote [ref=e1016]:
+                  - paragraph [ref=e1017]:
+                    - generic [ref=e1018]: ⚠️
+                    - strong [ref=e1019]: In Development
+                    - text: ": CodexLens is under iterative optimization. Some features may be unstable."
+                - table [ref=e1022]:
+                  - rowgroup [ref=e1023]:
+                    - row "Search Mode Description" [ref=e1024]:
+                      - columnheader "Search Mode" [ref=e1025]
+                      - columnheader "Description" [ref=e1026]
+                    - row "FTS Full-text search, based on SQLite FTS5" [ref=e1027]:
+                      - cell "FTS" [ref=e1028]
+                      - cell "Full-text search, based on SQLite FTS5" [ref=e1029]
+                    - row "Semantic Semantic search, using local embedding models" [ref=e1030]:
+                      - cell "Semantic" [ref=e1031]
+                      - cell "Semantic search, using local embedding models" [ref=e1032]
+                    - row "Hybrid Hybrid search, combining FTS + Semantic + Reranking" [ref=e1033]:
+                      - cell "Hybrid" [ref=e1034]
+                      - cell "Hybrid search, combining FTS + Semantic + Reranking" [ref=e1035]
+                - separator [ref=e1036]
+                - generic [ref=e1037]:
+                  - heading "💻 CCW CLI Commands" [level=2] [ref=e1038]
+                  - 'link "Permalink: 💻 CCW CLI Commands" [ref=e1039] [cursor=pointer]':
+                    - /url: "#-ccw-cli-commands"
+                    - img [ref=e1040]
+                - generic [ref=e1042]:
+                  - heading "🌟 Recommended Commands" [level=3] [ref=e1043]
+                  - 'link "Permalink: 🌟 Recommended Commands" [ref=e1044] [cursor=pointer]':
+                    - /url: "#-recommended-commands"
+                    - img [ref=e1045]
+                - table [ref=e1049]:
+                  - rowgroup [ref=e1050]:
+                    - row "Command Description When to Use" [ref=e1051]:
+                      - columnheader "Command" [ref=e1052]
+                      - columnheader "Description" [ref=e1053]
+                      - columnheader "When to Use" [ref=e1054]
+                    - row "/ccw Auto workflow orchestrator - analyzes intent, selects workflow, executes ✅ General tasks, auto workflow selection" [ref=e1055]:
+                      - cell "/ccw" [ref=e1056]
+                      - cell "Auto workflow orchestrator - analyzes intent, selects workflow, executes" [ref=e1057]
+                      - cell "✅ General tasks, auto workflow selection" [ref=e1058]
+                    - row "/ccw-coordinator Smart orchestrator - recommends command chains, allows manual adjustment 🔧 Complex multi-step workflows" [ref=e1059]:
+                      - cell "/ccw-coordinator" [ref=e1060]
+                      - cell "Smart orchestrator - recommends command chains, allows manual adjustment" [ref=e1061]
+                      - cell "🔧 Complex multi-step workflows" [ref=e1062]
+                - paragraph [ref=e1063]:
+                  - strong [ref=e1064]: Quick Examples
+                  - text: ":"
+                - generic [ref=e1065]:
+                  - generic [ref=e1066]:
+                    - generic [ref=e1067]: "# /ccw - Auto workflow selection"
+                    - text: /ccw
+                    - generic [ref=e1068]: "\"Add user authentication\""
+                    - text: /ccw
+                    - generic [ref=e1069]: "\"Fix memory leak in WebSocket\""
+                    - text: /ccw
+                    - generic [ref=e1070]: "\"Implement with TDD\""
+                    - generic [ref=e1071]: "# /ccw-coordinator - Manual chain orchestration"
+                    - text: /ccw-coordinator
+                    - generic [ref=e1072]: "\"Implement OAuth2 system\""
+                  - button "Copy" [ref=e1074] [cursor=pointer]:
+                    - img [ref=e1075]
+                - generic [ref=e1078]:
+                  - heading "Session Management Commands" [level=3] [ref=e1079]
+                  - 'link "Permalink: Session Management Commands" [ref=e1080] [cursor=pointer]':
+                    - /url: "#session-management-commands"
+                    - img [ref=e1081]
+                - generic [ref=e1083]:
+                  - generic [ref=e1084]:
+                    - text: /workflow:session:start
+                    - generic [ref=e1085]: "# Start new workflow session"
+                    - text: /workflow:session:resume
+                    - generic [ref=e1086]: "# Resume paused session"
+                    - text: /workflow:session:list
+                    - generic [ref=e1087]: "# List all sessions"
+                    - text: /workflow:session:sync
+                    - generic [ref=e1088]: "# Sync session work"
+                    - text: /workflow:session:complete
+                    - generic [ref=e1089]: "# Complete session"
+                  - button "Copy" [ref=e1091] [cursor=pointer]:
+                    - img [ref=e1092]
+                - generic [ref=e1095]:
+                  - heading "Issue Workflow Commands" [level=3] [ref=e1096]
+                  - 'link "Permalink: Issue Workflow Commands" [ref=e1097] [cursor=pointer]':
+                    - /url: "#issue-workflow-commands"
+                    - img [ref=e1098]
+                - generic [ref=e1100]:
+                  - generic [ref=e1101]:
+                    - text: /issue/new
+                    - generic [ref=e1102]: "# Create new issue"
+                    - text: /issue/plan
+                    - generic [ref=e1103]: "# Plan issue resolution"
+                    - text: /issue/queue
+                    - generic [ref=e1104]: "# Form execution queue"
+                    - text: /issue/execute
+                    - generic [ref=e1105]: "# Execute issue queue"
+                  - button "Copy" [ref=e1107] [cursor=pointer]:
+                    - img [ref=e1108]
+                - generic [ref=e1111]:
+                  - heading "Other CLI Commands" [level=3] [ref=e1112]
+                  - 'link "Permalink: Other CLI Commands" [ref=e1113] [cursor=pointer]':
+                    - /url: "#other-cli-commands"
+                    - img [ref=e1114]
+                - generic [ref=e1116]:
+                  - generic [ref=e1117]:
+                    - text: ccw install
+                    - generic [ref=e1118]: "# Install workflow files"
+                    - text: ccw view
+                    - generic [ref=e1119]: "# Open dashboard"
+                    - text: ccw cli -p
+                    - generic [ref=e1120]: "\"...\""
+                    - generic [ref=e1121]: "# Execute CLI tools (Gemini/Qwen/Codex)"
+                    - text: ccw upgrade -a
+                    - generic [ref=e1122]: "# Upgrade all installations"
+                  - button "Copy" [ref=e1124] [cursor=pointer]:
+                    - img [ref=e1125]
+                - separator [ref=e1128]
+                - generic [ref=e1129]:
+                  - heading "🏗️ Architecture" [level=2] [ref=e1130]
+                  - 'link "Permalink: 🏗️ Architecture" [ref=e1131] [cursor=pointer]':
+                    - /url: "#️-architecture"
+                    - img [ref=e1132]
+                - generic [ref=e1134]:
+                  - code [ref=e1136]: ┌─────────────────────────────────────────────────────────────────┐ │ Workflow Skills │ │ 📝 workflow-lite-plan / workflow-multi-cli-plan (lightweight) │ │ 📊 workflow-plan / workflow-tdd-plan (session-based) │ │ 🧪 workflow-test-fix / workflow-test-fix │ │ 🧠 brainstorm (multi-role analysis) │ └─────────────────────────────────────────────────────────────────┘ ↓ ┌─────────────────────────────────────────────────────────────────┐ │ Team Architecture v2 │ │ 🤖 team-worker agents with role-spec based execution │ │ 🔄 Inner loop framework for sequential task processing │ │ 📢 Message bus protocol with team coordination │ │ 🧠 Wisdom accumulation (learnings/decisions/conventions) │ └─────────────────────────────────────────────────────────────────┘ ↓ ┌─────────────────────────────────────────────────────────────────┐ │ Queue Scheduler Service │ │ ⚙️ Background execution service with API endpoints │ │ 📊 Queue management and unified CLI execution settings │ └─────────────────────────────────────────────────────────────────┘ ↓ ┌─────────────────────────────────────────────────────────────────┐ │ Terminal Dashboard & Orchestrator │ │ 🖥️ Multi-terminal grid with execution monitor │ │ 🎨 Template-based workflow editor with slash commands │ │ 📡 Real-time agent communication via A2UI │ └─────────────────────────────────────────────────────────────────┘
+                  - button "Copy" [ref=e1138] [cursor=pointer]:
+                    - img [ref=e1139]
+                - separator [ref=e1142]
+                - generic [ref=e1143]:
+                  - heading "📦 Project Structure" [level=2] [ref=e1144]
+                  - 'link "Permalink: 📦 Project Structure" [ref=e1145] [cursor=pointer]':
+                    - /url: "#-project-structure"
+                    - img [ref=e1146]
+                - generic [ref=e1148]:
+                  - code [ref=e1150]: "Claude-Code-Workflow/ ├── .claude/ │ ├── agents/ # 22 specialized agents (team-worker, cli-discuss, etc.) │ ├── commands/ # Slash commands (5 categories) │ │ ├── ccw.md # Main orchestrator │ │ ├── ccw-coordinator.md │ │ ├── cli/ # CLI commands (cli-init, codex-review) │ │ ├── issue/ # Issue management (plan, execute, queue) │ │ ├── memory/ # Memory commands (prepare, style-skill-memory) │ │ └── workflow/ # Workflow commands (session, ui-design, etc.) │ └── skills/ # 37 modular skills │ ├── workflow-lite-plan/ │ ├── workflow-plan/ │ ├── workflow-tdd-plan/ │ ├── workflow-test-fix/ │ ├── brainstorm/ │ ├── team-*/ # Team coordination skills │ └── ... ├── ccw/ │ ├── src/ # TypeScript source code │ │ ├── commands/ # CLI command implementations │ │ ├── core/ # Core services (a2ui, auth, hooks, routes) │ │ ├── mcp-server/ # MCP server implementation │ │ └── tools/ # Tool implementations │ └── frontend/ # React frontend (Terminal Dashboard, Orchestrator) ├── codex-lens/ # Local semantic code search engine └── docs/ # Documentation"
+                  - button "Copy" [ref=e1152] [cursor=pointer]:
+                    - img [ref=e1153]
+                - separator [ref=e1156]
+                - generic [ref=e1157]:
+                  - heading "🎼 Team Cadence Control (Beat Model)" [level=2] [ref=e1158]
+                  - 'link "Permalink: 🎼 Team Cadence Control (Beat Model)" [ref=e1159] [cursor=pointer]':
+                    - /url: "#-team-cadence-control-beat-model"
+                    - img [ref=e1160]
+                - paragraph [ref=e1162]:
+                  - text: The v2 team architecture introduces an
+                  - strong [ref=e1163]: event-driven beat model
+                  - text: "for efficient orchestration:"
+                - generic [ref=e1164]:
+                  - code [ref=e1166]: Beat Cycle (single beat) ====================================================================== Event Coordinator Workers ---------------------------------------------------------------------- callback/resume --> +- handleCallback -+ | mark completed | | check pipeline | +- handleSpawnNext -+ | find ready tasks | | spawn workers ---+--> [team-worker A] Phase 1-5 | (parallel OK) --+--> [team-worker B] Phase 1-5 +- STOP (idle) -----+ | | callback <-----------------------------------------+ (next beat) SendMessage + TaskUpdate(completed) ======================================================================
+                  - button "Copy" [ref=e1168] [cursor=pointer]:
+                    - img [ref=e1169]
+                - paragraph [ref=e1172]:
+                  - strong [ref=e1173]: "Key Benefits:"
+                - list [ref=e1174]:
+                  - listitem [ref=e1175]:
+                    - text: 🎯
+                    - strong [ref=e1176]: Event-driven
+                    - text: ": Coordinator only wakes when needed (callback/resume)"
+                  - listitem [ref=e1177]:
+                    - text: ⚡
+                    - strong [ref=e1178]: Fast-advance
+                    - text: ": Simple successors spawn directly without coordinator roundtrip"
+                  - listitem [ref=e1179]:
+                    - text: 🔄
+                    - strong [ref=e1180]: Dynamic pipelines
+                    - text: ": Generated per-task from dependency graph"
+                  - listitem [ref=e1181]:
+                    - text: 📊
+                    - strong [ref=e1182]: Parallel execution
+                    - text: ": Independent tasks run concurrently"
+                - separator [ref=e1183]
+                - generic [ref=e1184]:
+                  - heading "🖥️ Frontend Highlights" [level=2] [ref=e1185]
+                  - 'link "Permalink: 🖥️ Frontend Highlights" [ref=e1186] [cursor=pointer]':
+                    - /url: "#️-frontend-highlights"
+                    - img [ref=e1187]
+                - generic [ref=e1189]:
+                  - heading "Terminal Dashboard" [level=3] [ref=e1190]
+                  - 'link "Permalink: Terminal Dashboard" [ref=e1191] [cursor=pointer]':
+                    - /url: "#terminal-dashboard"
+                    - img [ref=e1192]
+                - paragraph [ref=e1194]: Multi-terminal grid layout with real-time execution monitoring.
+                - paragraph [ref=e1195]:
+                  - strong [ref=e1196]: "Features:"
+                - list [ref=e1197]:
+                  - listitem [ref=e1198]: 🖥️ Multi-terminal grid with resizable panes
+                  - listitem [ref=e1199]: 📊 Execution monitor with agent list
+                  - listitem [ref=e1200]: 📁 File sidebar for project navigation
+                  - listitem [ref=e1201]: 🎯 Session grouping by project tags
+                  - listitem [ref=e1202]: 🌙 Fullscreen/immersive mode
+                - generic [ref=e1203]:
+                  - heading "Orchestrator Editor" [level=3] [ref=e1204]
+                  - 'link "Permalink: Orchestrator Editor" [ref=e1205] [cursor=pointer]':
+                    - /url: "#orchestrator-editor"
+                    - img [ref=e1206]
+                - paragraph [ref=e1208]: Visual workflow template editor with drag-drop.
+                - paragraph [ref=e1209]:
+                  - strong [ref=e1210]: "Features:"
+                - list [ref=e1211]:
+                  - listitem [ref=e1212]: 🎨 React Flow-based visual editing
+                  - listitem [ref=e1213]: 📦 Template library with pre-built workflows
+                  - listitem [ref=e1214]: 🔧 Property panel for node configuration
+                  - listitem [ref=e1215]: ⚡ Slash command integration
+                - separator [ref=e1216]
+                - generic [ref=e1217]:
+                  - heading "🙏 Acknowledgments" [level=2] [ref=e1218]
+                  - 'link "Permalink: 🙏 Acknowledgments" [ref=e1219] [cursor=pointer]':
+                    - /url: "#-acknowledgments"
+                    - img [ref=e1220]
+                - list [ref=e1222]:
+                  - listitem [ref=e1223]:
+                    - paragraph [ref=e1224]:
+                      - strong [ref=e1225]:
+                        - link "Impeccable" [ref=e1226] [cursor=pointer]:
+                          - /url: https://github.com/pbakaus/impeccable
+                      - text: — Design audit methodology, OKLCH color system, anti-AI-slop detection patterns, editorial typography standards, motion/animation token architecture, and vanilla JS interaction patterns. The UI team skills (
+                      - code [ref=e1227]: team-ui-polish
+                      - text: ","
+                      - code [ref=e1228]: team-interactive-craft
+                      - text: ","
+                      - code [ref=e1229]: team-motion-design
+                      - text: ","
+                      - code [ref=e1230]: team-visual-a11y
+                      - text: ","
+                      - code [ref=e1231]: team-uidesign
+                      - text: ","
+                      - code [ref=e1232]: team-ux-improve
+                      - text: ) draw heavily from Impeccable's design knowledge.
+                  - listitem [ref=e1233]:
+                    - paragraph [ref=e1234]:
+                      - strong [ref=e1235]:
+                        - link "gstack" [ref=e1236] [cursor=pointer]:
+                          - /url: https://github.com/garrytan/gstack
+                      - text: — Systematic debugging methodology, security audit frameworks, and release pipeline patterns. The skills
+                      - code [ref=e1237]: investigate
+                      - text: (Iron Law debugging),
+                      - code [ref=e1238]: security-audit
+                      - text: (OWASP Top 10 + STRIDE), and
+                      - code [ref=e1239]: ship
+                      - text: (gated release pipeline) are inspired by gstack's workflow designs.
+                - separator [ref=e1240]
+                - generic [ref=e1241]:
+                  - heading "🤝 Contributing" [level=2] [ref=e1242]
+                  - 'link "Permalink: 🤝 Contributing" [ref=e1243] [cursor=pointer]':
+                    - /url: "#-contributing"
+                    - img [ref=e1244]
+                - generic [ref=e1246]:
+                  - link "GitHub" [ref=e1247] [cursor=pointer]:
+                    - /url: https://github.com/catlog22/Claude-Code-Workflow
+                    - img "GitHub" [ref=e1248]
+                  - link "Issues" [ref=e1249] [cursor=pointer]:
+                    - /url: https://github.com/catlog22/Claude-Code-Workflow/issues
+                    - img "Issues" [ref=e1250]
+                - separator [ref=e1251]
+                - generic [ref=e1252]:
+                  - heading "📄 License" [level=2] [ref=e1253]
+                  - 'link "Permalink: 📄 License" [ref=e1254] [cursor=pointer]':
+                    - /url: "#-license"
+                    - img [ref=e1255]
+                - paragraph [ref=e1258]:
+                  - text: MIT License - see
+                  - link "LICENSE" [ref=e1259] [cursor=pointer]:
+                    - /url: /catlog22/Claude-Code-Workflow/blob/main/LICENSE
+                - separator [ref=e1260]
+                - generic [ref=e1261]:
+                  - heading "💬 Community" [level=2] [ref=e1262]
+                  - 'link "Permalink: 💬 Community" [ref=e1263] [cursor=pointer]':
+                    - /url: "#-community"
+                    - img [ref=e1264]
+                - generic [ref=e1266]:
+                  - paragraph [ref=e1267]: Join the CCW WeChat group to discuss tips and share experiences with other developers!
+                  - link "CCW WeChat Group" [ref=e1268] [cursor=pointer]:
+                    - /url: /catlog22/Claude-Code-Workflow/blob/main/assets/wechat-group-qr.png
+                    - img "CCW WeChat Group" [ref=e1269]
+                  - paragraph [ref=e1270]:
+                    - subscript [ref=e1271]: Scan to join the WeChat group (if the QR code has expired, please open an Issue for the latest one)
+                - separator [ref=e1272]
+                - generic [ref=e1273]:
+                  - heading "🔗 Links" [level=2] [ref=e1274]
+                  - 'link "Permalink: 🔗 Links" [ref=e1275] [cursor=pointer]':
+                    - /url: "#-links"
+                    - img [ref=e1276]
+                - link "LINUX DO" [ref=e1279] [cursor=pointer]:
+                  - /url: https://linux.do/
+                  - img "LINUX DO" [ref=e1280]
+                - link [ref=e1282] [cursor=pointer]:
+                  - /url: https://camo.githubusercontent.com/2436d81233f5792fd0f264fd57041b0e01e7d27b18bdbb0f61303e4af59e6c9e/68747470733a2f2f63617073756c652d72656e6465722e76657263656c2e6170702f6170693f747970653d776176696e6726636f6c6f723d6772616469656e7426637573746f6d436f6c6f724c6973743d362c31312c3230266865696768743d3130302673656374696f6e3d666f6f746572
+                  - img [ref=e1283]
+        - generic [ref=e1287]:
+          - generic [ref=e1290]:
+            - heading "About" [level=2] [ref=e1291]
+            - paragraph [ref=e1292]: JSON-driven multi-agent cadence-team development framework with intelligent CLI orchestration (Gemini/Qwen/Codex), context-first architecture, and automated workflow execution
+            - generic [ref=e1293]:
+              - img [ref=e1294]
+              - link "ccw-command-explorer.vercel.app/" [ref=e1297] [cursor=pointer]:
+                - /url: https://ccw-command-explorer.vercel.app/
+            - heading "Topics" [level=3] [ref=e1298]
+            - generic [ref=e1300]:
+              - link "codex" [ref=e1301] [cursor=pointer]:
+                - /url: /topics/codex
+              - link "workflow-automation" [ref=e1302] [cursor=pointer]:
+                - /url: /topics/workflow-automation
+              - link "claude" [ref=e1303] [cursor=pointer]:
+                - /url: /topics/claude
+              - link "cli-tools" [ref=e1304] [cursor=pointer]:
+                - /url: /topics/cli-tools
+              - link "task-orchestration" [ref=e1305] [cursor=pointer]:
+                - /url: /topics/task-orchestration
+              - link "context-management" [ref=e1306] [cursor=pointer]:
+                - /url: /topics/context-management
+              - link "gemini-cli" [ref=e1307] [cursor=pointer]:
+                - /url: /topics/gemini-cli
+              - link "claude-code" [ref=e1308] [cursor=pointer]:
+                - /url: /topics/claude-code
+              - link "json-driven" [ref=e1309] [cursor=pointer]:
+                - /url: /topics/json-driven
+              - link "qwen-code" [ref=e1310] [cursor=pointer]:
+                - /url: /topics/qwen-code
+            - heading "Resources" [level=3] [ref=e1311]
+            - link "Readme" [ref=e1313] [cursor=pointer]:
+              - /url: "#readme-ov-file"
+              - img [ref=e1314]
+              - text: Readme
+            - heading "License" [level=3] [ref=e1316]
+            - link "MIT license" [ref=e1318] [cursor=pointer]:
+              - /url: "#MIT-1-ov-file"
+              - img [ref=e1319]
+              - text: MIT license
+            - link "Activity" [ref=e1322] [cursor=pointer]:
+              - /url: /catlog22/Claude-Code-Workflow/activity
+              - img [ref=e1323]
+              - text: Activity
+            - heading "Stars" [level=3] [ref=e1325]
+            - link "1.7k stars" [ref=e1327] [cursor=pointer]:
+              - /url: /catlog22/Claude-Code-Workflow/stargazers
+              - img [ref=e1328]
+              - strong [ref=e1330]: 1.7k
+              - text: stars
+            - heading "Watchers" [level=3] [ref=e1331]
+            - link "9 watching" [ref=e1333] [cursor=pointer]:
+              - /url: /catlog22/Claude-Code-Workflow/watchers
+              - img [ref=e1334]
+              - strong [ref=e1336]: "9"
+              - text: watching
+            - heading "Forks" [level=3] [ref=e1337]
+            - link "144 forks" [ref=e1339] [cursor=pointer]:
+              - /url: /catlog22/Claude-Code-Workflow/forks
+              - img [ref=e1340]
+              - strong [ref=e1342]: "144"
+              - text: forks
+            - link "Report repository" [ref=e1344] [cursor=pointer]:
+              - /url: /contact/report-content?content_url=https%3A%2F%2Fgithub.com%2Fcatlog22%2FClaude-Code-Workflow&report=catlog22+%28user%29
+          - generic [ref=e1346]:
+            - heading "Releases 100" [level=2] [ref=e1347]:
+              - link "Releases 100" [ref=e1348] [cursor=pointer]:
+                - /url: /catlog22/Claude-Code-Workflow/releases
+                - text: Releases
+                - generic "100" [ref=e1349]
+            - link "v7.2.29 Latest Mar 30, 2026last week" [ref=e1350] [cursor=pointer]:
+              - /url: /catlog22/Claude-Code-Workflow/releases/tag/v7.2.29
+              - img [ref=e1351]
+              - generic [ref=e1353]:
+                - generic [ref=e1354]:
+                  - generic [ref=e1355]: v7.2.29
+                  - 'generic "Label: Latest" [ref=e1356]': Latest
+                - generic [ref=e1357]: Mar 30, 2026last week
+            - link "+ 99 releases" [ref=e1359] [cursor=pointer]:
+              - /url: /catlog22/Claude-Code-Workflow/releases
+          - generic [ref=e1361]:
+            - heading "Packages" [level=2] [ref=e1362]:
+              - link "Packages" [ref=e1363] [cursor=pointer]:
+                - /url: /users/catlog22/packages?repo_name=Claude-Code-Workflow
+            - generic [ref=e1364]: No packages published
+          - generic [ref=e1366]:
+            - heading "Contributors 11" [level=2] [ref=e1367]:
+              - link "Contributors 11" [ref=e1368] [cursor=pointer]:
+                - /url: /catlog22/Claude-Code-Workflow/graphs/contributors
+                - text: Contributors
+                - generic "11" [ref=e1369]
+            - list [ref=e1370]:
+              - listitem [ref=e1371]:
+                - link "@claude" [ref=e1372] [cursor=pointer]:
+                  - /url: https://github.com/claude
+                  - img "@claude" [ref=e1373]
+              - listitem [ref=e1374]:
+                - link "@catlog22" [ref=e1375] [cursor=pointer]:
+                  - /url: https://github.com/catlog22
+                  - img "@catlog22" [ref=e1376]
+              - listitem [ref=e1377]:
+                - link "@rhyme227" [ref=e1378] [cursor=pointer]:
+                  - /url: https://github.com/rhyme227
+                  - img "@rhyme227" [ref=e1379]
+              - listitem [ref=e1380]:
+                - link "@Copilot" [ref=e1381] [cursor=pointer]:
+                  - /url: https://github.com/apps/copilot-swe-agent
+                  - img "@Copilot" [ref=e1382]
+              - listitem [ref=e1383]:
+                - link "@gurdasnijor" [ref=e1384] [cursor=pointer]:
+                  - /url: https://github.com/gurdasnijor
+                  - img "@gurdasnijor" [ref=e1385]
+              - listitem [ref=e1386]:
+                - link "@bluzername" [ref=e1387] [cursor=pointer]:
+                  - /url: https://github.com/bluzername
+                  - img "@bluzername" [ref=e1388]
+              - listitem [ref=e1389]:
+                - link "@wxbester" [ref=e1390] [cursor=pointer]:
+                  - /url: https://github.com/wxbester
+                  - img "@wxbester" [ref=e1391]
+              - listitem [ref=e1392]:
+                - link "@ylc6223" [ref=e1393] [cursor=pointer]:
+                  - /url: https://github.com/ylc6223
+                  - img "@ylc6223" [ref=e1394]
+              - listitem [ref=e1395]:
+                - link "@github-actions[bot]" [ref=e1396] [cursor=pointer]:
+                  - /url: https://github.com/apps/github-actions
+                  - img "@github-actions[bot]" [ref=e1397]
+              - listitem [ref=e1398]:
+                - link "@AXC00" [ref=e1399] [cursor=pointer]:
+                  - /url: https://github.com/AXC00
+                  - img "@AXC00" [ref=e1400]
+              - listitem [ref=e1401]:
+                - link "@qinsehm1128" [ref=e1402] [cursor=pointer]:
+                  - /url: https://github.com/qinsehm1128
+                  - img "@qinsehm1128" [ref=e1403]
+          - generic [ref=e1405]:
+            - heading "Languages" [level=2] [ref=e1406]
+            - list [ref=e1413]:
+              - listitem [ref=e1414]:
+                - link "TypeScript 92.7%" [ref=e1415] [cursor=pointer]:
+                  - /url: /catlog22/Claude-Code-Workflow/search?l=typescript
+                  - img [ref=e1416]
+                  - generic [ref=e1418]: TypeScript
+                  - generic [ref=e1419]: 92.7%
+              - listitem [ref=e1420]:
+                - link "HTML 5.0%" [ref=e1421] [cursor=pointer]:
+                  - /url: /catlog22/Claude-Code-Workflow/search?l=html
+                  - img [ref=e1422]
+                  - generic [ref=e1424]: HTML
+                  - generic [ref=e1425]: 5.0%
+              - listitem [ref=e1426]:
+                - link "JavaScript 1.7%" [ref=e1427] [cursor=pointer]:
+                  - /url: /catlog22/Claude-Code-Workflow/search?l=javascript
+                  - img [ref=e1428]
+                  - generic [ref=e1430]: JavaScript
+                  - generic [ref=e1431]: 1.7%
+              - listitem [ref=e1432]:
+                - generic [ref=e1433]:
+                  - img [ref=e1434]
+                  - generic [ref=e1436]: Other
+                  - generic [ref=e1437]: 0.6%
+  - contentinfo [ref=e1439]:
+    - heading "Footer" [level=2] [ref=e1440]
+    - generic [ref=e1441]:
+      - generic [ref=e1442]:
+        - link "GitHub Homepage" [ref=e1443] [cursor=pointer]:
+          - /url: https://github.com
+          - img [ref=e1444]
+        - generic [ref=e1446]: © 2026 GitHub, Inc.
+      - navigation "Footer" [ref=e1447]:
+        - heading "Footer navigation" [level=3] [ref=e1448]
+        - list "Footer navigation" [ref=e1449]:
+          - listitem [ref=e1450]:
+            - link "Terms" [ref=e1451] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/github-terms/github-terms-of-service
+          - listitem [ref=e1452]:
+            - link "Privacy" [ref=e1453] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/privacy-policies/github-privacy-statement
+          - listitem [ref=e1454]:
+            - link "Security" [ref=e1455] [cursor=pointer]:
+              - /url: https://github.com/security
+          - listitem [ref=e1456]:
+            - link "Status" [ref=e1457] [cursor=pointer]:
+              - /url: https://www.githubstatus.com/
+          - listitem [ref=e1458]:
+            - link "Community" [ref=e1459] [cursor=pointer]:
+              - /url: https://github.community/
+          - listitem [ref=e1460]:
+            - link "Docs" [ref=e1461] [cursor=pointer]:
+              - /url: https://docs.github.com/
+          - listitem [ref=e1462]:
+            - link "Contact" [ref=e1463] [cursor=pointer]:
+              - /url: https://support.github.com?tags=dotcom-footer
+          - listitem [ref=e1464]:
+            - button "Manage cookies" [ref=e1466] [cursor=pointer]
+          - listitem [ref=e1467]:
+            - button "Do not share my personal information" [ref=e1469] [cursor=pointer]

@@ -1,0 +1,9 @@
+target/
+node_modules/
+dist/
+*.local
+.DS_Store
+*.db
+.vscode/
+.idea/
+.playwright-mcp/

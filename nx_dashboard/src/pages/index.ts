@@ -1,0 +1,13 @@
+export { DashboardPage } from './DashboardPage';
+export { WorkflowsPage } from './WorkflowsPage';
+export { ExecutionsPage } from './ExecutionsPage';
+export { TerminalPage } from './TerminalPage';
+export { EditorPage } from './EditorPage';
+export { SessionsPage } from './SessionsPage';
+export { SettingsPage } from './SettingsPage';
+export { AISettingsPage } from './AISettingsPage';
+export { WisdomPage } from './WisdomPage';
+export { TasksPage } from './TasksPage';
+export { SearchPage } from './SearchPage';
+export { TemplatesPage } from './TemplatesPage';
+export { default as SkillsPage } from './SkillsPage';

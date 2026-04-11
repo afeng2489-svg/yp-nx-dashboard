@@ -1,0 +1,42 @@
+[package]
+name = "nx_session"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Async runtime
+tokio.workspace = true
+tokio-util = "0.7"
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Time
+chrono.workspace = true
+
+# UUID
+uuid.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# Database
+rusqlite.workspace = true
+
+# Error handling
+thiserror.workspace = true
+
+# Concurrency
+parking_lot.workspace = true
+
+# PTY (仅 Unix)
+portable-pty = { version = "0.8", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+portable-pty = "0.8"
+
+[dev-dependencies]
+tokio-test = "0.4"

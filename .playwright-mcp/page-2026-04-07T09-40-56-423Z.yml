@@ -1,0 +1,179 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e12]:
+      - complementary [ref=e13]:
+        - generic [ref=e14]:
+          - generic [ref=e15]:
+            - img [ref=e17]
+            - generic [ref=e21]: NexusFlow
+          - button [ref=e22] [cursor=pointer]:
+            - img [ref=e23]
+        - navigation [ref=e25]:
+          - button "仪表盘" [ref=e26] [cursor=pointer]:
+            - img [ref=e27]
+            - generic [ref=e32]: 仪表盘
+          - button "工作流" [ref=e34] [cursor=pointer]:
+            - img [ref=e35]
+            - generic [ref=e39]: 工作流
+          - button "模板" [ref=e40] [cursor=pointer]:
+            - img [ref=e41]
+            - generic [ref=e43]: 模板
+          - button "执行" [ref=e44] [cursor=pointer]:
+            - img [ref=e45]
+            - generic [ref=e47]: 执行
+          - button "终端" [ref=e48] [cursor=pointer]:
+            - img [ref=e49]
+            - generic [ref=e51]: 终端
+          - button "会话" [ref=e52] [cursor=pointer]:
+            - img [ref=e53]
+            - generic [ref=e55]: 会话
+          - button "任务" [ref=e56] [cursor=pointer]:
+            - img [ref=e57]
+            - generic [ref=e60]: 任务
+          - button "知识库" [ref=e61] [cursor=pointer]:
+            - img [ref=e62]
+            - generic [ref=e72]: 知识库
+          - button "搜索" [ref=e73] [cursor=pointer]:
+            - img [ref=e74]
+            - generic [ref=e77]: 搜索
+          - button "技能" [ref=e78] [cursor=pointer]:
+            - img [ref=e79]
+            - generic [ref=e81]: 技能
+          - button "团队" [ref=e82] [cursor=pointer]:
+            - img [ref=e83]
+            - generic [ref=e88]: 团队
+          - button "AI 设置" [ref=e89] [cursor=pointer]:
+            - img [ref=e90]
+            - generic [ref=e93]: AI 设置
+          - button "设置" [ref=e94] [cursor=pointer]:
+            - img [ref=e95]
+            - generic [ref=e98]: 设置
+        - generic [ref=e99]:
+          - button "系统" [ref=e102] [cursor=pointer]:
+            - img [ref=e103]
+            - generic [ref=e105]: 系统
+          - generic [ref=e106]:
+            - generic [ref=e107]: "N"
+            - generic [ref=e108]:
+              - paragraph [ref=e109]: NexusFlow
+              - paragraph [ref=e110]: v0.1.0
+      - generic [ref=e111]:
+        - banner [ref=e112]:
+          - generic [ref=e113]:
+            - generic [ref=e114]:
+              - button "选择项目" [active] [ref=e115] [cursor=pointer]:
+                - img [ref=e116]
+                - generic [ref=e118]: 选择项目
+                - img [ref=e119]
+              - generic [ref=e174]:
+                - generic [ref=e176]: 加载中...
+                - button "创建新项目" [ref=e178] [cursor=pointer]:
+                  - img [ref=e179]
+                  - text: 创建新项目
+            - button "隐藏文件浏览器" [ref=e121] [cursor=pointer]:
+              - img [ref=e122]
+        - generic [ref=e125]:
+          - generic [ref=e129]:
+            - img [ref=e130]
+            - paragraph [ref=e132]: 请先选择一个项目
+          - main [ref=e133]:
+            - generic [ref=e167]:
+              - generic [ref=e168]:
+                - generic [ref=e169]:
+                  - heading "工作流" [level=1] [ref=e180]
+                  - paragraph [ref=e181]: 管理您的工作流和智能体编排
+                - generic [ref=e170]:
+                  - button "从技能创建" [ref=e182] [cursor=pointer]:
+                    - img [ref=e183]
+                    - text: 从技能创建
+                  - button "新建工作流" [ref=e186] [cursor=pointer]:
+                    - img [ref=e187]
+                    - text: 新建工作流
+              - generic [ref=e188]:
+                - button [ref=e189] [cursor=pointer]:
+                  - img [ref=e190]
+                - generic [ref=e193]:
+                  - img [ref=e195]
+                  - generic [ref=e197]:
+                    - paragraph [ref=e198]: 工作流操作指南
+                    - list [ref=e199]:
+                      - listitem [ref=e200]: 点击卡片查看详情
+                      - listitem [ref=e202]: 点击"编辑"进入可视化编辑器
+                      - listitem [ref=e204]: 点击"执行"运行工作流
+                      - listitem [ref=e206]: 使用模板快速开始
+              - generic [ref=e208]:
+                - generic [ref=e210] [cursor=pointer]:
+                  - generic [ref=e211]:
+                    - generic [ref=e212]:
+                      - heading "简单规划" [level=3] [ref=e213]
+                      - generic [ref=e214]: v1.0
+                    - paragraph [ref=e215]: 单智能体任务执行
+                    - generic [ref=e216]:
+                      - generic [ref=e217]:
+                        - img [ref=e218]
+                        - text: 1 阶段
+                      - generic [ref=e222]:
+                        - img [ref=e223]
+                        - text: 1 智能体
+                      - generic [ref=e228]:
+                        - img [ref=e229]
+                        - text: 4月7日 17:40
+                  - generic [ref=e232]:
+                    - button "执行" [ref=e233]:
+                      - img [ref=e234]
+                    - button "编辑" [ref=e236]:
+                      - img [ref=e237]
+                    - button "删除" [ref=e240]:
+                      - img [ref=e241]
+                - generic [ref=e245] [cursor=pointer]:
+                  - generic [ref=e246]:
+                    - generic [ref=e247]:
+                      - heading "多智能体并行" [level=3] [ref=e248]
+                      - generic [ref=e249]: v1.0
+                    - paragraph [ref=e250]: 多智能体并行执行
+                    - generic [ref=e251]:
+                      - generic [ref=e252]:
+                        - img [ref=e253]
+                        - text: 1 阶段
+                      - generic [ref=e257]:
+                        - img [ref=e258]
+                        - text: 3 智能体
+                      - generic [ref=e263]:
+                        - img [ref=e264]
+                        - text: 4月7日 17:40
+                  - generic [ref=e267]:
+                    - button "执行" [ref=e268]:
+                      - img [ref=e269]
+                    - button "编辑" [ref=e271]:
+                      - img [ref=e272]
+                    - button "删除" [ref=e275]:
+                      - img [ref=e276]
+                - generic [ref=e280] [cursor=pointer]:
+                  - generic [ref=e281]:
+                    - generic [ref=e282]:
+                      - heading "TDD 工作流" [level=3] [ref=e283]
+                      - generic [ref=e284]: v1.0
+                    - paragraph [ref=e285]: 测试驱动开发流程
+                    - generic [ref=e286]:
+                      - generic [ref=e287]:
+                        - img [ref=e288]
+                        - text: 3 阶段
+                      - generic [ref=e292]:
+                        - img [ref=e293]
+                        - text: 3 智能体
+                      - generic [ref=e298]:
+                        - img [ref=e299]
+                        - text: 4月7日 17:40
+                  - generic [ref=e302]:
+                    - button "执行" [ref=e303]:
+                      - img [ref=e304]
+                    - button "编辑" [ref=e306]:
+                      - img [ref=e307]
+                    - button "删除" [ref=e310]:
+                      - img [ref=e311]
+    - region "Notifications alt+T"
+    - button "Command Palette ⌘K" [ref=e7] [cursor=pointer]:
+      - img [ref=e8]
+      - generic [ref=e10]: Command Palette
+      - generic [ref=e11]: ⌘K
+  - generic [ref=e172]: "0"

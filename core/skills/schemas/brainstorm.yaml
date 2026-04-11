@@ -1,0 +1,49 @@
+name: brainstorm
+description: 多角色头脑风暴技能。模拟多个专家角色进行创意讨论和问题解决。
+category: workflow_planning
+version: 1.0.0
+
+phases:
+  - name: prepare
+    description: 准备阶段 - 确定讨论主题和参与者角色
+    required: true
+  - name: role_intro
+    description: 角色介绍阶段 - 各角色自我介绍和背景
+    required: true
+  - name: idea_generation
+    description: 创意生成阶段 - 各角色提出想法
+    required: true
+  - name: discussion
+    description: 讨论阶段 - 对想法进行讨论和优化
+    required: true
+  - name: synthesis
+    description: 综合阶段 - 汇总形成最终方案
+    required: true
+
+parameters:
+  - name: topic
+    description: 讨论主题
+    type: string
+    required: true
+  - name: roles
+    description: 参与角色列表
+    type: array
+    required: false
+    default:
+      - architect
+      - developer
+      - tester
+  - name: rounds
+    description: 讨论轮数
+    type: integer
+    required: false
+    default: 3
+
+tags:
+  - brainstorm
+  - creative
+  - multi-role
+
+config:
+  enable_diversity: true
+  timeout_secs: 900

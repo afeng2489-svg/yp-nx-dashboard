@@ -1,0 +1,7 @@
+- generic [ref=e2]:
+  - paragraph [ref=e6]: Loading...
+  - region "Notifications alt+T"
+  - button "Command Palette ⌘K" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+    - generic [ref=e10]: Command Palette
+    - generic [ref=e11]: ⌘K

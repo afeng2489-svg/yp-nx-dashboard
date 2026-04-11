@@ -1,0 +1,46 @@
+name: security-audit
+description: 安全审计技能。对代码或系统进行安全分析，发现潜在的安全漏洞。
+category: review
+version: 1.0.0
+
+phases:
+  - name: reconnaissance
+    description: 侦察阶段 - 收集信息
+    required: true
+  - name: threat_modeling
+    description: 威胁建模阶段 - 识别潜在威胁
+    required: true
+  - name: vulnerability_scan
+    description: 漏洞扫描阶段 - 扫描已知漏洞
+    required: true
+  - name: analysis
+    description: 分析阶段 - 分析发现的问题
+    required: true
+  - name: remediation
+    description: 修复建议阶段 - 提供修复方案
+    required: true
+
+parameters:
+  - name: target
+    description: 扫描目标
+    type: string
+    required: true
+  - name: scan_types
+    description: 扫描类型
+    type: array
+    required: false
+    default:
+      - owasp
+      - cwe
+      - sql-injection
+      - xss
+
+tags:
+  - security
+  - audit
+  - vulnerability
+
+config:
+  severity_threshold: medium
+  include_remediation: true
+  scan_dependencies: true

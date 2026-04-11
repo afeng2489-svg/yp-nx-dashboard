@@ -1,0 +1,33 @@
+[package]
+name = "nx_search"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Async runtime
+tokio.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Time
+chrono.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# Error handling
+thiserror.workspace = true
+
+# Internal crates
+nexus-ai = { path = "../core/ai" }
+
+[features]
+default = []
+
+[dev-dependencies]
+tokio-test = "0.4"
+async-trait = "0.1"

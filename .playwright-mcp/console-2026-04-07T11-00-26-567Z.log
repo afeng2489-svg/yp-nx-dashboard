@@ -1,0 +1,14 @@
+[     451ms] [ERROR] Failed to create team: TypeError: Failed to fetch
+    at Object.createTeam (http://localhost:5173/src/stores/teamStore.ts:84:30)
+    at handleCreateTeam (http://localhost:5173/src/pages/TeamsPage.tsx?t=1775556884153:51:37)
+    at handleSubmit (http://localhost:5173/src/pages/TeamsPage.tsx?t=1775556884153:591:13)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:3680:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:3705:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:3739:39)
+    at invokeGuardedCallbackAndCatchFirstError (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:3742:33)
+    at executeDispatch (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:7046:11)
+    at processDispatchQueueItemsInOrder (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:7066:15)
+    at processDispatchQueue (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:7075:13) @ http://localhost:5173/src/pages/TeamsPage.tsx?t=1775556884153:54
+[     604ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:21608
+[     666ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=729b926e:4435
+[     666ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=729b926e:4435

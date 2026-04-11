@@ -1,0 +1,25 @@
+[package]
+name = "nx_mcp"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Async runtime
+tokio.workspace = true
+tokio-util = "0.7"
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+[features]
+default = []

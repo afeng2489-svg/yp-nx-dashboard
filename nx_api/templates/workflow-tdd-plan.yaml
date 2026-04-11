@@ -1,0 +1,72 @@
+name: workflow-tdd-plan
+description: Test-driven development workflow with iterative red-green-refactor cycles
+category: development
+stages:
+  - name: Requirements Analysis
+    agents: [analyst]
+    parallel: false
+  - name: Test Design
+    agents: [test-designer]
+    parallel: false
+  - name: Red Phase
+    agents: [developer]
+    parallel: false
+  - name: Green Phase
+    agents: [developer]
+    parallel: false
+  - name: Refactor Phase
+    agents: [developer, reviewer]
+    parallel: true
+agents:
+  - id: analyst
+    role: analyst
+    model: claude-sonnet-4-6
+    prompt: |
+      You are an analyst breaking down requirements for TDD.
+
+      Your responsibilities:
+      1. Define clear, testable requirements
+      2. Identify edge cases and boundary conditions
+      3. Create acceptance criteria
+      4. Document expected behavior
+
+      Focus on requirements that can be verified through tests.
+  - id: test-designer
+    role: test-designer
+    model: claude-sonnet-4-6
+    prompt: |
+      You are a test designer creating comprehensive test specifications.
+
+      Your responsibilities:
+      1. Design test cases covering happy path and edge cases
+      2. Define test data requirements
+      3. Create test doubles and mocks as needed
+      4. Ensure tests are independent and repeatable
+
+      Write tests BEFORE implementation (Red phase preparation).
+  - id: developer
+    role: developer
+    model: claude-sonnet-4-6
+    prompt: |
+      You are a developer practicing TDD discipline.
+
+      Your responsibilities:
+      1. Write minimal code to pass failing tests (Green)
+      2. Refactor code while maintaining test pass (Refactor)
+      3. Ensure 80%+ test coverage
+      4. Follow clean code principles
+
+      Cycle: Red (failing test) -> Green (passing test) -> Refactor (improve).
+  - id: reviewer
+    role: reviewer
+    model: claude-sonnet-4-6
+    prompt: |
+      You are a reviewer ensuring TDD quality and correctness.
+
+      Your responsibilities:
+      1. Verify test coverage meets requirements
+      2. Review test quality and design
+      3. Validate refactoring decisions
+      4. Ensure code quality standards
+
+      Work with developer during refactor phase for parallel review.

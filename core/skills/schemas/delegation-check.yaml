@@ -1,0 +1,42 @@
+name: delegation-check
+description: 任务委托验证技能。验证任务是否适合委托，检查委托的风险和收益。
+category: collaboration
+version: 1.0.0
+
+phases:
+  - name: task_analysis
+    description: 任务分析阶段 - 分析任务特性
+    required: true
+  - name: risk_assessment
+    description: 风险评估阶段 - 评估委托风险
+    required: true
+  - name: capability_match
+    description: 能力匹配阶段 - 匹配执行者能力
+    required: true
+  - name: recommendation
+    description: 建议阶段 - 给出最终建议
+    required: true
+
+parameters:
+  - name: task
+    description: 任务描述
+    type: string
+    required: true
+  - name: delegate_to
+    description: 委托对象
+    type: string
+    required: true
+  - name: deadline
+    description: 截止时间
+    type: string
+    required: false
+
+tags:
+  - delegation
+  - task
+  - collaboration
+
+config:
+  check_capabilities: true
+  include_alternatives: true
+  risk_tolerance: medium

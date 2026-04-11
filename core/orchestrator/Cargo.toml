@@ -1,0 +1,45 @@
+[package]
+name = "nexus-orchestrator"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Async runtime
+tokio = { workspace = true }
+futures-util = { workspace = true }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+
+# Concurrency
+parking_lot = { workspace = true }
+
+# Database
+rusqlite = { workspace = true }
+
+# Process/CLI
+which = "7.0"
+
+# Internal crates
+nexus-ai = { path = "../ai" }
+nexus-workflow = { path = "../workflow" }
+
+[dev-dependencies]
+tokio-test = "0.4"

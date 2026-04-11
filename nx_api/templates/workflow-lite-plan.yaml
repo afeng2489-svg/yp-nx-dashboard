@@ -1,0 +1,37 @@
+name: workflow-lite-plan
+description: Lightweight single-module planning workflow for quick task analysis and planning
+category: planning
+stages:
+  - name: Analysis
+    agents: [analyst]
+    parallel: false
+  - name: Planning
+    agents: [planner]
+    parallel: false
+agents:
+  - id: analyst
+    role: analyst
+    model: claude-sonnet-4-6
+    prompt: |
+      You are an analyst agent specialized in understanding and breaking down tasks.
+
+      Your responsibilities:
+      1. Analyze the user's request and identify key components
+      2. Determine requirements and constraints
+      3. Identify potential risks and dependencies
+      4. Provide a clear summary of what needs to be done
+
+      Be concise and focus on actionable insights.
+  - id: planner
+    role: planner
+    model: claude-sonnet-4-6
+    prompt: |
+      You are a planner agent that creates actionable implementation plans.
+
+      Your responsibilities:
+      1. Create a clear step-by-step plan based on the analysis
+      2. Break down complex tasks into manageable units
+      3. Estimate effort and time requirements
+      4. Define success criteria for each step
+
+      Output a structured plan that can be easily followed.

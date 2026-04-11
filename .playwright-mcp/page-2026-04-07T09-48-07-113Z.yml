@@ -1,0 +1,166 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e12]:
+      - complementary [ref=e13]:
+        - generic [ref=e14]:
+          - generic [ref=e15]:
+            - img [ref=e17]
+            - generic [ref=e21]: NexusFlow
+          - button [ref=e22] [cursor=pointer]:
+            - img [ref=e23]
+        - navigation [ref=e25]:
+          - button "仪表盘" [active] [ref=e26] [cursor=pointer]:
+            - img [ref=e27]
+            - generic [ref=e32]: 仪表盘
+          - button "工作流" [ref=e34] [cursor=pointer]:
+            - img [ref=e35]
+            - generic [ref=e39]: 工作流
+          - button "模板" [ref=e40] [cursor=pointer]:
+            - img [ref=e41]
+            - generic [ref=e43]: 模板
+          - button "执行" [ref=e44] [cursor=pointer]:
+            - img [ref=e45]
+            - generic [ref=e47]: 执行
+          - button "终端" [ref=e48] [cursor=pointer]:
+            - img [ref=e49]
+            - generic [ref=e51]: 终端
+          - button "会话" [ref=e52] [cursor=pointer]:
+            - img [ref=e53]
+            - generic [ref=e55]: 会话
+          - button "任务" [ref=e56] [cursor=pointer]:
+            - img [ref=e57]
+            - generic [ref=e60]: 任务
+          - button "知识库" [ref=e61] [cursor=pointer]:
+            - img [ref=e62]
+            - generic [ref=e72]: 知识库
+          - button "搜索" [ref=e73] [cursor=pointer]:
+            - img [ref=e74]
+            - generic [ref=e77]: 搜索
+          - button "技能" [ref=e78] [cursor=pointer]:
+            - img [ref=e79]
+            - generic [ref=e81]: 技能
+          - button "团队" [ref=e82] [cursor=pointer]:
+            - img [ref=e83]
+            - generic [ref=e88]: 团队
+          - button "AI 设置" [ref=e89] [cursor=pointer]:
+            - img [ref=e90]
+            - generic [ref=e93]: AI 设置
+          - button "设置" [ref=e94] [cursor=pointer]:
+            - img [ref=e95]
+            - generic [ref=e98]: 设置
+        - generic [ref=e99]:
+          - button "系统" [ref=e102] [cursor=pointer]:
+            - img [ref=e103]
+            - generic [ref=e105]: 系统
+          - generic [ref=e106]:
+            - generic [ref=e107]: "N"
+            - generic [ref=e108]:
+              - paragraph [ref=e109]: NexusFlow
+              - paragraph [ref=e110]: v0.1.0
+      - generic [ref=e111]:
+        - banner [ref=e112]:
+          - generic [ref=e113]:
+            - generic [ref=e114]:
+              - button "选择项目" [ref=e115] [cursor=pointer]:
+                - img [ref=e116]
+                - generic [ref=e118]: 选择项目
+                - img [ref=e119]
+              - generic [ref=e282]:
+                - generic [ref=e284]: 加载中...
+                - button "创建新项目" [ref=e311] [cursor=pointer]:
+                  - img [ref=e312]
+                  - text: 创建新项目
+            - button "隐藏文件浏览器" [ref=e121] [cursor=pointer]:
+              - img [ref=e122]
+        - generic [ref=e125]:
+          - generic [ref=e129]:
+            - img [ref=e130]
+            - paragraph [ref=e132]: 请先选择一个项目
+          - main [ref=e133]:
+            - generic [ref=e315]:
+              - generic [ref=e316]:
+                - generic [ref=e317]:
+                  - heading "仪表盘" [level=1] [ref=e318]
+                  - paragraph [ref=e319]: 欢迎回来！查看您的工作流状态
+                - button "新建工作流" [ref=e320] [cursor=pointer]:
+                  - img [ref=e321]
+                  - text: 新建工作流
+              - generic [ref=e323]:
+                - generic [ref=e327]:
+                  - generic [ref=e328]:
+                    - paragraph [ref=e329]: 工作流
+                    - paragraph [ref=e330]: "0"
+                  - img [ref=e333]
+                - generic [ref=e341]:
+                  - generic [ref=e342]:
+                    - paragraph [ref=e343]: 运行中
+                    - paragraph [ref=e344]: "0"
+                  - img [ref=e347]
+                - generic [ref=e353]:
+                  - generic [ref=e354]:
+                    - paragraph [ref=e355]: 已完成
+                    - paragraph [ref=e356]: "0"
+                  - img [ref=e359]
+                - generic [ref=e366]:
+                  - generic [ref=e367]:
+                    - paragraph [ref=e368]: 失败
+                    - paragraph [ref=e369]: "0"
+                  - img [ref=e372]
+              - generic [ref=e377]:
+                - generic [ref=e378]:
+                  - generic [ref=e379]:
+                    - paragraph [ref=e381]: 总执行
+                    - paragraph [ref=e382]: "0"
+                  - generic [ref=e383]:
+                    - paragraph [ref=e385]: 成功率
+                    - paragraph [ref=e386]: 0%
+                  - generic [ref=e387]:
+                    - paragraph [ref=e389]: 失败
+                    - paragraph [ref=e390]: "0"
+                  - generic [ref=e391]:
+                    - paragraph [ref=e393]: 运行中
+                    - paragraph [ref=e394]: "0"
+                - generic [ref=e395]:
+                  - generic [ref=e396]:
+                    - heading "执行趋势（近7天）" [level=3] [ref=e397]
+                    - img [ref=e401]:
+                      - generic [ref=e406]:
+                        - generic [ref=e408]: 4月1日
+                        - generic [ref=e410]: 4月3日
+                        - generic [ref=e412]: 4月5日
+                        - generic [ref=e414]: 4月7日
+                      - generic [ref=e416]:
+                        - generic [ref=e418]: "0"
+                        - generic [ref=e420]: "1"
+                        - generic [ref=e422]: "2"
+                        - generic [ref=e424]: "3"
+                        - generic [ref=e426]: "4"
+                  - generic [ref=e427]:
+                    - heading "执行状态分布" [level=3] [ref=e428]
+                    - generic [ref=e429]: 暂无执行数据
+                - generic [ref=e430]:
+                  - heading "工作流成功率" [level=3] [ref=e431]
+                  - generic [ref=e432]: 暂无执行数据
+              - generic [ref=e433]:
+                - generic [ref=e435]:
+                  - img [ref=e437]
+                  - heading "活动会话" [level=2] [ref=e439]
+                  - generic [ref=e440]: "0"
+                - generic [ref=e441]:
+                  - img [ref=e443]
+                  - paragraph [ref=e445]: 暂无活动会话
+                  - paragraph [ref=e446]: 开始一个工作流来创建新会话
+              - generic [ref=e447]:
+                - generic [ref=e449]:
+                  - img [ref=e451]
+                  - heading "最近执行" [level=2] [ref=e453]
+                - generic [ref=e454]:
+                  - img [ref=e456]
+                  - paragraph [ref=e458]: 暂无执行记录
+                  - paragraph [ref=e459]: 执行工作流以查看执行历史
+    - region "Notifications alt+T"
+    - button "Command Palette ⌘K" [ref=e7] [cursor=pointer]:
+      - img [ref=e8]
+      - generic [ref=e10]: Command Palette
+      - generic [ref=e11]: ⌘K
+  - generic [ref=e280]: "0"

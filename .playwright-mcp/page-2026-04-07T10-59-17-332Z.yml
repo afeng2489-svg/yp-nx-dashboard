@@ -1,0 +1,120 @@
+- generic [ref=e2]:
+  - generic [ref=e12]:
+    - complementary [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - img [ref=e17]
+          - generic [ref=e21]: NexusFlow
+        - button [ref=e22] [cursor=pointer]:
+          - img [ref=e23]
+      - navigation [ref=e25]:
+        - button "仪表盘" [ref=e26] [cursor=pointer]:
+          - img [ref=e27]
+          - generic [ref=e32]: 仪表盘
+        - button "工作流" [ref=e33] [cursor=pointer]:
+          - img [ref=e34]
+          - generic [ref=e38]: 工作流
+        - button "模板" [ref=e39] [cursor=pointer]:
+          - img [ref=e40]
+          - generic [ref=e42]: 模板
+        - button "执行" [ref=e43] [cursor=pointer]:
+          - img [ref=e44]
+          - generic [ref=e46]: 执行
+        - button "终端" [ref=e47] [cursor=pointer]:
+          - img [ref=e48]
+          - generic [ref=e50]: 终端
+        - button "会话" [ref=e51] [cursor=pointer]:
+          - img [ref=e52]
+          - generic [ref=e54]: 会话
+        - button "任务" [ref=e55] [cursor=pointer]:
+          - img [ref=e56]
+          - generic [ref=e59]: 任务
+        - button "知识库" [ref=e60] [cursor=pointer]:
+          - img [ref=e61]
+          - generic [ref=e71]: 知识库
+        - button "搜索" [ref=e72] [cursor=pointer]:
+          - img [ref=e73]
+          - generic [ref=e76]: 搜索
+        - button "技能" [ref=e77] [cursor=pointer]:
+          - img [ref=e78]
+          - generic [ref=e80]: 技能
+        - button "团队" [ref=e81] [cursor=pointer]:
+          - img [ref=e82]
+          - generic [ref=e87]: 团队
+        - button "AI 设置" [ref=e89] [cursor=pointer]:
+          - img [ref=e90]
+          - generic [ref=e93]: AI 设置
+        - button "设置" [ref=e94] [cursor=pointer]:
+          - img [ref=e95]
+          - generic [ref=e98]: 设置
+      - generic [ref=e99]:
+        - button "系统" [ref=e102] [cursor=pointer]:
+          - img [ref=e103]
+          - generic [ref=e105]: 系统
+        - generic [ref=e106]:
+          - generic [ref=e107]: "N"
+          - generic [ref=e108]:
+            - paragraph [ref=e109]: NexusFlow
+            - paragraph [ref=e110]: v0.1.0
+    - generic [ref=e111]:
+      - banner [ref=e112]:
+        - generic [ref=e113]:
+          - button "选择项目" [ref=e115] [cursor=pointer]:
+            - img [ref=e116]
+            - generic [ref=e118]: 选择项目
+            - img [ref=e119]
+          - button "隐藏文件浏览器" [ref=e121] [cursor=pointer]:
+            - img [ref=e122]
+      - generic [ref=e125]:
+        - generic [ref=e129]:
+          - img [ref=e130]
+          - paragraph [ref=e132]: 请先选择一个项目
+        - main [ref=e133]:
+          - generic [ref=e135]:
+            - generic [ref=e136]:
+              - generic [ref=e137]:
+                - heading "智能体团队" [level=1] [ref=e138]
+                - paragraph [ref=e139]: 管理您的多智能体协作团队
+              - button "新建团队" [ref=e140] [cursor=pointer]:
+                - img [ref=e141]
+                - text: 新建团队
+            - generic [ref=e143]:
+              - img [ref=e145]
+              - generic [ref=e147]:
+                - paragraph [ref=e148]: 团队操作指南
+                - list [ref=e149]:
+                  - listitem [ref=e150]: 点击卡片查看团队详情
+                  - listitem [ref=e152]: 管理团队中的角色
+                  - listitem [ref=e154]: 分配技能给角色
+                  - listitem [ref=e156]: 配置 Telegram 通知
+            - generic [ref=e158]:
+              - img [ref=e160]
+              - heading "暂无团队" [level=3] [ref=e165]
+              - paragraph [ref=e166]: 创建您的第一个智能体团队
+              - button "新建团队" [ref=e167] [cursor=pointer]:
+                - img [ref=e168]
+                - text: 新建团队
+            - generic [ref=e171]:
+              - generic [ref=e172]:
+                - generic [ref=e173]:
+                  - img [ref=e175]
+                  - heading "新建团队" [level=2] [ref=e180]
+                - button [ref=e181] [cursor=pointer]:
+                  - img [ref=e182]
+              - generic [ref=e185]:
+                - generic [ref=e186]:
+                  - generic [ref=e187]: 团队名称
+                  - textbox "输入团队名称" [ref=e188]: 开发团队
+                - generic [ref=e189]:
+                  - generic [ref=e190]: 描述 (可选)
+                  - textbox "输入团队描述" [ref=e191]: 多智能体开发团队
+                - generic [ref=e192]:
+                  - button "取消" [ref=e193] [cursor=pointer]
+                  - button "创建中..." [disabled] [ref=e196]:
+                    - img [ref=e197]
+                    - text: 创建中...
+  - region "Notifications alt+T"
+  - button "Command Palette ⌘K" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+    - generic [ref=e10]: Command Palette
+    - generic [ref=e11]: ⌘K

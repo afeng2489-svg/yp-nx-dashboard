@@ -1,0 +1,84 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - img [ref=e8]
+          - generic [ref=e12]: NexusFlow
+        - button [ref=e13] [cursor=pointer]:
+          - img [ref=e14]
+      - navigation [ref=e16]:
+        - button "仪表盘" [ref=e17] [cursor=pointer]:
+          - img [ref=e18]
+          - generic [ref=e23]: 仪表盘
+        - button "工作流" [ref=e25] [cursor=pointer]:
+          - img [ref=e26]
+          - generic [ref=e30]: 工作流
+        - button "模板" [ref=e31] [cursor=pointer]:
+          - img [ref=e32]
+          - generic [ref=e34]: 模板
+        - button "执行" [ref=e35] [cursor=pointer]:
+          - img [ref=e36]
+          - generic [ref=e38]: 执行
+        - button "终端" [ref=e39] [cursor=pointer]:
+          - img [ref=e40]
+          - generic [ref=e42]: 终端
+        - button "会话" [ref=e43] [cursor=pointer]:
+          - img [ref=e44]
+          - generic [ref=e46]: 会话
+        - button "任务" [ref=e47] [cursor=pointer]:
+          - img [ref=e48]
+          - generic [ref=e51]: 任务
+        - button "知识库" [ref=e52] [cursor=pointer]:
+          - img [ref=e53]
+          - generic [ref=e63]: 知识库
+        - button "搜索" [ref=e64] [cursor=pointer]:
+          - img [ref=e65]
+          - generic [ref=e68]: 搜索
+        - button "技能" [ref=e69] [cursor=pointer]:
+          - img [ref=e70]
+          - generic [ref=e72]: 技能
+        - button "团队" [ref=e73] [cursor=pointer]:
+          - img [ref=e74]
+          - generic [ref=e79]: 团队
+        - button "AI 设置" [ref=e80] [cursor=pointer]:
+          - img [ref=e81]
+          - generic [ref=e84]: AI 设置
+        - button "设置" [ref=e85] [cursor=pointer]:
+          - img [ref=e86]
+          - generic [ref=e89]: 设置
+      - generic [ref=e90]:
+        - button "系统" [ref=e93] [cursor=pointer]:
+          - img [ref=e94]
+          - generic [ref=e96]: 系统
+        - generic [ref=e97]:
+          - generic [ref=e98]: "N"
+          - generic [ref=e99]:
+            - paragraph [ref=e100]: NexusFlow
+            - paragraph [ref=e101]: v0.1.0
+    - generic [ref=e102]:
+      - banner [ref=e103]:
+        - generic [ref=e104]:
+          - button "选择项目" [ref=e106] [cursor=pointer]:
+            - img [ref=e107]
+            - generic [ref=e109]: 选择项目
+            - img [ref=e110]
+          - button "隐藏文件浏览器" [ref=e112] [cursor=pointer]:
+            - img [ref=e113]
+      - generic [ref=e116]:
+        - generic [ref=e120]:
+          - img [ref=e121]
+          - paragraph [ref=e123]: 请先选择一个项目
+        - main [ref=e124]:
+          - generic [ref=e127]:
+            - generic [ref=e128]:
+              - heading "仪表盘" [level=1] [ref=e129]
+              - paragraph [ref=e130]: 欢迎回来！查看您的工作流状态
+            - button "新建工作流" [ref=e131] [cursor=pointer]:
+              - img [ref=e132]
+              - text: 新建工作流
+  - region "Notifications alt+T"
+  - button "Command Palette ⌘K" [ref=e156] [cursor=pointer]:
+    - img [ref=e157]
+    - generic [ref=e159]: Command Palette
+    - generic [ref=e160]: ⌘K

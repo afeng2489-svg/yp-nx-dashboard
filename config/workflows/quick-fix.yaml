@@ -1,0 +1,41 @@
+# Example Workflow - Quick Bug Fix
+
+name: "Quick Bug Fix Workflow"
+version: "1.0"
+
+triggers:
+  - type: "manual"
+    description: "Quick fix for a bug"
+
+agents:
+  - id: "analyzer"
+    role: "debugger"
+    model: "claude-haiku-4-5"
+    prompt: |
+      Analyze the bug report and identify the root cause.
+      Look at the error logs and code to understand what went wrong.
+
+  - id: "fixer"
+    role: "developer"
+    model: "claude-sonnet-4-5"
+    depends_on: ["analyzer"]
+    prompt: |
+      Fix the bug identified by the analyzer.
+      Write minimal, focused changes that solve the problem.
+
+  - id: "verifier"
+    role: "qa"
+    model: "claude-haiku-4-5"
+    depends_on: ["fixer"]
+    prompt: |
+      Verify the fix by running tests and checking if the issue is resolved.
+
+stages:
+  - name: "Analysis"
+    agents: ["analyzer"]
+
+  - name: "Fix"
+    agents: ["fixer"]
+
+  - name: "Verify"
+    agents: ["verifier"]

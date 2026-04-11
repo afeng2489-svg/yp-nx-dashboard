@@ -1,0 +1,41 @@
+name: review-code
+description: 代码审查技能。执行代码审查，发现问题并提供改进建议。
+category: review
+version: 1.0.0
+
+phases:
+  - name: parse
+    description: 解析阶段 - 解析代码结构和变更
+    required: true
+  - name: security_check
+    description: 安全检查阶段 - 检查安全漏洞
+    required: true
+  - name: quality_check
+    description: 质量检查阶段 - 检查代码质量和风格
+    required: true
+  - name: performance_check
+    description: 性能检查阶段 - 检查性能问题
+    required: true
+  - name: report
+    description: 报告阶段 - 生成审查报告
+    required: true
+
+parameters:
+  - name: diff
+    description: 代码差异
+    type: string
+    required: true
+  - name: language
+    description: 编程语言
+    type: string
+    required: false
+
+tags:
+  - review
+  - code
+  - quality
+
+config:
+  check_security: true
+  check_performance: true
+  min_score: 70

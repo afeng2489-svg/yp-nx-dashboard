@@ -1,0 +1,882 @@
+[     425ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19500:22) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[     449ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19543:11) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[     732ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:21608
+[     781ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=729b926e:4435
+[     781ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=729b926e:4435
+[  499491ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19543:11) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[  499571ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19500:22) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[  500969ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:21608
+[  501193ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=729b926e:4435
+[  501193ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=729b926e:4435
+[ 2331159ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19543:11) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 2331184ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19500:22) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 2331497ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:21608
+[ 2331572ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=729b926e:4435
+[ 2331573ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=729b926e:4435
+[ 2347043ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19543:11) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 2347053ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19500:22) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 2348114ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:21608
+[ 2348203ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=729b926e:4435
+[ 2348203ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=729b926e:4435
+[ 2438053ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19500:22) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 2438055ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19543:11) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 2438250ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:21608
+[ 2438328ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=729b926e:4435
+[ 2438328ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=729b926e:4435
+[ 3611308ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654499860:0
+[ 3611322ms] [ERROR] [vite] Failed to reload /src/components/workspace/WorkspaceSelector.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3891962ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654780371:0
+[ 3891968ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3908726ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654795841:0
+[ 3908729ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3909968ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654798077:0
+[ 3909969ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3910567ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654799128:0
+[ 3910568ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3911101ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654799740:0
+[ 3911103ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3911869ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654800290:0
+[ 3911869ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3912759ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654801024:0
+[ 3912759ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3915592ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654802043:0
+[ 3915608ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3918059ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654804822:0
+[ 3918080ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3919941ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654807299:0
+[ 3919944ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3921450ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654809270:0
+[ 3921454ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3922624ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654810595:0
+[ 3922629ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3924663ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654811918:0
+[ 3924670ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3925739ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654813825:0
+[ 3925740ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3926865ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654814973:0
+[ 3926866ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3927860ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654816064:0
+[ 3927861ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3929166ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654817160:0
+[ 3929168ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3930406ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654818391:0
+[ 3930409ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3932034ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654819691:0
+[ 3932039ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3933707ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654821370:0
+[ 3933711ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3934900ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654822851:0
+[ 3934932ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3936658ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654823770:0
+[ 3936664ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3938194ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654825899:0
+[ 3938198ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3940885ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654827553:0
+[ 3940898ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3943238ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654830065:0
+[ 3943240ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3945042ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654832468:0
+[ 3945056ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3947008ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654834247:0
+[ 3947011ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3949013ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654836352:0
+[ 3949031ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3950370ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654838156:0
+[ 3950371ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3952814ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654839713:0
+[ 3952821ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3955409ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654842184:0
+[ 3955412ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3957365ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654844717:0
+[ 3957367ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3959182ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654846718:0
+[ 3959185ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3961195ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654848599:0
+[ 3961199ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3962550ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654850382:0
+[ 3962552ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3963653ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654851729:0
+[ 3963653ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3965361ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654853090:0
+[ 3965364ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3967085ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654854776:0
+[ 3967086ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3968174ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654856250:0
+[ 3968175ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3969869ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654857383:0
+[ 3969871ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3971592ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654859253:0
+[ 3971596ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3975153ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654861090:0
+[ 3975155ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3976862ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654864385:0
+[ 3976864ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3978166ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654866042:0
+[ 3978167ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3980068ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654867769:0
+[ 3980070ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3981423ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654869360:0
+[ 3981424ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3982952ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654870660:0
+[ 3982953ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3984433ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654872286:0
+[ 3984434ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3986788ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654874302:0
+[ 3986791ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3988852ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654876135:0
+[ 3988853ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3990869ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654878152:0
+[ 3990871ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3993899ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654880485:0
+[ 3993925ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 3997126ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654883140:0
+[ 3997132ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4000007ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654886709:0
+[ 4000012ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4002531ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654889404:0
+[ 4002534ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4008015ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654891921:0
+[ 4008018ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4011875ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654897437:0
+[ 4011880ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4015122ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654901153:0
+[ 4015142ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4020025ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654904815:0
+[ 4020041ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4028192ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654909294:0
+[ 4028288ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4042420ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654917260:0
+[ 4042448ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4047125ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654932059:0
+[ 4047150ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4047514ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654936292:0
+[ 4047516ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4047659ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654936701:0
+[ 4047659ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4047772ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654936814:0
+[ 4047773ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4047911ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654936936:0
+[ 4047911ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4047969ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654937062:0
+[ 4047970ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4048071ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654937162:0
+[ 4048072ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4048293ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654937241:0
+[ 4048295ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4048443ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654937372:0
+[ 4048443ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4048602ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654937695:0
+[ 4048602ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4049093ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654938121:0
+[ 4049093ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4053404ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654938468:0
+[ 4053434ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4055313ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654940898:0
+[ 4055342ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4060269ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654944221:0
+[ 4060279ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4060755ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654949532:0
+[ 4060756ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4061014ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654949911:0
+[ 4061014ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4064838ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654950168:0
+[ 4064857ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4066785ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654954292:0
+[ 4067033ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4070883ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654956116:0
+[ 4070903ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4076810ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654960190:0
+[ 4076865ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4081875ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654966082:0
+[ 4081893ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4082506ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4084997ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654971912:0
+[ 4085028ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4087026ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654974184:0
+[ 4087043ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4091932ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654976125:0
+[ 4091983ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4099909ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654981242:0
+[ 4099932ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4101177ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654989036:0
+[ 4101178ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4103261ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654990355:0
+[ 4103266ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4107824ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654992601:0
+[ 4107880ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4111503ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775654997014:0
+[ 4111523ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4112175ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655000651:0
+[ 4112176ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4113302ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655001385:0
+[ 4113306ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4119461ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655002475:0
+[ 4119742ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4121492ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655009448:0
+[ 4121511ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4126034ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655010616:0
+[ 4126066ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4131025ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655015221:0
+[ 4131064ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4135905ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655020136:0
+[ 4135941ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4139735ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655025004:0
+[ 4139749ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4145527ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655029385:0
+[ 4145532ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4146206ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655034745:0
+[ 4146207ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4146621ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655035371:0
+[ 4146621ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4147057ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655035833:0
+[ 4147057ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4147401ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655036212:0
+[ 4147405ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4150727ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655036577:0
+[ 4150769ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4154706ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655039910:0
+[ 4154789ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4159288ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655043260:0
+[ 4159327ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4166593ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655048488:0
+[ 4166647ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4171902ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655055609:0
+[ 4171933ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4177686ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655061319:0
+[ 4177716ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4182565ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655066843:0
+[ 4182595ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4185600ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655071943:0
+[ 4185627ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4188034ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655074878:0
+[ 4188150ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4189414ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655077158:0
+[ 4189434ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4191365ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655079778:0
+[ 4191373ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4192738ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655080919:0
+[ 4192740ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4200379ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655085805:0
+[ 4200392ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4201885ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655089557:0
+[ 4201900ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4204120ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655091124:0
+[ 4204129ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4205893ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655093255:0
+[ 4205896ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4208847ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655095251:0
+[ 4208918ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4210377ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655098181:0
+[ 4210395ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4210836ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4212597ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655099946:0
+[ 4212601ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4214543ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655102254:0
+[ 4214547ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4217412ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655104520:0
+[ 4217424ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4221430ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655107418:0
+[ 4221455ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4226575ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655110901:0
+[ 4226598ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4228681ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655115724:0
+[ 4228702ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4234532ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655118091:0
+[ 4234592ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4237737ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655123989:0
+[ 4237748ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4239019ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655127087:0
+[ 4239024ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4239575ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655128206:0
+[ 4239575ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4243201ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655128733:0
+[ 4243249ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4243611ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655130614:0
+[ 4243615ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4245929ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655134525:0
+[ 4245929ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4253525ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655142100:0
+[ 4253532ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4260085ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655146772:0
+[ 4260110ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4263091ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655150196:0
+[ 4263113ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4264007ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655152204:0
+[ 4264012ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4264687ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655153247:0
+[ 4264688ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4266560ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655154364:0
+[ 4266571ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4269096ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655156191:0
+[ 4269105ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4271099ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655158414:0
+[ 4271106ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4273418ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655160503:0
+[ 4273452ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4281207ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655165599:0
+[ 4281239ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4282175ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655171184:0
+[ 4282175ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4282399ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655171478:0
+[ 4282399ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4282662ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655171574:0
+[ 4282663ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4282817ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655171832:0
+[ 4282817ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4282895ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655171982:0
+[ 4282895ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4284770ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655173796:0
+[ 4284770ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4285596ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655174504:0
+[ 4285596ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4286096ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655175019:0
+[ 4286098ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4291123ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655179455:0
+[ 4291126ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4300904ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655186947:0
+[ 4300936ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4301389ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655189954:0
+[ 4301389ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4302983ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655190901:0
+[ 4302984ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4305630ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655192790:0
+[ 4305638ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4306696ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655194965:0
+[ 4306698ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4307495ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655195940:0
+[ 4307496ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4309050ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655196689:0
+[ 4309053ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4310404ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655198287:0
+[ 4310414ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4312336ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655199849:0
+[ 4312353ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4313946ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655201989:0
+[ 4313949ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4314687ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655203111:0
+[ 4314688ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4316318ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655204354:0
+[ 4316320ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4317741ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655205527:0
+[ 4317761ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4319671ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655207048:0
+[ 4319675ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4320855ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655208950:0
+[ 4320856ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4323129ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655210322:0
+[ 4323141ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4324221ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655212602:0
+[ 4324225ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4325419ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655213732:0
+[ 4325419ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4327238ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655214735:0
+[ 4327244ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4330927ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655216379:0
+[ 4330946ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4332504ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655220019:0
+[ 4332511ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4333279ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655221908:0
+[ 4333279ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4334308ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655222512:0
+[ 4334324ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4335578ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655223949:0
+[ 4335582ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4336909ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655224840:0
+[ 4336909ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4338916ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655226245:0
+[ 4338917ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4340599ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655228274:0
+[ 4340600ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4341791ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655229858:0
+[ 4341793ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4343008ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655231159:0
+[ 4343015ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4343980ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655232426:0
+[ 4343981ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4345400ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655233313:0
+[ 4345402ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4346655ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655234748:0
+[ 4346657ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4347457ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655235862:0
+[ 4347458ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4349606ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655237334:0
+[ 4349609ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4350557ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655239122:0
+[ 4350561ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4355231ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655243100:0
+[ 4355247ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4357860ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655246065:0
+[ 4357866ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4359566ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655247563:0
+[ 4359567ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4359891ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655248777:0
+[ 4359897ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4361890ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655250438:0
+[ 4361903ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4365703ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/components/workspace/WorkspaceSelector.tsx?t=1775655254036:0
+[ 4365713ms] [ERROR] [vite] Failed to reload /src/components/layout/Dashboard.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:881
+[ 4461684ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19543:11)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19500:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19381:17 @ http://localhost:5173/src/pages/RolesPage.tsx:54
+[ 4461696ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19500:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19381:17
+    at workLoop (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:197:42) @ http://localhost:5173/src/pages/RolesPage.tsx:54
+[ 4461701ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19543:11) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 4461733ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=729b926e:19500:22) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 4463671ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:21608
+[ 4463963ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=746917cf:4435
+[ 4463963ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=746917cf:4435
+[ 5855462ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19381:17
+    at workLoop (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:197:42) @ http://localhost:5173/src/pages/RolesPage.tsx:54
+[ 5855495ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx?t=1775655601718:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx?t=1775655601718:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19543:11)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22)
+    at commitRootImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19469:13) @ http://localhost:5173/src/pages/RolesPage.tsx?t=1775655601718:54
+[ 5855497ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19543:11)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19381:17 @ http://localhost:5173/src/pages/RolesPage.tsx:54
+[ 5855499ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx?t=1775655656191:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx?t=1775655656191:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19543:11)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22)
+    at commitRootImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19469:13) @ http://localhost:5173/src/pages/RolesPage.tsx?t=1775655656191:54
+[ 5855501ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19543:11)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22)
+    at commitRootImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19469:13) @ http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:54
+[ 5855505ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19543:11) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 5855506ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 5855966ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:21608
+[ 5856087ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=746917cf:4435
+[ 5856087ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=746917cf:4435
+[ 5857720ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19381:17
+    at workLoop (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:197:42) @ http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:54
+[ 5857722ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19543:11)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19381:17 @ http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:54
+[ 5857725ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 5857725ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19543:11) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 5857900ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:21608
+[ 5857944ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=746917cf:4435
+[ 5857944ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=746917cf:4435
+[ 5859016ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19543:11)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19381:17 @ http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:54
+[ 5859019ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19381:17
+    at workLoop (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:197:42) @ http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:54
+[ 5859021ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19543:11) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 5859022ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 5859174ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:21608
+[ 5859210ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=746917cf:4435
+[ 5859211ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=746917cf:4435
+[ 5859838ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19543:11)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19381:17 @ http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:54
+[ 5859840ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19381:17
+    at workLoop (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:197:42) @ http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:54
+[ 5859844ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 5859845ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19543:11) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 5859962ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:21608
+[ 5859983ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=746917cf:4435
+[ 5859984ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=746917cf:4435
+[ 5860620ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19543:11)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19381:17 @ http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:54
+[ 5860622ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19381:17
+    at workLoop (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:197:42) @ http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:54
+[ 5860626ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 5860626ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19543:11) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 5860737ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:21608
+[ 5860766ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=746917cf:4435
+[ 5860766ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=746917cf:4435
+[ 7234989ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8080/api/v1/roles:0
+[ 7235015ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19543:11)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19381:17 @ http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:54
+[ 7235095ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8080/api/v1/ai/models:0
+[ 7235174ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8080/api/v1/ai/selected:0
+[ 7235175ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18206:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18179:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18169:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18159:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19543:11) @ http://localhost:5173/src/stores/aiConfigStore.ts:156
+[ 7235175ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8080/api/v1/ai/models:0
+[ 7235178ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8080/api/v1/roles:0
+[ 7235178ms] [ERROR] Failed to fetch roles: TypeError: Failed to fetch
+    at loadAllRoles (http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:45:32)
+    at http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:60:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19381:17
+    at workLoop (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:197:42) @ http://localhost:5173/src/pages/RolesPage.tsx?t=1775656327354:54
+[ 7235178ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8080/api/v1/ai/selected:0
+[ 7235178ms] [ERROR] Failed to fetch selected model: TypeError: Failed to fetch
+    at ApiClient.request (http://localhost:5173/src/api/client.ts:9:28)
+    at ApiClient.getSelectedModel (http://localhost:5173/src/api/client.ts:101:17)
+    at fetchSelectedModel (http://localhost:5173/src/stores/aiConfigStore.ts:154:32)
+    at http://localhost:5173/src/components/layout/Sidebar.tsx:48:5
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:16963:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:18374:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19754:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19739:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19556:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-PNGJSGSD.js?v=746917cf:19500:22) @ http://localhost:5173/src/stores/aiConfigStore.ts:156

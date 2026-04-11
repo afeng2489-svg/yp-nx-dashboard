@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "NX Dashboard File Manager",
+  "version": "1.0",
+  "description": "允许 NX Dashboard 访问本地文件夹",
+  "permissions": ["fileSystem", "storage"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://localhost:5173/*", "http://localhost:3000/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "action": {
+    "default_title": "NX Dashboard 文件管理"
+  }
+}

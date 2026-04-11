@@ -1,0 +1,94 @@
+# Example Workflow - Feature Development
+
+name: "Feature Development Workflow"
+version: "1.0"
+description: "Complete workflow for developing a new feature"
+
+triggers:
+  - type: "manual"
+    description: "Triggered manually to develop a new feature"
+    inputs:
+      feature_name:
+        type: "string"
+        required: true
+        description: "Name of the feature to develop"
+      project_id:
+        type: "string"
+        required: true
+        description: "Target project identifier"
+
+variables:
+  target_dir: "./workspace/{{ inputs.project_id }}"
+  coverage_target: 80
+
+agents:
+  - id: "planner"
+    role: "architect"
+    model: "claude-opus-4-5"
+    prompt: |
+      You are an architect planning the implementation of {{ inputs.feature_name }}.
+      Analyze the requirements and create a detailed technical design document.
+      Include:
+      - Module structure
+      - API design
+      - Data models
+      - Key implementation decisions
+      - Potential risks and mitigations
+
+  - id: "coder"
+    role: "developer"
+    model: "claude-sonnet-4-5"
+    depends_on: ["planner"]
+    prompt: |
+      Implement {{ inputs.feature_name }} based on the architecture design.
+      Working directory: {{ variables.target_dir }}
+      Follow best practices and write clean, maintainable code.
+
+  - id: "reviewer"
+    role: "code_reviewer"
+    model: "claude-sonnet-4-5"
+    depends_on: ["coder"]
+    prompt: |
+      Review the implemented code for:
+      - Code quality and readability
+      - Security vulnerabilities (SQL injection, XSS, etc.)
+      - Performance issues
+      - Error handling
+      - Test coverage
+      Working directory: {{ variables.target_dir }}
+
+  - id: "tester"
+    role: "test_engineer"
+    model: "claude-opus-4-5"
+    depends_on: ["coder"]
+    prompt: |
+      Generate comprehensive tests for {{ inputs.feature_name }}.
+      Coverage target: {{ variables.coverage_target }}%
+      Include unit tests and integration tests.
+      Working directory: {{ variables.target_dir }}
+
+stages:
+  - name: "Planning"
+    agents: ["planner"]
+    output:
+      - path: "{{ variables.target_dir }}/docs/design.md"
+
+  - name: "Implementation"
+    agents: ["coder"]
+    output:
+      - path: "{{ variables.target_dir }}/src/**/*.rs"
+
+  - name: "Review"
+    agents: ["reviewer"]
+    output:
+      - path: "{{ variables.target_dir }}/reports/review.md"
+
+  - name: "Testing"
+    agents: ["tester"]
+    output:
+      - path: "{{ variables.target_dir }}/tests/**/*.test.ts"
+
+on_error:
+  stage: "error-handler"
+  retry: true
+  max_retries: 3
