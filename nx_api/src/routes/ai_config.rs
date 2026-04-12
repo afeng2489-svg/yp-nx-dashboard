@@ -322,8 +322,10 @@ pub async fn execute_cli(
     let start = std::time::Instant::now();
     let cli = request.cli.unwrap_or(CLI::Claude);
 
-    // 先提取 working_directory，避免 move 后再借用
-    let working_dir = request.working_directory.as_deref();
+    // 优先使用请求中的 working_directory，否则使用当前设置的 workspace path
+    let current_workspace = state.current_workspace_path.read().clone();
+    let working_dir = request.working_directory.as_deref()
+        .or_else(|| current_workspace.as_deref());
 
     let context = CLIContext {
         working_directory: None, // CLI 调用时用 working_dir 参数
@@ -608,14 +610,18 @@ pub struct ChatWithModelRequest {
 
 /// 使用选定模型执行聊天
 pub async fn chat_with_selected(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Json(request): Json<ChatWithModelRequest>,
 ) -> Result<Json<ChatResponse>, (StatusCode, String)> {
     // 将消息转换为 prompt
     let prompt = messages_to_prompt(&request.messages);
 
+    // 获取当前工作区路径
+    let current_workspace = state.current_workspace_path.read().clone();
+    let working_dir = current_workspace.as_deref();
+
     // 调用 Claude CLI（Claude Switch 切换后自动使用新模型）
-    call_claude_cli(&prompt, None)
+    call_claude_cli(&prompt, working_dir)
         .await
         .map(|content| {
             Json(ChatResponse {
@@ -1701,4 +1707,44 @@ pub async fn test_claude_switch_backend(
             models: None,
         })),
     }
+}
+
+// ============== Current Workspace Endpoints ==============
+
+/// 设置当前工作区路径请求
+#[derive(Debug, serde::Deserialize)]
+pub struct SetCurrentWorkspaceRequest {
+    pub path: Option<String>,
+}
+
+/// 获取当前工作区路径响应
+#[derive(Debug, serde::Serialize)]
+pub struct CurrentWorkspaceResponse {
+    pub path: Option<String>,
+}
+
+/// 设置当前工作区路径（用于 Claude CLI --project 参数）
+pub async fn set_current_workspace(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<SetCurrentWorkspaceRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let mut current = state.current_workspace_path.write();
+    *current = request.path.clone();
+    tracing::info!("当前工作区路径已设置为: {:?}", request.path);
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "path": request.path,
+        "message": "当前工作区已更新"
+    })))
+}
+
+/// 获取当前工作区路径
+pub async fn get_current_workspace(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<CurrentWorkspaceResponse>, (StatusCode, String)> {
+    let current = state.current_workspace_path.read();
+    Ok(Json(CurrentWorkspaceResponse {
+        path: current.clone(),
+    }))
 }

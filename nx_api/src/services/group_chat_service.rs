@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use thiserror::Error;
+use parking_lot::RwLock as ParkingRwLock;
 
 use nexus_ai::AIModelManager;
 
@@ -48,6 +49,8 @@ pub struct GroupChatService {
     repo: Arc<SqliteGroupChatRepository>,
     team_service: TeamService,
     ai_manager: Arc<AIModelManager>,
+    /// 当前工作区路径，用于 Claude CLI --project 参数
+    current_workspace_path: Arc<ParkingRwLock<Option<String>>>,
     // In-memory state for active discussions
     active_sessions: RwLock<HashMap<String, ActiveSessionState>>,
 }
@@ -65,11 +68,13 @@ impl GroupChatService {
         repo: Arc<SqliteGroupChatRepository>,
         team_service: TeamService,
         ai_manager: Arc<AIModelManager>,
+        current_workspace_path: Arc<ParkingRwLock<Option<String>>>,
     ) -> Self {
         Self {
             repo,
             team_service,
             ai_manager,
+            current_workspace_path,
             active_sessions: RwLock::new(HashMap::new()),
         }
     }
@@ -255,8 +260,13 @@ impl GroupChatService {
         let messages = self.get_conversation_history(session_id, 10).await?;
         let prompt = self.build_discussion_prompt(&session, &messages, &request.content);
 
+        // 获取当前工作区路径
+        let working_dir = self.current_workspace_path.read().clone();
+        let working_dir_ref = working_dir.as_deref();
+        tracing::info!("[GroupChat] 调用 Claude CLI，当前工作区路径: {:?}", working_dir_ref);
+
         // Call Claude CLI
-        let response = claude_cli::call_claude_cli(&prompt, None)
+        let response = claude_cli::call_claude_cli(&prompt, working_dir_ref)
             .await
             .map_err(|e| GroupChatServiceError::ClaudeCli(e))?;
 
@@ -298,8 +308,13 @@ impl GroupChatService {
         // Build prompt
         let prompt = self.build_role_prompt(&session, role_id, &messages);
 
+        // 获取当前工作区路径
+        let working_dir = self.current_workspace_path.read().clone();
+        let working_dir_ref = working_dir.as_deref();
+        tracing::info!("[GroupChat] 执行角色 turn，当前工作区路径: {:?}", working_dir_ref);
+
         // Execute with Claude CLI
-        let response = claude_cli::call_claude_cli(&prompt, None)
+        let response = claude_cli::call_claude_cli(&prompt, working_dir_ref)
             .await
             .map_err(|e| GroupChatServiceError::ClaudeCli(e))?;
 
@@ -381,7 +396,9 @@ impl GroupChatService {
 
         // Generate conclusion using Claude CLI
         let conclusion_prompt = self.build_conclusion_prompt(&session, &messages);
-        let conclusion_content = claude_cli::call_claude_cli(&conclusion_prompt, None)
+        let working_dir = self.current_workspace_path.read().clone();
+        let working_dir_ref = working_dir.as_deref();
+        let conclusion_content = claude_cli::call_claude_cli(&conclusion_prompt, working_dir_ref)
             .await
             .unwrap_or_else(|_| "讨论已结束，未能生成结论。".to_string());
 

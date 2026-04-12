@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 use std::path::PathBuf;
+use parking_lot::RwLock as ParkingRwLock;
 
 use crate::config::ApiConfig;
 use crate::services::agent_team_service::AgentTeamService;
@@ -27,6 +28,7 @@ impl TeamsAppState {
         telegram_service: TelegramService,
         ai_manager: Arc<nexus_ai::AIModelManager>,
         provider_service: Option<Arc<ProviderService>>,
+        current_workspace_path: Arc<ParkingRwLock<Option<String>>>,
     ) -> Self {
         let agents_dir = std::env::current_dir()
             .unwrap_or_default()
@@ -41,6 +43,7 @@ impl TeamsAppState {
                 telegram_service.clone(),
                 ai_manager,
                 ps,
+                current_workspace_path.clone(),
             )
         } else {
             AgentTeamService::new(
@@ -48,6 +51,7 @@ impl TeamsAppState {
                 skill_service,
                 telegram_service.clone(),
                 ai_manager,
+                current_workspace_path.clone(),
             )
         };
 

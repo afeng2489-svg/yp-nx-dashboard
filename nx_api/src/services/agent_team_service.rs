@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::broadcast;
+use parking_lot::RwLock as ParkingRwLock;
 
 use nexus_ai::AIModelManager;
 
@@ -52,6 +53,8 @@ pub struct AgentTeamService {
     telegram_service: TelegramService,
     ai_manager: Arc<AIModelManager>,
     provider_service: Option<Arc<ProviderService>>,
+    /// 当前工作区路径，用于 Claude CLI 当前目录参数
+    current_workspace_path: Arc<ParkingRwLock<Option<String>>>,
 }
 
 impl Clone for AgentTeamService {
@@ -62,6 +65,7 @@ impl Clone for AgentTeamService {
             telegram_service: self.telegram_service.clone(),
             ai_manager: Arc::clone(&self.ai_manager),
             provider_service: self.provider_service.clone(),
+            current_workspace_path: self.current_workspace_path.clone(),
         }
     }
 }
@@ -73,6 +77,7 @@ impl AgentTeamService {
         skill_service: SkillService,
         telegram_service: TelegramService,
         ai_manager: Arc<AIModelManager>,
+        current_workspace_path: Arc<ParkingRwLock<Option<String>>>,
     ) -> Self {
         Self {
             team_service,
@@ -80,6 +85,7 @@ impl AgentTeamService {
             telegram_service,
             ai_manager,
             provider_service: None,
+            current_workspace_path,
         }
     }
 
@@ -90,6 +96,7 @@ impl AgentTeamService {
         telegram_service: TelegramService,
         ai_manager: Arc<AIModelManager>,
         provider_service: Arc<ProviderService>,
+        current_workspace_path: Arc<ParkingRwLock<Option<String>>>,
     ) -> Self {
         Self {
             team_service,
@@ -97,6 +104,7 @@ impl AgentTeamService {
             telegram_service,
             ai_manager,
             provider_service: Some(provider_service),
+            current_workspace_path,
         }
     }
 
@@ -113,6 +121,7 @@ impl AgentTeamService {
         let skill_service = self.skill_service.clone();
         let ai_manager = Arc::clone(&self.ai_manager);
         let provider_service = self.provider_service.clone();
+        let current_workspace_path = self.current_workspace_path.clone();
 
         tokio::spawn(async move {
             while let Ok(message) = receiver.recv().await {
@@ -122,6 +131,7 @@ impl AgentTeamService {
                     telegram_service: TelegramService::new(),
                     ai_manager: Arc::clone(&ai_manager),
                     provider_service: provider_service.clone(),
+                    current_workspace_path: current_workspace_path.clone(),
                 };
 
                 if let Err(e) = handler.handle_telegram_message(message).await {
@@ -171,6 +181,7 @@ impl AgentTeamService {
         let task = request.task.clone();
         let roles = team_with_roles.roles.clone();
         let team_service = self.team_service.clone();
+        let current_workspace_path = self.current_workspace_path.clone();
 
         // Spawn background task for single Claude CLI call
         tokio::spawn(async move {
@@ -197,11 +208,17 @@ Return your response directly. If using a skill, invoke it according to its exec
                 team_context, task
             );
 
+            // 获取当前工作区路径
+            let working_dir = current_workspace_path.read().clone();
+
             // Single Claude CLI call
-            let output = tokio::process::Command::new("claude")
-                .args(["-p", &full_prompt])
-                .output()
-                .await;
+            let mut cmd = tokio::process::Command::new("claude");
+            cmd.args(["-p", "--dangerously-skip-permissions", &full_prompt]);
+            if let Some(ref dir) = working_dir {
+                cmd.current_dir(dir);
+                tracing::info!("[AgentTeam] 执行 Claude CLI，当前目录: {}", dir);
+            }
+            let output = cmd.output().await;
 
             let response = match output {
                 Ok(out) if out.status.success() => {
@@ -293,6 +310,7 @@ Return your response directly. If using a skill, invoke it according to its exec
         // Clone dependencies for background task
         let team_service = self.team_service.clone();
         let role_clone = role.clone();
+        let current_workspace_path = self.current_workspace_path.clone();
 
         // Spawn background task to process AI request
         tokio::spawn(async move {
@@ -315,10 +333,16 @@ Return your response directly. If using a skill, invoke it according to its exec
                 auto_yes_prefix, prompt, request.task
             );
 
-            let output = tokio::process::Command::new("claude")
-                .args(["-p", &full_prompt])
-                .output()
-                .await;
+            // 获取当前工作区路径
+            let working_dir = current_workspace_path.read().clone();
+
+            let mut cmd = tokio::process::Command::new("claude");
+            cmd.args(["-p", "--dangerously-skip-permissions", &full_prompt]);
+            if let Some(ref dir) = working_dir {
+                cmd.current_dir(dir);
+                tracing::info!("[AgentTeam] 执行 Claude CLI，当前目录: {}", dir);
+            }
+            let output = cmd.output().await;
 
             let response = match output {
                 Ok(out) => {
@@ -503,9 +527,15 @@ Return your response directly. If using a skill, invoke it according to its exec
         // Execute Claude CLI with the prompt
         // Claude CLI will automatically use the model configured locally
         // (which Claude Switch updates when switching models)
-        let output = tokio::process::Command::new("claude")
-            .args(["-p", &full_prompt])
-            .output()
+        let working_dir = self.current_workspace_path.read().clone();
+
+        let mut cmd = tokio::process::Command::new("claude");
+        cmd.args(["-p", "--dangerously-skip-permissions", &full_prompt]);
+        if let Some(ref dir) = working_dir {
+            cmd.current_dir(dir);
+            tracing::info!("[AgentTeam] execute_role_ai 执行 Claude CLI，当前目录: {}", dir);
+        }
+        let output = cmd.output()
             .await
             .map_err(|e| AgentTeamServiceError::AiError(format!("Failed to execute Claude CLI: {}", e)))?;
 

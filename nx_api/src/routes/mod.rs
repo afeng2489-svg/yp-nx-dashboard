@@ -7,6 +7,7 @@ use axum::{
 use tower_http::cors::{CorsLayer, Any};
 use std::sync::Arc;
 use std::collections::HashMap;
+use parking_lot::RwLock;
 
 use crate::config::ApiConfig;
 use crate::services::{WorkflowService, ExecutionService, SessionService, SqliteSessionRepository, SqliteWorkflowRepository, SqliteWorkspaceRepository, WorkspaceService, TestGenerator, PluginService, WisdomService, SharedWisdomService, SkillService, TelegramService, SqliteTeamRepository, SqliteApiKeyRepository, ProjectService, SqliteProjectRepository, AgentTeamService, SqliteProviderRepository, ProviderService, GroupChatService, SqliteGroupChatRepository};
@@ -137,10 +138,15 @@ pub struct AppState {
     pub project_service: Arc<ProjectService>,
     pub provider_service: Arc<ProviderService>,
     pub group_chat_service: Arc<GroupChatService>,
+    /// 当前工作区路径，用于 Claude CLI --project 参数
+    pub current_workspace_path: Arc<RwLock<Option<String>>>,
 }
 
 impl AppState {
     pub fn new(config: &ApiConfig) -> Self {
+        // 创建当前工作区路径（用于 Claude CLI --project 参数）
+        let current_workspace_path = Arc::new(RwLock::new(None));
+
         // 创建会话仓库和服务
         let session_repo = Arc::new(
             SqliteSessionRepository::new(&config.db_path)
@@ -217,6 +223,7 @@ impl AppState {
                 TelegramService::new(),
                 ai_model_manager.clone(),
                 provider_service.clone(),
+                current_workspace_path.clone(),
             )
         );
 
@@ -252,6 +259,7 @@ impl AppState {
                 group_chat_repo,
                 team_service.clone(),
                 ai_model_manager.clone(),
+                current_workspace_path.clone(),
             )
         );
 
@@ -272,6 +280,7 @@ impl AppState {
             project_service,
             provider_service,
             group_chat_service,
+            current_workspace_path,
         }
     }
 }
@@ -390,6 +399,9 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/ai/claude-switch/backends/switch", post(ai_config::switch_claude_switch_backend))
         .route("/api/v1/ai/claude-switch/active", get(ai_config::get_active_claude_switch_backend))
         .route("/api/v1/ai/claude-switch/backends/test", post(ai_config::test_claude_switch_backend))
+        // 当前工作区路由（用于 Claude CLI --project 参数）
+        .route("/api/v1/ai/current-workspace", get(ai_config::get_current_workspace))
+        .route("/api/v1/ai/current-workspace", put(ai_config::set_current_workspace))
         // 技能路由
         .route("/api/v1/skills", get(skills::list_skills))
         .route("/api/v1/skills", post(skills::create_skill))

@@ -234,8 +234,10 @@ pub struct MessageQueryParams {
 /// Execute a task across a team
 pub async fn execute_team_task(
     State(state): State<Arc<AppState>>,
+    Path(team_id): Path<String>,
     Json(request): Json<ExecuteTeamTaskRequest>,
 ) -> ApiResponse<crate::models::team::ExecuteTeamTaskResponse> {
+    tracing::info!("[Route] execute_team_task 被调用，team_id: {}", team_id);
     let response = state.teams_state.agent_team_service.execute_team_task(request).await?;
     Ok(Json(response))
 }

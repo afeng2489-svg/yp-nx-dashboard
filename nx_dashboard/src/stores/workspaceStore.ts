@@ -168,6 +168,14 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             if (workspaces[0].root_path) {
               get().browseFiles();
             }
+            // 初始化时也要通知后端当前工作区路径
+            fetchWithTimeout(`${API_BASE}/api/v1/ai/current-workspace`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: workspaces[0].root_path || null }),
+            }).catch((err) => {
+              console.error('Failed to init current workspace:', err);
+            });
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to fetch workspaces';
@@ -185,6 +193,14 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         if (workspace?.root_path) {
           get().browseFiles();
         }
+        // 更新后端的当前工作区路径（用于 Claude CLI --project 参数）
+        fetchWithTimeout(`${API_BASE}/api/v1/ai/current-workspace`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: workspace?.root_path || null }),
+        }).catch((err) => {
+          console.error('Failed to update current workspace:', err);
+        });
       },
 
       createWorkspace: async (name, description, rootPath) => {
@@ -365,6 +381,18 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
     {
       name: 'nexus-workspace', // localStorage key
       partialize: (state) => ({ currentWorkspace: state.currentWorkspace }),
+      onRehydrateStorage: () => (state) => {
+        // 页面加载恢复 persisted workspace 后，通知后端当前工作区路径
+        if (state?.currentWorkspace?.root_path) {
+          fetchWithTimeout(`${API_BASE}/api/v1/ai/current-workspace`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: state.currentWorkspace.root_path }),
+          }).catch((err) => {
+            console.error('Failed to sync current workspace on load:', err);
+          });
+        }
+      },
     }
   )
 );

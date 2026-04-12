@@ -139,6 +139,7 @@ pub async fn send_message(
     Path(id): Path<String>,
     Json(request): Json<SendMessageRequest>,
 ) -> Result<Json<GroupMessage>, ApiError> {
+    tracing::info!("[Route] send_message 被调用，session_id: {}", id);
     let service = &state.group_chat_service;
 
     let message = service

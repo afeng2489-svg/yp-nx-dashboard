@@ -131,13 +131,17 @@ pub async fn start_execution(
     let workflow_yaml = serde_yaml::to_string(&workflow_def)
         .map_err(|e| ExecutionAppError::Internal(format!("工作流 YAML 序列化失败: {}", e)))?;
 
-    // 4. 启动真实执行（异步，不等待完成）
+    // 4. 获取当前工作区路径
+    let current_workspace = state.current_workspace_path.read().clone();
+
+    // 5. 启动真实执行（异步，不等待完成）
     let execution_id = state.execution_service
         .execute_workflow(
             workflow.id.clone(),
             &workflow_yaml,
             variables.clone(),
             None, // 使用默认 AI 配置
+            current_workspace,
         )
         .await
         .map_err(|e| ExecutionAppError::Internal(format!("执行启动失败: {}", e)))?;

@@ -16,6 +16,8 @@ use nexus_ai::ChatMessage;
 pub struct WorkflowEngine {
     /// 事件发射器
     event_emitter: Arc<dyn EventEmitter>,
+    /// 工作目录（用于 Claude CLI --project 参数）
+    working_directory: Option<String>,
 }
 
 impl WorkflowEngine {
@@ -23,6 +25,15 @@ impl WorkflowEngine {
     pub fn new(event_emitter: Arc<dyn EventEmitter>) -> Self {
         Self {
             event_emitter,
+            working_directory: None,
+        }
+    }
+
+    /// 创建带工作目录的工作流引擎
+    pub fn with_working_directory(event_emitter: Arc<dyn EventEmitter>, working_directory: Option<String>) -> Self {
+        Self {
+            event_emitter,
+            working_directory,
         }
     }
 
@@ -221,10 +232,18 @@ impl WorkflowEngine {
 
     /// 调用 Claude CLI
     async fn call_claude_cli(&self, prompt: &str) -> Result<String, WorkflowError> {
-        let mut child = Command::new("claude")
-            .args(["-p", prompt])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+        let mut cmd = Command::new("claude");
+        cmd.args(["-p", "--dangerously-skip-permissions", prompt]);
+
+        // 如果设置了 working_directory，设置当前工作目录
+        if let Some(ref dir) = self.working_directory {
+            cmd.current_dir(dir);
+        }
+
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::piped());
+
+        let mut child = cmd
             .spawn()
             .map_err(|e| WorkflowError::Execution(format!("Failed to spawn Claude CLI: {}", e)))?;
 
@@ -244,6 +263,7 @@ impl Clone for WorkflowEngine {
     fn clone(&self) -> Self {
         Self {
             event_emitter: self.event_emitter.clone(),
+            working_directory: self.working_directory.clone(),
         }
     }
 }

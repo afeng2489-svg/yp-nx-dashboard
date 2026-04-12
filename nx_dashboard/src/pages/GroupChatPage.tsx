@@ -56,7 +56,7 @@ export function GroupChatPage() {
     clearError,
   } = useGroupChatStore();
 
-  const { currentWorkspace } = useWorkspaceStore();
+  const { currentWorkspace, browseFiles } = useWorkspaceStore();
   const { teams, roles } = useTeamStore();
   const { confirmState, showConfirm, hideConfirm } = useConfirmModal();
 
@@ -157,6 +157,8 @@ export function GroupChatPage() {
       await sendMessage(selectedSessionId, request);
       setNewMessage('');
       fetchMessages(selectedSessionId);
+      // 刷新文件列表，以便显示 Claude CLI 创建的文件
+      browseFiles();
     } catch (err) {
       console.error('Failed to send message:', err);
     }
@@ -171,6 +173,8 @@ export function GroupChatPage() {
       const speaker = await getNextSpeaker(selectedSessionId);
       setNextSpeaker(speaker);
       fetchMessages(selectedSessionId);
+      // 刷新文件列表，以便显示 Claude CLI 创建的文件
+      browseFiles();
     } catch (err) {
       console.error('Failed to execute role turn:', err);
     } finally {

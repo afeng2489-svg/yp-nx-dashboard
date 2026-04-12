@@ -277,6 +277,7 @@ impl ExecutionService {
     /// * `workflow_yaml` - 工作流 YAML 定义
     /// * `variables` - 执行变量
     /// * `ai_config` - AI 提供商配置
+    /// * `working_directory` - 工作目录（用于 Claude CLI --project 参数）
     ///
     /// # Returns
     /// 执行 ID
@@ -286,6 +287,7 @@ impl ExecutionService {
         workflow_yaml: &str,
         variables: serde_json::Value,
         ai_config: Option<NexusAIManagerConfig>,
+        working_directory: Option<String>,
     ) -> Result<String, ExecutionError> {
         use std::sync::Arc;
 
@@ -305,7 +307,7 @@ impl ExecutionService {
         let event_emitter = Arc::new(WorkflowEventBridge::new(self.clone()));
 
         // 4. 创建工作流引擎（使用 Claude CLI，不依赖 AI 提供商注册表）
-        let engine = WorkflowEngine::new(event_emitter);
+        let engine = WorkflowEngine::with_working_directory(event_emitter, working_directory);
 
         // 5. 启动执行
         let execution = self.start_execution(workflow_id.clone(), variables);
