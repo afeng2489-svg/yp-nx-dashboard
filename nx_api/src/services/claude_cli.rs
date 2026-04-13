@@ -53,7 +53,7 @@ pub async fn call_claude_cli_with_timeout(prompt: &str, timeout_secs: u64, worki
         std::time::Duration::from_secs(timeout_secs),
         async {
             let mut cmd = Command::new("claude");
-            cmd.args(["-p", "--dangerously-skip-permissions", prompt]);
+            cmd.args(["-p", "--dangerously-skip-permissions", "--no-session-persistence", prompt]);
 
             // 如果提供了 working_directory，设置当前工作目录
             if let Some(dir) = working_directory {
@@ -87,7 +87,7 @@ pub async fn call_claude_cli_with_timeout(prompt: &str, timeout_secs: u64, worki
 /// 适用于需要解析 Claude 的 tool_use 等结构的场景
 pub async fn call_claude_cli_with_tools(prompt: &str) -> ClaudeCliResult {
     let output = Command::new("claude")
-        .args(["-p", "--dangerously-skip-permissions", "--verbose", prompt])
+        .args(["-p", "--dangerously-skip-permissions", "--no-session-persistence", "--verbose", prompt])
         .output()
         .await
         .map_err(|e| format!("Failed to execute Claude CLI: {}", e))?;
