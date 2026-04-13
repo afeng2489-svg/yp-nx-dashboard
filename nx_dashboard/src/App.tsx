@@ -1,11 +1,12 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Toaster } from 'sonner';
 import { Dashboard } from '@/components/layout';
 import { PageTransition } from '@/components/ui';
 import { useKeyboardHandler } from '@/lib/keyboard';
 import { CommandPalette } from '@/components/command';
+import { useVersionCheck } from '@/lib/versionCheck';
 import './index.css';
 
 // Code splitting for heavy pages
@@ -65,6 +66,19 @@ function PageWrapper({ children }: { children: React.ReactNode }) {
 function App() {
   // Initialize keyboard shortcuts handler
   useKeyboardHandler();
+
+  // Version check on startup
+  const { updateAvailable, showUpdateDialog } = useVersionCheck();
+
+  useEffect(() => {
+    if (updateAvailable) {
+      // Show update notification after a short delay to let app load first
+      const timer = setTimeout(() => {
+        showUpdateDialog();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [updateAvailable, showUpdateDialog]);
 
   return (
     <QueryClientProvider client={queryClient}>
