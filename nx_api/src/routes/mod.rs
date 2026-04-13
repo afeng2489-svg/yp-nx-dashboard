@@ -14,6 +14,7 @@ use crate::config::ApiConfig;
 use crate::services::{WorkflowService, ExecutionService, SessionService, SqliteSessionRepository, SqliteWorkflowRepository, SqliteWorkspaceRepository, WorkspaceService, TestGenerator, PluginService, WisdomService, SharedWisdomService, SkillService, TelegramService, SqliteTeamRepository, SqliteApiKeyRepository, ProjectService, SqliteProjectRepository, AgentTeamService, SqliteProviderRepository, ProviderService, GroupChatService, SqliteGroupChatRepository};
 use crate::middleware::auth::ApiKeyAuth;
 use crate::ws::TerminalWsHandler;
+use crate::ws::ClaudeStreamWsHandler;
 use crate::routes::teams_state::TeamsAppState;
 use nexus_ai::{AIModelManager, AIManagerConfig, APIConfig, ProviderType, ModelConfig};
 
@@ -476,6 +477,7 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/ws/executions/:id", get(executions::execution_ws))
         .route("/ws/sessions/:id", get(sessions::session_ws))
         .route("/ws/terminal", get(terminal_ws_handler))
+        .route("/ws/claude-stream", get(claude_stream_ws_handler))
         .with_state(app_state_for_router);
 
     // 添加 CORS 中间件
@@ -497,6 +499,17 @@ async fn terminal_ws_handler(
     ws: axum::extract::ws::WebSocketUpgrade,
 ) -> impl axum::response::IntoResponse {
     let handler = TerminalWsHandler::new();
+
+    ws.on_upgrade(async move |socket| {
+        handler.handle(socket).await;
+    })
+}
+
+/// Claude CLI 流式 WebSocket 处理函数
+async fn claude_stream_ws_handler(
+    ws: axum::extract::ws::WebSocketUpgrade,
+) -> impl axum::response::IntoResponse {
+    let handler = ClaudeStreamWsHandler::new();
 
     ws.on_upgrade(async move |socket| {
         handler.handle(socket).await;

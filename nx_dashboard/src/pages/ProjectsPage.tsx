@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { useProjectStore, Project, ExecuteProjectResponse } from '@/stores/projectStore';
 import { useTeamStore } from '@/stores/teamStore';
 import { useWorkspaceStore, Workspace } from '@/stores/workspaceStore';
-import { Plus, Trash2, Play, X, Loader2, FolderOpen, Clock, CheckCircle, XCircle, AlertCircle, Folder } from 'lucide-react';
+import { Plus, Trash2, Play, X, Loader2, FolderOpen, Clock, CheckCircle, XCircle, AlertCircle, Folder, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
+import { ClaudeStreamPanel } from '@/components/terminal/ClaudeStreamPanel';
 
 // Extended project type that includes local path projects (workspaces)
 interface DisplayProject {
@@ -405,9 +406,11 @@ function ExecuteProjectModal({
   executing: boolean;
   result: ExecuteProjectResponse | null;
 }) {
+  const [activeTab, setActiveTab] = useState<'standard' | 'cli'>('standard');
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-card rounded-2xl shadow-xl w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+      <div className="bg-card rounded-2xl shadow-xl w-full max-w-4xl mx-4 max-h-[85vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-border">
           <div>
             <h2 className="text-lg font-semibold">执行项目</h2>
@@ -417,88 +420,134 @@ function ExecuteProjectModal({
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="p-6 space-y-4 overflow-y-auto flex-1">
-          <div>
-            <label className="block text-sm font-medium mb-2">执行任务</label>
-            <textarea
-              value={task}
-              onChange={(e) => onTaskChange(e.target.value)}
-              placeholder="描述您想要完成的任务..."
-              className="w-full px-4 py-2 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[120px]"
-              disabled={executing}
-            />
-          </div>
 
-          {result && (
-            <div className="space-y-3">
-              <div className={cn(
-                'flex items-center gap-2 p-3 rounded-xl',
-                result.success ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'
-              )}>
-                {result.success ? <CheckCircle className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
-                <span className="font-medium">{result.success ? '执行成功' : '执行失败'}</span>
+        {/* Tab navigation */}
+        <div className="flex border-b border-border px-6">
+          <button
+            onClick={() => setActiveTab('standard')}
+            className={cn(
+              'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors',
+              activeTab === 'standard'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Play className="w-4 h-4" />
+            标准执行
+          </button>
+          <button
+            onClick={() => setActiveTab('cli')}
+            className={cn(
+              'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors',
+              activeTab === 'cli'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Terminal className="w-4 h-4" />
+            CLI 流式输出
+          </button>
+        </div>
+
+        {/* Tab content */}
+        <div className="flex-1 overflow-y-auto">
+          {activeTab === 'standard' ? (
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">执行任务</label>
+                <textarea
+                  value={task}
+                  onChange={(e) => onTaskChange(e.target.value)}
+                  placeholder="描述您想要完成的任务..."
+                  className="w-full px-4 py-2 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 min-h-[120px]"
+                  disabled={executing}
+                />
               </div>
 
-              {result.final_output && (
-                <div>
-                  <label className="block text-sm font-medium mb-2">最终输出</label>
-                  <div className="p-4 rounded-xl bg-accent/50 text-sm whitespace-pre-wrap max-h-[200px] overflow-y-auto">
-                    {result.final_output}
+              {result && (
+                <div className="space-y-3">
+                  <div className={cn(
+                    'flex items-center gap-2 p-3 rounded-xl',
+                    result.success ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'
+                  )}>
+                    {result.success ? <CheckCircle className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                    <span className="font-medium">{result.success ? '执行成功' : '执行失败'}</span>
                   </div>
-                </div>
-              )}
 
-              {result.messages.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium mb-2">执行消息 ({result.messages.length})</label>
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                    {result.messages.map((msg, idx) => (
-                      <div key={idx} className="p-3 rounded-xl bg-accent/30 text-sm">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-primary">{msg.role_name || 'System'}</span>
-                          <span className="text-xs text-muted-foreground">{new Date(msg.created_at).toLocaleTimeString()}</span>
-                        </div>
-                        <p className="text-xs whitespace-pre-wrap">{msg.content}</p>
+                  {result.final_output && (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">最终输出</label>
+                      <div className="p-4 rounded-xl bg-accent/50 text-sm whitespace-pre-wrap max-h-[200px] overflow-y-auto">
+                        {result.final_output}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                    </div>
+                  )}
 
-              {result.error && (
-                <div className="p-3 rounded-xl bg-red-500/10 text-red-600 text-sm">
-                  <div className="flex items-center gap-2 mb-1">
-                    <AlertCircle className="w-4 h-4" />
-                    <span className="font-medium">错误</span>
-                  </div>
-                  {result.error}
+                  {result.messages.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">执行消息 ({result.messages.length})</label>
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                        {result.messages.map((msg, idx) => (
+                          <div key={idx} className="p-3 rounded-xl bg-accent/30 text-sm">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-primary">{msg.role_name || 'System'}</span>
+                              <span className="text-xs text-muted-foreground">{new Date(msg.created_at).toLocaleTimeString()}</span>
+                            </div>
+                            <p className="text-xs whitespace-pre-wrap">{msg.content}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {result.error && (
+                    <div className="p-3 rounded-xl bg-red-500/10 text-red-600 text-sm">
+                      <div className="flex items-center gap-2 mb-1">
+                        <AlertCircle className="w-4 h-4" />
+                        <span className="font-medium">错误</span>
+                      </div>
+                      {result.error}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
+          ) : (
+            <div className="h-full min-h-[400px]">
+              <ClaudeStreamPanel
+                className="h-full rounded-none border-0"
+                initialPrompt={task}
+                workingDirectory={project.workspace_id}
+              />
+            </div>
           )}
         </div>
-        <div className="flex justify-end gap-3 p-6 border-t border-border">
-          <button onClick={onClose} className="btn-secondary">
-            关闭
-          </button>
-          <button
-            onClick={onExecute}
-            disabled={!task.trim() || executing}
-            className="btn-primary"
-          >
-            {executing ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                执行中...
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                执行
-              </>
-            )}
-          </button>
-        </div>
+
+        {/* Footer actions */}
+        {activeTab === 'standard' && (
+          <div className="flex justify-end gap-3 p-6 border-t border-border">
+            <button onClick={onClose} className="btn-secondary">
+              关闭
+            </button>
+            <button
+              onClick={onExecute}
+              disabled={!task.trim() || executing}
+              className="btn-primary"
+            >
+              {executing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  执行中...
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4" />
+                  执行
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
