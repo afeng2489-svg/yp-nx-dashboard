@@ -265,28 +265,38 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       clearError: () => set({ error: null }),
 
       browseFiles: async (path) => {
-        const workspace = get().currentWorkspace;
-        if (!workspace?.id) {
+        const ws = get().currentWorkspace;
+        console.log('[browseFiles] called, ws.id:', ws?.id, 'ws.root_path:', ws?.root_path, 'path:', path);
+        if (!ws?.id) {
+          console.log('[browseFiles] early return - no ws.id');
           set({ files: [], currentPath: '' });
           return;
         }
 
+        console.log('[browseFiles] about to set filesLoading=true');
         set({ filesLoading: true, error: null });
+        console.log('[browseFiles] set complete, building URL');
+
+        const url = ws.id
+          ? `${API_BASE}/api/v1/workspaces/${ws.id}/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`
+          : '';
+        console.log('[browseFiles] fetching URL:', url, 'API_BASE:', API_BASE);
         try {
-          const url = path
-            ? `${API_BASE}/api/v1/workspaces/${workspace.id}/browse?path=${encodeURIComponent(path)}`
-            : `${API_BASE}/api/v1/workspaces/${workspace.id}/browse`;
           const response = await fetchWithTimeout(url);
+          console.log('[browseFiles] response status:', response.status);
           if (!response.ok) {
             throw new ApiError(`Failed to browse files: ${response.status}`, response.status);
           }
           const files: FileNode[] = await response.json();
+          console.log('[browseFiles] files count:', files.length, 'names:', files.map(f => f.name));
           set({
             files,
             currentPath: path || '',
             filesLoading: false,
           });
+          console.log('[browseFiles] store updated');
         } catch (error) {
+          console.log('[browseFiles] error:', error);
           set({
             files: [],
             filesLoading: false,

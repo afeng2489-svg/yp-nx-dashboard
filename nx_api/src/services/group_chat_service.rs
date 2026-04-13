@@ -479,51 +479,57 @@ impl GroupChatService {
     fn build_discussion_prompt(&self, session: &GroupSession, messages: &[GroupMessage], new_input: &str) -> String {
         let mut prompt = format!(
             r#"<system>
-你是团队讨论的参与者。
+你是一个有记忆的 AI 助手，正在参与团队讨论。
 当前讨论主题：{}
 讨论目标：{}
 
-已有发言：
+【对话历史】
 {}
 </system>"#,
             session.topic,
             session.name,
             if messages.is_empty() {
-                "（暂无）".to_string()
+                "（暂无历史记录）".to_string()
             } else {
                 messages.iter()
-                    .map(|m| format!("- {}: {}", m.role_name, m.content))
+                    .map(|m| format!("[{}]: {}", m.role_name, m.content))
                     .collect::<Vec<_>>()
                     .join("\n")
             }
         );
 
-        prompt.push_str(&format!("\n\n新发言：{}\n请基于以上讨论，发表你的观点。", new_input));
+        prompt.push_str(&format!(
+            "\n\n【最新用户输入】：{}\n\n请基于以上完整的对话历史，回复用户。如果用户在上一次对话中提出了某个任务（如创建文件），请继续完成该任务；如果用户只是随口闲聊，请友好回应。保持对话的连贯性和记忆。",
+            new_input
+        ));
         prompt
     }
 
     /// Build role-specific prompt
     fn build_role_prompt(&self, session: &GroupSession, role_id: &str, messages: &[GroupMessage]) -> String {
         let history = if messages.is_empty() {
-            "（首次发言）".to_string()
+            "（暂无历史记录）".to_string()
         } else {
             messages.iter()
-                .map(|m| format!("- {}: {}", m.role_name, m.content))
+                .map(|m| format!("[{}]: {}", m.role_name, m.content))
                 .collect::<Vec<_>>()
                 .join("\n")
         };
 
         format!(
             r#"<system>
+你是一个有记忆的 AI 助手，正在以角色 {} 的身份参与团队讨论。
 当前讨论主题：{}
 讨论目标：{}
-发言历史：
+
+【完整对话历史】
 {}
 </system>
 
 <user>
-请以角色 {} 的身份，基于以上讨论历史，发表你的观点和提议。
+请继续基于以上完整的对话历史，以角色 {} 的身份回复。保持对话的连贯性，记住之前讨论过的内容和用户提出的任务，继续推进讨论。
 </user>"#,
+            role_id,
             session.topic,
             session.name,
             history,

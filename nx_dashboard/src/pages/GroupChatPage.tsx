@@ -149,6 +149,7 @@ export function GroupChatPage() {
 
   const handleSendMessage = async () => {
     if (!selectedSessionId || !newMessage.trim()) return;
+    console.log('[handleSendMessage] currentWorkspace:', currentWorkspace);
     try {
       const request: SendMessageRequest = {
         role_id: currentSession?.moderator_role_id || '',
@@ -158,7 +159,8 @@ export function GroupChatPage() {
       setNewMessage('');
       fetchMessages(selectedSessionId);
       // 刷新文件列表，以便显示 Claude CLI 创建的文件
-      browseFiles();
+      console.log('[handleSendMessage] calling browseFiles');
+      browseFiles().catch(err => console.error('[handleSendMessage] browseFiles failed:', err));
     } catch (err) {
       console.error('Failed to send message:', err);
     }
