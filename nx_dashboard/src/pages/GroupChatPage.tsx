@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   useGroupChatStore,
   GroupSession,
@@ -15,6 +15,7 @@ import {
 } from '@/stores/groupChatStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useTeamStore } from '@/stores/teamStore';
+import { useSkillStore, SkillSummary } from '@/stores/skillStore';
 import {
   Plus,
   Trash2,
@@ -29,6 +30,7 @@ import {
   AlertCircle,
   CheckCircle,
   X,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
@@ -58,6 +60,7 @@ export function GroupChatPage() {
 
   const { currentWorkspace, browseFiles } = useWorkspaceStore();
   const { teams, roles } = useTeamStore();
+  const { skills, fetchSkills } = useSkillStore();
   const { confirmState, showConfirm, hideConfirm } = useConfirmModal();
 
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -70,6 +73,13 @@ export function GroupChatPage() {
   const [nextSpeaker, setNextSpeaker] = useState<{ role_id: string; role_name: string } | null>(null);
   const [autoMode, setAutoMode] = useState(false);
   const [executingRole, setExecutingRole] = useState<string | null>(null);
+
+  // Skill hint popup state
+  const [showSkillHint, setShowSkillHint] = useState(false);
+  const [skillSearch, setSkillSearch] = useState('');
+  const [selectedSkillIndex, setSelectedSkillIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const skillHintRef = useRef<HTMLDivElement>(null);
 
   // Create form state
   const [createForm, setCreateForm] = useState<CreateGroupSessionRequest>({
@@ -110,6 +120,53 @@ export function GroupChatPage() {
       return () => clearInterval(interval);
     }
   }, [selectedSessionId, fetchSession, fetchMessages, getNextSpeaker]);
+
+  // Fetch skills for skill hint
+  useEffect(() => {
+    fetchSkills();
+  }, [fetchSkills]);
+
+  // Filter skills based on search
+  const filteredSkills = skillSearch
+    ? skills.filter(
+        (s) =>
+          s.name.toLowerCase().includes(skillSearch.toLowerCase()) ||
+          s.description.toLowerCase().includes(skillSearch.toLowerCase())
+      )
+    : skills;
+
+  // Handle skill selection from hint
+  const insertSkill = (skill: SkillSummary) => {
+    const skillCommand = `/${skill.id}`;
+    setNewMessage((prev) => {
+      // Replace the slash command with the skill id
+      const slashIndex = prev.lastIndexOf('/');
+      if (slashIndex >= 0) {
+        return prev.substring(0, slashIndex) + skillCommand + ' ';
+      }
+      return prev + skillCommand + ' ';
+    });
+    setShowSkillHint(false);
+    setSkillSearch('');
+    inputRef.current?.focus();
+  };
+
+  // Handle click outside skill hint
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        skillHintRef.current &&
+        !skillHintRef.current.contains(e.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(e.target as Node)
+      ) {
+        setShowSkillHint(false);
+        setSkillSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Auto-execute next role when in auto mode
   useEffect(() => {
@@ -472,15 +529,68 @@ export function GroupChatPage() {
               {/* Send Message */}
               {currentSession.status === 'active' && (
                 <div className="bg-card rounded-lg border p-4">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                      placeholder="输入消息..."
-                      className="input flex-1"
-                    />
+                  <div className="flex gap-2 relative">
+                    <div className="relative flex-1">
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        value={newMessage}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setNewMessage(value);
+                          // Detect slash command
+                          const lastSlashIndex = value.lastIndexOf('/');
+                          if (lastSlashIndex >= 0 && lastSlashIndex === value.length - 1) {
+                            // User just typed a slash
+                            setShowSkillHint(true);
+                            setSkillSearch('');
+                            setSelectedSkillIndex(0);
+                          } else if (lastSlashIndex >= 0) {
+                            // User is typing after slash
+                            const afterSlash = value.substring(lastSlashIndex + 1);
+                            if (afterSlash.includes(' ') || afterSlash.includes('\n')) {
+                              setShowSkillHint(false);
+                            } else {
+                              setShowSkillHint(true);
+                              setSkillSearch(afterSlash);
+                              setSelectedSkillIndex(0);
+                            }
+                          } else {
+                            setShowSkillHint(false);
+                            setSkillSearch('');
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (showSkillHint) {
+                            if (e.key === 'ArrowDown') {
+                              e.preventDefault();
+                              setSelectedSkillIndex((prev) =>
+                                prev < filteredSkills.length - 1 ? prev + 1 : prev
+                              );
+                            } else if (e.key === 'ArrowUp') {
+                              e.preventDefault();
+                              setSelectedSkillIndex((prev) => (prev > 0 ? prev - 1 : prev));
+                            } else if (e.key === 'Enter' && filteredSkills.length > 0) {
+                              e.preventDefault();
+                              insertSkill(filteredSkills[selectedSkillIndex]);
+                            } else if (e.key === 'Escape') {
+                              setShowSkillHint(false);
+                              setSkillSearch('');
+                            } else if (e.key === 'Enter') {
+                              handleSendMessage();
+                            }
+                          } else if (e.key === 'Enter') {
+                            handleSendMessage();
+                          }
+                        }}
+                        placeholder="输入消息... (输入 / 触发技能)"
+                        className="input flex-1 pr-20"
+                      />
+                      {/* Skill hint trigger indicator */}
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                        <Sparkles className="w-4 h-4" />
+                      </span>
+                    </div>
                     <button
                       onClick={handleSendMessage}
                       disabled={!newMessage.trim()}
@@ -489,6 +599,54 @@ export function GroupChatPage() {
                       <Send className="w-4 h-4" />
                     </button>
                   </div>
+
+                  {/* Skill Hint Popup */}
+                  {showSkillHint && (
+                    <div
+                      ref={skillHintRef}
+                      className="absolute bottom-full left-4 right-4 mb-2 bg-card rounded-lg border shadow-lg max-h-64 overflow-y-auto z-50"
+                    >
+                      <div className="sticky top-0 bg-card border-b px-3 py-2">
+                        <p className="text-xs text-muted-foreground">
+                          {skillSearch ? '搜索技能...' : '可用技能'}
+                        </p>
+                      </div>
+                      {filteredSkills.length === 0 ? (
+                        <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+                          未找到技能
+                        </div>
+                      ) : (
+                        <div className="py-1">
+                          {filteredSkills.map((skill, index) => (
+                            <button
+                              key={skill.id}
+                              onClick={() => insertSkill(skill)}
+                              className={cn(
+                                'w-full text-left px-3 py-2 hover:bg-accent transition-colors',
+                                index === selectedSkillIndex && 'bg-accent'
+                              )}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium text-sm">
+                                  <Sparkles className="w-3 h-3 inline mr-2 text-primary" />
+                                  /{skill.id}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {skill.category}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                                {skill.description}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <div className="sticky bottom-0 bg-card border-t px-3 py-2 text-xs text-muted-foreground">
+                        ↑↓ 选择 • Enter 插入 • Esc 关闭
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

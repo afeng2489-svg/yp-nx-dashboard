@@ -36,7 +36,24 @@
 - Rust 1.75+
 - Node.js 18+（用于 dashboard）
 
-### 安装
+---
+
+## 桌面应用（推荐）
+
+如需在团队中分发或使用桌面应用，请参考 [packaging/README.md](packaging/README.md)。
+
+### 构建桌面应用
+
+```bash
+# 安装依赖后，运行打包脚本
+./build_package.sh
+
+# 输出的压缩包位于桌面：~/Desktop/NexusFlow_Package.tar.gz
+```
+
+---
+
+### 安装（源码开发）
 
 ```bash
 # 从源码构建

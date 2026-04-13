@@ -20,6 +20,120 @@ use crate::services::claude_cli;
 use crate::services::group_chat_repository::{GroupChatRepository, GroupChatRepositoryError, SqliteGroupChatRepository};
 use crate::services::team_service::TeamService;
 
+/// 历史上下文优化配置
+const HISTORY_THRESHOLD: usize = 20;   // 超过此数量启用摘要
+const RECENT_MESSAGE_COUNT: usize = 10; // 保留最近 N 条消息
+
+/// 优化后的历史上下文
+struct HistoryContext {
+    /// 历史摘要（当消息超过阈值时生成）
+    summary: Option<String>,
+    /// 保留的最近消息
+    recent_messages: Vec<GroupMessage>,
+}
+
+impl HistoryContext {
+    /// 从消息列表构建优化后的上下文
+    fn from_messages(messages: &[GroupMessage]) -> Self {
+        if messages.len() <= HISTORY_THRESHOLD {
+            // 消息不多，全部保留
+            return Self {
+                summary: None,
+                recent_messages: messages.to_vec(),
+            };
+        }
+
+        // 消息较多，生成摘要 + 保留最近消息
+        let recent_start = messages.len().saturating_sub(RECENT_MESSAGE_COUNT);
+        let recent_messages: Vec<_> = messages[recent_start..].to_vec();
+
+        // 生成早期消息摘要
+        let early_messages = &messages[..recent_start];
+        let summary = Self::generate_summary(early_messages);
+
+        Self {
+            summary: Some(summary),
+            recent_messages,
+        }
+    }
+
+    /// 生成早期消息摘要
+    fn generate_summary(early_messages: &[GroupMessage]) -> String {
+        if early_messages.is_empty() {
+            return String::new();
+        }
+
+        // 提取关键信息：发言者、主题、结论
+        let mut topics: Vec<String> = Vec::new();
+        let mut decisions: Vec<String> = Vec::new();
+
+        for msg in early_messages {
+            let content = &msg.content;
+            let speaker = &msg.role_name;
+
+            // 检测决策性语句
+            if content.contains("决定") || content.contains("采用") || content.contains("共识") {
+                decisions.push(format!("[{}]: {}", speaker, Self::truncate(content, 100)));
+            }
+
+            // 收集主题关键词（简化处理：取每条消息的前50字作为主题）
+            if !topics.iter().any(|t: &String| t.contains(content)) {
+                topics.push(format!("[{}]: {}", speaker, Self::truncate(content, 80)));
+            }
+        }
+
+        let mut summary = String::from("【早期讨论摘要】\n");
+
+        // 添加主题概览
+        if !topics.is_empty() {
+            summary.push_str("讨论内容：\n");
+            for topic in topics.iter().take(5) {
+                summary.push_str(&format!("  - {}\n", topic));
+            }
+        }
+
+        // 添加决策
+        if !decisions.is_empty() {
+            summary.push_str("\n已达成共识：\n");
+            for decision in decisions.iter().take(3) {
+                summary.push_str(&format!("  - {}\n", decision));
+            }
+        }
+
+        summary.push_str(&format!("\n（共 {} 条早期消息已省略）", early_messages.len()));
+        summary
+    }
+
+    /// 截断字符串到指定长度
+    fn truncate(s: &str, max_len: usize) -> String {
+        if s.len() <= max_len {
+            s.to_string()
+        } else {
+            format!("{}...", &s[..max_len.saturating_sub(3)])
+        }
+    }
+
+    /// 渲染为 prompt 字符串
+    fn render(&self) -> String {
+        let mut output = String::new();
+
+        if let Some(ref summary) = self.summary {
+            output.push_str(summary);
+            output.push_str("\n\n");
+        }
+
+        if self.recent_messages.is_empty() {
+            output.push_str("（暂无历史记录）");
+        } else {
+            for msg in &self.recent_messages {
+                output.push_str(&format!("[{}]: {}\n", msg.role_name, msg.content));
+            }
+        }
+
+        output
+    }
+}
+
 /// Group chat service error
 #[derive(Debug, Error)]
 pub enum GroupChatServiceError {
@@ -256,9 +370,9 @@ impl GroupChatService {
             return Err(GroupChatServiceError::SessionNotActive(session_id.to_string()));
         }
 
-        // Build prompt for Claude CLI
-        let messages = self.get_conversation_history(session_id, 10).await?;
-        let prompt = self.build_discussion_prompt(&session, &messages, &request.content);
+        // Build prompt for Claude CLI with optimized history
+        let history_ctx = self.get_optimized_history(session_id).await?;
+        let prompt = self.build_discussion_prompt_with_context(&session, &history_ctx, &request.content);
 
         // 获取当前工作区路径
         let working_dir = self.current_workspace_path.read().clone();
@@ -302,11 +416,11 @@ impl GroupChatService {
             return Err(GroupChatServiceError::SessionNotActive(session_id.to_string()));
         }
 
-        // Get conversation history
-        let messages = self.get_conversation_history(session_id, 20).await?;
+        // Get optimized conversation history (with summarization if needed)
+        let history_ctx = self.get_optimized_history(session_id).await?;
 
-        // Build prompt
-        let prompt = self.build_role_prompt(&session, role_id, &messages);
+        // Build prompt using optimized history
+        let prompt = self.build_role_prompt_with_context(&session, role_id, &history_ctx);
 
         // 获取当前工作区路径
         let working_dir = self.current_workspace_path.read().clone();
@@ -464,6 +578,13 @@ impl GroupChatService {
         Ok(self.repo.get_messages_by_session(session_id, Some(limit), None)?)
     }
 
+    /// Get optimized conversation history with summarization
+    async fn get_optimized_history(&self, session_id: &str) -> Result<HistoryContext, GroupChatServiceError> {
+        // 获取足够多的历史消息用于摘要
+        let all_messages = self.repo.get_messages_by_session(session_id, None, None)?;
+        Ok(HistoryContext::from_messages(&all_messages))
+    }
+
     /// Update participant stats
     async fn update_participant_stats(&self, session_id: &str, role_id: &str) -> Result<(), GroupChatServiceError> {
         let participants = self.repo.get_participants(session_id)?;
@@ -475,8 +596,10 @@ impl GroupChatService {
         Ok(())
     }
 
-    /// Build discussion prompt
-    fn build_discussion_prompt(&self, session: &GroupSession, messages: &[GroupMessage], new_input: &str) -> String {
+    /// Build discussion prompt using optimized history context
+    fn build_discussion_prompt_with_context(&self, session: &GroupSession, history_ctx: &HistoryContext, new_input: &str) -> String {
+        let history = history_ctx.render();
+
         let mut prompt = format!(
             r#"<system>
 你是一个有记忆的 AI 助手，正在参与团队讨论。
@@ -488,33 +611,25 @@ impl GroupChatService {
 </system>"#,
             session.topic,
             session.name,
-            if messages.is_empty() {
-                "（暂无历史记录）".to_string()
-            } else {
-                messages.iter()
-                    .map(|m| format!("[{}]: {}", m.role_name, m.content))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            }
+            history
         );
 
         prompt.push_str(&format!(
-            "\n\n【最新用户输入】：{}\n\n请基于以上完整的对话历史，回复用户。如果用户在上一次对话中提出了某个任务（如创建文件），请继续完成该任务；如果用户只是随口闲聊，请友好回应。保持对话的连贯性和记忆。",
+            "\n\n【最新用户输入】：{}\n\n请基于以上对话历史，回复用户。保持对话的连贯性和记忆。",
             new_input
         ));
         prompt
     }
 
-    /// Build role-specific prompt
-    fn build_role_prompt(&self, session: &GroupSession, role_id: &str, messages: &[GroupMessage]) -> String {
-        let history = if messages.is_empty() {
-            "（暂无历史记录）".to_string()
-        } else {
-            messages.iter()
-                .map(|m| format!("[{}]: {}", m.role_name, m.content))
-                .collect::<Vec<_>>()
-                .join("\n")
-        };
+    /// Build discussion prompt (legacy, for backwards compatibility)
+    fn build_discussion_prompt(&self, session: &GroupSession, messages: &[GroupMessage], new_input: &str) -> String {
+        let history_ctx = HistoryContext::from_messages(messages);
+        self.build_discussion_prompt_with_context(session, &history_ctx, new_input)
+    }
+
+    /// Build role-specific prompt using optimized history context
+    fn build_role_prompt_with_context(&self, session: &GroupSession, role_id: &str, history_ctx: &HistoryContext) -> String {
+        let history = history_ctx.render();
 
         format!(
             r#"<system>
@@ -522,12 +637,12 @@ impl GroupChatService {
 当前讨论主题：{}
 讨论目标：{}
 
-【完整对话历史】
+【对话历史】
 {}
 </system>
 
 <user>
-请继续基于以上完整的对话历史，以角色 {} 的身份回复。保持对话的连贯性，记住之前讨论过的内容和用户提出的任务，继续推进讨论。
+请继续基于以上对话历史，以角色 {} 的身份回复。保持对话的连贯性，记住之前讨论过的内容，继续推进讨论。
 </user>"#,
             role_id,
             session.topic,
@@ -535,6 +650,12 @@ impl GroupChatService {
             history,
             role_id
         )
+    }
+
+    /// Build role-specific prompt (legacy, for backwards compatibility)
+    fn build_role_prompt(&self, session: &GroupSession, role_id: &str, messages: &[GroupMessage]) -> String {
+        let history_ctx = HistoryContext::from_messages(messages);
+        self.build_role_prompt_with_context(session, role_id, &history_ctx)
     }
 
     /// Build conclusion prompt

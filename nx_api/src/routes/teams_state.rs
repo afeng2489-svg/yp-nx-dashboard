@@ -30,9 +30,13 @@ impl TeamsAppState {
         provider_service: Option<Arc<ProviderService>>,
         current_workspace_path: Arc<ParkingRwLock<Option<String>>>,
     ) -> Self {
-        let agents_dir = std::env::current_dir()
-            .unwrap_or_default()
-            .join(".claude/agents");
+        let agents_dir = std::env::var("AGENTS_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                std::env::current_dir()
+                    .unwrap_or_default()
+                    .join(".claude/agents")
+            });
         let skill_service = crate::services::SkillService::with_agents_dir(agents_dir)
             .unwrap_or_else(|_| crate::services::SkillService::default());
 

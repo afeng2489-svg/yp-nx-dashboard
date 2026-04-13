@@ -7,6 +7,7 @@ use axum::{
 use tower_http::cors::{CorsLayer, Any};
 use std::sync::Arc;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use parking_lot::RwLock;
 
 use crate::config::ApiConfig;
@@ -191,11 +192,16 @@ impl AppState {
         );
 
         // 创建技能服务（文件型，直接读写 .claude/agents/*.md）
-        let agents_dir = std::env::current_dir()
-            .unwrap_or_default()
-            .join(".claude/agents");
-        let skill_service = crate::services::SkillService::with_agents_dir(agents_dir)
-            .expect("Failed to create skill service");
+        // 优先使用 AGENTS_DIR 环境变量（通过 Tauri app 传递），否则使用当前目录
+        let agents_dir = std::env::var("AGENTS_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                std::env::current_dir()
+                    .unwrap_or_default()
+                    .join(".claude/agents")
+            });
+        let skill_service = crate::services::SkillService::with_agents_dir(agents_dir.clone())
+            .expect(&format!("Failed to create skill service with agents_dir: {:?}", agents_dir));
         let skill_service_for_agent = skill_service.clone();
 
         // 创建团队仓库和服务
