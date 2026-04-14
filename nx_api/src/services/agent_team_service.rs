@@ -176,6 +176,9 @@ impl AgentTeamService {
         let user_msg = TeamMessage::user_message(team.id.clone(), request.task.clone());
         let _ = self.team_service.add_message(user_msg.clone());
 
+        // 提取记忆上下文
+        let memory_context = request.context.get("memory_context").cloned().unwrap_or_default();
+
         // Clone data for background task
         let team_id = team.id.clone();
         let task = request.task.clone();
@@ -189,8 +192,9 @@ impl AgentTeamService {
             let team_context = Self::build_team_context(&team, &roles);
 
             // Build the full prompt - Claude decides if any skill matches
-            let full_prompt = format!(
-                r#"You are the team dispatcher. Given the team context and user message, decide what to do.
+            let full_prompt = if memory_context.is_empty() {
+                format!(
+                    r#"You are the team dispatcher. Given the team context and user message, decide what to do.
 
 ## Team Context
 {}
@@ -205,8 +209,31 @@ Read the user's message and the available skills in the team context.
 
 ## Output Format
 Return your response directly. If using a skill, invoke it according to its execution instructions."#,
-                team_context, task
-            );
+                    team_context, task
+                )
+            } else {
+                format!(
+                    r#"You are the team dispatcher. Given the team context and user message, decide what to do.
+
+## Team Context
+{}
+
+## User Message
+{}
+
+## Your Decision
+Read the user's message and the available skills in the team context.
+- If a skill's trigger keywords match the user's message → use that skill
+- If no skill matches → answer the user directly as a helpful AI assistant
+
+## Output Format
+Return your response directly. If using a skill, invoke it according to its execution instructions.
+
+{}
+"#,
+                    team_context, task, memory_context
+                )
+            };
 
             // 获取当前工作区路径
             let working_dir = current_workspace_path.read().clone();

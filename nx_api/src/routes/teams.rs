@@ -10,6 +10,8 @@ use axum::{
 };
 use std::sync::Arc;
 
+use nx_memory::{SearchRequest, Transcript, MemoryChunk, MessageRole};
+
 use crate::models::team::{
     AssignSkillRequest, CreateRoleRequest, CreateTeamRequest, ExecuteRoleTaskRequest,
     ExecuteRoleTaskResponse, ExecuteTeamTaskRequest, SkillPriority, Team, TeamMessage, TeamRole,
@@ -231,15 +233,125 @@ pub struct MessageQueryParams {
 
 // Execution endpoint
 
-/// Execute a task across a team
+/// Execute a task across a team (with memory integration)
 pub async fn execute_team_task(
     State(state): State<Arc<AppState>>,
     Path(team_id): Path<String>,
     Json(request): Json<ExecuteTeamTaskRequest>,
 ) -> ApiResponse<crate::models::team::ExecuteTeamTaskResponse> {
     tracing::info!("[Route] execute_team_task 被调用，team_id: {}", team_id);
-    let response = state.teams_state.agent_team_service.execute_team_task(request).await?;
+
+    // 1. 搜索相关记忆
+    let memory_context = search_and_build_context(&state.memory_state, &team_id, &request.task).await;
+
+    // 2. 创建增强的请求（包含记忆上下文）
+    let enhanced_request = ExecuteTeamTaskRequest {
+        team_id: request.team_id.clone(),
+        task: request.task.clone(),
+        context: {
+            let mut ctx = request.context.clone();
+            if !memory_context.is_empty() {
+                ctx.insert("memory_context".to_string(), memory_context);
+            }
+            ctx
+        },
+    };
+
+    // 3. 执行任务
+    let response = state.teams_state.agent_team_service.execute_team_task(enhanced_request).await?;
+
+    // 4. 自动存储用户消息到记忆（异步，不阻塞响应）
+    let memory_state = state.memory_state.clone();
+    let team_id_for存储 = team_id.clone();
+    let user_msg = request.task.clone();
+    tokio::spawn(async move {
+        if let Err(e) = store_to_memory(&memory_state, &team_id_for存储, "user", &user_msg).await {
+            tracing::warn!("[Memory] 存储用户消息失败: {}", e);
+        }
+    });
+
     Ok(Json(response))
+}
+
+/// 搜索记忆并构建上下文字符串
+async fn search_and_build_context(
+    memory_state: &Arc<crate::routes::memory::MemoryState>,
+    team_id: &str,
+    query: &str,
+) -> String {
+    // 如果查询太短（< 2个字符），跳过记忆搜索
+    if query.trim().len() < 2 {
+        return String::new();
+    }
+
+    // 确保索引已初始化
+    if memory_state.search.get_index_stats(team_id).is_none() {
+        if let Err(e) = memory_state.search.init_team_index(team_id) {
+            tracing::warn!("[Memory] 初始化索引失败: {}", e);
+            return String::new();
+        }
+    }
+
+    // 搜索相关记忆
+    let search_request = SearchRequest {
+        team_id: Some(team_id.to_string()),
+        query: query.to_string(),
+        top_k: Some(5),
+        vector_weight: None,
+        keyword_weight: None,
+        session_id: None,
+    };
+
+    match memory_state.search.search(&search_request) {
+        Ok(results) if !results.results.is_empty() => {
+            let mut context = String::from("\n\n## 相关历史记忆 (Relevant Memory)\n");
+            context.push_str("以下是你之前与用户对话的相关记忆：\n\n");
+            for (i, result) in results.results.iter().enumerate() {
+                context.push_str(&format!("{}. {}\n", i + 1, result.content));
+            }
+            context.push_str("\n请结合以上记忆来回答用户的问题。\n");
+            tracing::info!("[Memory] 找到 {} 条相关记忆", results.results.len());
+            context
+        }
+        Ok(_) => {
+            tracing::debug!("[Memory] 未找到相关记忆");
+            String::new()
+        }
+        Err(e) => {
+            tracing::warn!("[Memory] 搜索失败: {}", e);
+            String::new()
+        }
+    }
+}
+
+/// 存储消息到记忆
+async fn store_to_memory(
+    memory_state: &Arc<crate::routes::memory::MemoryState>,
+    team_id: &str,
+    role: &str,
+    content: &str,
+) -> Result<(), String> {
+    let transcript = Transcript::new(
+        team_id,
+        "system", // user_id - 可以改进
+        if role == "user" { MessageRole::User } else { MessageRole::Assistant },
+        content,
+    );
+
+    memory_state.store.store_transcript(&transcript)
+        .map_err(|e| e.to_string())?;
+
+    let chunk = MemoryChunk::from_transcript(&transcript, content.to_string(), 0);
+    memory_state.store.store_chunk(&chunk)
+        .map_err(|e| e.to_string())?;
+
+    // 索引
+    let metadata = serde_json::json!({});
+    memory_state.search.index_chunk(team_id, &chunk.id, &chunk.content, metadata)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
 }
 
 /// Execute a task for a single role (with its assigned skills)

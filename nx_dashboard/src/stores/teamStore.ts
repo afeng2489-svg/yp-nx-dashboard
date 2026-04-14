@@ -44,6 +44,25 @@ export interface TelegramConfig {
   updated_at?: string;
 }
 
+// Memory types
+export interface MemorySearchResult {
+  chunk_id: string;
+  transcript_id: string;
+  content: string;
+  score: number;
+  bm25_score: number;
+  vector_score: number;
+  created_at: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface MemorySearchResponse {
+  results: MemorySearchResult[];
+  total: number;
+  query: string;
+  search_time_ms: number;
+}
+
 export interface ExecutionResult {
   success: boolean;
   team_id: string;
@@ -149,6 +168,11 @@ interface TeamStore {
   configureTelegram: (teamId: string, config: Partial<TelegramConfig>) => Promise<void>;
   getTelegramConfig: (teamId: string) => Promise<TelegramConfig | null>;
   enableTelegram: (teamId: string, enabled: boolean) => Promise<void>;
+
+  // Memory actions
+  searchMemory: (teamId: string, query: string) => Promise<MemorySearchResponse>;
+  storeMemory: (teamId: string, userId: string, content: string, role?: string, sessionId?: string) => Promise<void>;
+  clearMemory: (teamId: string) => Promise<void>;
 
   clearError: () => void;
 }
@@ -590,10 +614,24 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
     set({ abortController: controller });
 
     try {
+      // 1. Search relevant memories
+      const memoryResponse = await get().searchMemory(teamId, task);
+      console.log('[ExecuteTask] Memory search response:', memoryResponse);
+
+      const memoryContext = memoryResponse.results.length > 0
+        ? `\n\nRelevant past context:\n${memoryResponse.results.map(r => `- ${r.content}`).join('\n')}`
+        : '';
+      console.log('[ExecuteTask] Memory context:', memoryContext || '(none)');
+
+      // 2. Execute task with memory context prepended to task
       const response = await fetch(`${API_BASE}/api/v1/teams/${teamId}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ team_id: teamId, task, context: {} }),
+        body: JSON.stringify({
+          team_id: teamId,
+          task: task + memoryContext,
+          context: {}
+        }),
         signal: controller.signal,
       });
 
@@ -616,6 +654,17 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       }
 
       const result: ExecutionResult = await response.json();
+      console.log('[ExecuteTask] Execution result success:', result.success);
+
+      // 3. Store the task in memory for future reference
+      if (result.success) {
+        console.log('[ExecuteTask] Storing task in memory...');
+        await get().storeMemory(teamId, 'user', task, 'user');
+        console.log('[ExecuteTask] Task stored in memory');
+      } else {
+        console.log('[ExecuteTask] Execution failed, not storing in memory');
+      }
+
       return result;
     } catch (error) {
       // Don't show error if it was aborted
@@ -706,6 +755,76 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       const message = error instanceof Error ? error.message : 'Unknown error';
       set({ error: `Failed to update Telegram settings: ${message}` });
       throw error;
+    }
+  },
+
+  // Memory actions
+  searchMemory: async (teamId, query) => {
+    console.log('[Memory] Searching memory for team:', teamId, 'query:', query);
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/teams/${teamId}/memories/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ team_id: teamId, query, top_k: 5 }),
+      });
+
+      if (!response.ok) {
+        console.error('[Memory] Search failed with status:', response.status);
+        throw new ApiError(`Failed to search memory: ${response.status}`, response.status);
+      }
+
+      const result = await response.json() as MemorySearchResponse;
+      console.log('[Memory] Search results:', result.results.length, 'results');
+      return result;
+    } catch (error) {
+      console.error(`[Memory] Failed to search memory for team ${teamId}:`, error);
+      return { results: [], total: 0, query, search_time_ms: 0 };
+    }
+  },
+
+  storeMemory: async (teamId, userId, content, role = 'user', sessionId) => {
+    console.log('[Memory] Storing memory for team:', teamId, 'userId:', userId, 'content:', content.substring(0, 50));
+    try {
+      const url = `${API_BASE}/api/v1/teams/${teamId}/memories`;
+      console.log('[Memory] POST URL:', url);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          team_id: teamId,
+          user_id: userId,
+          role,
+          content,
+          session_id: sessionId,
+        }),
+      });
+
+      console.log('[Memory] Store response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Memory] Store failed with status:', response.status, 'body:', errorText);
+        throw new ApiError(`Failed to store memory: ${response.status}`, response.status);
+      }
+
+      const result = await response.json();
+      console.log('[Memory] Store success:', result);
+    } catch (error) {
+      console.error(`[Memory] Failed to store memory for team ${teamId}:`, error);
+    }
+  },
+
+  clearMemory: async (teamId) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/teams/${teamId}/memories`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new ApiError(`Failed to clear memory: ${response.status}`, response.status);
+      }
+    } catch (error) {
+      console.error(`Failed to clear memory for team ${teamId}:`, error);
     }
   },
 

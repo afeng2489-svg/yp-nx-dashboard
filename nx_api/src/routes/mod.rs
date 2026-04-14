@@ -35,6 +35,7 @@ pub mod teams;
 pub mod teams_state;
 pub mod projects;
 pub mod group_chat;
+pub mod memory;
 
 /// 从环境变量加载 AI 配置
 fn load_ai_config_from_env() -> AIManagerConfig {
@@ -121,6 +122,7 @@ fn load_ai_config_from_env() -> AIManagerConfig {
 /// Application state for search
 use crate::routes::search::SearchState;
 use crate::routes::scheduler::SchedulerState;
+use crate::routes::memory::MemoryState;
 
 /// 应用状态
 pub struct AppState {
@@ -140,6 +142,7 @@ pub struct AppState {
     pub project_service: Arc<ProjectService>,
     pub provider_service: Arc<ProviderService>,
     pub group_chat_service: Arc<GroupChatService>,
+    pub memory_state: Arc<MemoryState>,
     /// 当前工作区路径，用于 Claude CLI --project 参数
     pub current_workspace_path: Arc<RwLock<Option<String>>>,
 }
@@ -270,6 +273,20 @@ impl AppState {
             )
         );
 
+        // 创建 Memory 状态（使用单独的数据库文件）
+        let memory_db_path = if config.db_path.contains('/') {
+            // 如果是绝对路径或包含目录
+            format!("{}_memory.db", config.db_path.replace(".db", ""))
+        } else {
+            // 相对路径：加上当前工作目录
+            let cwd = std::env::current_dir().unwrap_or_default();
+            format!("{}/{}_memory.db", cwd.display(), config.db_path.replace(".db", ""))
+        };
+        tracing::info!("[Memory] Using database path: {}", memory_db_path);
+        let memory_state = Arc::new(
+            crate::routes::memory::create_memory_state(&memory_db_path, None)
+        );
+
         Self {
             workflow_service,
             execution_service,
@@ -287,6 +304,7 @@ impl AppState {
             project_service,
             provider_service,
             group_chat_service,
+            memory_state,
             current_workspace_path,
         }
     }
@@ -473,6 +491,11 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/group-sessions/:id/advance", post(group_chat::advance_speaker))
         .route("/api/v1/group-sessions/:id/conclude", post(group_chat::conclude_discussion))
         .route("/api/v1/group-sessions/:id/execute-turn/:role_id", post(group_chat::execute_role_turn))
+        // 团队记忆路由
+        .route("/api/v1/teams/:team_id/memories", post(memory::store_memory))
+        .route("/api/v1/teams/:team_id/memories/search", post(memory::search_memory))
+        .route("/api/v1/teams/:team_id/memories/stats", get(memory::get_stats))
+        .route("/api/v1/teams/:team_id/memories", delete(memory::clear_memory))
         // WebSocket 路由
         .route("/ws/executions/:id", get(executions::execution_ws))
         .route("/ws/sessions/:id", get(sessions::session_ws))

@@ -1,0 +1,43 @@
+[package]
+name = "nx_memory"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Async runtime
+tokio.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# UUID
+uuid.workspace = true
+
+# Time
+chrono.workspace = true
+
+# Database
+rusqlite.workspace = true
+
+# HTTP client
+reqwest.workspace = true
+
+# Async traits
+async-trait.workspace = true
+
+# Internal
+nexus-ai = { path = "../core/ai" }
+
+[dev-dependencies]
+tokio-test.workspace = true
+tempfile.workspace = true

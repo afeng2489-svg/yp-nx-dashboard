@@ -10,6 +10,7 @@ members = [
     "core/skills",
     "nx_cli",
     "nx_api",
+    "nx_memory",
     "nx_session",
     "nx_search",
     "nx_mcp",
@@ -72,6 +73,7 @@ mockall = "0.12"
 tokio-test = "0.4"
 rstest = "0.18"
 proptest = "1.4"
+tempfile = "3.10"
 
 # Tree-sitter
 tree-sitter = "0.22"

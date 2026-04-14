@@ -59,6 +59,7 @@ nx_plugin = { path = "../core/plugin" }
 nexus-skills = { path = "../core/skills" }
 nx_session = { path = "../nx_session" }
 nx_a2ui = { path = "../nx_a2ui" }
+nx_memory = { path = "../nx_memory" }
 
 [features]
 default = []

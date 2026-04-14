@@ -1289,6 +1289,7 @@ dependencies = [
  "nexus-skills",
  "nexus-workflow",
  "nx_a2ui",
+ "nx_memory",
  "nx_plugin",
  "nx_session",
  "parking_lot",
@@ -1321,6 +1322,26 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "nx_memory"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "nexus-ai",
+ "reqwest",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-test",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
