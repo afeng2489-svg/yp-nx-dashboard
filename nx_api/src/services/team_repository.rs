@@ -98,6 +98,7 @@ impl SqliteTeamRepository {
                 description TEXT NOT NULL,
                 model_config TEXT NOT NULL,
                 system_prompt TEXT NOT NULL,
+                trigger_keywords TEXT NOT NULL DEFAULT '[]',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL
@@ -182,6 +183,7 @@ impl SqliteTeamRepository {
                 description TEXT NOT NULL,
                 model_config TEXT NOT NULL,
                 system_prompt TEXT NOT NULL,
+                trigger_keywords TEXT NOT NULL DEFAULT '[]',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -263,6 +265,7 @@ impl SqliteTeamRepository {
         description: String,
         model_config: String,
         system_prompt: String,
+        trigger_keywords: String,
         created_at: String,
         updated_at: String,
     ) -> Result<TeamRole, TeamRepositoryError> {
@@ -273,6 +276,7 @@ impl SqliteTeamRepository {
             .map(|dt| dt.with_timezone(&Utc))
             .unwrap_or_else(|_| Utc::now());
         let model_config = Self::deserialize_model_config(&model_config);
+        let trigger_keywords: Vec<String> = serde_json::from_str(&trigger_keywords).unwrap_or_default();
 
         Ok(TeamRole {
             id,
@@ -281,6 +285,7 @@ impl SqliteTeamRepository {
             description,
             model_config,
             system_prompt,
+            trigger_keywords,
             created_at,
             updated_at,
         })
@@ -330,6 +335,21 @@ impl SqliteTeamRepository {
             "UPDATE team_roles SET team_id = NULL WHERE team_id IS NOT NULL",
             [],
         )?;
+
+        // Migration: Add trigger_keywords column if not exists (SQLite doesn't support ADD COLUMN IF NOT EXISTS)
+        // We check if the column exists by trying to select it
+        let column_exists: Result<i32, _> = conn.query_row(
+            "SELECT 1 FROM pragma_table_info('team_roles') WHERE name = 'trigger_keywords'",
+            [],
+            |_| Ok(1),
+        );
+        if column_exists.is_err() {
+            tracing::info!("[Migration] Adding trigger_keywords column to team_roles");
+            conn.execute(
+                "ALTER TABLE team_roles ADD COLUMN trigger_keywords TEXT NOT NULL DEFAULT '[]'",
+                [],
+            )?;
+        }
 
         Ok(())
     }
@@ -432,8 +452,8 @@ impl TeamRepository for SqliteTeamRepository {
     fn create_role(&self, role: &TeamRole) -> Result<(), TeamRepositoryError> {
         let conn = self.conn.lock();
         conn.execute(
-            "INSERT INTO team_roles (id, team_id, name, description, model_config, system_prompt, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            "INSERT INTO team_roles (id, team_id, name, description, model_config, system_prompt, trigger_keywords, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
                 role.id,
                 role.team_id,
@@ -441,6 +461,7 @@ impl TeamRepository for SqliteTeamRepository {
                 role.description,
                 Self::serialize_model_config(&role.model_config),
                 role.system_prompt,
+                serde_json::to_string(&role.trigger_keywords).unwrap_or_else(|_| "[]".to_string()),
                 role.created_at.to_rfc3339(),
                 role.updated_at.to_rfc3339(),
             ],
@@ -451,7 +472,7 @@ impl TeamRepository for SqliteTeamRepository {
     fn find_role_by_id(&self, id: &str) -> Result<Option<TeamRole>, TeamRepositoryError> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
-            "SELECT id, team_id, name, description, model_config, system_prompt, created_at, updated_at
+            "SELECT id, team_id, name, description, model_config, system_prompt, trigger_keywords, created_at, updated_at
              FROM team_roles WHERE id = ?1",
         )?;
 
@@ -465,13 +486,14 @@ impl TeamRepository for SqliteTeamRepository {
                 row.get::<_, String>(5)?,
                 row.get::<_, String>(6)?,
                 row.get::<_, String>(7)?,
+                row.get::<_, String>(8)?,
             ))
         });
 
         match result {
-            Ok((id, team_id, name, description, model_config, system_prompt, created_at, updated_at)) => {
+            Ok((id, team_id, name, description, model_config, system_prompt, trigger_keywords, created_at, updated_at)) => {
                 Ok(Some(Self::deserialize_role(
-                    id, team_id, name, description, model_config, system_prompt, created_at, updated_at,
+                    id, team_id, name, description, model_config, system_prompt, trigger_keywords, created_at, updated_at,
                 )?))
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -483,7 +505,7 @@ impl TeamRepository for SqliteTeamRepository {
         let conn = self.conn.lock();
         // Use junction table for many-to-many relationship
         let mut stmt = conn.prepare(
-            "SELECT r.id, r.team_id, r.name, r.description, r.model_config, r.system_prompt, r.created_at, r.updated_at
+            "SELECT r.id, r.team_id, r.name, r.description, r.model_config, r.system_prompt, r.trigger_keywords, r.created_at, r.updated_at
              FROM team_roles r
              INNER JOIN team_role_members m ON r.id = m.role_id
              WHERE m.team_id = ?1
@@ -500,14 +522,15 @@ impl TeamRepository for SqliteTeamRepository {
                 row.get::<_, String>(5)?,
                 row.get::<_, String>(6)?,
                 row.get::<_, String>(7)?,
+                row.get::<_, String>(8)?,
             ))
         })?;
 
         let mut roles = Vec::new();
         for row in rows {
-            let (id, team_id, name, description, model_config, system_prompt, created_at, updated_at) = row?;
+            let (id, team_id, name, description, model_config, system_prompt, trigger_keywords, created_at, updated_at) = row?;
             roles.push(Self::deserialize_role(
-                id, team_id, name, description, model_config, system_prompt, created_at, updated_at,
+                id, team_id, name, description, model_config, system_prompt, trigger_keywords, created_at, updated_at,
             )?);
         }
         Ok(roles)
@@ -516,7 +539,7 @@ impl TeamRepository for SqliteTeamRepository {
     fn find_all_roles(&self) -> Result<Vec<TeamRole>, TeamRepositoryError> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
-            "SELECT id, team_id, name, description, model_config, system_prompt, created_at, updated_at
+            "SELECT id, team_id, name, description, model_config, system_prompt, trigger_keywords, created_at, updated_at
              FROM team_roles ORDER BY created_at ASC",
         )?;
 
@@ -530,14 +553,15 @@ impl TeamRepository for SqliteTeamRepository {
                 row.get::<_, String>(5)?,
                 row.get::<_, String>(6)?,
                 row.get::<_, String>(7)?,
+                row.get::<_, String>(8)?,
             ))
         })?;
 
         let mut roles = Vec::new();
         for row in rows {
-            let (id, team_id, name, description, model_config, system_prompt, created_at, updated_at) = row?;
+            let (id, team_id, name, description, model_config, system_prompt, trigger_keywords, created_at, updated_at) = row?;
             roles.push(Self::deserialize_role(
-                id, team_id, name, description, model_config, system_prompt, created_at, updated_at,
+                id, team_id, name, description, model_config, system_prompt, trigger_keywords, created_at, updated_at,
             )?);
         }
         Ok(roles)
@@ -565,13 +589,14 @@ impl TeamRepository for SqliteTeamRepository {
     fn update_role(&self, role: &TeamRole) -> Result<(), TeamRepositoryError> {
         let conn = self.conn.lock();
         let affected = conn.execute(
-            "UPDATE team_roles SET name = ?1, description = ?2, model_config = ?3, system_prompt = ?4, updated_at = ?5
-             WHERE id = ?6",
+            "UPDATE team_roles SET name = ?1, description = ?2, model_config = ?3, system_prompt = ?4, trigger_keywords = ?5, updated_at = ?6
+             WHERE id = ?7",
             params![
                 role.name,
                 role.description,
                 Self::serialize_model_config(&role.model_config),
                 role.system_prompt,
+                serde_json::to_string(&role.trigger_keywords).unwrap_or_else(|_| "[]".to_string()),
                 role.updated_at.to_rfc3339(),
                 role.id,
             ],
@@ -838,6 +863,7 @@ mod tests {
             "A developer role".to_string(),
             ModelConfig::default(),
             "You are a developer".to_string(),
+            vec!["dev".to_string(), "开发".to_string()],
         );
 
         repo.create_role(&role).unwrap();
@@ -861,6 +887,7 @@ mod tests {
             "A developer role".to_string(),
             ModelConfig::default(),
             "You are a developer".to_string(),
+            vec!["dev".to_string()],
         );
         repo.create_role(&role).unwrap();
 
@@ -887,6 +914,7 @@ mod tests {
             "A developer role".to_string(),
             ModelConfig::default(),
             "You are a developer".to_string(),
+            vec!["dev".to_string()],
         );
         repo.create_role(&role).unwrap();
 

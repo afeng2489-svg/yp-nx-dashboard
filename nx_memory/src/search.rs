@@ -99,14 +99,19 @@ impl MemorySearch {
         content: &str,
         metadata: serde_json::Value,
     ) -> Result<(), SearchError> {
-        // 1. 添加到 BM25 索引
+        // 1. 添加到 BM25 索引（内存）
         {
             let mut bm25_indexes = self.bm25_indexes.write().unwrap();
             let bm25_index = bm25_indexes.entry(team_id.to_string()).or_insert_with(Bm25Index::new);
-            bm25_index.add_document(chunk_id, content, Some(metadata));
+            bm25_index.add_document(chunk_id, content, Some(metadata.clone()));
         }
 
-        // 2. 生成并存储向量（如果提供了 embedding provider）
+        // 2. 持久化 BM25 元数据到数据库（用于重建索引）
+        self.store
+            .store_bm25_metadata(chunk_id, content, &metadata)
+            .map_err(|e| SearchError::Storage(e.to_string()))?;
+
+        // 3. 生成并存储向量（如果提供了 embedding provider）
         if let Some(provider) = &self.embedding_provider {
             let embedding_result = provider.embed(content).await.map_err(|e| SearchError::Embedding(e.to_string()))?;
 
@@ -116,7 +121,7 @@ impl MemorySearch {
                 vectors.insert(chunk_id.to_string(), embedding_result.vector.clone());
             }
 
-            // 持久化到数据库
+            // 持久化向量到数据库
             self.store
                 .store_vector(chunk_id, &embedding_result.vector)
                 .map_err(|e| SearchError::Storage(e.to_string()))?;

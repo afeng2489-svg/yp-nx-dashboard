@@ -244,8 +244,19 @@ impl Bm25Index {
                 if lower.is_empty() {
                     continue;
                 }
-                // 中文保留所有 term（不过滤长度），英文保留长度 > 1 的 term
-                if has_chinese || lower.len() > 1 {
+
+                if has_chinese {
+                    // 中文：使用 bigram 分词（每两个连续字符作为一个词）
+                    let chars: Vec<char> = lower.chars().collect();
+                    if chars.len() >= 2 {
+                        for i in 0..chars.len() - 1 {
+                            tokens.push(format!("{}{}", chars[i], chars[i + 1]));
+                        }
+                    } else if chars.len() == 1 {
+                        tokens.push(lower);
+                    }
+                } else if lower.len() > 1 {
+                    // 英文：保留长度 > 1 的词
                     tokens.push(lower);
                 }
             }

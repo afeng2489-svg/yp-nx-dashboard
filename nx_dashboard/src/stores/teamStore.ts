@@ -614,22 +614,13 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
     set({ abortController: controller });
 
     try {
-      // 1. Search relevant memories
-      const memoryResponse = await get().searchMemory(teamId, task);
-      console.log('[ExecuteTask] Memory search response:', memoryResponse);
-
-      const memoryContext = memoryResponse.results.length > 0
-        ? `\n\nRelevant past context:\n${memoryResponse.results.map(r => `- ${r.content}`).join('\n')}`
-        : '';
-      console.log('[ExecuteTask] Memory context:', memoryContext || '(none)');
-
-      // 2. Execute task with memory context prepended to task
+      // Execute task - 记忆搜索和存储全部由后端处理
       const response = await fetch(`${API_BASE}/api/v1/teams/${teamId}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           team_id: teamId,
-          task: task + memoryContext,
+          task: task,
           context: {}
         }),
         signal: controller.signal,
@@ -655,15 +646,6 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
 
       const result: ExecutionResult = await response.json();
       console.log('[ExecuteTask] Execution result success:', result.success);
-
-      // 3. Store the task in memory for future reference
-      if (result.success) {
-        console.log('[ExecuteTask] Storing task in memory...');
-        await get().storeMemory(teamId, 'user', task, 'user');
-        console.log('[ExecuteTask] Task stored in memory');
-      } else {
-        console.log('[ExecuteTask] Execution failed, not storing in memory');
-      }
 
       return result;
     } catch (error) {

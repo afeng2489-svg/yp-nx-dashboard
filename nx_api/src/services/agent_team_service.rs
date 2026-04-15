@@ -4,16 +4,20 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use thiserror::Error;
 use tokio::sync::broadcast;
+use tokio::time::timeout;
 use parking_lot::RwLock as ParkingRwLock;
 
 use nexus_ai::AIModelManager;
+use nx_memory::types::{MessageRole, Transcript, MemoryChunk};
 
 use crate::models::team::{
     ExecuteRoleTaskRequest, ExecuteRoleTaskResponse, ExecuteTeamTaskRequest,
     ExecuteTeamTaskResponse, RoleSkill, SkillPriority, TeamMessage, TeamRole,
 };
+use crate::routes::memory::MemoryState;
 use crate::services::skill_service::SkillService;
 use crate::services::telegram_service::{InboundTelegramMessage, TelegramService};
 use crate::services::team_service::TeamService;
@@ -55,6 +59,9 @@ pub struct AgentTeamService {
     provider_service: Option<Arc<ProviderService>>,
     /// 当前工作区路径，用于 Claude CLI 当前目录参数
     current_workspace_path: Arc<ParkingRwLock<Option<String>>>,
+    /// 记忆状态（用于后台任务存储消息到记忆）
+    /// 使用 Arc<Option<Arc<...>>> 避免循环引用
+    memory_state: Arc<ParkingRwLock<Option<Arc<crate::routes::memory::MemoryState>>>>,
 }
 
 impl Clone for AgentTeamService {
@@ -66,6 +73,7 @@ impl Clone for AgentTeamService {
             ai_manager: Arc::clone(&self.ai_manager),
             provider_service: self.provider_service.clone(),
             current_workspace_path: self.current_workspace_path.clone(),
+            memory_state: Arc::clone(&self.memory_state),
         }
     }
 }
@@ -86,6 +94,7 @@ impl AgentTeamService {
             ai_manager,
             provider_service: None,
             current_workspace_path,
+            memory_state: Arc::new(ParkingRwLock::new(None)),
         }
     }
 
@@ -105,7 +114,58 @@ impl AgentTeamService {
             ai_manager,
             provider_service: Some(provider_service),
             current_workspace_path,
+            memory_state: Arc::new(ParkingRwLock::new(None)),
         }
+    }
+
+    /// Set memory state (for storing messages to memory in background tasks)
+    pub fn set_memory_state(&self, memory_state: Arc<crate::routes::memory::MemoryState>) {
+        *self.memory_state.write() = Some(memory_state);
+    }
+
+    /// Store a message to memory (internal helper for background tasks)
+    /// Takes ownership of Arc<MemoryState> to avoid holding references across await
+    async fn store_to_memory_internal(
+        memory_state: Arc<MemoryState>,
+        team_id: &str,
+        role: &str,
+        content: &str,
+    ) -> Result<(), String> {
+        // Convert role string to MessageRole
+        let message_role = match role {
+            "user" => MessageRole::User,
+            "assistant" => MessageRole::Assistant,
+            "system" => MessageRole::System,
+            _ => MessageRole::User,
+        };
+
+        // Create transcript
+        let transcript = Transcript::new(team_id, "claude-code", message_role, content);
+
+        // Store transcript
+        memory_state
+            .store
+            .store_transcript(&transcript)
+            .map_err(|e| format!("Failed to store transcript: {}", e))?;
+
+        // Create chunk from transcript
+        let chunk = MemoryChunk::from_transcript(&transcript, transcript.content.clone(), 0);
+
+        // Store chunk
+        memory_state
+            .store
+            .store_chunk(&chunk)
+            .map_err(|e| format!("Failed to store chunk: {}", e))?;
+
+        // Index chunk (generate embedding if provider available)
+        let metadata = serde_json::to_value(&transcript.metadata).unwrap_or_default();
+        memory_state
+            .search
+            .index_chunk(team_id, &chunk.id, &chunk.content, metadata)
+            .await
+            .map_err(|e| format!("Failed to index chunk: {}", e))?;
+
+        Ok(())
     }
 
     /// Start background workers (call once after construction)
@@ -122,6 +182,7 @@ impl AgentTeamService {
         let ai_manager = Arc::clone(&self.ai_manager);
         let provider_service = self.provider_service.clone();
         let current_workspace_path = self.current_workspace_path.clone();
+        let memory_state = Arc::clone(&self.memory_state);
 
         tokio::spawn(async move {
             while let Ok(message) = receiver.recv().await {
@@ -132,6 +193,7 @@ impl AgentTeamService {
                     ai_manager: Arc::clone(&ai_manager),
                     provider_service: provider_service.clone(),
                     current_workspace_path: current_workspace_path.clone(),
+                    memory_state: Arc::clone(&memory_state),
                 };
 
                 if let Err(e) = handler.handle_telegram_message(message).await {
@@ -179,22 +241,13 @@ impl AgentTeamService {
         // 提取记忆上下文
         let memory_context = request.context.get("memory_context").cloned().unwrap_or_default();
 
-        // Clone data for background task
-        let team_id = team.id.clone();
-        let task = request.task.clone();
-        let roles = team_with_roles.roles.clone();
-        let team_service = self.team_service.clone();
-        let current_workspace_path = self.current_workspace_path.clone();
+        // Build team context for Claude
+        let team_context = Self::build_team_context(&team, &team_with_roles.roles);
 
-        // Spawn background task for single Claude CLI call
-        tokio::spawn(async move {
-            // Build team context for Claude
-            let team_context = Self::build_team_context(&team, &roles);
-
-            // Build the full prompt - Claude decides if any skill matches
-            let full_prompt = if memory_context.is_empty() {
-                format!(
-                    r#"You are the team dispatcher. Given the team context and user message, decide what to do.
+        // Build the full prompt - Claude decides if any skill matches
+        let full_prompt = if memory_context.is_empty() {
+            format!(
+                r#"You are the team dispatcher. Given the team context and user message, decide what to do.
 
 ## Team Context
 {}
@@ -209,11 +262,11 @@ Read the user's message and the available skills in the team context.
 
 ## Output Format
 Return your response directly. If using a skill, invoke it according to its execution instructions."#,
-                    team_context, task
-                )
-            } else {
-                format!(
-                    r#"You are the team dispatcher. Given the team context and user message, decide what to do.
+                team_context, request.task
+            )
+        } else {
+            format!(
+                r#"You are the team dispatcher. Given the team context and user message, decide what to do.
 
 ## Team Context
 {}
@@ -231,45 +284,50 @@ Return your response directly. If using a skill, invoke it according to its exec
 
 {}
 "#,
-                    team_context, task, memory_context
-                )
-            };
+                team_context, request.task, memory_context
+            )
+        };
 
-            // 获取当前工作区路径
-            let working_dir = current_workspace_path.read().clone();
+        // 获取当前工作区路径
+        let working_dir = self.current_workspace_path.read().clone();
 
-            // Single Claude CLI call
-            let mut cmd = tokio::process::Command::new("claude");
-            cmd.args(["-p", "--dangerously-skip-permissions", &full_prompt]);
-            if let Some(ref dir) = working_dir {
-                cmd.current_dir(dir);
-                tracing::info!("[AgentTeam] 执行 Claude CLI，当前目录: {}", dir);
+        // Single Claude CLI call (同步等待)
+        let mut cmd = tokio::process::Command::new("claude");
+        cmd.args(["-p", "--dangerously-skip-permissions", &full_prompt]);
+        if let Some(ref dir) = working_dir {
+            cmd.current_dir(dir);
+            tracing::info!("[AgentTeam] 执行 Claude CLI，当前目录: {}", dir);
+        }
+        // 设置 120 秒超时，防止请求挂起
+        let output = timeout(Duration::from_secs(120), cmd.output()).await;
+
+        let response = match output {
+            Ok(Ok(out)) if out.status.success() => {
+                String::from_utf8_lossy(&out.stdout).trim().to_string()
             }
-            let output = cmd.output().await;
+            Ok(Ok(out)) => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                return Err(AgentTeamServiceError::AiError(stderr.to_string()));
+            }
+            Ok(Err(e)) => {
+                return Err(AgentTeamServiceError::AiError(format!("Failed to execute Claude CLI: {}", e)));
+            }
+            Err(_) => {
+                return Err(AgentTeamServiceError::AiError("Claude CLI execution timeout after 120 seconds".to_string()));
+            }
+        };
 
-            let response = match output {
-                Ok(out) if out.status.success() => {
-                    String::from_utf8_lossy(&out.stdout).trim().to_string()
-                }
-                Ok(out) => {
-                    let stderr = String::from_utf8_lossy(&out.stderr);
-                    format!("Error: {}", stderr)
-                }
-                Err(e) => format!("Error: Failed to execute Claude CLI: {}", e),
-            };
+        // Save assistant message (use first role as responder if skill was used)
+        let responder_id = team_with_roles.roles.first().map(|r| r.role.id.clone()).unwrap_or_default();
+        let assistant_msg = TeamMessage::assistant_message(team.id.clone(), responder_id, response.clone());
+        let _ = self.team_service.add_message(assistant_msg);
 
-            // Save assistant message (use first role as responder if skill was used)
-            let responder_id = roles.first().map(|r| r.role.id.clone()).unwrap_or_default();
-            let assistant_msg = TeamMessage::assistant_message(team_id, responder_id, response);
-            let _ = team_service.add_message(assistant_msg);
-        });
-
-        // Return immediately with "processing" status
+        // Return the actual response
         Ok(ExecuteTeamTaskResponse {
             success: true,
             team_id: request.team_id,
             messages: vec![],
-            final_output: "Message received, processing in background...".to_string(),
+            final_output: response,
             error: None,
         })
     }
@@ -315,17 +373,23 @@ Return your response directly. If using a skill, invoke it according to its exec
 
     /// Execute a task for a single role (with its assigned skills)
     ///
-    /// This method spawns the AI processing to background and returns immediately.
-    /// The actual response will be saved to the database by the background task.
+    /// This method processes the AI request synchronously and returns the actual response.
     pub async fn execute_role_task(
         &self,
         request: ExecuteRoleTaskRequest,
     ) -> Result<ExecuteRoleTaskResponse, AgentTeamServiceError> {
+        println!("[AGENT-1] execute_role_task CALLED, role_id: {}", request.role_id);
+        tracing::info!("[AgentTeamService] execute_role_task 被调用，role_id: {}", request.role_id);
+
         // Load role with skills
+        println!("[AGENT-2] Getting role_with_skills...");
+        tracing::info!("[AgentTeamService-2] Getting role_with_skills...");
         let role_with_skills = self
             .team_service
             .get_role_with_skills(&request.role_id)
             .map_err(|e| AgentTeamServiceError::RoleNotFound(e.to_string()))?;
+        println!("[AGENT-3] Got role_with_skills, role: {}", role_with_skills.role.name);
+        tracing::info!("[AgentTeamService-3] Got role_with_skills");
 
         let role = role_with_skills.role.clone();
         let team_id = role.team_id.clone().unwrap_or_default();
@@ -334,73 +398,134 @@ Return your response directly. If using a skill, invoke it according to its exec
         let user_msg = TeamMessage::user_message(team_id.clone(), request.task.clone());
         let _ = self.team_service.add_message(user_msg);
 
-        // Clone dependencies for background task
-        let team_service = self.team_service.clone();
-        let role_clone = role.clone();
-        let current_workspace_path = self.current_workspace_path.clone();
+        // Build skill contexts from skills list
+        let skill_contexts = Self::build_skill_contexts_from_skills(&role_with_skills.skills);
 
-        // Spawn background task to process AI request
-        tokio::spawn(async move {
-            // Build role context
-            let skill_contexts = Self::build_skill_contexts_static(&role_clone).await;
-
-            // Build system prompt
-            let mut prompt = role_clone.system_prompt.clone();
-            if !skill_contexts.is_empty() {
-                prompt.push_str("\n\n## Available Skills\n");
-                for ctx in &skill_contexts {
-                    prompt.push_str(&format!("- {}\n", ctx));
-                }
+        // Build system prompt
+        let mut prompt = role.system_prompt.clone();
+        if !skill_contexts.is_empty() {
+            prompt.push_str("\n\n## Available Skills\n");
+            for ctx in &skill_contexts {
+                prompt.push_str(&format!("- {}\n", ctx));
             }
+        }
 
-            // Execute AI call
-            let auto_yes_prefix = "You are operating in auto-yes mode. If you ask any question requiring confirmation (yes/no, continue?, proceed?, etc.), always assume the answer is YES and proceed automatically. Never ask for confirmation.";
-            let full_prompt = format!(
+        // Execute AI call synchronously
+        let auto_yes_prefix = "You are operating in auto-yes mode. If you ask any question requiring confirmation (yes/no, continue?, proceed?, etc.), always assume the answer is YES and proceed automatically. Never ask for confirmation.";
+
+        // 构建最终 prompt（包含记忆上下文）
+        let memory_context = request.context.get("memory_context").cloned().unwrap_or_default();
+        tracing::info!("[AgentTeam] role_id: {}, task: {}, memory_context length: {}",
+            request.role_id, request.task, memory_context.len());
+        tracing::debug!("[AgentTeam] memory_context: {}", memory_context);
+
+        // Build the full prompt
+        let full_prompt = if memory_context.is_empty() {
+            format!(
                 "{}\n\n<system>\n{}\n</system>\n\n<user>\n{}\n</user>",
                 auto_yes_prefix, prompt, request.task
-            );
+            )
+        } else {
+            format!(
+                "{}\n\n<system>\n{}\n</system>\n\n<user>\n{}\n</user>\n\n{}",
+                auto_yes_prefix, prompt, request.task, memory_context
+            )
+        };
 
-            // 获取当前工作区路径
-            let working_dir = current_workspace_path.read().clone();
+        tracing::info!("[AgentTeam] Full prompt length: {}, memory_context included: {}", full_prompt.len(), !memory_context.is_empty());
 
-            let mut cmd = tokio::process::Command::new("claude");
-            cmd.args(["-p", "--dangerously-skip-permissions", &full_prompt]);
-            if let Some(ref dir) = working_dir {
-                cmd.current_dir(dir);
-                tracing::info!("[AgentTeam] 执行 Claude CLI，当前目录: {}", dir);
+        // 获取当前工作区路径
+        let working_dir = self.current_workspace_path.read().clone();
+
+        println!("[AGENT-4] Working dir: {:?}", working_dir);
+        tracing::info!("[AgentTeamService-4] Working dir: {:?}", working_dir);
+
+        // 先检查 claude 命令是否存在
+        let claude_check = tokio::process::Command::new("which")
+            .arg("claude")
+            .output()
+            .await;
+        match &claude_check {
+            Ok(out) if out.status.success() => {
+                let path = String::from_utf8_lossy(&out.stdout);
+                println!("[AGENT-4b] claude found at: {}", path.trim());
+                tracing::info!("[AgentTeamService-4b] claude found at: {}", path.trim());
             }
-            let output = cmd.output().await;
+            _ => {
+                println!("[AGENT-4b] WARNING: claude command not found in PATH!");
+                tracing::warn!("[AgentTeamService-4b] claude command not found!");
+            }
+        }
 
-            let response = match output {
-                Ok(out) => {
-                    if out.status.success() {
-                        String::from_utf8_lossy(&out.stdout).trim().to_string()
-                    } else {
-                        let stderr = String::from_utf8_lossy(&out.stderr);
-                        tracing::error!("Claude CLI error: {}", stderr);
-                        format!("Error: {}", stderr)
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("Failed to execute Claude CLI: {}", e);
-                    format!("Error: Failed to execute Claude CLI: {}", e)
-                }
-            };
+        println!("[AGENT-5] Creating cmd...");
+        tracing::info!("[AgentTeamService-5] Creating cmd...");
 
-            // Save assistant message
-            let assistant_msg = TeamMessage::assistant_message(
-                team_id,
-                role_clone.id.clone(),
-                response,
-            );
-            let _ = team_service.add_message(assistant_msg);
-        });
+        let mut cmd = tokio::process::Command::new("claude");
+        cmd.args(["-p", "--dangerously-skip-permissions", &full_prompt]);
+        // 不继承 stdin，避免挂起
+        cmd.stdin(std::process::Stdio::null());
+        if let Some(ref dir) = working_dir {
+            cmd.current_dir(dir);
+            tracing::info!("[AgentTeam] 执行 Claude CLI，当前目录: {}", dir);
+        }
 
-        // Return immediately with "processing" status
+        // 设置 120 秒超时
+        println!("[AGENT-5b] About to call timeout(cmd.output())...");
+        tracing::info!("[AgentTeamService-5b] About to call timeout...");
+        let output = timeout(Duration::from_secs(120), cmd.output()).await;
+
+        println!("[AGENT-6] timeout() returned");
+        tracing::info!("[AgentTeamService-6] timeout() returned");
+
+        // 处理超时和结果
+        let output = match output {
+            Ok(Ok(out)) => {
+                println!("[DEBUG] cmd.output() succeeded");
+                tracing::info!("[AgentTeam] cmd.output() succeeded");
+                out
+            }
+            Ok(Err(e)) => {
+                println!("[DEBUG] cmd.output() error: {:?}", e);
+                tracing::error!("[AgentTeam] cmd.output() error: {:?}", e);
+                return Err(AgentTeamServiceError::AiError(format!("cmd.output() error: {}", e)));
+            }
+            Err(_) => {
+                println!("[DEBUG] TIMEOUT after 120 seconds!");
+                tracing::error!("[AgentTeam] TIMEOUT after 120 seconds!");
+                return Err(AgentTeamServiceError::AiError("Claude CLI execution timeout after 120 seconds".to_string()));
+            }
+        };
+
+        println!("[DEBUG] Checking output status...");
+        tracing::info!("[AgentTeam] Checking output status");
+
+        let response = match output.status.success() {
+            true => {
+                println!("[DEBUG] Claude CLI success");
+                tracing::info!("[AgentTeam] Claude CLI success");
+                String::from_utf8_lossy(&output.stdout).trim().to_string()
+            }
+            false => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                println!("[DEBUG] Claude CLI failed, stderr: {}", stderr);
+                tracing::error!("[AgentTeam] Claude CLI failed: {}", stderr);
+                return Err(AgentTeamServiceError::AiError(stderr.to_string()));
+            }
+        };
+
+        // Save assistant message
+        let assistant_msg = TeamMessage::assistant_message(
+            team_id.clone(),
+            role.id.clone(),
+            response.clone(),
+        );
+        let _ = self.team_service.add_message(assistant_msg);
+
+        // Return the actual response
         Ok(ExecuteRoleTaskResponse {
             success: true,
             role_id: role.id.clone(),
-            response: "Message received, processing in background...".to_string(),
+            response,
             error: None,
         })
     }
@@ -409,6 +534,17 @@ Return your response directly. If using a skill, invoke it according to its exec
     async fn build_skill_contexts_static(_role: &TeamRole) -> Vec<String> {
         // Return empty - skill contexts will be part of role.system_prompt
         vec![]
+    }
+
+    /// Build skill contexts from skills list (for use in spawned tasks)
+    fn build_skill_contexts_from_skills(skills: &[RoleSkill]) -> Vec<String> {
+        let mut contexts = Vec::new();
+        for skill in skills {
+            let priority_str = skill.priority.as_str();
+            let context = format!("[{}] skill: {}", priority_str.to_uppercase(), skill.skill_id);
+            contexts.push(context);
+        }
+        contexts
     }
 
     /// Handle inbound Telegram message from a role's bot

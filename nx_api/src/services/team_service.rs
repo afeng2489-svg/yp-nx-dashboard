@@ -129,12 +129,14 @@ impl TeamService {
         let model_config = request.model_config.unwrap_or(ModelConfig::default());
         // Create role with NULL team_id (global/shared role)
         // Role will be associated with team via junction table
+        let trigger_keywords = request.trigger_keywords.clone().unwrap_or_default();
         let role = TeamRole::new(
             None,  // team_id is NULL - role is global
             request.name,
             request.description,
             model_config,
             request.system_prompt,
+            trigger_keywords,
         );
 
         self.repository.create_role(&role)?;

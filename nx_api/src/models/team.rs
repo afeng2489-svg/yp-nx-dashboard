@@ -74,6 +74,8 @@ pub struct TeamRole {
     pub description: String,
     pub model_config: ModelConfig,
     pub system_prompt: String,
+    /// 触发关键词，用于路由（如 "产品"、"架构"、"开发"）
+    pub trigger_keywords: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -85,6 +87,7 @@ impl TeamRole {
         description: String,
         model_config: ModelConfig,
         system_prompt: String,
+        trigger_keywords: Vec<String>,
     ) -> Self {
         let now = Utc::now();
         Self {
@@ -94,6 +97,7 @@ impl TeamRole {
             description,
             model_config,
             system_prompt,
+            trigger_keywords,
             created_at: now,
             updated_at: now,
         }
@@ -300,6 +304,7 @@ pub struct CreateRoleRequest {
     pub description: String,
     pub model_config: Option<ModelConfig>,
     pub system_prompt: String,
+    pub trigger_keywords: Option<Vec<String>>,
 }
 
 /// Update role request
@@ -309,6 +314,7 @@ pub struct UpdateRoleRequest {
     pub description: Option<String>,
     pub model_config: Option<ModelConfig>,
     pub system_prompt: Option<String>,
+    pub trigger_keywords: Option<Vec<String>>,
 }
 
 /// Assign skill request

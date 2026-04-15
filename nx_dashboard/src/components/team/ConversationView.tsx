@@ -360,10 +360,9 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="输入消息..."
+              placeholder={processing ? "等待响应..." : "输入消息..."}
               className="input-field flex-1 resize-none"
               rows={1}
-              disabled={sending}
             />
             <button
               onClick={() => processing ? stopPolling() : handleSend()}

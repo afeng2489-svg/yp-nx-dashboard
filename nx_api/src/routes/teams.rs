@@ -241,10 +241,38 @@ pub async fn execute_team_task(
 ) -> ApiResponse<crate::models::team::ExecuteTeamTaskResponse> {
     tracing::info!("[Route] execute_team_task 被调用，team_id: {}", team_id);
 
-    // 1. 搜索相关记忆
+    // 1. 尝试匹配角色触发关键词
+    if let Some(matched_role_id) = find_role_by_trigger(&state, &team_id, &request.task).await {
+        tracing::info!("[Route] 匹配到角色: {}，使用 execute_role_task", matched_role_id);
+
+        // 构建 ExecuteRoleTaskRequest
+        let role_task_request = crate::models::team::ExecuteRoleTaskRequest {
+            role_id: matched_role_id.clone(),
+            task: request.task.clone(),
+            context: request.context.clone(),
+        };
+
+        // 调用 execute_role_task
+        let role_response = execute_role_task_with_context(
+            State(state.clone()),
+            Json(role_task_request),
+        ).await?;
+
+        // 返回 ExecuteTeamTaskResponse 格式
+        return Ok(Json(crate::models::team::ExecuteTeamTaskResponse {
+            success: role_response.success,
+            team_id: team_id.clone(),
+            messages: vec![],
+            final_output: role_response.response.clone(),
+            error: role_response.error.clone(),
+        }));
+    }
+
+    // 2. 没有匹配到角色，执行原有的团队任务逻辑
+    // 搜索相关记忆
     let memory_context = search_and_build_context(&state.memory_state, &team_id, &request.task).await;
 
-    // 2. 创建增强的请求（包含记忆上下文）
+    // 创建增强的请求（包含记忆上下文）
     let enhanced_request = ExecuteTeamTaskRequest {
         team_id: request.team_id.clone(),
         task: request.task.clone(),
@@ -257,16 +285,122 @@ pub async fn execute_team_task(
         },
     };
 
-    // 3. 执行任务
+    // Execute task
     let response = state.teams_state.agent_team_service.execute_team_task(enhanced_request).await?;
 
-    // 4. 自动存储用户消息到记忆（异步，不阻塞响应）
+    // Store conversation to memory (async, non-blocking)
     let memory_state = state.memory_state.clone();
-    let team_id_for存储 = team_id.clone();
-    let user_msg = request.task.clone();
+    let team_id_clone = team_id.clone();
+    let user_message = request.task.clone();
+    let assistant_reply = response.final_output.clone();
+
     tokio::spawn(async move {
-        if let Err(e) = store_to_memory(&memory_state, &team_id_for存储, "user", &user_msg).await {
-            tracing::warn!("[Memory] 存储用户消息失败: {}", e);
+        // Store user message
+        if let Err(e) = store_to_memory(&memory_state, &team_id_clone, "user", &user_message).await {
+            tracing::warn!("[Memory] Failed to store user message: {}", e);
+        }
+        // Store assistant reply
+        if !assistant_reply.is_empty() {
+            if let Err(e) = store_to_memory(&memory_state, &team_id_clone, "assistant", &assistant_reply).await {
+                tracing::warn!("[Memory] Failed to store assistant reply: {}", e);
+            }
+        }
+    });
+
+    Ok(Json(response))
+}
+
+/// 根据触发关键词查找匹配的角色
+async fn find_role_by_trigger(
+    state: &Arc<AppState>,
+    team_id: &str,
+    task: &str,
+) -> Option<String> {
+    // 获取团队的所有角色
+    let roles = state.teams_state.team_service.list_roles(team_id).ok()?;
+
+    // 任务文本转小写用于匹配
+    let task_lower = task.to_lowercase();
+
+    for role in roles {
+        for keyword in &role.trigger_keywords {
+            if task_lower.contains(&keyword.to_lowercase()) {
+                tracing::info!("[Route] 角色 '{}' 匹配关键词 '{}'", role.name, keyword);
+                return Some(role.id);
+            }
+        }
+    }
+
+    None
+}
+
+/// execute_role_task 的内部版本，支持传入已构建的请求
+async fn execute_role_task_with_context(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<crate::models::team::ExecuteRoleTaskRequest>,
+) -> ApiResponse<crate::models::team::ExecuteRoleTaskResponse> {
+    println!("[DEBUG] execute_role_task_with_context CALLED, role_id: {}", request.role_id);
+    tracing::info!("[Route] execute_role_task_with_context 被调用，role_id: {}", request.role_id);
+
+    // 1. 获取 role 信息以确定 team_id
+    println!("[DEBUG-1] Getting role_with_skills for role_id: {}", request.role_id);
+    tracing::info!("[Route-1] Getting role_with_skills...");
+    let role_with_skills = state.teams_state.team_service.get_role_with_skills(&request.role_id)
+        .map_err(|e| AppError::from(crate::services::team_service::TeamServiceError::RoleNotFound(e.to_string())))?;
+    println!("[DEBUG-2] Got role_with_skills, role name: {}", role_with_skills.role.name);
+    tracing::info!("[Route-2] Got role_with_skills");
+
+    let role_team_id = role_with_skills.role.team_id.clone().unwrap_or_default();
+    tracing::info!("[Route] role_team_id: {}", role_team_id);
+
+    // 2. 搜索相关记忆
+    println!("[DEBUG-3] Calling search_and_build_context...");
+    tracing::info!("[Route-3] Calling search_and_build_context...");
+    let memory_context = search_and_build_context(&state.memory_state, &role_team_id, &request.task).await;
+    println!("[DEBUG-4] search_and_build_context returned, memory_context len: {}", memory_context.len());
+    tracing::info!("[Memory] role_id: {}, task: {}, memory_context length: {}", request.role_id, request.task, memory_context.len());
+    tracing::debug!("[Memory] memory_context content (first 500 chars): {}", &memory_context[..memory_context.len().min(500)]);
+
+    // 3. 创建增强的请求（包含记忆上下文）
+    let enhanced_request = crate::models::team::ExecuteRoleTaskRequest {
+        role_id: request.role_id.clone(),
+        task: request.task.clone(),
+        context: {
+            let mut ctx = request.context.clone();
+            if !memory_context.is_empty() {
+                ctx.insert("memory_context".to_string(), memory_context);
+            }
+            ctx
+        },
+    };
+
+    // 4. Execute task
+    println!("[DEBUG-5] About to call agent_team_service.execute_role_task... enhanced_request.role_id={}", enhanced_request.role_id);
+    tracing::info!("[Route-5] Calling agent_team_service.execute_role_task...");
+    let response = state
+        .teams_state
+        .agent_team_service
+        .execute_role_task(enhanced_request)
+        .await?;
+    println!("[DEBUG-6] agent_team_service.execute_role_task returned");
+    tracing::info!("[Route-6] agent_team_service.execute_role_task returned");
+
+    // 5. Store conversation to memory (async, non-blocking)
+    let memory_state = state.memory_state.clone();
+    let team_id_clone = role_team_id.clone();
+    let user_message = request.task.clone();
+    let assistant_reply = response.response.clone();
+
+    tokio::spawn(async move {
+        // Store user message
+        if let Err(e) = store_to_memory(&memory_state, &team_id_clone, "user", &user_message).await {
+            tracing::warn!("[Memory] Failed to store user message: {}", e);
+        }
+        // Store assistant reply (现在 response 是真实的 AI 回复)
+        if !assistant_reply.is_empty() {
+            if let Err(e) = store_to_memory(&memory_state, &team_id_clone, "assistant", &assistant_reply).await {
+                tracing::warn!("[Memory] Failed to store assistant reply: {}", e);
+            }
         }
     });
 
@@ -359,11 +493,55 @@ pub async fn execute_role_task(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ExecuteRoleTaskRequest>,
 ) -> ApiResponse<ExecuteRoleTaskResponse> {
+    tracing::info!("[Route] execute_role_task 被调用，role_id: {}", request.role_id);
+
+    // 1. 获取 role 信息以确定 team_id
+    let role_with_skills = state.teams_state.team_service.get_role_with_skills(&request.role_id)
+        .map_err(|e| AppError::from(crate::services::team_service::TeamServiceError::RoleNotFound(e.to_string())))?;
+    let team_id = role_with_skills.role.team_id.clone().unwrap_or_default();
+
+    // 2. 搜索相关记忆
+    let memory_context = search_and_build_context(&state.memory_state, &team_id, &request.task).await;
+
+    // 3. 创建增强的请求（包含记忆上下文）
+    let enhanced_request = ExecuteRoleTaskRequest {
+        role_id: request.role_id.clone(),
+        task: request.task.clone(),
+        context: {
+            let mut ctx = request.context.clone();
+            if !memory_context.is_empty() {
+                ctx.insert("memory_context".to_string(), memory_context);
+            }
+            ctx
+        },
+    };
+
+    // 4. Execute task
     let response = state
         .teams_state
         .agent_team_service
-        .execute_role_task(request)
+        .execute_role_task(enhanced_request)
         .await?;
+
+    // 5. Store conversation to memory (async, non-blocking)
+    let memory_state = state.memory_state.clone();
+    let team_id_clone = team_id.clone();
+    let user_message = request.task.clone();
+    let assistant_reply = response.response.clone();
+
+    tokio::spawn(async move {
+        // Store user message
+        if let Err(e) = store_to_memory(&memory_state, &team_id_clone, "user", &user_message).await {
+            tracing::warn!("[Memory] Failed to store user message: {}", e);
+        }
+        // Store assistant reply
+        if !assistant_reply.is_empty() && assistant_reply != "Message received, processing in background..." {
+            if let Err(e) = store_to_memory(&memory_state, &team_id_clone, "assistant", &assistant_reply).await {
+                tracing::warn!("[Memory] Failed to store assistant reply: {}", e);
+            }
+        }
+    });
+
     Ok(Json(response))
 }
 

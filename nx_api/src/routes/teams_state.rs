@@ -82,4 +82,21 @@ impl TeamsAppState {
             telegram_service,
         }
     }
+
+    /// Create new teams state with pre-created AgentTeamService and memory state
+    pub fn new_with_agent_and_memory(
+        team_service: TeamService,
+        telegram_service: TelegramService,
+        ai_manager: Arc<nexus_ai::AIModelManager>,
+        agent_team_service: Arc<AgentTeamService>,
+        memory_state: Arc<crate::routes::memory::MemoryState>,
+    ) -> Self {
+        let mut agent = agent_team_service.as_ref().clone();
+        agent.set_memory_state(memory_state);
+        Self {
+            team_service,
+            agent_team_service: agent,
+            telegram_service,
+        }
+    }
 }

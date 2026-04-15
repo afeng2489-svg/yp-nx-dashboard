@@ -237,6 +237,29 @@ impl AppState {
             )
         );
 
+        // 创建 Memory 状态（使用单独的数据库文件）- 需要在 teams_state 之前创建
+        let memory_db_path = if config.db_path.contains('/') {
+            // 如果是绝对路径或包含目录
+            format!("{}_memory.db", config.db_path.replace(".db", ""))
+        } else {
+            // 相对路径：加上当前工作目录
+            let cwd = std::env::current_dir().unwrap_or_default();
+            format!("{}/{}_memory.db", cwd.display(), config.db_path.replace(".db", ""))
+        };
+        tracing::info!("[Memory] Using database path: {}", memory_db_path);
+        let memory_state = Arc::new(
+            crate::routes::memory::create_memory_state(&memory_db_path, None)
+        );
+
+        // 创建团队服务状态（将 memory_state 注入到 agent_team_service）
+        let teams_state = TeamsAppState::new_with_agent_and_memory(
+            team_service.clone(),
+            TelegramService::new(),
+            ai_model_manager.clone(),
+            agent_team_service.clone(),
+            memory_state.clone(),
+        );
+
         // 创建项目仓库和服务
         let project_repo = Arc::new(
             SqliteProjectRepository::new(&config.db_path)
@@ -248,14 +271,6 @@ impl AppState {
         let api_key_repo = Arc::new(
             SqliteApiKeyRepository::new(&config.db_path)
                 .expect("Failed to create API key repository")
-        );
-
-        // 创建团队服务状态
-        let teams_state = TeamsAppState::new_with_agent(
-            team_service.clone(),
-            TelegramService::new(),
-            ai_model_manager.clone(),
-            agent_team_service.clone(),
         );
 
         // 创建群组讨论服务
@@ -271,20 +286,6 @@ impl AppState {
                 ai_model_manager.clone(),
                 current_workspace_path.clone(),
             )
-        );
-
-        // 创建 Memory 状态（使用单独的数据库文件）
-        let memory_db_path = if config.db_path.contains('/') {
-            // 如果是绝对路径或包含目录
-            format!("{}_memory.db", config.db_path.replace(".db", ""))
-        } else {
-            // 相对路径：加上当前工作目录
-            let cwd = std::env::current_dir().unwrap_or_default();
-            format!("{}/{}_memory.db", cwd.display(), config.db_path.replace(".db", ""))
-        };
-        tracing::info!("[Memory] Using database path: {}", memory_db_path);
-        let memory_state = Arc::new(
-            crate::routes::memory::create_memory_state(&memory_db_path, None)
         );
 
         Self {
