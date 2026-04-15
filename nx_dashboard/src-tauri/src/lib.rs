@@ -66,7 +66,7 @@ fn start_nx_api() -> Result<(), Box<dyn std::error::Error>> {
     // Set working directory and environment for nx_api
     let mut cmd = Command::new(&nx_api_path);
     cmd.env("AGENTS_DIR", &skills_path)
-        .env("NEXUS_DB_PATH", data_dir.join("nexus.db"))
+        .env("NEXUS_DB_PATH", data_dir.join("nx_dashboard/nexus.db"))
         .env("RUST_LOG", "info")
         .current_dir(&data_dir)
         .stdout(Stdio::piped())

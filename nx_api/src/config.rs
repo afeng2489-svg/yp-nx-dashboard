@@ -64,22 +64,7 @@ impl ApiConfig {
                 .parse()
                 .unwrap_or(300),
             db_path: std::env::var("NEXUS_DB_PATH")
-                .map(|p| {
-                    if p.starts_with('/') {
-                        p  // Absolute path
-                    } else {
-                        // Convert relative path to absolute based on current working directory
-                        std::env::current_dir()
-                            .map(|cwd| cwd.join(&p).to_string_lossy().to_string())
-                            .unwrap_or(p)
-                    }
-                })
-                .unwrap_or_else(|_| {
-                    // Default to absolute path
-                    std::env::current_dir()
-                        .map(|cwd| cwd.join("nexus.db").to_string_lossy().to_string())
-                        .unwrap_or_else(|_| "nexus.db".to_string())
-                }),
+                .unwrap_or_else(|_| "nexus.db".to_string()),
         }
     }
 }

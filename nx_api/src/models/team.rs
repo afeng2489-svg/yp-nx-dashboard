@@ -287,7 +287,8 @@ pub struct ExecuteRoleTaskResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateTeamRequest {
     pub name: String,
-    pub description: String,
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 /// Update team request

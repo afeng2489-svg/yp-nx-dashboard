@@ -59,7 +59,7 @@ impl TeamService {
 
     // Team CRUD
     pub fn create_team(&self, request: CreateTeamRequest) -> Result<Team, TeamServiceError> {
-        let team = Team::new(request.name, request.description);
+        let team = Team::new(request.name, request.description.unwrap_or_default());
         self.repository.create_team(&team)?;
         Ok(team)
     }
