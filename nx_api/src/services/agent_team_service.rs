@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use thiserror::Error;
 use tokio::sync::broadcast;
 use tokio::time::timeout;
@@ -42,6 +42,27 @@ pub enum AgentTeamServiceError {
     Telegram(String),
 }
 
+/// Running process info for monitoring
+#[derive(Debug, Clone)]
+pub struct RunningProcess {
+    pub pid: Option<u32>,
+    pub role_id: String,
+    pub role_name: String,
+    pub team_id: String,
+    pub task: String,
+    pub start_time: Instant,
+    pub status: ProcessStatus,
+    pub output: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ProcessStatus {
+    Running,
+    Completed,
+    Failed,
+    Killed,
+}
+
 /// Role execution context built from skills
 #[derive(Debug, Clone)]
 struct RoleExecutionContext {
@@ -62,6 +83,8 @@ pub struct AgentTeamService {
     /// 记忆状态（用于后台任务存储消息到记忆）
     /// 使用 Arc<Option<Arc<...>>> 避免循环引用
     memory_state: Arc<ParkingRwLock<Option<Arc<crate::routes::memory::MemoryState>>>>,
+    /// 运行中的进程追踪器
+    processes: Arc<ParkingRwLock<HashMap<String, RunningProcess>>>,
 }
 
 impl Clone for AgentTeamService {
@@ -74,6 +97,7 @@ impl Clone for AgentTeamService {
             provider_service: self.provider_service.clone(),
             current_workspace_path: self.current_workspace_path.clone(),
             memory_state: Arc::clone(&self.memory_state),
+            processes: self.processes.clone(),
         }
     }
 }
@@ -95,6 +119,7 @@ impl AgentTeamService {
             provider_service: None,
             current_workspace_path,
             memory_state: Arc::new(ParkingRwLock::new(None)),
+            processes: Arc::new(ParkingRwLock::new(HashMap::new())),
         }
     }
 
@@ -115,12 +140,88 @@ impl AgentTeamService {
             provider_service: Some(provider_service),
             current_workspace_path,
             memory_state: Arc::new(ParkingRwLock::new(None)),
+            processes: Arc::new(ParkingRwLock::new(HashMap::new())),
         }
     }
 
     /// Set memory state (for storing messages to memory in background tasks)
     pub fn set_memory_state(&self, memory_state: Arc<crate::routes::memory::MemoryState>) {
         *self.memory_state.write() = Some(memory_state);
+    }
+
+    // ==================== Process Tracking ====================
+
+    /// Register a new running process
+    pub fn register_process(&self, execution_id: &str, role_id: &str, role_name: &str, team_id: &str, task: &str) {
+        let process = RunningProcess {
+            pid: None,
+            role_id: role_id.to_string(),
+            role_name: role_name.to_string(),
+            team_id: team_id.to_string(),
+            task: task.to_string(),
+            start_time: Instant::now(),
+            status: ProcessStatus::Running,
+            output: String::new(),
+        };
+        self.processes.write().insert(execution_id.to_string(), process);
+    }
+
+    /// Update process PID
+    pub fn set_process_pid(&self, execution_id: &str, pid: u32) {
+        if let Some(p) = self.processes.write().get_mut(execution_id) {
+            p.pid = Some(pid);
+        }
+    }
+
+    /// Append output to process
+    pub fn append_process_output(&self, execution_id: &str, output: &str) {
+        if let Some(p) = self.processes.write().get_mut(execution_id) {
+            p.output.push_str(output);
+        }
+    }
+
+    /// Update process status
+    pub fn set_process_status(&self, execution_id: &str, status: ProcessStatus) {
+        if let Some(p) = self.processes.write().get_mut(execution_id) {
+            p.status = status;
+        }
+    }
+
+    /// Mark process as completed
+    pub fn complete_process(&self, execution_id: &str, output: &str) {
+        if let Some(p) = self.processes.write().get_mut(execution_id) {
+            p.status = ProcessStatus::Completed;
+            p.output = output.to_string();
+        }
+    }
+
+    /// Get all running processes
+    pub fn get_processes(&self) -> Vec<RunningProcess> {
+        self.processes.read().values().cloned().collect()
+    }
+
+    /// Kill a running process by execution_id
+    pub fn kill_process(&self, execution_id: &str) -> Result<(), String> {
+        let mut processes = self.processes.write();
+        if let Some(p) = processes.get_mut(execution_id) {
+            if let Some(pid) = p.pid {
+                // Try to kill the process
+                #[cfg(unix)]
+                {
+                    use std::process::Command;
+                    let _ = Command::new("kill").arg("-9").arg(pid.to_string()).output();
+                }
+                p.status = ProcessStatus::Killed;
+            }
+            Ok(())
+        } else {
+            Err("Process not found".to_string())
+        }
+    }
+
+    /// Remove a process from tracking
+    pub fn remove_process(&self, execution_id: &str) {
+        self.processes.write().remove(execution_id);
     }
 
     /// Store a message to memory (internal helper for background tasks)
@@ -183,6 +284,7 @@ impl AgentTeamService {
         let provider_service = self.provider_service.clone();
         let current_workspace_path = self.current_workspace_path.clone();
         let memory_state = Arc::clone(&self.memory_state);
+        let processes = self.processes.clone();
 
         tokio::spawn(async move {
             while let Ok(message) = receiver.recv().await {
@@ -194,6 +296,7 @@ impl AgentTeamService {
                     provider_service: provider_service.clone(),
                     current_workspace_path: current_workspace_path.clone(),
                     memory_state: Arc::clone(&memory_state),
+                    processes: processes.clone(),
                 };
 
                 if let Err(e) = handler.handle_telegram_message(message).await {
@@ -389,10 +492,14 @@ Return your response directly. If using a skill, invoke it according to its exec
             .get_role_with_skills(&request.role_id)
             .map_err(|e| AgentTeamServiceError::RoleNotFound(e.to_string()))?;
         println!("[AGENT-3] Got role_with_skills, role: {}", role_with_skills.role.name);
+
+        // Register process for monitoring
+        let execution_id = role_with_skills.role.id.clone();
+        let team_id = role_with_skills.role.team_id.clone().unwrap_or_default();
+        self.register_process(&execution_id, &request.role_id, &role_with_skills.role.name, &team_id, &request.task);
         tracing::info!("[AgentTeamService-3] Got role_with_skills");
 
         let role = role_with_skills.role.clone();
-        let team_id = role.team_id.clone().unwrap_or_default();
 
         // Save user message immediately
         let user_msg = TeamMessage::user_message(team_id.clone(), request.task.clone());

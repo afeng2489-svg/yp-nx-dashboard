@@ -36,6 +36,7 @@ pub mod teams_state;
 pub mod projects;
 pub mod group_chat;
 pub mod memory;
+pub mod processes;
 
 /// 从环境变量加载 AI 配置
 fn load_ai_config_from_env() -> AIManagerConfig {
@@ -497,6 +498,10 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/teams/:team_id/memories/search", post(memory::search_memory))
         .route("/api/v1/teams/:team_id/memories/stats", get(memory::get_stats))
         .route("/api/v1/teams/:team_id/memories", delete(memory::clear_memory))
+
+        // Process monitoring
+        .route("/api/v1/processes", get(processes::list_processes))
+        .route("/api/v1/processes/:execution_id/kill", post(processes::kill_process))
         // WebSocket 路由
         .route("/ws/executions/:id", get(executions::execution_ws))
         .route("/ws/sessions/:id", get(sessions::session_ws))

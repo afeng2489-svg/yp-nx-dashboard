@@ -57,13 +57,8 @@ fn start_nx_api() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Create a writable data directory for the database
-    let data_dir = if cfg!(debug_assertions) {
-        PathBuf::from("/Users/Zhuanz/Desktop/yp-nx-dashboard")
-    } else {
-        dirs::data_dir()
-            .unwrap_or_else(|| PathBuf::from("/tmp"))
-            .join("NexusFlow")
-    };
+    // Always use the project directory for consistent data
+    let data_dir = PathBuf::from("/Users/Zhuanz/Desktop/yp-nx-dashboard");
 
     // Create data directory if it doesn't exist
     std::fs::create_dir_all(&data_dir)?;

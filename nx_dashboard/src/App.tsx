@@ -27,6 +27,7 @@ const TeamsPage = lazy(() => import('@/pages/TeamsPage').then(m => ({ default: m
 const RolesPage = lazy(() => import('@/pages/RolesPage').then(m => ({ default: m.RolesPage })));
 const ProjectsPage = lazy(() => import('@/pages/ProjectsPage').then(m => ({ default: m.ProjectsPage })));
 const GroupChatPage = lazy(() => import('@/pages/GroupChatPage').then(m => ({ default: m.GroupChatPage })));
+const ProcessMonitorPage = lazy(() => import('@/pages/ProcessMonitorPage').then(m => ({ default: m.default })));
 
 // Loading fallback component
 function PageLoadingFallback() {
@@ -103,6 +104,7 @@ function App() {
               <Route path="/roles" element={<PageWrapper><RolesPage /></PageWrapper>} />
               <Route path="/projects" element={<PageWrapper><ProjectsPage /></PageWrapper>} />
               <Route path="/group-chat" element={<PageWrapper><GroupChatPage /></PageWrapper>} />
+              <Route path="/processes" element={<PageWrapper><ProcessMonitorPage /></PageWrapper>} />
             </Route>
           </Routes>
         </Suspense>
