@@ -34,6 +34,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
+import { useAgentExecution } from '@/hooks/useAgentExecution';
+import { AgentThinkingIndicator } from '@/components/team/AgentThinkingIndicator';
 
 export function GroupChatPage() {
   const {
@@ -73,6 +75,10 @@ export function GroupChatPage() {
   const [nextSpeaker, setNextSpeaker] = useState<{ role_id: string; role_name: string } | null>(null);
   const [autoMode, setAutoMode] = useState(false);
   const [executingRole, setExecutingRole] = useState<string | null>(null);
+
+  // Async agent execution with WS progress
+  const agentExec = useAgentExecution();
+  const isAgentActive = agentExec.status === 'started' || agentExec.status === 'thinking';
 
   // Skill hint popup state
   const [showSkillHint, setShowSkillHint] = useState(false);
@@ -170,10 +176,10 @@ export function GroupChatPage() {
 
   // Auto-execute next role when in auto mode
   useEffect(() => {
-    if (autoMode && currentSession?.status === 'active' && nextSpeaker && !executingRole) {
+    if (autoMode && currentSession?.status === 'active' && nextSpeaker && !executingRole && !isAgentActive) {
       handleExecuteRoleTurn(nextSpeaker.role_id);
     }
-  }, [autoMode, currentSession?.status, nextSpeaker, executingRole]);
+  }, [autoMode, currentSession?.status, nextSpeaker, executingRole, isAgentActive]);
 
   const handleCreateSession = async () => {
     try {
@@ -227,19 +233,36 @@ export function GroupChatPage() {
     if (!selectedSessionId) return;
     setExecutingRole(roleId);
     try {
-      await executeRoleTurn(selectedSessionId, roleId);
-      await advanceSpeaker(selectedSessionId);
-      const speaker = await getNextSpeaker(selectedSessionId);
-      setNextSpeaker(speaker);
-      fetchMessages(selectedSessionId);
-      // 刷新文件列表，以便显示 Claude CLI 创建的文件
-      browseFiles();
+      await agentExec.executeRoleTurn(selectedSessionId, roleId);
+      // The hook status will change to 'completed' via WS — effect below handles refresh
     } catch (err) {
       console.error('Failed to execute role turn:', err);
-    } finally {
       setExecutingRole(null);
     }
   };
+
+  // When agent execution completes, refresh messages and advance speaker
+  useEffect(() => {
+    if (agentExec.status === 'completed' && selectedSessionId && executingRole) {
+      (async () => {
+        try {
+          await advanceSpeaker(selectedSessionId);
+          const speaker = await getNextSpeaker(selectedSessionId);
+          setNextSpeaker(speaker);
+          fetchMessages(selectedSessionId);
+          browseFiles();
+        } catch (err) {
+          console.error('Post-execution refresh failed:', err);
+        } finally {
+          setExecutingRole(null);
+          agentExec.reset();
+        }
+      })();
+    } else if (agentExec.status === 'failed' || agentExec.status === 'cancelled') {
+      setExecutingRole(null);
+      agentExec.reset();
+    }
+  }, [agentExec.status]);
 
   const handleConcludeDiscussion = async (force = false) => {
     if (!selectedSessionId) return;
@@ -459,11 +482,11 @@ export function GroupChatPage() {
                           <span className="text-xs text-muted-foreground">
                             {p.message_count}条
                           </span>
-                          {currentSession.status === 'active' && !executingRole && (
+                          {currentSession.status === 'active' && !executingRole && !isAgentActive && (
                             <button
                               onClick={() => handleExecuteRoleTurn(p.role_id)}
                               className="ml-1 p-0.5 hover:bg-primary/20 rounded"
-                              disabled={executingRole !== null}
+                              disabled={executingRole !== null || isAgentActive}
                             >
                               <Play className="w-3 h-3" />
                             </button>
@@ -518,10 +541,26 @@ export function GroupChatPage() {
                     ))
                   )}
                 </div>
-                {executingRole && (
-                  <div className="p-4 border-t flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    正在执行角色回合...
+                {executingRole && isAgentActive && (
+                  <div className="p-4 border-t">
+                    <AgentThinkingIndicator
+                      agentRole={
+                        currentSession?.participants?.find(
+                          (p) => p.role_id === executingRole
+                        )?.role_name
+                      }
+                      elapsedSecs={agentExec.elapsedSecs}
+                      onCancel={() => {
+                        agentExec.cancel();
+                        setExecutingRole(null);
+                      }}
+                      partialOutput={agentExec.partialOutput || undefined}
+                    />
+                  </div>
+                )}
+                {executingRole && agentExec.status === 'failed' && agentExec.error && (
+                  <div className="p-4 border-t text-sm text-red-400">
+                    执行失败: {agentExec.error}
                   </div>
                 )}
               </div>

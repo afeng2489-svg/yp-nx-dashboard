@@ -1,9 +1,10 @@
 //! OpenCode Provider Implementation
 //!
-//! OpenCode provider for open source project tasks.
+//! Generic OpenAI-compatible provider for open source project tasks.
 
 use async_trait::async_trait;
-use std::sync::Arc;
+use reqwest::Client;
+use serde::Serialize;
 use std::time::Instant;
 
 use super::{
@@ -12,11 +13,18 @@ use super::{
     TokenUsage,
 };
 
-/// OpenCode Provider
+/// 默认 API 基础 URL (OpenAI 兼容)
+const DEFAULT_API_BASE: &str = "https://api.openai.com/v1";
+
+/// OpenCode Provider — 通用 OpenAI 兼容适配器
 #[derive(Debug, Clone)]
 pub struct OpenCodeProvider {
+    /// HTTP 客户端
+    client: Client,
     /// API 密钥
     api_key: String,
+    /// API 基础 URL
+    base_url: String,
     /// 默认模型
     default_model: String,
 }
@@ -25,7 +33,9 @@ impl OpenCodeProvider {
     /// 创建新的 OpenCode 提供商
     pub fn new(api_key: String) -> Self {
         Self {
+            client: Client::new(),
             api_key,
+            base_url: DEFAULT_API_BASE.to_string(),
             default_model: "opencode".to_string(),
         }
     }
@@ -33,30 +43,62 @@ impl OpenCodeProvider {
     /// 使用指定的默认模型创建
     pub fn with_model(api_key: String, model: &str) -> Self {
         Self {
+            client: Client::new(),
             api_key,
+            base_url: DEFAULT_API_BASE.to_string(),
             default_model: model.to_string(),
         }
+    }
+
+    /// 使用自定义 API 端点创建
+    pub fn with_base_url(api_key: String, base_url: &str) -> Self {
+        Self {
+            client: Client::new(),
+            api_key,
+            base_url: base_url.to_string(),
+            default_model: "opencode".to_string(),
+        }
+    }
+
+    /// 发送 HTTP 请求
+    async fn request(&self, path: &str, body: serde_json::Value) -> Result<serde_json::Value, AIError> {
+        let response = self.client
+            .post(format!("{}{}", self.base_url, path))
+            .header("authorization", format!("Bearer {}", self.api_key))
+            .header("content-type", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| AIError::Network(e.to_string()))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(match status.as_u16() {
+                401 => AIError::Authentication("无效的 API 密钥".to_string()),
+                429 => AIError::RateLimit("请求频率超限".to_string()),
+                _ => AIError::Provider(format!("OpenCode 错误 {}: {}", status, error_text)),
+            });
+        }
+
+        response.json().await.map_err(|e| AIError::Parse(e.to_string()))
     }
 }
 
 #[async_trait]
 impl AIProvider for OpenCodeProvider {
-    /// 获取提供商名称
     fn provider_name(&self) -> &str {
         "opencode"
     }
 
-    /// 获取支持的模型列表
     fn supported_models(&self) -> Vec<&str> {
         vec!["opencode", "opencode-plus"]
     }
 
-    /// 获取默认模型
     fn default_model(&self) -> &str {
         &self.default_model
     }
 
-    /// 执行文本补全
     async fn complete(&self, request: CompletionRequest) -> Result<CompletionResponse, AIError> {
         let chat_request = ChatRequest {
             messages: vec![ChatMessage {
@@ -76,71 +118,66 @@ impl AIProvider for OpenCodeProvider {
         })
     }
 
-    /// 执行聊天补全
     async fn chat(&self, request: ChatRequest) -> Result<ChatResponse, AIError> {
-        let user_message = request
-            .messages
-            .last()
-            .map(|m| m.content.as_str())
-            .unwrap_or("");
+        #[derive(Serialize)]
+        struct ChatRequestBody {
+            model: String,
+            messages: Vec<ChatMessage>,
+            max_tokens: usize,
+            temperature: f32,
+        }
 
-        let response_content = if user_message.to_lowercase().contains("github")
-            || user_message.to_lowercase().contains("open source")
-        {
-            r#"我看到你对开源项目感兴趣！让我帮你分析一下。
-
-对于开源项目，我建议:
-
-1. **项目结构分析**
-   - 查看 README.md 了解项目概况
-   - 分析目录结构确定核心模块
-   - 查看 package.json/pyproject.toml 等依赖文件
-
-2. **贡献指南**
-   - 仔细阅读 CONTRIBUTING.md
-   - 遵守代码风格规范
-   - 先从 good first issue 开始
-
-3. **技术栈识别**
-   - 确定主要编程语言
-   - 了解使用的框架和库
-   - 分析架构设计模式
-
-请问你具体想了解哪个方面？"#
-                .to_string()
-        } else {
-            r#"OpenCode 专注于帮助开发者:
-
-1. **代码理解**
-   - 分析代码结构和逻辑
-   - 解释复杂算法
-   - 识别代码异味
-
-2. **开源项目支持**
-   - GitHub 项目分析和克隆
-   - 流行框架集成指导
-   - 开源许可证咨询
-
-3. **开发效率**
-   - 快速原型开发
-   - 代码模板生成
-   - 最佳实践建议
-
-请告诉我你需要哪方面的帮助？"#
-                .to_string()
+        let body = ChatRequestBody {
+            model: request.model.clone(),
+            messages: request.messages,
+            max_tokens: request.max_tokens,
+            temperature: request.temperature,
         };
+
+        let response = self.request("/chat/completions", serde_json::to_value(body).unwrap()).await?;
+
+        #[derive(serde::Deserialize)]
+        struct ApiResponse {
+            choices: Vec<Choice>,
+            usage: Usage,
+            model: String,
+        }
+
+        #[derive(serde::Deserialize)]
+        struct Choice {
+            message: AssistantMessage,
+            finish_reason: Option<String>,
+        }
+
+        #[derive(serde::Deserialize)]
+        struct AssistantMessage {
+            role: String,
+            content: String,
+        }
+
+        #[derive(serde::Deserialize)]
+        struct Usage {
+            prompt_tokens: usize,
+            completion_tokens: usize,
+        }
+
+        let resp: ApiResponse = serde_json::from_value(response)
+            .map_err(|e| AIError::Parse(e.to_string()))?;
+
+        let choice = resp.choices.first()
+            .ok_or_else(|| AIError::Provider("响应中没有选项".to_string()))?;
 
         Ok(ChatResponse {
             message: ChatMessage {
-                role: "assistant".to_string(),
-                content: response_content,
+                role: choice.message.role.clone(),
+                content: choice.message.content.clone(),
             },
-            model: request.model,
+            model: resp.model,
             usage: TokenUsage {
-                input_tokens: 100,
-                output_tokens: 300,
+                input_tokens: resp.usage.prompt_tokens,
+                output_tokens: resp.usage.completion_tokens,
             },
-            stop_reason: "stop".to_string(),
+            stop_reason: choice.finish_reason.clone().unwrap_or_else(|| "stop".to_string()),
         })
     }
 
@@ -151,12 +188,10 @@ impl AIProvider for OpenCodeProvider {
         ))
     }
 
-    /// 获取支持的 CLI
     fn supported_clis(&self) -> Vec<CLI> {
         vec![CLI::OpenCode]
     }
 
-    /// 使用 OpenCode CLI 执行
     async fn execute_with_cli(
         &self,
         prompt: &str,
@@ -168,9 +203,7 @@ impl AIProvider for OpenCodeProvider {
         let output = format!(
             "OpenCode CLI executed\n\
              Prompt: '{}'\n\
-             Target: Open Source Projects\n\
-             Working directory: {:?}\n\
-             Features: GitHub integration, popular frameworks support",
+             Working directory: {:?}",
             prompt.chars().take(40).collect::<String>(),
             context.working_directory
         );
@@ -189,35 +222,16 @@ impl AIProvider for OpenCodeProvider {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn test_opencode_github_prompt() {
+    #[test]
+    fn test_opencode_provider_creation() {
         let provider = OpenCodeProvider::new("test-key".to_string());
-        let request = ChatRequest {
-            messages: vec![ChatMessage {
-                role: "user".to_string(),
-                content: "Help me understand this GitHub repo".to_string(),
-            }],
-            model: "opencode".to_string(),
-            max_tokens: 1000,
-            temperature: 0.7,
-        };
-
-        let result = provider.chat(request).await;
-        assert!(result.is_ok());
-        let response = result.unwrap();
-        assert!(response.message.content.contains("GitHub") || response.message.content.contains("开源"));
+        assert_eq!(provider.provider_name(), "opencode");
+        assert_eq!(provider.default_model(), "opencode");
     }
 
-    #[tokio::test]
-    async fn test_opencode_execute_with_cli() {
-        let provider = OpenCodeProvider::new("test-key".to_string());
-        let context = CLIContext::default();
-
-        let result = provider
-            .execute_with_cli("analyze github project", CLI::OpenCode, &context)
-            .await;
-        assert!(result.is_ok());
-        let response = result.unwrap();
-        assert_eq!(response.exit_code, 0);
+    #[test]
+    fn test_opencode_with_base_url() {
+        let provider = OpenCodeProvider::with_base_url("key".to_string(), "http://localhost:8080/v1");
+        assert_eq!(provider.base_url, "http://localhost:8080/v1");
     }
 }

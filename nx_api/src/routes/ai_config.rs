@@ -124,194 +124,154 @@ pub struct UpdateStrategyRequest {
 
 /// 列出 AI 提供商
 pub async fn list_providers(
-    State(_state): State<Arc<AppState>>,
-    Query(_params): Query<ListProvidersRequest>,
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<ListProvidersRequest>,
 ) -> Result<Json<ProviderListResponse>, (StatusCode, String)> {
-    // 静态返回当前支持的提供商
-    let providers = vec![
-        ProviderInfo {
-            name: "anthropic".to_string(),
-            provider_type: ProviderType::Anthropic,
-            models: vec![
-                "claude-opus-4-5".to_string(),
-                "claude-sonnet-4-5".to_string(),
-                "claude-haiku-4-5".to_string(),
-            ],
-            supported_clis: vec![CLI::Claude.identifier().to_string()],
-            default_model: "claude-sonnet-4-5".to_string(),
-        },
-        ProviderInfo {
-            name: "openai".to_string(),
-            provider_type: ProviderType::OpenAI,
-            models: vec![
-                "gpt-4-turbo".to_string(),
-                "gpt-4".to_string(),
-                "gpt-3.5-turbo".to_string(),
-            ],
-            supported_clis: vec![],
-            default_model: "gpt-4-turbo".to_string(),
-        },
-        ProviderInfo {
-            name: "google".to_string(),
-            provider_type: ProviderType::Google,
-            models: vec![
-                "gemini-pro".to_string(),
-                "gemini-1.5-pro".to_string(),
-                "gemini-1.5-flash".to_string(),
-            ],
-            supported_clis: vec![CLI::Gemini.identifier().to_string()],
-            default_model: "gemini-pro".to_string(),
-        },
-        ProviderInfo {
-            name: "ollama".to_string(),
-            provider_type: ProviderType::Ollama,
-            models: vec!["llama2".to_string(), "codellama".to_string()],
-            supported_clis: vec![],
-            default_model: "llama2".to_string(),
-        },
-        ProviderInfo {
-            name: "codex".to_string(),
-            provider_type: ProviderType::Codex,
-            models: vec!["codex".to_string(), "codex-plus".to_string()],
-            supported_clis: vec![
-                CLI::Codex.identifier().to_string(),
-                CLI::OpenCode.identifier().to_string(),
-            ],
-            default_model: "codex".to_string(),
-        },
-        ProviderInfo {
-            name: "qwen".to_string(),
-            provider_type: ProviderType::Qwen,
-            models: vec![
-                "qwen-turbo".to_string(),
-                "qwen-plus".to_string(),
-                "qwen-max".to_string(),
-            ],
-            supported_clis: vec![CLI::Qwen.identifier().to_string()],
-            default_model: "qwen-turbo".to_string(),
-        },
-        ProviderInfo {
-            name: "opencode".to_string(),
-            provider_type: ProviderType::OpenCode,
-            models: vec!["opencode".to_string()],
-            supported_clis: vec![CLI::OpenCode.identifier().to_string()],
-            default_model: "opencode".to_string(),
-        },
-        ProviderInfo {
-            name: "minimax".to_string(),
-            provider_type: ProviderType::MiniMax,
-            models: vec![
-                "MiniMax-M2.7".to_string(),
-                "abab6-chat".to_string(),
-                "abab6-gs".to_string(),
-                "doubao-seed".to_string(),
-            ],
-            supported_clis: vec![],
-            default_model: "MiniMax-M2.7".to_string(),
-        },
-    ];
+    let manager = &state.ai_model_manager;
+    let all_models = manager.list_available_models();
+
+    // 按 provider 分组
+    let mut provider_map: std::collections::HashMap<String, ProviderInfo> = std::collections::HashMap::new();
+
+    for model in &all_models {
+        let entry = provider_map.entry(model.provider.clone()).or_insert_with(|| {
+            let provider_type = match model.provider.as_str() {
+                "anthropic" => ProviderType::Anthropic,
+                "openai" => ProviderType::OpenAI,
+                "google" => ProviderType::Google,
+                "ollama" => ProviderType::Ollama,
+                "codex" => ProviderType::Codex,
+                "qwen" => ProviderType::Qwen,
+                "opencode" => ProviderType::OpenCode,
+                "minimax" => ProviderType::MiniMax,
+                _ => ProviderType::OpenAI, // fallback
+            };
+            ProviderInfo {
+                name: model.provider.clone(),
+                provider_type,
+                models: Vec::new(),
+                supported_clis: Vec::new(),
+                default_model: String::new(),
+            }
+        });
+        entry.models.push(model.model_id.clone());
+        if model.is_default {
+            entry.default_model = model.model_id.clone();
+        }
+    }
+
+    // Set defaults for providers without a default model
+    for info in provider_map.values_mut() {
+        if info.default_model.is_empty() {
+            if let Some(first) = info.models.first() {
+                info.default_model = first.clone();
+            }
+        }
+    }
+
+    // Filter by provider type if requested
+    let providers: Vec<ProviderInfo> = if let Some(ref filter_type) = params.provider_type {
+        provider_map.into_values()
+            .filter(|p| &p.provider_type == filter_type)
+            .collect()
+    } else {
+        provider_map.into_values().collect()
+    };
 
     Ok(Json(ProviderListResponse { providers }))
 }
 
 /// 列出可用的 CLI
 pub async fn list_clis(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
 ) -> Result<Json<CLIListResponse>, (StatusCode, String)> {
-    let cli_infos = vec![
-        CLIInfo {
-            cli: CLI::Claude.identifier().to_string(),
-            display_name: CLI::Claude.display_name().to_string(),
-            enabled: true,
-            available: true,
+    let registry = state.ai_model_manager.cli_registry();
+    let configs = registry.all_configs();
+    let strategy = registry.get_selection_strategy();
+    let default_cli = registry.get_default_cli()
+        .map(|c| c.identifier().to_string());
+
+    let mut cli_infos = Vec::with_capacity(configs.len());
+
+    for config in &configs {
+        // Detect CLI availability by checking if the command exists in PATH
+        let cmd_name = config.cli.identifier();
+        let (available, version) = detect_cli_availability(cmd_name).await;
+
+        let capability = registry.get_capability(config.cli).unwrap_or_else(|| {
+            CLICapability {
+                cli: config.cli,
+                available,
+                version: version.clone(),
+                features: default_features_for(config.cli),
+            }
+        });
+
+        cli_infos.push(CLIInfo {
+            cli: config.cli.identifier().to_string(),
+            display_name: config.cli.display_name().to_string(),
+            enabled: config.enabled,
+            available,
             capability: Some(CLICapability {
-                cli: CLI::Claude,
-                available: true,
-                version: Some("3.5".to_string()),
-                features: vec![
-                    "Code Review".to_string(),
-                    "Debugging".to_string(),
-                    "Explanation".to_string(),
-                    "Refactoring".to_string(),
-                ],
+                available,
+                version,
+                ..capability
             }),
-            path: None,
-        },
-        CLIInfo {
-            cli: CLI::Gemini.identifier().to_string(),
-            display_name: CLI::Gemini.display_name().to_string(),
-            enabled: true,
-            available: true,
-            capability: Some(CLICapability {
-                cli: CLI::Gemini,
-                available: true,
-                version: Some("1.5".to_string()),
-                features: vec![
-                    "Multimodal".to_string(),
-                    "Long Context".to_string(),
-                    "Creative Tasks".to_string(),
-                ],
-            }),
-            path: None,
-        },
-        CLIInfo {
-            cli: CLI::Codex.identifier().to_string(),
-            display_name: CLI::Codex.display_name().to_string(),
-            enabled: true,
-            available: true,
-            capability: Some(CLICapability {
-                cli: CLI::Codex,
-                available: true,
-                version: Some("1.0".to_string()),
-                features: vec![
-                    "Code Generation".to_string(),
-                    "Algorithm Implementation".to_string(),
-                    "Function Writing".to_string(),
-                ],
-            }),
-            path: None,
-        },
-        CLIInfo {
-            cli: CLI::Qwen.identifier().to_string(),
-            display_name: CLI::Qwen.display_name().to_string(),
-            enabled: true,
-            available: true,
-            capability: Some(CLICapability {
-                cli: CLI::Qwen,
-                available: true,
-                version: Some("2.5".to_string()),
-                features: vec![
-                    "Chinese Language".to_string(),
-                    "Math Reasoning".to_string(),
-                    "Logic".to_string(),
-                ],
-            }),
-            path: None,
-        },
-        CLIInfo {
-            cli: CLI::OpenCode.identifier().to_string(),
-            display_name: CLI::OpenCode.display_name().to_string(),
-            enabled: true,
-            available: true,
-            capability: Some(CLICapability {
-                cli: CLI::OpenCode,
-                available: true,
-                version: Some("1.0".to_string()),
-                features: vec![
-                    "Open Source Projects".to_string(),
-                    "GitHub Integration".to_string(),
-                    "Popular Frameworks".to_string(),
-                ],
-            }),
-            path: None,
-        },
-    ];
+            path: config.path.clone(),
+        });
+    }
 
     Ok(Json(CLIListResponse {
         clis: cli_infos,
-        selection_strategy: CLISelectionStrategy::Auto,
-        default_cli: Some(CLI::Claude.identifier().to_string()),
+        selection_strategy: strategy,
+        default_cli,
     }))
+}
+
+/// Detect whether a CLI command is available in PATH and extract its version
+async fn detect_cli_availability(cmd_name: &str) -> (bool, Option<String>) {
+    match tokio::process::Command::new(cmd_name)
+        .arg("--version")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .await
+    {
+        Ok(output) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let version = stdout.lines().next()
+                .map(|l| l.trim().to_string())
+                .filter(|v| !v.is_empty());
+            (true, version)
+        }
+        _ => (false, None),
+    }
+}
+
+/// Default feature list for each CLI type
+fn default_features_for(cli: CLI) -> Vec<String> {
+    match cli {
+        CLI::Claude => vec![
+            "Code Review".into(), "Debugging".into(),
+            "Explanation".into(), "Refactoring".into(),
+        ],
+        CLI::Gemini => vec![
+            "Multimodal".into(), "Long Context".into(),
+            "Creative Tasks".into(),
+        ],
+        CLI::Codex => vec![
+            "Code Generation".into(), "Algorithm Implementation".into(),
+            "Function Writing".into(),
+        ],
+        CLI::Qwen => vec![
+            "Chinese Language".into(), "Math Reasoning".into(),
+            "Logic".into(),
+        ],
+        CLI::OpenCode => vec![
+            "Open Source Projects".into(), "GitHub Integration".into(),
+            "Popular Frameworks".into(),
+        ],
+    }
 }
 
 /// 执行 CLI
@@ -373,10 +333,35 @@ pub async fn execute_cli(
 
 /// 更新 CLI 配置
 pub async fn update_cli_config(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Json(request): Json<UpdateCLIConfigRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     tracing::info!("更新 CLI 配置: {:?}", request.cli);
+
+    let registry = state.ai_model_manager.cli_registry();
+
+    // Get existing config or create default
+    let mut config = registry.get_config(request.cli)
+        .unwrap_or_else(|| CLIConfig::default_for(request.cli));
+
+    // Apply updates
+    if let Some(enabled) = request.enabled {
+        config.enabled = enabled;
+    }
+    if let Some(ref path) = request.path {
+        config.path = Some(path.clone());
+    }
+    for (k, v) in &request.extra_params {
+        config.extra_params.insert(k.clone(), v.clone());
+    }
+
+    // Persist to registry
+    registry.register_config(config);
+
+    // Persist to disk
+    if let Err(e) = persist_cli_config(&registry).await {
+        tracing::warn!("持久化 CLI 配置失败: {}", e);
+    }
 
     Ok(Json(serde_json::json!({
         "success": true,
@@ -386,16 +371,57 @@ pub async fn update_cli_config(
 
 /// 更新选择策略
 pub async fn update_selection_strategy(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Json(request): Json<UpdateStrategyRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     tracing::info!("更新选择策略: {:?}", request.strategy);
+
+    let registry = state.ai_model_manager.cli_registry();
+    registry.set_selection_strategy(request.strategy);
+
+    if let Some(cli) = request.default_cli {
+        registry.set_default_cli(cli);
+    }
+
+    // Persist to disk
+    if let Err(e) = persist_cli_config(&registry).await {
+        tracing::warn!("持久化选择策略失败: {}", e);
+    }
 
     Ok(Json(serde_json::json!({
         "success": true,
         "strategy": request.strategy,
         "default_cli": request.default_cli.map(|c| c.identifier().to_string())
     })))
+}
+
+/// Persist CLI configuration to `.nexus/cli_config.json`
+async fn persist_cli_config(registry: &nexus_ai::CLIRegistry) -> Result<(), String> {
+    let config_dir = std::path::Path::new(".nexus");
+    if !config_dir.exists() {
+        std::fs::create_dir_all(config_dir)
+            .map_err(|e| format!("创建 .nexus 目录失败: {}", e))?;
+    }
+
+    let configs = registry.all_configs();
+    let strategy = registry.get_selection_strategy();
+    let default_cli = registry.get_default_cli()
+        .map(|c| c.identifier().to_string());
+
+    let data = serde_json::json!({
+        "configs": configs,
+        "selection_strategy": strategy,
+        "default_cli": default_cli,
+    });
+
+    let json_str = serde_json::to_string_pretty(&data)
+        .map_err(|e| format!("序列化配置失败: {}", e))?;
+
+    tokio::fs::write(config_dir.join("cli_config.json"), json_str)
+        .await
+        .map_err(|e| format!("写入配置文件失败: {}", e))?;
+
+    Ok(())
 }
 
 /// 获取选择建议

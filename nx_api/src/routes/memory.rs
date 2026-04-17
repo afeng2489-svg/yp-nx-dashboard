@@ -79,7 +79,11 @@ pub async fn store_memory(
     }
 
     // 5. 索引（生成向量）
-    let metadata = serde_json::to_value(&transcript.metadata).unwrap_or_default();
+    let mut metadata = serde_json::to_value(&transcript.metadata).unwrap_or_default();
+    if let serde_json::Value::Object(ref mut map) = metadata {
+        map.insert("transcript_id".to_string(), serde_json::Value::String(transcript.id.clone()));
+        map.insert("created_at".to_string(), serde_json::Value::String(transcript.created_at.to_rfc3339()));
+    }
     if let Err(e) = memory_state.search.index_chunk(&team_id, &chunk.id, &chunk.content, metadata).await {
         tracing::warn!("索引失败（可能无 embedding provider）: {}", e);
     }
@@ -112,7 +116,10 @@ pub async fn search_memory(
         ..request
     };
 
-    match memory_state.search.search(&search_request) {
+    // 生成查询向量（异步，用于向量重排序）
+    let query_embedding = memory_state.search.embed_query(&search_request.query).await;
+
+    match memory_state.search.search(&search_request, query_embedding.as_deref()) {
         Ok(response) => Ok(Json(response)),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("搜索失败: {}", e))),
     }

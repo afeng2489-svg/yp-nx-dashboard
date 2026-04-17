@@ -110,6 +110,12 @@ impl Bm25Index {
 
         self.documents.insert(id, doc);
         self.total_docs += 1;
+
+        // 自动更新平均文档长度
+        if self.total_docs > 0 {
+            let total_terms: usize = self.documents.values().map(|d| d.term_count).sum();
+            self.config.avg_doc_len = total_terms as f32 / self.total_docs as f32;
+        }
     }
 
     /// 移除文档
@@ -126,6 +132,15 @@ impl Bm25Index {
                 }
             }
             self.total_docs -= 1;
+
+            // 自动更新平均文档长度
+            if self.total_docs > 0 {
+                let total_terms: usize = self.documents.values().map(|d| d.term_count).sum();
+                self.config.avg_doc_len = total_terms as f32 / self.total_docs as f32;
+            } else {
+                self.config.avg_doc_len = 100.0;
+            }
+
             true
         } else {
             false

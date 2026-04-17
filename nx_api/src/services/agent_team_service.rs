@@ -374,6 +374,8 @@ Return your response directly. If using a skill, invoke it according to its exec
 ## Team Context
 {}
 
+{}
+
 ## User Message
 {}
 
@@ -383,11 +385,8 @@ Read the user's message and the available skills in the team context.
 - If no skill matches → answer the user directly as a helpful AI assistant
 
 ## Output Format
-Return your response directly. If using a skill, invoke it according to its execution instructions.
-
-{}
-"#,
-                team_context, request.task, memory_context
+Return your response directly. If using a skill, invoke it according to its execution instructions."#,
+                team_context, memory_context, request.task
             )
         };
 
@@ -534,8 +533,8 @@ Return your response directly. If using a skill, invoke it according to its exec
             )
         } else {
             format!(
-                "{}\n\n<system>\n{}\n</system>\n\n<user>\n{}\n</user>\n\n{}",
-                auto_yes_prefix, prompt, request.task, memory_context
+                "{}\n\n<system>\n{}\n\n{}\n</system>\n\n<user>\n{}\n</user>",
+                auto_yes_prefix, prompt, memory_context, request.task
             )
         };
 

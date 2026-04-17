@@ -2,6 +2,7 @@
 
 use crate::scheduler::queue::{SharedTaskQueue, TaskQueue};
 use crate::scheduler::task::{ScheduledTask, TaskStatus, TaskType};
+use crate::services::execution_service::ExecutionService;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::broadcast;
@@ -31,6 +32,8 @@ pub struct TaskWorker {
     task_timeout: Duration,
     /// Polling interval
     poll_interval: Duration,
+    /// Execution service (for workflow tasks)
+    execution_service: Option<ExecutionService>,
 }
 
 impl TaskWorker {
@@ -39,6 +42,7 @@ impl TaskWorker {
         queue: SharedTaskQueue,
         shutdown_rx: broadcast::Receiver<()>,
         worker_id: u32,
+        execution_service: Option<ExecutionService>,
     ) -> Self {
         Self {
             queue,
@@ -46,6 +50,7 @@ impl TaskWorker {
             worker_id,
             task_timeout: Duration::from_secs(300), // 5 minutes default
             poll_interval: Duration::from_millis(500),
+            execution_service,
         }
     }
 
@@ -56,6 +61,7 @@ impl TaskWorker {
         worker_id: u32,
         task_timeout: Duration,
         poll_interval: Duration,
+        execution_service: Option<ExecutionService>,
     ) -> Self {
         Self {
             queue,
@@ -63,6 +69,7 @@ impl TaskWorker {
             worker_id,
             task_timeout,
             poll_interval,
+            execution_service,
         }
     }
 
@@ -199,12 +206,23 @@ impl TaskWorker {
         &self,
         task: &ScheduledTask,
     ) -> Result<TaskResult, Box<dyn std::error::Error + Send + Sync>> {
-        // Extract workflow_id from payload
         let workflow_id = task
             .payload
             .get("workflow_id")
             .and_then(|v| v.as_str())
             .ok_or("Missing workflow_id in payload")?;
+
+        let workflow_yaml = task
+            .payload
+            .get("workflow_yaml")
+            .and_then(|v| v.as_str())
+            .ok_or("Missing workflow_yaml in payload")?;
+
+        let variables = task
+            .payload
+            .get("variables")
+            .cloned()
+            .unwrap_or(serde_json::json!({}));
 
         info!(
             worker_id = self.worker_id,
@@ -213,9 +231,21 @@ impl TaskWorker {
             "Executing workflow"
         );
 
-        // TODO: Integrate with actual workflow execution service
-        // For now, simulate execution
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        let exec_service = self.execution_service.as_ref()
+            .ok_or("ExecutionService not configured for this worker")?;
+
+        exec_service
+            .execute_workflow(
+                workflow_id.to_string(),
+                workflow_yaml,
+                variables,
+                None,
+                None,
+            )
+            .await
+            .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+                Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+            })?;
 
         Ok(TaskResult::Success)
     }
@@ -298,15 +328,17 @@ pub async fn spawn_workers(
     queue: SharedTaskQueue,
     num_workers: u32,
     shutdown_rx: broadcast::Receiver<()>,
+    execution_service: Option<ExecutionService>,
 ) -> Vec<tokio::task::JoinHandle<()>> {
     let mut handles = Vec::new();
 
     for worker_id in 0..num_workers {
         let queue = Arc::clone(&queue);
-        let mut shutdown = shutdown_rx.resubscribe();
+        let shutdown = shutdown_rx.resubscribe();
+        let exec_service = execution_service.clone();
 
         let handle = tokio::spawn(async move {
-            let mut worker = TaskWorker::new(queue, shutdown, worker_id);
+            let mut worker = TaskWorker::new(queue, shutdown, worker_id, exec_service);
             worker.run().await;
         });
 
@@ -339,7 +371,7 @@ mod tests {
         queue.enqueue(task);
 
         // Create worker
-        let mut worker = TaskWorker::new(queue.clone(), shutdown_rx, 0);
+        let mut worker = TaskWorker::new(queue.clone(), shutdown_rx, 0, None);
 
         // Process one task
         worker.process_next_task().await.unwrap();

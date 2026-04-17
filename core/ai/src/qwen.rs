@@ -1,9 +1,10 @@
 //! Qwen Provider Implementation
 //!
-//! Alibaba Qwen provider for Chinese language and logic tasks.
+//! Alibaba Qwen provider using OpenAI-compatible API.
 
 use async_trait::async_trait;
-use std::sync::Arc;
+use reqwest::Client;
+use serde::Serialize;
 use std::time::Instant;
 
 use super::{
@@ -12,14 +13,18 @@ use super::{
     TokenUsage,
 };
 
-/// Qwen API 基础 URL
-const QWEN_API_BASE: &str = "https://dashscope.aliyuncs.com/api/v1";
+/// Qwen API 基础 URL (OpenAI 兼容模式)
+const QWEN_API_BASE: &str = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 
 /// Qwen Provider
 #[derive(Debug, Clone)]
 pub struct QwenProvider {
+    /// HTTP 客户端
+    client: Client,
     /// API 密钥
     api_key: String,
+    /// API 基础 URL
+    base_url: String,
     /// 默认模型
     default_model: String,
 }
@@ -28,7 +33,9 @@ impl QwenProvider {
     /// 创建新的 Qwen 提供商
     pub fn new(api_key: String) -> Self {
         Self {
+            client: Client::new(),
             api_key,
+            base_url: QWEN_API_BASE.to_string(),
             default_model: "qwen-turbo".to_string(),
         }
     }
@@ -36,20 +43,44 @@ impl QwenProvider {
     /// 使用指定的默认模型创建
     pub fn with_model(api_key: String, model: &str) -> Self {
         Self {
+            client: Client::new(),
             api_key,
+            base_url: QWEN_API_BASE.to_string(),
             default_model: model.to_string(),
         }
+    }
+
+    /// 发送 HTTP 请求到 Qwen API
+    async fn request(&self, path: &str, body: serde_json::Value) -> Result<serde_json::Value, AIError> {
+        let response = self.client
+            .post(format!("{}{}", self.base_url, path))
+            .header("authorization", format!("Bearer {}", self.api_key))
+            .header("content-type", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| AIError::Network(e.to_string()))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(match status.as_u16() {
+                401 => AIError::Authentication("无效的 Qwen API 密钥".to_string()),
+                429 => AIError::RateLimit("请求频率超限".to_string()),
+                _ => AIError::Provider(format!("Qwen 错误 {}: {}", status, error_text)),
+            });
+        }
+
+        response.json().await.map_err(|e| AIError::Parse(e.to_string()))
     }
 }
 
 #[async_trait]
 impl AIProvider for QwenProvider {
-    /// 获取提供商名称
     fn provider_name(&self) -> &str {
         "qwen"
     }
 
-    /// 获取支持的模型列表
     fn supported_models(&self) -> Vec<&str> {
         vec![
             "qwen-turbo",
@@ -59,12 +90,10 @@ impl AIProvider for QwenProvider {
         ]
     }
 
-    /// 获取默认模型
     fn default_model(&self) -> &str {
         &self.default_model
     }
 
-    /// 执行文本补全
     async fn complete(&self, request: CompletionRequest) -> Result<CompletionResponse, AIError> {
         let chat_request = ChatRequest {
             messages: vec![ChatMessage {
@@ -84,89 +113,118 @@ impl AIProvider for QwenProvider {
         })
     }
 
-    /// 执行聊天补全
     async fn chat(&self, request: ChatRequest) -> Result<ChatResponse, AIError> {
-        // 模拟 Qwen 的中文理解和数学推理能力
-        let user_message = request
-            .messages
-            .last()
-            .map(|m| m.content.as_str())
-            .unwrap_or("");
+        #[derive(Serialize)]
+        struct ChatRequestBody {
+            model: String,
+            messages: Vec<ChatMessage>,
+            max_tokens: usize,
+            temperature: f32,
+        }
 
-        let response_content = if user_message.contains("数学")
-            || user_message.contains("计算")
-            || user_message.contains("math")
-        {
-            "让我来帮你解决这个数学问题。\n\n\
-             由于这是一个数学推理问题，我会逐步分析:\n\n\
-             1. 首先理解问题陈述\n\
-             2. 识别已知条件和未知量\n\
-             3. 应用适当的数学公式或方法\n\
-             4. 验证解答的正确性\n\n\
-             请提供具体的数学问题，我会给出详细的解答步骤。"
-                .to_string()
-        } else if user_message.contains("中文")
-            || user_message.contains("解释")
-            || user_message.chars().any(|c| c.is_ascii_hexdigit() && c > 'z')
-        {
-            "你好！我是通义千问，很高兴为你服务。\n\n\
-             我擅长处理中文内容，包括:\n\
-             - 中文对话和问答\n\
-             - 中文写作和翻译\n\
-             - 数学推理和计算\n\
-             - 代码理解和生成\n\n\
-             请告诉我你需要什么帮助？"
-                .to_string()
-        } else {
-            "这是一个很有趣的问题！\n\n\
-             让我来分析一下:\n\n\
-             根据你的描述，我认为可以从以下几个方面来考虑:\n\
-             1. 问题的主体和目标\n\
-             2. 相关的上下文和约束条件\n\
-             3. 可能的解决方案路径\n\n\
-             如果你能提供更多细节，我可以给出更具体的建议。"
-                .to_string()
+        let body = ChatRequestBody {
+            model: request.model.clone(),
+            messages: request.messages,
+            max_tokens: request.max_tokens,
+            temperature: request.temperature,
         };
+
+        let response = self.request("/chat/completions", serde_json::to_value(body).unwrap()).await?;
+
+        #[derive(serde::Deserialize)]
+        struct QwenResponse {
+            choices: Vec<Choice>,
+            usage: Usage,
+            model: String,
+        }
+
+        #[derive(serde::Deserialize)]
+        struct Choice {
+            message: AssistantMessage,
+            finish_reason: Option<String>,
+        }
+
+        #[derive(serde::Deserialize)]
+        struct AssistantMessage {
+            role: String,
+            content: String,
+        }
+
+        #[derive(serde::Deserialize)]
+        struct Usage {
+            prompt_tokens: usize,
+            completion_tokens: usize,
+        }
+
+        let resp: QwenResponse = serde_json::from_value(response)
+            .map_err(|e| AIError::Parse(e.to_string()))?;
+
+        let choice = resp.choices.first()
+            .ok_or_else(|| AIError::Provider("响应中没有选项".to_string()))?;
 
         Ok(ChatResponse {
             message: ChatMessage {
-                role: "assistant".to_string(),
-                content: response_content,
+                role: choice.message.role.clone(),
+                content: choice.message.content.clone(),
             },
-            model: request.model,
+            model: resp.model,
             usage: TokenUsage {
-                input_tokens: user_message.len() / 4,
-                output_tokens: 200,
+                input_tokens: resp.usage.prompt_tokens,
+                output_tokens: resp.usage.completion_tokens,
             },
-            stop_reason: "stop".to_string(),
+            stop_reason: choice.finish_reason.clone().unwrap_or_else(|| "stop".to_string()),
         })
     }
 
-    /// 生成嵌入向量
     async fn embed(&self, request: EmbedRequest) -> Result<EmbedResponse, AIError> {
-        // 模拟 Qwen 嵌入响应
-        let embeddings: Vec<Vec<f32>> = request
-            .texts
-            .iter()
-            .map(|_| vec![0.1; 1536])
-            .collect();
+        #[derive(Serialize)]
+        struct EmbedRequestBody {
+            model: String,
+            input: Vec<String>,
+        }
+
+        let body = EmbedRequestBody {
+            model: request.model.clone(),
+            input: request.texts,
+        };
+
+        let response = self.request("/embeddings", serde_json::to_value(body).unwrap()).await?;
+
+        #[derive(serde::Deserialize)]
+        struct QwenResponse {
+            data: Vec<EmbeddingData>,
+            usage: Usage,
+            model: String,
+        }
+
+        #[derive(serde::Deserialize)]
+        struct EmbeddingData {
+            embedding: Vec<f32>,
+        }
+
+        #[derive(serde::Deserialize)]
+        struct Usage {
+            prompt_tokens: usize,
+            total_tokens: usize,
+        }
+
+        let resp: QwenResponse = serde_json::from_value(response)
+            .map_err(|e| AIError::Parse(e.to_string()))?;
 
         Ok(EmbedResponse {
-            embeddings,
-            model: request.model,
+            embeddings: resp.data.into_iter().map(|d| d.embedding).collect(),
+            model: resp.model,
             usage: TokenUsage {
-                input_tokens: request.texts.iter().map(|t| t.len() / 4).sum(),
-                output_tokens: 0,
+                input_tokens: resp.usage.prompt_tokens,
+                output_tokens: resp.usage.total_tokens,
             },
         })
     }
 
-    /// 获取支持的 CLI
     fn supported_clis(&self) -> Vec<CLI> {
         vec![CLI::Qwen]
     }
 
-    /// 使用 Qwen CLI 执行
     async fn execute_with_cli(
         &self,
         prompt: &str,
@@ -177,7 +235,6 @@ impl AIProvider for QwenProvider {
 
         let output = format!(
             "Qwen CLI executed for prompt: '{}'\n\
-             Language: Chinese (中文)\n\
              Model: {}\n\
              Working directory: {:?}",
             prompt.chars().take(30).collect::<String>(),
@@ -199,53 +256,18 @@ impl AIProvider for QwenProvider {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn test_qwen_chat_chinese() {
+    #[test]
+    fn test_qwen_provider_creation() {
         let provider = QwenProvider::new("test-key".to_string());
-        let request = ChatRequest {
-            messages: vec![ChatMessage {
-                role: "user".to_string(),
-                content: "请解释什么是机器学习".to_string(),
-            }],
-            model: "qwen-turbo".to_string(),
-            max_tokens: 1000,
-            temperature: 0.7,
-        };
-
-        let result = provider.chat(request).await;
-        assert!(result.is_ok());
-        let response = result.unwrap();
-        assert!(response.message.content.contains("中文"));
+        assert_eq!(provider.provider_name(), "qwen");
+        assert_eq!(provider.default_model(), "qwen-turbo");
     }
 
-    #[tokio::test]
-    async fn test_qwen_math() {
+    #[test]
+    fn test_qwen_supported_models() {
         let provider = QwenProvider::new("test-key".to_string());
-        let request = ChatRequest {
-            messages: vec![ChatMessage {
-                role: "user".to_string(),
-                content: "求解: 2x + 5 = 15".to_string(),
-            }],
-            model: "qwen-turbo".to_string(),
-            max_tokens: 1000,
-            temperature: 0.7,
-        };
-
-        let result = provider.chat(request).await;
-        assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_qwen_embed() {
-        let provider = QwenProvider::new("test-key".to_string());
-        let request = EmbedRequest {
-            texts: vec!["你好".to_string(), "世界".to_string()],
-            model: "qwen-embed".to_string(),
-        };
-
-        let result = provider.embed(request).await;
-        assert!(result.is_ok());
-        let response = result.unwrap();
-        assert_eq!(response.embeddings.len(), 2);
+        let models = provider.supported_models();
+        assert!(models.contains(&"qwen-turbo"));
+        assert!(models.contains(&"qwen-max"));
     }
 }

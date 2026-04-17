@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useThemeStore, Theme } from '@/stores/themeStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { useKeyboardStore } from '@/lib/keyboard';
 import {
   Sun,
@@ -67,7 +68,7 @@ function ThemeSelector() {
 
 // Layout settings
 function LayoutSettings() {
-  const { sidebarOpen } = useUIStore();
+  const { layout, setLayout } = useSettingsStore();
 
   return (
     <div className="space-y-4">
@@ -76,7 +77,10 @@ function LayoutSettings() {
           <p className="text-sm font-medium">默认展开侧边栏</p>
           <p className="text-xs text-muted-foreground">页面加载时自动展开侧边栏</p>
         </div>
-        <ToggleSwitch defaultChecked={sidebarOpen} />
+        <ToggleSwitch
+          checked={layout.sidebarOpen}
+          onChange={(v) => setLayout({ sidebarOpen: v })}
+        />
       </div>
 
       <div className="flex items-center justify-between">
@@ -84,7 +88,10 @@ function LayoutSettings() {
           <p className="text-sm font-medium">紧凑模式</p>
           <p className="text-xs text-muted-foreground">使用更小的间距和字体</p>
         </div>
-        <ToggleSwitch />
+        <ToggleSwitch
+          checked={layout.compactMode}
+          onChange={(v) => setLayout({ compactMode: v })}
+        />
       </div>
 
       <div className="flex items-center justify-between">
@@ -92,7 +99,10 @@ function LayoutSettings() {
           <p className="text-sm font-medium">动画效果</p>
           <p className="text-xs text-muted-foreground">启用页面过渡和微交互</p>
         </div>
-        <ToggleSwitch defaultChecked={true} />
+        <ToggleSwitch
+          checked={layout.animations}
+          onChange={(v) => setLayout({ animations: v })}
+        />
       </div>
     </div>
   );
@@ -100,16 +110,7 @@ function LayoutSettings() {
 
 // Notification settings
 function NotificationSettings() {
-  const [settings, setSettings] = useState({
-    executionComplete: true,
-    executionFailed: true,
-    sessionUpdate: false,
-    weeklyReport: true,
-  });
-
-  const toggle = (key: keyof typeof settings) => {
-    setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
+  const { notifications, setNotifications } = useSettingsStore();
 
   return (
     <div className="space-y-4">
@@ -119,8 +120,8 @@ function NotificationSettings() {
           <p className="text-xs text-muted-foreground">工作流执行完成时发送通知</p>
         </div>
         <ToggleSwitch
-          defaultChecked={settings.executionComplete}
-          onChange={() => toggle('executionComplete')}
+          checked={notifications.executionComplete}
+          onChange={(v) => setNotifications({ executionComplete: v })}
         />
       </div>
 
@@ -130,8 +131,8 @@ function NotificationSettings() {
           <p className="text-xs text-muted-foreground">工作流执行失败时发送通知</p>
         </div>
         <ToggleSwitch
-          defaultChecked={settings.executionFailed}
-          onChange={() => toggle('executionFailed')}
+          checked={notifications.executionFailed}
+          onChange={(v) => setNotifications({ executionFailed: v })}
         />
       </div>
 
@@ -141,8 +142,8 @@ function NotificationSettings() {
           <p className="text-xs text-muted-foreground">会话状态变化时发送通知</p>
         </div>
         <ToggleSwitch
-          defaultChecked={settings.sessionUpdate}
-          onChange={() => toggle('sessionUpdate')}
+          checked={notifications.sessionUpdate}
+          onChange={(v) => setNotifications({ sessionUpdate: v })}
         />
       </div>
 
@@ -152,8 +153,8 @@ function NotificationSettings() {
           <p className="text-xs text-muted-foreground">每周发送工作流执行统计</p>
         </div>
         <ToggleSwitch
-          defaultChecked={settings.weeklyReport}
-          onChange={() => toggle('weeklyReport')}
+          checked={notifications.weeklyReport}
+          onChange={(v) => setNotifications({ weeklyReport: v })}
         />
       </div>
     </div>
@@ -206,6 +207,8 @@ function ShortcutsSettings() {
 
 // Security settings
 function SecuritySettings() {
+  const { security, setSecurity } = useSettingsStore();
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -213,7 +216,10 @@ function SecuritySettings() {
           <p className="text-sm font-medium">沙箱执行</p>
           <p className="text-xs text-muted-foreground">在隔离环境中执行代码</p>
         </div>
-        <ToggleSwitch defaultChecked={true} />
+        <ToggleSwitch
+          checked={security.sandboxExecution}
+          onChange={(v) => setSecurity({ sandboxExecution: v })}
+        />
       </div>
 
       <div className="flex items-center justify-between">
@@ -221,7 +227,10 @@ function SecuritySettings() {
           <p className="text-sm font-medium">资源限制</p>
           <p className="text-xs text-muted-foreground">限制 CPU、内存和执行时间</p>
         </div>
-        <ToggleSwitch defaultChecked={true} />
+        <ToggleSwitch
+          checked={security.resourceLimits}
+          onChange={(v) => setSecurity({ resourceLimits: v })}
+        />
       </div>
 
       <div className="flex items-center justify-between">
@@ -229,7 +238,10 @@ function SecuritySettings() {
           <p className="text-sm font-medium">代码审查</p>
           <p className="text-xs text-muted-foreground">执行前自动审查代码安全性</p>
         </div>
-        <ToggleSwitch defaultChecked={true} />
+        <ToggleSwitch
+          checked={security.codeReview}
+          onChange={(v) => setSecurity({ codeReview: v })}
+        />
       </div>
     </div>
   );
@@ -237,22 +249,17 @@ function SecuritySettings() {
 
 // Toggle switch component
 function ToggleSwitch({
-  defaultChecked,
+  checked,
   onChange,
 }: {
-  defaultChecked?: boolean;
-  onChange?: () => void;
+  checked: boolean;
+  onChange: (value: boolean) => void;
 }) {
-  const [checked, setChecked] = useState(defaultChecked ?? false);
-
   return (
     <button
       role="switch"
       aria-checked={checked}
-      onClick={() => {
-        setChecked(!checked);
-        onChange?.();
-      }}
+      onClick={() => onChange(!checked)}
       className={cn(
         'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
         checked ? 'bg-primary' : 'bg-muted'
@@ -273,6 +280,7 @@ import { useUIStore } from '@/stores/uiStore';
 
 export function SettingsPage() {
   const [activeSection, setActiveSection] = useState('appearance');
+  const { reset } = useSettingsStore();
 
   const renderContent = () => {
     switch (activeSection) {
@@ -338,7 +346,10 @@ export function SettingsPage() {
               保存设置
             </button>
             <button
-              onClick={() => {}}
+              onClick={() => {
+                reset();
+                showSuccess('已恢复默认设置');
+              }}
               className="btn-secondary"
             >
               <RotateCcw className="w-4 h-4" />

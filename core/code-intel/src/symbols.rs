@@ -71,7 +71,7 @@ impl SymbolExtractor {
 
         for node in nodes {
             if let Some(kind) = map_node_kind_to_symbol(&node.kind) {
-                let symbol = Symbol {
+                let mut symbol = Symbol {
                     name: node.text.clone(),
                     kind,
                     kind_detail: node.kind.clone(),
@@ -84,6 +84,12 @@ impl SymbolExtractor {
                     doc_comment: None,
                     visibility: None,
                 };
+
+                // Extract real signature for functions/methods
+                if matches!(kind, SymbolKind::Function | SymbolKind::Method) {
+                    symbol.signature = get_function_signature(&symbol, &parse_result.source);
+                }
+
                 symbols.push(symbol);
             }
         }
@@ -114,8 +120,41 @@ fn map_node_kind_to_symbol(kind: &str) -> Option<SymbolKind> {
 
 /// 从函数符号获取函数签名
 pub fn get_function_signature(symbol: &Symbol, source: &[u8]) -> Option<String> {
-    // 在实际实现中，这会提取参数名和类型
-    Some(format!("fn {}", symbol.name))
+    // Extract text from start of the symbol up to the opening brace
+    let source_str = std::str::from_utf8(source).ok()?;
+    let lines: Vec<&str> = source_str.lines().collect();
+
+    // Symbol lines are 1-based, convert to 0-based
+    let start_line = symbol.line.checked_sub(1)?;
+    let end_line = symbol.end_line.checked_sub(1).unwrap_or(start_line);
+
+    // Collect lines from start to end
+    let mut sig_text = String::new();
+    for line_idx in start_line..=end_line.min(lines.len().saturating_sub(1)) {
+        let line = lines[line_idx];
+        // Stop at opening brace — the signature is everything before it
+        if let Some(brace_pos) = line.find('{') {
+            let before_brace = line[..brace_pos].trim_end();
+            if !before_brace.is_empty() {
+                if !sig_text.is_empty() {
+                    sig_text.push(' ');
+                }
+                sig_text.push_str(before_brace);
+            }
+            break;
+        }
+        if !sig_text.is_empty() {
+            sig_text.push(' ');
+        }
+        sig_text.push_str(line.trim());
+    }
+
+    if sig_text.is_empty() {
+        // Fallback: return just the symbol name
+        Some(format!("fn {}", symbol.name))
+    } else {
+        Some(sig_text)
+    }
 }
 
 #[cfg(test)]

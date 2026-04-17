@@ -126,22 +126,56 @@ pub async fn execute_workflow(
     Path(id): Path<String>,
     Json(payload): Json<ExecuteWorkflowRequest>,
 ) -> Result<Json<ExecutionResponse>, AppError> {
-    // 验证工作流存在
-    let _ = state
+    // 1. 获取工作流
+    let workflow = state
         .workflow_service
         .get_workflow(&id)
         .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound(format!("工作流 {} 不存在", id)))?;
 
-    let execution_id = uuid::Uuid::new_v4();
+    // 2. 构建完整的 WorkflowDefinition JSON
+    let mut workflow_def = serde_json::json!({
+        "name": workflow.name,
+        "version": workflow.version,
+    });
+    if let Some(desc) = &workflow.description {
+        workflow_def["description"] = serde_json::json!(desc);
+    }
+    if let Some(obj) = workflow.definition.as_object() {
+        for (key, value) in obj {
+            if !["name", "version", "description"].contains(&key.as_str()) {
+                workflow_def[key] = value.clone();
+            }
+        }
+    }
+
+    // 3. 转换为 YAML
+    let workflow_yaml = serde_yaml::to_string(&workflow_def)
+        .map_err(|e| AppError::Internal(format!("YAML 序列化失败: {}", e)))?;
+
+    // 4. 获取工作区路径
+    let current_workspace = state.current_workspace_path.read().clone();
+
+    // 5. 真正启动执行
+    let variables = payload.variables.unwrap_or(serde_json::json!({}));
+    let execution_id = state.execution_service
+        .execute_workflow(
+            workflow.id.clone(),
+            &workflow_yaml,
+            variables.clone(),
+            None,
+            current_workspace,
+        )
+        .await
+        .map_err(|e| AppError::Internal(format!("执行启动失败: {}", e)))?;
 
     tracing::info!("启动工作流 {} 执行，ID: {}", id, execution_id);
 
     Ok(Json(ExecutionResponse {
-        id: execution_id.to_string(),
-        workflow_id: id,
-        status: "pending".to_string(),
-        variables: payload.variables.unwrap_or(serde_json::json!({})),
+        id: execution_id,
+        workflow_id: workflow.id,
+        status: "running".to_string(),
+        variables,
         stage_results: vec![],
         started_at: Some(chrono::Utc::now().to_rfc3339()),
         finished_at: None,
@@ -160,19 +194,27 @@ fn count_stages(definition: &serde_json::Value) -> usize {
         .unwrap_or(0)
 }
 
-/// 从工作流定义中统称数量
+/// 从工作流定义中统计智能体数量
 fn count_agents(definition: &serde_json::Value) -> usize {
+    // 优先从顶层 agents 数组计数（去重）
     definition
-        .get("stages")
-        .and_then(|s| s.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|stage| stage.get("agents"))
-                .filter_map(|a| a.as_array())
-                .map(|agents| agents.len())
-                .sum()
+        .get("agents")
+        .and_then(|a| a.as_array())
+        .map(|arr| arr.len())
+        .unwrap_or_else(|| {
+            // fallback: 从 stages 内部的 agents 引用计数
+            definition
+                .get("stages")
+                .and_then(|s| s.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|stage| stage.get("agents"))
+                        .filter_map(|a| a.as_array())
+                        .map(|agents| agents.len())
+                        .sum()
+                })
+                .unwrap_or(0)
         })
-        .unwrap_or(0)
 }
 
 // ============ 错误类型 ============

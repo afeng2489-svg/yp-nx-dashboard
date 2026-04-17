@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Send, Loader2, Bot, User, MessageCircle, Square, Terminal as TerminalIcon } from 'lucide-react';
+import { X, Send, Bot, User, MessageCircle, Square, Terminal as TerminalIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTeamStore, Message } from '@/stores/teamStore';
 import { useClaudeStream } from '@/hooks/useClaudeStream';
+import { useAgentExecution } from '@/hooks/useAgentExecution';
+import { AgentThinkingIndicator } from './AgentThinkingIndicator';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -13,18 +15,18 @@ interface ConversationViewProps {
 }
 
 export function ConversationView({ teamId, onClose }: ConversationViewProps) {
-  const { messages, fetchMessages, executeTask } = useTeamStore();
+  const { messages, fetchMessages } = useTeamStore();
   const [input, setInput] = useState('');
-  const [sending, setSending] = useState(false);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
-  const [processing, setProcessing] = useState(false);
   const [showStream, setShowStream] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const messagesRef = useRef<Message[]>(messages);
   const streamTerminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+
+  // Async agent execution with WS progress tracking
+  const agentExec = useAgentExecution();
+  const isActive = agentExec.status === 'started' || agentExec.status === 'thinking';
 
   // Claude Stream hook for real-time output
   const { isConnected, isExecuting, output, execute, cancel, error: streamError } = useClaudeStream({
@@ -42,22 +44,26 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
 
   // Keep ref updated with latest messages
   useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
+    setLocalMessages(messages.filter(m => m.team_id === teamId));
+  }, [messages, teamId]);
+
+  // When agent execution completes, refresh messages
+  useEffect(() => {
+    if (agentExec.status === 'completed' || agentExec.status === 'failed') {
+      fetchMessages(teamId);
+      // Reset after a short delay so the thinking indicator disappears
+      const timer = setTimeout(() => agentExec.reset(), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [agentExec.status, teamId, fetchMessages]);
 
   useEffect(() => {
     fetchMessages(teamId);
   }, [teamId]);
 
   useEffect(() => {
-    setLocalMessages(messages.filter(m => m.team_id === teamId));
-  }, [messages, teamId]);
-
-  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [localMessages]);
-
-  // Initialize xterm for streaming output
   useEffect(() => {
     if (!streamTerminalRef.current) return;
 
@@ -102,42 +108,8 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
     };
   }, []);
 
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
-    };
-  }, []);
-
-  // Start polling for new messages when processing
-  const startPolling = () => {
-    setProcessing(true);
-    let pollsRemaining = 60; // Poll for up to 60 seconds
-
-    pollingIntervalRef.current = setInterval(async () => {
-      await fetchMessages(teamId);
-      pollsRemaining--;
-
-      if (pollsRemaining <= 0) {
-        stopPolling();
-      }
-    }, 1000);
-  };
-
-  // Stop polling
-  const stopPolling = () => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-    setProcessing(false);
-    setSending(false);
-  };
-
   const handleSend = async () => {
-    if (!input.trim() || sending) return;
+    if (!input.trim() || isActive) return;
 
     const userMessage: Message = {
       id: `temp-${Date.now()}`,
@@ -150,42 +122,9 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
 
     setLocalMessages(prev => [...prev, userMessage]);
     setInput('');
-    setSending(true);
 
-    try {
-      // Execute task - now returns immediately with background processing
-      const response = await executeTask(teamId, userMessage.content);
-
-      if (response.error) {
-        // Show error immediately
-        const errorMessage: Message = {
-          id: `temp-${Date.now() + 1}`,
-          team_id: teamId,
-          role: 'assistant',
-          message_type: 'System',
-          content: `错误: ${response.error}`,
-          created_at: new Date().toISOString(),
-        };
-        setLocalMessages(prev => [...prev, errorMessage]);
-        setSending(false);
-      } else {
-        // Start polling to fetch results when background processing completes
-        startPolling();
-      }
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      // Show error in chat
-      const errorMessage: Message = {
-        id: `temp-${Date.now() + 1}`,
-        team_id: teamId,
-        role: 'assistant',
-        message_type: 'System',
-        content: `错误: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        created_at: new Date().toISOString(),
-      };
-      setLocalMessages(prev => [...prev, errorMessage]);
-      setSending(false);
-    }
+    // Non-blocking — returns immediately, WS tracks progress
+    await agentExec.execute(teamId, userMessage.content);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -276,13 +215,21 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
               </div>
             ))
           )}
-          {sending && (
+          {isActive && (
+            <AgentThinkingIndicator
+              agentRole={undefined}
+              elapsedSecs={agentExec.elapsedSecs}
+              onCancel={agentExec.cancel}
+              partialOutput={agentExec.partialOutput || undefined}
+            />
+          )}
+          {agentExec.status === 'failed' && agentExec.error && (
             <div className="flex gap-3 justify-start">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center flex-shrink-0">
                 <Bot className="w-4 h-4 text-white" />
               </div>
-              <div className="bg-muted rounded-2xl px-4 py-2.5">
-                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              <div className="bg-red-500/10 rounded-2xl px-4 py-2.5">
+                <p className="text-sm text-red-400">{agentExec.error}</p>
               </div>
             </div>
           )}
@@ -360,19 +307,20 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={processing ? "等待响应..." : "输入消息..."}
+              placeholder={isActive ? "等待响应..." : "输入消息..."}
               className="input-field flex-1 resize-none"
               rows={1}
+              disabled={isActive}
             />
             <button
-              onClick={() => processing ? stopPolling() : handleSend()}
-              disabled={!processing && !input.trim()}
+              onClick={() => isActive ? agentExec.cancel() : handleSend()}
+              disabled={!isActive && !input.trim()}
               className={cn(
                 'btn-primary px-4',
-                (!processing && !input.trim()) ? 'opacity-50 cursor-not-allowed' : ''
+                (!isActive && !input.trim()) ? 'opacity-50 cursor-not-allowed' : ''
               )}
             >
-              {sending ? (
+              {isActive ? (
                 <Square className="w-4 h-4" />
               ) : (
                 <Send className="w-4 h-4" />

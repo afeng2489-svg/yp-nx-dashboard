@@ -1,6 +1,7 @@
 //! API 路由
 
 use axum::{
+    extract::{Path, State},
     routing::{get, post, put, delete},
     Router,
 };
@@ -15,6 +16,7 @@ use crate::services::{WorkflowService, ExecutionService, SessionService, SqliteS
 use crate::middleware::auth::ApiKeyAuth;
 use crate::ws::TerminalWsHandler;
 use crate::ws::ClaudeStreamWsHandler;
+use crate::ws::AgentExecutionManager;
 use crate::routes::teams_state::TeamsAppState;
 use nexus_ai::{AIModelManager, AIManagerConfig, APIConfig, ProviderType, ModelConfig};
 
@@ -144,14 +146,23 @@ pub struct AppState {
     pub provider_service: Arc<ProviderService>,
     pub group_chat_service: Arc<GroupChatService>,
     pub memory_state: Arc<MemoryState>,
+    /// Agent 执行管理器（WebSocket 事件推送 + 取消支持）
+    pub agent_execution_manager: AgentExecutionManager,
     /// 当前工作区路径，用于 Claude CLI --project 参数
     pub current_workspace_path: Arc<RwLock<Option<String>>>,
+    /// API 密钥（用于认证中间件）
+    pub api_key_config: Option<String>,
 }
 
 impl AppState {
     pub fn new(config: &ApiConfig) -> Self {
+        // 保存 API 密钥配置用于认证中间件
+        let api_key_config = config.api_key.clone();
+
         // 创建当前工作区路径（用于 Claude CLI --project 参数）
         let current_workspace_path = Arc::new(RwLock::new(None));
+
+        tracing::info!("[DB] Using database path: {}", config.db_path);
 
         // 创建会话仓库和服务
         let session_repo = Arc::new(
@@ -185,11 +196,11 @@ impl AppState {
         let plugin_service = PluginService::new();
 
         // 创建搜索状态
-        let search_state = Arc::new(SearchState::new());
+        let search_state = Arc::new(SearchState::new(current_workspace_path.clone()));
 
         // 创建调度器状态
         let scheduler_state = Arc::new(SchedulerState::new());
-        scheduler_state.init(); // Initialize scheduler
+        scheduler_state.init(Some(execution_service.clone())); // Initialize scheduler with execution service
 
         // 创建 Wisdom 服务
         let wisdom_service = Arc::new(
@@ -289,6 +300,9 @@ impl AppState {
             )
         );
 
+        // 创建 Agent 执行管理器
+        let agent_execution_manager = AgentExecutionManager::new();
+
         Self {
             workflow_service,
             execution_service,
@@ -307,7 +321,9 @@ impl AppState {
             provider_service,
             group_chat_service,
             memory_state,
+            agent_execution_manager,
             current_workspace_path,
+            api_key_config,
         }
     }
 }
@@ -317,10 +333,8 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
     let app_state = Arc::new(AppState::new(&config));
     let app_state_for_router = Arc::clone(&app_state);
 
-    // 构建路由器
-    let app = Router::new()
-        // 健康检查
-        .route("/health", get(health::health_check))
+    // 需要认证的 API 路由
+    let api_routes = Router::new()
         // 工作流路由
         .route("/api/v1/workflows", get(workflows::list_workflows))
         .route("/api/v1/workflows", post(workflows::create_workflow))
@@ -507,7 +521,18 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/ws/sessions/:id", get(sessions::session_ws))
         .route("/ws/terminal", get(terminal_ws_handler))
         .route("/ws/claude-stream", get(claude_stream_ws_handler))
+        .route("/ws/agent-executions/:execution_id", get(agent_execution_ws_handler))
+        // 应用认证中间件到所有 API 和 WebSocket 路由
+        .route_layer(axum::middleware::from_fn_with_state(
+            app_state_for_router.clone(),
+            ApiKeyAuth::middleware,
+        ))
         .with_state(app_state_for_router);
+
+    // 合并公共路由（健康检查无需认证）
+    let app = Router::new()
+        .route("/health", get(health::health_check))
+        .merge(api_routes);
 
     // 添加 CORS 中间件
     let app = if config.cors_enabled {
@@ -542,5 +567,18 @@ async fn claude_stream_ws_handler(
 
     ws.on_upgrade(async move |socket| {
         handler.handle(socket).await;
+    })
+}
+
+/// Agent 执行 WebSocket 处理函数
+async fn agent_execution_ws_handler(
+    ws: axum::extract::ws::WebSocketUpgrade,
+    State(state): State<Arc<AppState>>,
+    Path(execution_id): Path<String>,
+) -> impl axum::response::IntoResponse {
+    let manager = state.agent_execution_manager.clone();
+
+    ws.on_upgrade(async move |socket| {
+        crate::ws::agent_execution::handle_agent_execution_ws(socket, execution_id, manager).await;
     })
 }

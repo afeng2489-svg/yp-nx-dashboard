@@ -67,10 +67,23 @@ impl TreeSitterParser {
     }
 
     /// 设置解析语言
-    pub fn set_language(&self, _language: CodeLanguage) {
+    pub fn set_language(&self, language: CodeLanguage) {
         let mut parser = self.parser.write();
-        // 在实际实现中，我们会加载语言解析器
-        // 需要为每种语言加载对应的 tree-sitter language grammar
+        let lang: Option<tree_sitter::Language> = match language {
+            CodeLanguage::Rust => Some(tree_sitter_rust::language()),
+            CodeLanguage::TypeScript => Some(tree_sitter_typescript::language_typescript()),
+            CodeLanguage::JavaScript => Some(tree_sitter_javascript::language()),
+            CodeLanguage::Python => Some(tree_sitter_python::language()),
+            _ => {
+                tracing::debug!("No grammar loaded for {:?}, falling back to raw parser", language);
+                None
+            }
+        };
+        if let Some(l) = lang {
+            if let Err(e) = parser.set_language(&l) {
+                tracing::warn!("Failed to set language {:?}: {}", language, e);
+            }
+        }
     }
 
     /// 解析文件
@@ -95,10 +108,11 @@ impl TreeSitterParser {
         path: &str,
         language: CodeLanguage,
     ) -> Result<ParseResult, ParseError> {
+        // Set the grammar for the target language before parsing
+        self.set_language(language);
+
         let mut parser = self.parser.write();
 
-        // 为演示，我们尝试解析
-        // 在生产环境中，这会使用实际的 tree-sitter 解析并加载对应语言的 grammar
         let tree = parser
             .parse(source, None)
             .ok_or_else(|| ParseError::Parse("解析源码失败".to_string()))?;

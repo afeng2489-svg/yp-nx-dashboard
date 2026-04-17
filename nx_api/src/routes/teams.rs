@@ -8,7 +8,8 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use nx_memory::{SearchRequest, Transcript, MemoryChunk, MessageRole};
 
@@ -241,38 +242,102 @@ pub async fn execute_team_task(
 ) -> ApiResponse<crate::models::team::ExecuteTeamTaskResponse> {
     tracing::info!("[Route] execute_team_task 被调用，team_id: {}", team_id);
 
-    // 1. 尝试匹配角色触发关键词
-    if let Some(matched_role_id) = find_role_by_trigger(&state, &team_id, &request.task).await {
-        tracing::info!("[Route] 匹配到角色: {}，使用 execute_role_task", matched_role_id);
+    // 生成 execution_id 用于异步追踪
+    let execution_id = uuid::Uuid::new_v4().to_string();
+    let event_tx = state.agent_execution_manager.event_sender();
+    let cancel_token = tokio_util::sync::CancellationToken::new();
+    state.agent_execution_manager.register_cancel_token(&execution_id, cancel_token.clone());
 
-        // 构建 ExecuteRoleTaskRequest
+    // 发送 Started 事件
+    let task_summary = if request.task.len() > 80 {
+        format!("{}...", &request.task[..80])
+    } else {
+        request.task.clone()
+    };
+    let _ = event_tx.send(crate::ws::agent_execution::AgentExecutionEvent::Started {
+        execution_id: execution_id.clone(),
+        agent_role: "team".to_string(),
+        task_summary,
+    });
+
+    // 1. 尝试匹配角色触发关键词（快速操作，不需要异步化）
+    if let Some(matched_role_id) = find_role_by_trigger(&state, &team_id, &request.task).await {
+        tracing::info!("[Route] 匹配到角色: {}，后台异步执行", matched_role_id);
+
         let role_task_request = crate::models::team::ExecuteRoleTaskRequest {
             role_id: matched_role_id.clone(),
             task: request.task.clone(),
             context: request.context.clone(),
         };
 
-        // 调用 execute_role_task
-        let role_response = execute_role_task_with_context(
-            State(state.clone()),
-            Json(role_task_request),
-        ).await?;
+        // 后台异步执行角色任务
+        let state_bg = state.clone();
+        let team_id_bg = team_id.clone();
+        let exec_id = execution_id.clone();
+        let tx = event_tx.clone();
+        let manager = state.agent_execution_manager.clone();
 
-        // 返回 ExecuteTeamTaskResponse 格式
+        tokio::spawn(async move {
+            let start = std::time::Instant::now();
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+            interval.tick().await; // 跳过第一次立即触发
+
+            let task_future = execute_role_task_with_context(
+                State(state_bg.clone()),
+                Json(role_task_request),
+            );
+            tokio::pin!(task_future);
+
+            let result = loop {
+                tokio::select! {
+                    res = &mut task_future => { break res; }
+                    _ = interval.tick() => {
+                        let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Thinking {
+                            execution_id: exec_id.clone(),
+                            elapsed_secs: start.elapsed().as_secs(),
+                        });
+                    }
+                    _ = cancel_token.cancelled() => {
+                        let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Cancelled {
+                            execution_id: exec_id.clone(),
+                        });
+                        manager.remove_execution(&exec_id);
+                        return;
+                    }
+                }
+            };
+
+            match result {
+                Ok(Json(role_response)) => {
+                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Completed {
+                        execution_id: exec_id.clone(),
+                        result: role_response.response.clone(),
+                        duration_ms: start.elapsed().as_millis() as u64,
+                    });
+                }
+                Err(e) => {
+                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Failed {
+                        execution_id: exec_id.clone(),
+                        error: e.message.clone(),
+                    });
+                }
+            }
+            manager.remove_execution(&exec_id);
+        });
+
+        // 立即返回 execution_id
         return Ok(Json(crate::models::team::ExecuteTeamTaskResponse {
-            success: role_response.success,
+            success: true,
             team_id: team_id.clone(),
             messages: vec![],
-            final_output: role_response.response.clone(),
-            error: role_response.error.clone(),
+            final_output: format!("{{\"execution_id\":\"{}\",\"status\":\"processing\"}}", execution_id),
+            error: None,
         }));
     }
 
-    // 2. 没有匹配到角色，执行原有的团队任务逻辑
-    // 搜索相关记忆
+    // 2. 没有匹配到角色，执行原有的团队任务逻辑（异步后台执行）
     let memory_context = search_and_build_context(&state.memory_state, &team_id, &request.task).await;
 
-    // 创建增强的请求（包含记忆上下文）
     let enhanced_request = ExecuteTeamTaskRequest {
         team_id: request.team_id.clone(),
         task: request.task.clone(),
@@ -285,29 +350,85 @@ pub async fn execute_team_task(
         },
     };
 
-    // Execute task
-    let response = state.teams_state.agent_team_service.execute_team_task(enhanced_request).await?;
-
-    // Store conversation to memory (async, non-blocking)
-    let memory_state = state.memory_state.clone();
-    let team_id_clone = team_id.clone();
+    // 后台异步执行团队任务
+    let state_bg = state.clone();
+    let team_id_bg = team_id.clone();
     let user_message = request.task.clone();
-    let assistant_reply = response.final_output.clone();
+    let exec_id = execution_id.clone();
+    let tx = event_tx.clone();
+    let manager = state.agent_execution_manager.clone();
 
     tokio::spawn(async move {
-        // Store user message
-        if let Err(e) = store_to_memory(&memory_state, &team_id_clone, "user", &user_message).await {
-            tracing::warn!("[Memory] Failed to store user message: {}", e);
-        }
-        // Store assistant reply
-        if !assistant_reply.is_empty() {
-            if let Err(e) = store_to_memory(&memory_state, &team_id_clone, "assistant", &assistant_reply).await {
-                tracing::warn!("[Memory] Failed to store assistant reply: {}", e);
+        let start = std::time::Instant::now();
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+        interval.tick().await;
+
+        let task_future = state_bg.teams_state.agent_team_service.execute_team_task(enhanced_request);
+        tokio::pin!(task_future);
+
+        let result = loop {
+            tokio::select! {
+                res = &mut task_future => { break res; }
+                _ = interval.tick() => {
+                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Thinking {
+                        execution_id: exec_id.clone(),
+                        elapsed_secs: start.elapsed().as_secs(),
+                    });
+                }
+                _ = cancel_token.cancelled() => {
+                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Cancelled {
+                        execution_id: exec_id.clone(),
+                    });
+                    manager.remove_execution(&exec_id);
+                    return;
+                }
+            }
+        };
+
+        match result {
+            Ok(response) => {
+                // Store conversation to memory
+                let memory_state = state_bg.memory_state.clone();
+                let assistant_reply = response.final_output.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = store_raw_transcript(&memory_state, &team_id_bg, "user", &user_message).await {
+                        tracing::warn!("[Memory] Failed to store user transcript: {}", e);
+                    }
+                    if !assistant_reply.is_empty() {
+                        if let Err(e) = store_raw_transcript(&memory_state, &team_id_bg, "assistant", &assistant_reply).await {
+                            tracing::warn!("[Memory] Failed to store assistant transcript: {}", e);
+                        }
+                        if let Err(e) = store_structured_memory(&memory_state, &team_id_bg, &user_message, &assistant_reply).await {
+                            tracing::warn!("[Memory] Structured storage failed: {}", e);
+                            let _ = store_to_memory(&memory_state, &team_id_bg, "assistant", &assistant_reply).await;
+                        }
+                    }
+                });
+
+                let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Completed {
+                    execution_id: exec_id.clone(),
+                    result: response.final_output,
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
+            Err(e) => {
+                let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Failed {
+                    execution_id: exec_id.clone(),
+                    error: format!("{}", e),
+                });
             }
         }
+        manager.remove_execution(&exec_id);
     });
 
-    Ok(Json(response))
+    // 立即返回 execution_id
+    Ok(Json(crate::models::team::ExecuteTeamTaskResponse {
+        success: true,
+        team_id: team_id.clone(),
+        messages: vec![],
+        final_output: format!("{{\"execution_id\":\"{}\",\"status\":\"processing\"}}", execution_id),
+        error: None,
+    }))
 }
 
 /// 根据触发关键词查找匹配的角色
@@ -392,19 +513,60 @@ async fn execute_role_task_with_context(
     let assistant_reply = response.response.clone();
 
     tokio::spawn(async move {
-        // Store user message
-        if let Err(e) = store_to_memory(&memory_state, &team_id_clone, "user", &user_message).await {
-            tracing::warn!("[Memory] Failed to store user message: {}", e);
+        if let Err(e) = store_raw_transcript(&memory_state, &team_id_clone, "user", &user_message).await {
+            tracing::warn!("[Memory] Failed to store user transcript: {}", e);
         }
-        // Store assistant reply (现在 response 是真实的 AI 回复)
         if !assistant_reply.is_empty() {
-            if let Err(e) = store_to_memory(&memory_state, &team_id_clone, "assistant", &assistant_reply).await {
-                tracing::warn!("[Memory] Failed to store assistant reply: {}", e);
+            if let Err(e) = store_raw_transcript(&memory_state, &team_id_clone, "assistant", &assistant_reply).await {
+                tracing::warn!("[Memory] Failed to store assistant transcript: {}", e);
+            }
+            if let Err(e) = store_structured_memory(&memory_state, &team_id_clone, &user_message, &assistant_reply).await {
+                tracing::warn!("[Memory] Structured storage failed, falling back: {}", e);
+                let _ = store_to_memory(&memory_state, &team_id_clone, "assistant", &assistant_reply).await;
             }
         }
     });
 
     Ok(Json(response))
+}
+
+/// 查询扩展缓存（query -> (expanded, timestamp)）
+fn query_cache() -> &'static Mutex<HashMap<String, (String, std::time::Instant)>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, (String, std::time::Instant)>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+const QUERY_CACHE_TTL_SECS: u64 = 300; // 5 分钟
+
+/// 带缓存的查询扩展
+async fn expand_query_cached(query: &str) -> String {
+    // 检查缓存
+    if let Ok(cache) = query_cache().lock() {
+        if let Some((expanded, ts)) = cache.get(query) {
+            if ts.elapsed().as_secs() < QUERY_CACHE_TTL_SECS {
+                return expanded.clone();
+            }
+        }
+    }
+
+    // 通过 Claude CLI 扩展
+    match crate::services::claude_cli::expand_query_for_search(query).await {
+        Ok(expanded) => {
+            if let Ok(mut cache) = query_cache().lock() {
+                cache.insert(
+                    query.to_string(),
+                    (expanded.clone(), std::time::Instant::now()),
+                );
+                // 驱逐过期条目
+                cache.retain(|_, (_, ts)| ts.elapsed().as_secs() < QUERY_CACHE_TTL_SECS * 2);
+            }
+            expanded
+        }
+        Err(e) => {
+            tracing::warn!("[Memory] Query expansion failed: {}, using raw query", e);
+            query.to_string()
+        }
+    }
 }
 
 /// 搜索记忆并构建上下文字符串
@@ -426,25 +588,80 @@ async fn search_and_build_context(
         }
     }
 
+    // 查询扩展：提升 BM25 召回率
+    let expanded_query = expand_query_cached(query).await;
+    tracing::debug!(
+        "[Memory] Query expanded: '{}' -> '{}'",
+        query,
+        &expanded_query[..expanded_query.len().min(200)]
+    );
+
     // 搜索相关记忆
     let search_request = SearchRequest {
         team_id: Some(team_id.to_string()),
-        query: query.to_string(),
+        query: expanded_query,
         top_k: Some(5),
         vector_weight: None,
         keyword_weight: None,
         session_id: None,
     };
 
-    match memory_state.search.search(&search_request) {
+    match memory_state.search.search(&search_request, None) {
         Ok(results) if !results.results.is_empty() => {
-            let mut context = String::from("\n\n## 相关历史记忆 (Relevant Memory)\n");
-            context.push_str("以下是你之前与用户对话的相关记忆：\n\n");
-            for (i, result) in results.results.iter().enumerate() {
-                context.push_str(&format!("{}. {}\n", i + 1, result.content));
+            // 过滤低相关性结果
+            let meaningful: Vec<_> = results.results.iter()
+                .filter(|r| r.score >= 0.5)
+                .collect();
+
+            if meaningful.is_empty() {
+                tracing::debug!("[Memory] 所有结果低于相关性阈值");
+                return String::new();
             }
-            context.push_str("\n请结合以上记忆来回答用户的问题。\n");
-            tracing::info!("[Memory] 找到 {} 条相关记忆", results.results.len());
+
+            let mut context = String::from("\n\n## Relevant Conversation History\n\n");
+
+            for result in &meaningful {
+                // 尝试解析结构化记忆（新格式）
+                if let Ok(structured) = serde_json::from_str::<serde_json::Value>(&result.content) {
+                    if let (Some(topic), Some(problem), Some(solution)) = (
+                        structured.get("topic").and_then(|v| v.as_str()),
+                        structured.get("problem").and_then(|v| v.as_str()),
+                        structured.get("solution").and_then(|v| v.as_str()),
+                    ) {
+                        let timestamp = structured
+                            .get("timestamp")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown");
+                        let keywords = structured
+                            .get("keywords")
+                            .and_then(|v| v.as_array())
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|v| v.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            })
+                            .unwrap_or_default();
+                        context.push_str(&format!(
+                            "**[{}] Topic: {}**\n- Problem: {}\n- Solution: {}\n- Keywords: {}\n\n",
+                            timestamp, topic, problem, solution, keywords,
+                        ));
+                        continue;
+                    }
+                }
+
+                // Fallback：旧格式（原始文本）
+                let role = result.metadata.user_name.as_deref().unwrap_or("unknown");
+                context.push_str(&format!(
+                    "**[{}] {}:** {}\n\n",
+                    result.created_at.format("%Y-%m-%d %H:%M"),
+                    role,
+                    result.content,
+                ));
+            }
+
+            context.push_str("Use the above conversation history to provide contextually relevant responses.\n");
+            tracing::info!("[Memory] 注入 {} 条相关记忆", meaningful.len());
             context
         }
         Ok(_) => {
@@ -480,11 +697,104 @@ async fn store_to_memory(
         .map_err(|e| e.to_string())?;
 
     // 索引
-    let metadata = serde_json::json!({});
+    let metadata = serde_json::json!({
+        "transcript_id": transcript.id,
+        "role": role,
+        "created_at": transcript.created_at.to_rfc3339(),
+    });
     memory_state.search.index_chunk(team_id, &chunk.id, &chunk.content, metadata)
         .await
         .map_err(|e| e.to_string())?;
 
+    Ok(())
+}
+
+/// 存储结构化记忆摘要（使用 Claude CLI 进行摘要）
+async fn store_structured_memory(
+    memory_state: &Arc<crate::routes::memory::MemoryState>,
+    team_id: &str,
+    user_message: &str,
+    assistant_reply: &str,
+) -> Result<(), String> {
+    use crate::services::claude_cli::summarize_for_memory;
+
+    let structured = summarize_for_memory(user_message, assistant_reply).await?;
+
+    // 创建 transcript（存储摘要）
+    let transcript = Transcript::new(
+        team_id,
+        "system",
+        MessageRole::Assistant,
+        &structured.summary,
+    );
+
+    memory_state
+        .store
+        .store_transcript(&transcript)
+        .map_err(|e| e.to_string())?;
+
+    // 存储完整结构化 JSON 为 chunk content（上下文注入时使用）
+    let chunk_content =
+        serde_json::to_string(&structured).map_err(|e| e.to_string())?;
+    let chunk = MemoryChunk::from_transcript(&transcript, chunk_content, 0);
+    memory_state
+        .store
+        .store_chunk(&chunk)
+        .map_err(|e| e.to_string())?;
+
+    // BM25 索引用关键词丰富的拼接文本（提升召回率）
+    let searchable_content = format!(
+        "{} {} {} {}",
+        structured.topic,
+        structured.problem,
+        structured.solution,
+        structured.keywords.join(" "),
+    );
+
+    let metadata = serde_json::json!({
+        "transcript_id": transcript.id,
+        "role": structured.role,
+        "topic": structured.topic,
+        "created_at": transcript.created_at.to_rfc3339(),
+        "keywords": structured.keywords,
+    });
+
+    memory_state
+        .search
+        .index_chunk(team_id, &chunk.id, &searchable_content, metadata)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    tracing::info!(
+        "[Memory] Stored structured memory: topic='{}', keywords={:?}",
+        structured.topic,
+        structured.keywords
+    );
+
+    Ok(())
+}
+
+/// 存储原始对话记录（仅入库，不索引，用于审计追踪）
+async fn store_raw_transcript(
+    memory_state: &Arc<crate::routes::memory::MemoryState>,
+    team_id: &str,
+    role: &str,
+    content: &str,
+) -> Result<(), String> {
+    let transcript = Transcript::new(
+        team_id,
+        "system",
+        if role == "user" {
+            MessageRole::User
+        } else {
+            MessageRole::Assistant
+        },
+        content,
+    );
+    memory_state
+        .store
+        .store_transcript(&transcript)
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -530,14 +840,16 @@ pub async fn execute_role_task(
     let assistant_reply = response.response.clone();
 
     tokio::spawn(async move {
-        // Store user message
-        if let Err(e) = store_to_memory(&memory_state, &team_id_clone, "user", &user_message).await {
-            tracing::warn!("[Memory] Failed to store user message: {}", e);
+        if let Err(e) = store_raw_transcript(&memory_state, &team_id_clone, "user", &user_message).await {
+            tracing::warn!("[Memory] Failed to store user transcript: {}", e);
         }
-        // Store assistant reply
         if !assistant_reply.is_empty() && assistant_reply != "Message received, processing in background..." {
-            if let Err(e) = store_to_memory(&memory_state, &team_id_clone, "assistant", &assistant_reply).await {
-                tracing::warn!("[Memory] Failed to store assistant reply: {}", e);
+            if let Err(e) = store_raw_transcript(&memory_state, &team_id_clone, "assistant", &assistant_reply).await {
+                tracing::warn!("[Memory] Failed to store assistant transcript: {}", e);
+            }
+            if let Err(e) = store_structured_memory(&memory_state, &team_id_clone, &user_message, &assistant_reply).await {
+                tracing::warn!("[Memory] Structured storage failed, falling back: {}", e);
+                let _ = store_to_memory(&memory_state, &team_id_clone, "assistant", &assistant_reply).await;
             }
         }
     });

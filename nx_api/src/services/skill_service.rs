@@ -277,29 +277,50 @@ impl SkillService {
         let record = self.file_repo.get(skill_id)?
             .ok_or_else(|| SkillServiceError::SkillNotFound(skill_id.to_string()))?;
 
-        let mut context = std::collections::HashMap::new();
-        context.insert("skill_id".to_string(), serde_json::json!(skill_id));
-        context.insert("skill_name".to_string(), serde_json::json!(record.name));
-        context.insert("phase".to_string(), serde_json::json!(phase.clone().unwrap_or_else(|| "default".to_string())));
-        context.insert("params".to_string(), params.clone());
-        if let Some(dir) = working_dir {
-            context.insert("working_dir".to_string(), serde_json::json!(dir));
+        let start = std::time::Instant::now();
+
+        // 构建执行 prompt
+        let phase_str = phase.clone().unwrap_or_else(|| "default".to_string());
+        let prompt = format!(
+            "Execute the following skill:\n\n\
+             Skill: {}\n\
+             Description: {}\n\
+             Phase: {}\n\
+             Parameters: {}\n\n\
+             Code:\n```\n{}\n```\n\n\
+             Execute this skill and return the result.",
+            record.name,
+            record.description,
+            phase_str,
+            serde_json::to_string_pretty(&params).unwrap_or_default(),
+            record.code.as_deref().unwrap_or("(no code)"),
+        );
+
+        let dir_ref = working_dir.as_deref();
+        match crate::services::claude_cli::call_claude_cli_with_timeout(&prompt, 120, dir_ref).await {
+            Ok(cli_output) => {
+                let duration_ms = start.elapsed().as_millis() as u64;
+                Ok(ExecuteSkillResponse {
+                    success: true,
+                    skill_id: skill_id.to_string(),
+                    phase,
+                    output: serde_json::json!({ "result": cli_output }),
+                    error: None,
+                    duration_ms,
+                })
+            }
+            Err(e) => {
+                let duration_ms = start.elapsed().as_millis() as u64;
+                Ok(ExecuteSkillResponse {
+                    success: false,
+                    skill_id: skill_id.to_string(),
+                    phase,
+                    output: serde_json::json!({}),
+                    error: Some(e),
+                    duration_ms,
+                })
+            }
         }
-
-        let output = serde_json::json!({
-            "context": context,
-            "message": "技能已接收执行请求",
-            "note": "实际执行需要 SkillExecutionEngine 支持"
-        });
-
-        Ok(ExecuteSkillResponse {
-            success: true,
-            skill_id: skill_id.to_string(),
-            phase,
-            output,
-            error: None,
-            duration_ms: 0,
-        })
     }
 
     /// 从 agents 目录重新加载技能（扫描文件变化）

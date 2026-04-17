@@ -64,7 +64,34 @@ impl ApiConfig {
                 .parse()
                 .unwrap_or(300),
             db_path: std::env::var("NEXUS_DB_PATH")
-                .unwrap_or_else(|_| "nexus.db".to_string()),
+                .unwrap_or_else(|_| resolve_default_db_path()),
         }
     }
+}
+
+/// 查找统一的数据库路径
+/// 优先级：可执行文件所在项目根/nx_dashboard/nexus.db → 当前目录向上查找 → fallback nexus.db
+fn resolve_default_db_path() -> String {
+    // 策略1: 基于可执行文件位置 (target/release/nx_api → 项目根)
+    if let Ok(exe) = std::env::current_exe() {
+        for ancestor in exe.ancestors().skip(1) {
+            let candidate = ancestor.join("nx_dashboard").join("nexus.db");
+            if candidate.exists() {
+                return candidate.to_string_lossy().to_string();
+            }
+        }
+    }
+
+    // 策略2: 基于当前工作目录向上查找
+    if let Ok(cwd) = std::env::current_dir() {
+        for ancestor in cwd.ancestors() {
+            let candidate = ancestor.join("nx_dashboard").join("nexus.db");
+            if candidate.exists() {
+                return candidate.to_string_lossy().to_string();
+            }
+        }
+    }
+
+    // fallback
+    "nexus.db".to_string()
 }

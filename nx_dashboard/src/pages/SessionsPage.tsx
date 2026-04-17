@@ -152,9 +152,101 @@ function SessionCard({
   );
 }
 
+function SessionDetailPanel({
+  session,
+  onClose,
+}: {
+  session: Session;
+  onClose: () => void;
+}) {
+  const { setCurrentSession, terminateSession, activateSession } = useSessionStore();
+  const status = session.status as keyof typeof STATUS_CONFIG;
+  const config = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
+  const Icon = config.icon;
+
+  const handleSetCurrent = () => {
+    setCurrentSession(session);
+  };
+
+  const handleTerminate = async () => {
+    await terminateSession(session.id);
+    onClose();
+  };
+
+  const handleActivate = async () => {
+    await activateSession(session.id);
+  };
+
+  return (
+    <div className="fixed inset-y-0 right-0 w-96 bg-card border-l border-border shadow-xl z-50 flex flex-col animate-in slide-in-from-right">
+      <div className="flex items-center justify-between p-4 border-b border-border">
+        <h2 className="text-lg font-semibold">会话详情</h2>
+        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <div className="flex items-center gap-3">
+          <div className={cn('p-3 rounded-xl bg-gradient-to-br shadow-lg', config.gradient)}>
+            <Icon className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <p className="font-semibold">{session.workflow_id || '未指定工作流'}</p>
+            <span className={cn(
+              'inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium',
+              'bg-gradient-to-r ' + config.gradient, 'text-white'
+            )}>
+              {config.label}
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <DetailRow label="ID" value={session.id} mono />
+          {session.resume_key && (
+            <DetailRow label="Resume Key" value={session.resume_key} mono />
+          )}
+          <DetailRow label="创建时间" value={new Date(session.created_at).toLocaleString()} />
+          <DetailRow label="更新时间" value={new Date(session.updated_at).toLocaleString()} />
+        </div>
+
+        <div className="space-y-2">
+          <button onClick={handleSetCurrent} className="w-full btn-primary text-sm">
+            设为当前会话
+          </button>
+          {(session.status === 'pending' || session.status === 'paused') && (
+            <button onClick={handleActivate} className="w-full btn-secondary text-sm">
+              <Play className="w-4 h-4" /> 激活
+            </button>
+          )}
+          {session.status !== 'terminated' && (
+            <button
+              onClick={handleTerminate}
+              className="w-full px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 text-red-600 hover:bg-red-500/20 transition-colors"
+            >
+              <X className="w-4 h-4 inline mr-1" /> 终止会话
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className={cn('text-sm break-all', mono && 'font-mono text-xs')}>{value}</span>
+    </div>
+  );
+}
+
 export function SessionsPage() {
-  const { sessions, pauseSession, resumeSession } = useSessionStore();
+  const { sessions } = useSessionStore();
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
 
   // Use React Query for fetching
   const { sessions: querySessions, loading, refetch } = useSessionsQuery();
@@ -234,12 +326,19 @@ export function SessionsPage() {
             <SessionCard
               key={session.id}
               session={session}
-              onClick={() => console.log('Session clicked:', session.id)}
-              onPause={() => console.log('Session paused:', session.id)}
-              onResume={() => console.log('Session resumed:', session.id)}
+              onClick={() => setSelectedSession(session)}
+              onPause={() => refetch()}
+              onResume={() => refetch()}
             />
           ))}
         </div>
+      )}
+
+      {selectedSession && (
+        <SessionDetailPanel
+          session={selectedSession}
+          onClose={() => setSelectedSession(null)}
+        />
       )}
     </div>
   );

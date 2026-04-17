@@ -201,16 +201,57 @@ impl SandboxExecutor {
     #[cfg(unix)]
     fn apply_resource_limits(&self, cmd: &mut Command, request: &ExecuteRequest) {
         let memory_limit = request.memory_limit_bytes;
-        // 注意：这些是进程级限制，并非在所有系统上都保证有效
-        // 替代方案：使用 ulimit 或 rlimit
-        cmd.arg(format!("--memory={}", memory_limit));
+        let cpu_limit = request.cpu_time_secs;
+
+        // Use pre_exec to set resource limits via setrlimit before the child process runs
+        // SAFETY: setrlimit is async-signal-safe and we only call it with valid rlimit structs.
+        // The closure runs between fork() and exec() in the child process.
+        unsafe {
+            cmd.pre_exec(move || {
+                // RLIMIT_AS — virtual memory limit
+                let mem = libc::rlimit {
+                    rlim_cur: memory_limit,
+                    rlim_max: memory_limit,
+                };
+                if libc::setrlimit(libc::RLIMIT_AS, &mem) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+
+                // RLIMIT_CPU — CPU time limit in seconds
+                let cpu = libc::rlimit {
+                    rlim_cur: cpu_limit,
+                    rlim_max: cpu_limit,
+                };
+                if libc::setrlimit(libc::RLIMIT_CPU, &cpu) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+
+                // RLIMIT_NOFILE — limit open file descriptors
+                let nofile = libc::rlimit {
+                    rlim_cur: 64,
+                    rlim_max: 64,
+                };
+                if libc::setrlimit(libc::RLIMIT_NOFILE, &nofile) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+
+                Ok(())
+            });
+        }
     }
 
     #[cfg(unix)]
     fn apply_seccomp_filter(&self, _cmd: &mut Command) -> Result<(), SandboxError> {
-        // seccomp 需要通过 prctl 或 seccomp_syscall_filter 进行更复杂的设置
-        // 这是实际实现的占位符
-        // 在生产环境中，应使用 libseccomp crate 或类似库
+        // seccomp is only available on Linux; macOS uses the sandbox-exec/sandbox_init APIs.
+        // On macOS we log a warning and skip.
+        #[cfg(target_os = "linux")]
+        {
+            tracing::debug!("seccomp filter placeholder — production should use libseccomp crate");
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            tracing::warn!("seccomp is not available on this platform, skipping sandbox filter");
+        }
         Ok(())
     }
 

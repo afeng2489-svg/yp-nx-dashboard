@@ -196,19 +196,79 @@ pub async fn conclude_discussion(
     Ok(Json(conclusion))
 }
 
-/// Execute a role's turn
+/// Execute a role's turn (async — returns execution_id immediately)
 pub async fn execute_role_turn(
     State(state): State<Arc<AppState>>,
     Path((id, role_id)): Path<(String, String)>,
-) -> Result<Json<GroupMessage>, ApiError> {
-    let service = &state.group_chat_service;
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let execution_id = uuid::Uuid::new_v4().to_string();
+    let event_tx = state.agent_execution_manager.event_sender();
+    let cancel_token = tokio_util::sync::CancellationToken::new();
+    state.agent_execution_manager.register_cancel_token(&execution_id, cancel_token.clone());
 
-    let message = service
-        .execute_role_turn(&id, &role_id)
-        .await
-        .map_err(ApiError::from)?;
+    // 发送 Started 事件
+    let _ = event_tx.send(crate::ws::agent_execution::AgentExecutionEvent::Started {
+        execution_id: execution_id.clone(),
+        agent_role: role_id.clone(),
+        task_summary: format!("Role turn: {}", role_id),
+    });
 
-    Ok(Json(message))
+    let service = state.group_chat_service.clone();
+    let exec_id = execution_id.clone();
+    let tx = event_tx.clone();
+    let manager = state.agent_execution_manager.clone();
+
+    tokio::spawn(async move {
+        let start = std::time::Instant::now();
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+        interval.tick().await;
+
+        let task_future = service.execute_role_turn(&id, &role_id);
+        tokio::pin!(task_future);
+
+        let result = loop {
+            tokio::select! {
+                res = &mut task_future => { break res; }
+                _ = interval.tick() => {
+                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Thinking {
+                        execution_id: exec_id.clone(),
+                        elapsed_secs: start.elapsed().as_secs(),
+                    });
+                }
+                _ = cancel_token.cancelled() => {
+                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Cancelled {
+                        execution_id: exec_id.clone(),
+                    });
+                    manager.remove_execution(&exec_id);
+                    return;
+                }
+            }
+        };
+
+        match result {
+            Ok(message) => {
+                let result_str = serde_json::to_string(&message).unwrap_or_default();
+                let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Completed {
+                    execution_id: exec_id.clone(),
+                    result: result_str,
+                    duration_ms: start.elapsed().as_millis() as u64,
+                });
+            }
+            Err(e) => {
+                let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Failed {
+                    execution_id: exec_id.clone(),
+                    error: e.to_string(),
+                });
+            }
+        }
+        manager.remove_execution(&exec_id);
+    });
+
+    // 立即返回 execution_id
+    Ok(Json(serde_json::json!({
+        "execution_id": execution_id,
+        "status": "processing"
+    })))
 }
 
 impl From<GroupChatServiceError> for ApiError {

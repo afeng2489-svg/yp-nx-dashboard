@@ -148,6 +148,25 @@ impl MemoryChunk {
     }
 }
 
+/// 结构化记忆摘要（由 Claude CLI 生成）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StructuredMemory {
+    /// 对话主题
+    pub topic: String,
+    /// 用户的问题/需求
+    pub problem: String,
+    /// AI 给出的解决方案/回答
+    pub solution: String,
+    /// 搜索关键词
+    pub keywords: Vec<String>,
+    /// 响应角色
+    pub role: String,
+    /// 时间戳
+    pub timestamp: String,
+    /// 简短摘要
+    pub summary: String,
+}
+
 /// 搜索结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResult {
@@ -300,7 +319,7 @@ mod tests {
     #[test]
     fn test_search_request() {
         let req = SearchRequest::new("team1", "database");
-        assert_eq!(req.team_id, "team1");
+        assert_eq!(req.team_id, Some("team1".to_string()));
         assert_eq!(req.query, "database");
         assert_eq!(req.top_k, Some(3));
     }

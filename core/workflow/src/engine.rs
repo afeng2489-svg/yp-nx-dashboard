@@ -4,13 +4,16 @@
 
 use std::sync::Arc;
 use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use parking_lot::RwLock;
 use tokio::process::Command;
 
 use crate::{WorkflowDefinition, WorkflowState, WorkflowStatus, StageOutput, AgentState, AgentStatus};
 use crate::events::{EventEmitter, WorkflowEvent};
 use crate::parser::WorkflowError as ParserWorkflowError;
 use nexus_ai::ChatMessage;
+
+/// 共享工作流状态
+type SharedState = Arc<RwLock<WorkflowState>>;
 
 /// 工作流执行引擎
 pub struct WorkflowEngine {
@@ -39,63 +42,110 @@ impl WorkflowEngine {
 
     /// 执行工作流
     pub async fn execute(&self, workflow: &WorkflowDefinition) -> Result<WorkflowResult, WorkflowError> {
-        let mut state = WorkflowState::new(&workflow.name);
+        let state: SharedState = Arc::new(RwLock::new(WorkflowState::new(&workflow.name)));
 
-        self.event_emitter.emit(WorkflowEvent::WorkflowStarted {
-            execution_id: state.execution_id,
-            workflow_id: workflow.name.clone(),
-        });
+        {
+            let s = state.read();
+            self.event_emitter.emit(WorkflowEvent::WorkflowStarted {
+                execution_id: s.execution_id,
+                workflow_id: workflow.name.clone(),
+            });
+        }
 
-        state.start();
+        state.write().start();
 
         // 从工作流定义初始化变量
         for (key, value) in &workflow.variables {
-            state.set_var(key, value.clone());
+            state.write().set_var(key, value.clone());
         }
 
         // 顺序执行阶段
         for (stage_idx, stage) in workflow.stages.iter().enumerate() {
-            if state.should_stop() {
+            if state.read().should_stop() {
                 break;
             }
 
-            self.event_emitter.emit(WorkflowEvent::StageStarted {
-                execution_id: state.execution_id,
-                stage_name: stage.name.clone(),
-                stage_index: stage_idx,
-            });
+            {
+                let s = state.read();
+                self.event_emitter.emit(WorkflowEvent::StageStarted {
+                    execution_id: s.execution_id,
+                    stage_name: stage.name.clone(),
+                    stage_index: stage_idx,
+                });
+            }
 
-            // 从状态解析阶段输出
-            let outputs = self.execute_stage(&state, stage, &workflow.agents).await?;
-            state.record_stage(&stage.name, outputs);
+            // 执行阶段（带 on_error 重试逻辑）
+            let outputs = match self.execute_stage(&state, stage, &workflow.agents).await {
+                Ok(outputs) => outputs,
+                Err(e) => {
+                    if let Some(ref error_handler) = workflow.on_error {
+                        if error_handler.retry {
+                            let mut last_err = e;
+                            let mut retry_result = None;
+                            for attempt in 1..=error_handler.max_retries {
+                                tracing::warn!(
+                                    "Stage '{}' 失败，重试 {}/{}",
+                                    stage.name, attempt, error_handler.max_retries
+                                );
+                                match self.execute_stage(&state, stage, &workflow.agents).await {
+                                    Ok(outputs) => {
+                                        retry_result = Some(outputs);
+                                        break;
+                                    }
+                                    Err(e) => {
+                                        last_err = e;
+                                    }
+                                }
+                            }
+                            match retry_result {
+                                Some(outputs) => outputs,
+                                None => return Err(last_err),
+                            }
+                        } else {
+                            return Err(e);
+                        }
+                    } else {
+                        return Err(e);
+                    }
+                }
+            };
 
-            self.event_emitter.emit(WorkflowEvent::StageCompleted {
-                execution_id: state.execution_id,
-                stage_name: stage.name.clone(),
-                outputs: state.stage_results.last().unwrap().outputs.clone(),
-            });
+            {
+                let mut s = state.write();
+                s.record_stage(&stage.name, outputs);
+            }
+
+            {
+                let s = state.read();
+                self.event_emitter.emit(WorkflowEvent::StageCompleted {
+                    execution_id: s.execution_id,
+                    stage_name: stage.name.clone(),
+                    outputs: s.stage_results.last().unwrap().outputs.clone(),
+                });
+            }
         }
 
-        if state.status == WorkflowStatus::Running {
-            state.complete();
+        let mut s = state.write();
+        if s.status == WorkflowStatus::Running {
+            s.complete();
             self.event_emitter.emit(WorkflowEvent::WorkflowCompleted {
-                execution_id: state.execution_id,
-                final_state: serde_json::to_string(&state.variables).unwrap_or_default(),
+                execution_id: s.execution_id,
+                final_state: serde_json::to_string(&s.variables).unwrap_or_default(),
             });
         }
 
         Ok(WorkflowResult {
-            execution_id: state.execution_id,
-            status: state.status,
-            variables: state.variables,
-            stage_results: state.stage_results,
+            execution_id: s.execution_id,
+            status: s.status,
+            variables: s.variables.clone(),
+            stage_results: s.stage_results.clone(),
         })
     }
 
     /// 执行单个阶段
     async fn execute_stage(
         &self,
-        state: &WorkflowState,
+        state: &SharedState,
         stage: &crate::parser::StageDefinition,
         agents: &[crate::parser::AgentDefinition],
     ) -> Result<Vec<StageOutput>, WorkflowError> {
@@ -111,7 +161,7 @@ impl WorkflowEngine {
                     continue;
                 }
 
-                let state_clone = state.clone();
+                let state_clone = Arc::clone(state);
                 let agent_clone = agent.clone();
                 let engine = self.clone();
 
@@ -121,12 +171,17 @@ impl WorkflowEngine {
             }
 
             let mut outputs = Vec::new();
+            let mut errors = Vec::new();
             for handle in handles {
-                if let Ok(output) = handle.await {
-                    if let Ok(outputs_result) = output {
-                        outputs.extend(outputs_result);
-                    }
+                match handle.await {
+                    Ok(Ok(agent_outputs)) => outputs.extend(agent_outputs),
+                    Ok(Err(e)) => errors.push(e),
+                    Err(e) => errors.push(WorkflowError::Execution(format!("任务 panic: {}", e))),
                 }
+            }
+
+            if !errors.is_empty() && !stage.continue_on_error {
+                return Err(errors.into_iter().next().unwrap());
             }
 
             Ok(outputs)
@@ -142,8 +197,16 @@ impl WorkflowEngine {
                     continue;
                 }
 
-                let agent_outputs = self.execute_agent(state, agent).await?;
-                outputs.extend(agent_outputs);
+                match self.execute_agent(state, agent).await {
+                    Ok(agent_outputs) => outputs.extend(agent_outputs),
+                    Err(e) => {
+                        if stage.continue_on_error {
+                            tracing::warn!("智能体 {} 失败但继续执行: {}", agent_id, e);
+                        } else {
+                            return Err(e);
+                        }
+                    }
+                }
             }
 
             Ok(outputs)
@@ -151,9 +214,13 @@ impl WorkflowEngine {
     }
 
     /// 检查所有依赖是否满足
-    fn check_dependencies(&self, agent: &crate::parser::AgentDefinition, state: &WorkflowState) -> Result<bool, WorkflowError> {
+    fn check_dependencies(&self, agent: &crate::parser::AgentDefinition, state: &SharedState) -> Result<bool, WorkflowError> {
+        if agent.depends_on.is_empty() {
+            return Ok(true);
+        }
+        let state_read = state.read();
         for dep_id in &agent.depends_on {
-            if let Some(dep_state) = state.agent_states.get(dep_id) {
+            if let Some(dep_state) = state_read.agent_states.get(dep_id) {
                 if dep_state.status != AgentStatus::Completed {
                     return Ok(false);
                 }
@@ -167,9 +234,11 @@ impl WorkflowEngine {
     /// 执行单个智能体
     async fn execute_agent(
         &self,
-        state: &WorkflowState,
+        state: &SharedState,
         agent: &crate::parser::AgentDefinition,
     ) -> Result<Vec<StageOutput>, WorkflowError> {
+        let execution_id = state.read().execution_id;
+
         let mut agent_state = AgentState {
             agent_id: agent.id.clone(),
             role: agent.role.clone(),
@@ -178,14 +247,17 @@ impl WorkflowEngine {
             updated_at: chrono::Utc::now(),
         };
 
+        // 写入 Running 状态
+        state.write().update_agent(&agent.id, agent_state.clone());
+
         self.event_emitter.emit(WorkflowEvent::AgentStarted {
-            execution_id: state.execution_id,
+            execution_id,
             agent_id: agent.id.clone(),
             role: agent.role.clone(),
         });
 
         // 使用解析后的变量构建提示词
-        let resolved_prompt = state.resolve_template(&agent.prompt);
+        let resolved_prompt = state.read().resolve_template(&agent.prompt);
 
         // Auto-yes prefix to skip confirmation prompts
         let auto_yes_prefix = "You are operating in auto-yes mode. If you ask any question requiring confirmation (yes/no, continue?, proceed?, etc.), always assume the answer is YES and proceed automatically. Never ask for confirmation.";
@@ -203,9 +275,13 @@ impl WorkflowEngine {
             Ok(response) => {
                 agent_state.status = AgentStatus::Completed;
                 agent_state.last_message = Some(response.clone());
+                agent_state.updated_at = chrono::Utc::now();
+
+                // 写回完成状态
+                state.write().update_agent(&agent.id, agent_state);
 
                 self.event_emitter.emit(WorkflowEvent::AgentCompleted {
-                    execution_id: state.execution_id,
+                    execution_id,
                     agent_id: agent.id.clone(),
                     output: response.clone(),
                 });
@@ -218,9 +294,13 @@ impl WorkflowEngine {
             }
             Err(e) => {
                 agent_state.status = AgentStatus::Failed;
+                agent_state.updated_at = chrono::Utc::now();
+
+                // 写回失败状态
+                state.write().update_agent(&agent.id, agent_state);
 
                 self.event_emitter.emit(WorkflowEvent::AgentFailed {
-                    execution_id: state.execution_id,
+                    execution_id,
                     agent_id: agent.id.clone(),
                     error: e.to_string(),
                 });

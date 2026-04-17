@@ -141,8 +141,27 @@ impl MemorySearch {
         vectors.remove(chunk_id);
     }
 
-    /// 搜索（零 API 调用）
-    pub fn search(&self, request: &SearchRequest) -> Result<SearchResponse, SearchError> {
+    /// 生成查询向量（用于搜索前调用）
+    pub async fn embed_query(&self, query: &str) -> Option<Vec<f32>> {
+        if let Some(provider) = &self.embedding_provider {
+            match provider.embed(query).await {
+                Ok(result) => Some(result.vector),
+                Err(e) => {
+                    tracing::warn!("生成查询向量失败: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    }
+
+    /// 搜索（零 API 调用，向量由调用者预先生成）
+    pub fn search(
+        &self,
+        request: &SearchRequest,
+        query_embedding: Option<&[f32]>,
+    ) -> Result<SearchResponse, SearchError> {
         let start = std::time::Instant::now();
 
         let team_id = request.team_id.as_deref().unwrap_or("");
@@ -176,7 +195,10 @@ impl MemorySearch {
             .map(|result| {
                 let vector_score = vectors
                     .get(&result.id)
-                    .map(|_| 0.5) // 占位分数，有存储向量时使用
+                    .map(|stored_vec| {
+                        query_embedding
+                            .map_or(0.0, |qe| cosine_similarity(qe, stored_vec))
+                    })
                     .unwrap_or(0.0);
                 (result, vector_score)
             })
@@ -190,7 +212,10 @@ impl MemorySearch {
             for (bm25_result, _) in scored_results {
                 let vector_score = vectors
                     .get(&bm25_result.id)
-                    .map(|_| 0.5) // 向量相似度占位
+                    .map(|stored_vec| {
+                        query_embedding
+                            .map_or(0.0, |qe| cosine_similarity(qe, stored_vec))
+                    })
                     .unwrap_or(0.0);
 
                 scored.push((
@@ -213,15 +238,22 @@ impl MemorySearch {
             scored
                 .into_iter()
                 .take(top_k)
-                .map(|(id, content, bm25_score, vector_score, metadata)| SearchResult {
-                    chunk_id: id,
-                    transcript_id: String::new(), // 需要从 chunk 获取
-                    content,
-                    score: keyword_weight * bm25_score + vector_weight * vector_score,
-                    bm25_score,
-                    vector_score,
-                    created_at: chrono::Utc::now(),
-                    metadata: serde_json::from_value(metadata).unwrap_or_default(),
+                .map(|(id, content, bm25_score, vector_score, metadata)| {
+                    let transcript_id = metadata
+                        .get("transcript_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    SearchResult {
+                        chunk_id: id,
+                        transcript_id,
+                        content,
+                        score: keyword_weight * bm25_score + vector_weight * vector_score,
+                        bm25_score,
+                        vector_score,
+                        created_at: chrono::Utc::now(),
+                        metadata: serde_json::from_value(metadata).unwrap_or_default(),
+                    }
                 })
                 .collect()
         } else {
@@ -229,24 +261,49 @@ impl MemorySearch {
             scored_results
                 .into_iter()
                 .take(top_k)
-                .map(|(result, _)| SearchResult {
-                    chunk_id: result.id,
-                    transcript_id: String::new(),
-                    content: result.content,
-                    score: result.score,
-                    bm25_score: result.score,
-                    vector_score: 0.0,
-                    created_at: chrono::Utc::now(),
-                    metadata: serde_json::from_value(result.metadata).unwrap_or_default(),
+                .map(|(result, _)| {
+                    let transcript_id = result
+                        .metadata
+                        .get("transcript_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    SearchResult {
+                        chunk_id: result.id,
+                        transcript_id,
+                        content: result.content,
+                        score: result.score,
+                        bm25_score: result.score,
+                        vector_score: 0.0,
+                        created_at: chrono::Utc::now(),
+                        metadata: serde_json::from_value(result.metadata).unwrap_or_default(),
+                    }
                 })
                 .collect()
         };
 
         // 获取完整的 transcript 信息
         for result in &mut final_results {
-            if let Ok(Some(transcript)) = self.store.get_transcript(&result.transcript_id) {
-                result.metadata = transcript.metadata;
+            if !result.transcript_id.is_empty() {
+                if let Ok(Some(transcript)) = self.store.get_transcript(&result.transcript_id) {
+                    result.metadata = transcript.metadata;
+                    result.created_at = transcript.created_at;
+                }
             }
+        }
+
+        // 相关性阈值过滤：去除低质量匹配
+        let max_score = final_results
+            .iter()
+            .map(|r| r.score)
+            .fold(0.0f32, f32::max);
+
+        if max_score > 0.0 {
+            const MIN_ABSOLUTE_SCORE: f32 = 0.5;
+            const RELATIVE_THRESHOLD: f32 = 0.3;
+            final_results.retain(|r| {
+                r.score >= MIN_ABSOLUTE_SCORE && r.score >= max_score * RELATIVE_THRESHOLD
+            });
         }
 
         let search_time_ms = start.elapsed().as_millis() as u64;
@@ -268,19 +325,44 @@ impl MemorySearch {
 
     /// 清空团队的索引
     pub fn clear_team_index(&self, team_id: &str) {
-        let mut bm25_indexes = self.bm25_indexes.write().unwrap();
-        if let Some(index) = bm25_indexes.get_mut(team_id) {
-            index.clear();
-        }
+        // 先收集 IDs，再清除索引（修复：之前先 clear 后读取导致 ids 为空）
+        let ids_to_remove: Vec<String> = {
+            let bm25_indexes = self.bm25_indexes.read().unwrap();
+            bm25_indexes
+                .get(team_id)
+                .map(|index| index.ids())
+                .unwrap_or_default()
+        };
 
-        let mut vectors = self.vectors.write().unwrap();
-        // 移除该团队相关的向量（通过 BM25 索引的 ID）
-        if let Some(index) = bm25_indexes.get(team_id) {
-            let ids: Vec<String> = index.ids();
-            for id in ids {
-                vectors.remove(&id);
+        // 清除 BM25 索引
+        {
+            let mut bm25_indexes = self.bm25_indexes.write().unwrap();
+            if let Some(index) = bm25_indexes.get_mut(team_id) {
+                index.clear();
             }
         }
+
+        // 使用收集的 IDs 移除向量
+        let mut vectors = self.vectors.write().unwrap();
+        for id in ids_to_remove {
+            vectors.remove(&id);
+        }
+    }
+}
+
+/// 计算余弦相似度
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() || a.is_empty() {
+        return 0.0;
+    }
+    let dot_product: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+    let magnitude_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+    let magnitude_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+
+    if magnitude_a == 0.0 || magnitude_b == 0.0 {
+        0.0
+    } else {
+        dot_product / (magnitude_a * magnitude_b)
     }
 }
 
@@ -314,7 +396,7 @@ mod tests {
             .await
             .unwrap();
 
-        let result = search.search(&SearchRequest::new("team1", "database")).unwrap();
+        let result = search.search(&SearchRequest::new("team1", "database"), None).unwrap();
         assert!(!result.results.is_empty());
     }
 }

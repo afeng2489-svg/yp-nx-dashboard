@@ -12,6 +12,7 @@ use crate::routes::AppState;
 use crate::scheduler::{
     CreateTaskRequest, QueueStats, SchedulerService, TaskResponse,
 };
+use crate::services::ExecutionService;
 
 /// Scheduler state wrapper for route handlers
 pub struct SchedulerState {
@@ -25,8 +26,8 @@ impl SchedulerState {
         }
     }
 
-    pub fn init(&self) {
-        let service = SchedulerService::new();
+    pub fn init(&self, execution_service: Option<ExecutionService>) {
+        let service = SchedulerService::new(execution_service);
         *self.scheduler.write().unwrap() = Some(service);
     }
 

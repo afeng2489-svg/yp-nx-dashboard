@@ -168,11 +168,22 @@ impl ClaudeStreamWsHandler {
         _executing_tx: mpsc::Sender<()>,
     ) {
         let mut cmd = Command::new("claude");
-        cmd.args(["-p", "--dangerously-skip-permissions", "--no-session-persistence", &prompt])
+        cmd.args(["-p", "--no-session-persistence", &prompt])
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
 
         if let Some(dir) = &working_directory {
+            let path = std::path::Path::new(dir);
+            if !path.is_absolute() || !path.exists() || !path.is_dir() {
+                let msg = ClaudeStreamServerMsg::Failed {
+                    execution_id,
+                    error: format!("Invalid working directory: {}", dir),
+                };
+                if let Ok(json) = msg.to_json() {
+                    output_tx.send(json).await.ok();
+                }
+                return;
+            }
             cmd.current_dir(dir);
         }
 

@@ -27,24 +27,23 @@ pub struct SearchState {
     semantic_index: Arc<RwLock<SemanticIndex>>,
     /// Hybrid search engine (simplified)
     hybrid_engine: Arc<RwLock<HybridEngine>>,
+    /// Workspace path for real file indexing
+    workspace_path: Arc<parking_lot::RwLock<Option<String>>>,
 }
 
 impl SearchState {
-    /// Create new search state
-    pub fn new() -> Self {
+    /// Create new search state with workspace path
+    pub fn new(workspace_path: Arc<parking_lot::RwLock<Option<String>>>) -> Self {
         Self {
-            fts_index: Arc::new(RwLock::new(FtsIndex::new())),
+            fts_index: Arc::new(RwLock::new(FtsIndex::empty())),
             semantic_index: Arc::new(RwLock::new(SemanticIndex::new())),
-            hybrid_engine: Arc::new(RwLock::new(HybridEngine::new())),
+            hybrid_engine: Arc::new(RwLock::new(HybridEngine::empty())),
+            workspace_path,
         }
     }
 }
 
-impl Default for SearchState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+
 
 // ============================================================================
 // API Handlers
@@ -118,22 +117,68 @@ pub async fn search(
 ///
 /// Request body: IndexRequest
 pub async fn reindex(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Json(_request): Json<IndexRequest>,
 ) -> impl IntoResponse {
     let start = std::time::Instant::now();
 
-    // Simulate indexing documents
-    let documents_indexed = 42;
-    let chunks_indexed = 156;
-    let index_size_bytes = 1024 * 512;
+    // Read the workspace path
+    let workspace_path = {
+        let wp = state.search_state.workspace_path.read();
+        wp.clone()
+    };
 
-    // In a real implementation, this would:
-    // 1. Walk the workspace directory
-    // 2. Parse files by language
-    // 3. Extract code symbols and chunks
-    // 4. Generate embeddings
-    // 5. Build FTS and vector indices
+    let workspace = match workspace_path {
+        Some(p) => p,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(IndexResponse {
+                    documents_indexed: 0,
+                    chunks_indexed: 0,
+                    index_size_bytes: 0,
+                    indexing_time_ms: 0,
+                }),
+            );
+        }
+    };
+
+    // Scan workspace and index files
+    let source_extensions = ["rs", "ts", "tsx", "js", "jsx", "py", "go", "java", "md"];
+    let mut documents_indexed: usize = 0;
+    let mut chunks_indexed: usize = 0;
+    let mut new_fts_docs = Vec::new();
+
+    if let Ok(entries) = scan_source_files(&workspace, &source_extensions) {
+        for (path, content, language) in entries {
+            let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+            chunks_indexed += lines.len();
+            new_fts_docs.push(IndexedDocument {
+                id: format!("doc-{}", documents_indexed),
+                path,
+                content,
+                language: Some(language),
+                lines,
+            });
+            documents_indexed += 1;
+        }
+    }
+
+    let index_size_bytes = new_fts_docs.iter()
+        .map(|d| d.content.len())
+        .sum::<usize>();
+
+    // Update FTS index
+    {
+        let mut fts_index = state.search_state.fts_index.write().await;
+        fts_index.documents = new_fts_docs.clone();
+    }
+
+    // Update hybrid engine's FTS index
+    {
+        let mut hybrid = state.search_state.hybrid_engine.write().await;
+        hybrid.fts_index.documents = new_fts_docs;
+    }
 
     let response = IndexResponse {
         documents_indexed,
@@ -178,6 +223,7 @@ struct FtsIndex {
     documents: Vec<IndexedDocument>,
 }
 
+#[derive(Clone)]
 struct IndexedDocument {
     id: String,
     path: String,
@@ -187,33 +233,8 @@ struct IndexedDocument {
 }
 
 impl FtsIndex {
-    fn new() -> Self {
-        let mut index = Self { documents: Vec::new() };
-        // Add some sample documents for demonstration
-        index.add_sample_documents();
-        index
-    }
-
-    fn add_sample_documents(&mut self) {
-        let samples = vec![
-            ("1", "src/auth/login.ts", "export async function login(email: string, password: string) {\n  const user = await db.users.findByEmail(email);\n  if (!user) throw new Error('Invalid credentials');\n  return user;\n}", Some("TypeScript".to_string())),
-            ("2", "src/auth/logout.ts", "export async function logout(sessionId: string) {\n  await sessions.delete(sessionId);\n  return { success: true };\n}", Some("TypeScript".to_string())),
-            ("3", "src/api/users.rs", "pub fn get_user(id: UserId) -> Result<User, Error> {\n    users.find_by_id(id)\n}", Some("Rust".to_string())),
-            ("4", "src/api/users.rs", "pub async fn create_user(name: String, email: String) -> User {\n    User { id: generate_id(), name, email }\n}", Some("Rust".to_string())),
-            ("5", "src/components/Button.tsx", "export function Button({ children, onClick }: ButtonProps) {\n  return <button onClick={onClick} className=\"btn\">{children}</button>;\n}", Some("TypeScript".to_string())),
-        ];
-
-        for (id, path, content, language) in samples {
-            let content_str = content.to_string();
-            let lines: Vec<String> = content_str.lines().map(|l| l.to_string()).collect();
-            self.documents.push(IndexedDocument {
-                id: id.to_string(),
-                path: path.to_string(),
-                content: content_str,
-                language,
-                lines,
-            });
-        }
+    fn empty() -> Self {
+        Self { documents: Vec::new() }
     }
 
     fn search(&self, query: &str, _options: &SearchOptions) -> Vec<FtsSearchHit> {
@@ -250,7 +271,7 @@ impl FtsIndex {
 
 impl Default for FtsIndex {
     fn default() -> Self {
-        Self::new()
+        Self::empty()
     }
 }
 
@@ -323,9 +344,9 @@ struct HybridEngine {
 }
 
 impl HybridEngine {
-    fn new() -> Self {
+    fn empty() -> Self {
         Self {
-            fts_index: FtsIndex::new(),
+            fts_index: FtsIndex::empty(),
             semantic_index: SemanticIndex::new(),
         }
     }
@@ -384,8 +405,71 @@ impl HybridEngine {
 
 impl Default for HybridEngine {
     fn default() -> Self {
-        Self::new()
+        Self::empty()
     }
+}
+
+// ============================================================================
+// File Scanning Helper
+// ============================================================================
+
+/// Scan workspace for source files and return (path, content, language) tuples
+fn scan_source_files(
+    workspace: &str,
+    extensions: &[&str],
+) -> Result<Vec<(String, String, String)>, std::io::Error> {
+    let mut results = Vec::new();
+    scan_dir_recursive(std::path::Path::new(workspace), extensions, &mut results)?;
+    Ok(results)
+}
+
+fn scan_dir_recursive(
+    dir: &std::path::Path,
+    extensions: &[&str],
+    results: &mut Vec<(String, String, String)>,
+) -> Result<(), std::io::Error> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return Ok(()),
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+
+        // Skip hidden dirs and common non-source dirs
+        if name.starts_with('.') || name == "node_modules" || name == "target" || name == "dist" || name == "build" {
+            continue;
+        }
+
+        if path.is_dir() {
+            scan_dir_recursive(&path, extensions, results)?;
+        } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+            if extensions.contains(&ext) {
+                let language = match ext {
+                    "rs" => "Rust",
+                    "ts" | "tsx" => "TypeScript",
+                    "js" | "jsx" => "JavaScript",
+                    "py" => "Python",
+                    "go" => "Go",
+                    "java" => "Java",
+                    "md" => "Markdown",
+                    _ => "Unknown",
+                };
+                // Limit file size to 100KB
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    if content.len() <= 100_000 {
+                        results.push((
+                            path.to_string_lossy().to_string(),
+                            content,
+                            language.to_string(),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 // ============================================================================

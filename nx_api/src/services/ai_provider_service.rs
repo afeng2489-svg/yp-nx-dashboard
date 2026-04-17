@@ -150,8 +150,7 @@ impl ProviderService {
         preset_key: &str,
         api_key: &str,
     ) -> Result<AIProvider, ProviderServiceError> {
-        tracing::info!("[create_from_preset] preset_key = '{}', length = {}", preset_key, preset_key.len());
-        tracing::info!("[create_from_preset] api_key = '{}', length = {}", api_key, api_key.len());
+        tracing::info!("[create_from_preset] preset_key = '{}', api_key_length = {}", preset_key, api_key.len());
 
         let presets = Self::get_presets();
         let preset = presets

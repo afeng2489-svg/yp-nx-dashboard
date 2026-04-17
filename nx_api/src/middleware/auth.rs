@@ -7,22 +7,26 @@ use axum::{
     response::Response,
 };
 use axum::body::Body;
+use std::sync::Arc;
 
-use crate::config::ApiConfig;
+use crate::routes::AppState;
 
 /// API 密钥认证中间件
 #[derive(Clone)]
 pub struct ApiKeyAuth;
 
 impl ApiKeyAuth {
-    /// 认证中间件处理函数
+    /// 认证中间件处理函数（使用 Arc<AppState>）
     pub async fn middleware(
-        State(config): State<ApiConfig>,
-        mut request: Request<Body>,
+        State(state): State<Arc<AppState>>,
+        request: Request<Body>,
         next: Next,
     ) -> Result<Response, StatusCode> {
         // 如果没有配置 API 密钥，则跳过认证
-        let api_key = config.api_key.as_ref().ok_or(StatusCode::OK)?;
+        let api_key = match &state.api_key_config {
+            Some(key) => key,
+            None => return Ok(next.run(request).await),
+        };
 
         // 从 Authorization 头获取 API 密钥
         let auth_header = request

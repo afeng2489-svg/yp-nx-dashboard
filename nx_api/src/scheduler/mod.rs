@@ -18,6 +18,8 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 use tracing::{error, info};
 
+use crate::services::ExecutionService;
+
 /// Scheduler service for managing background tasks
 pub struct SchedulerService {
     /// Shared task queue
@@ -26,11 +28,13 @@ pub struct SchedulerService {
     shutdown_tx: broadcast::Sender<()>,
     /// Worker handles
     worker_handles: Arc<std::sync::Mutex<Vec<tokio::task::JoinHandle<()>>>>,
+    /// Execution service for workflow tasks
+    execution_service: Option<ExecutionService>,
 }
 
 impl SchedulerService {
     /// Create a new scheduler service (without spawning workers)
-    pub fn new() -> Self {
+    pub fn new(execution_service: Option<ExecutionService>) -> Self {
         let queue = create_task_queue();
         let (shutdown_tx, _) = broadcast::channel::<()>(1);
 
@@ -40,6 +44,7 @@ impl SchedulerService {
             queue,
             shutdown_tx,
             worker_handles: Arc::new(std::sync::Mutex::new(Vec::new())),
+            execution_service,
         }
     }
 
@@ -49,6 +54,7 @@ impl SchedulerService {
             Arc::clone(&self.queue),
             num_workers,
             self.shutdown_tx.subscribe(),
+            self.execution_service.clone(),
         ));
 
         info!(num_workers = num_workers, "Scheduler workers started");
@@ -166,9 +172,9 @@ use std::sync::RwLock;
 static SCHEDULER: RwLock<Option<SchedulerService>> = RwLock::new(None);
 
 /// Initialize the global scheduler
-pub fn init_scheduler() {
+pub fn init_scheduler(execution_service: Option<ExecutionService>) {
     let mut scheduler = SCHEDULER.write().unwrap();
-    *scheduler = Some(SchedulerService::new());
+    *scheduler = Some(SchedulerService::new(execution_service));
 }
 
 /// Start the global scheduler workers
