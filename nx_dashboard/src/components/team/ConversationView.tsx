@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { X, Send, Bot, User, MessageCircle, Square, Terminal as TerminalIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTeamStore, Message } from '@/stores/teamStore';
@@ -9,16 +9,126 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 
+// ── 独立输入组件，隔离重渲染 ──────────────────────────────
+interface ChatInputProps {
+  isActive: boolean;
+  onSend: (text: string) => void;
+  onCancel: () => void;
+}
+
+const ChatInput = memo(function ChatInput({ isActive, onSend, onCancel }: ChatInputProps) {
+  const [value, setValue] = useState('');
+  const isComposingRef = useRef(false);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (isComposingRef.current) return;
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (value.trim() && !isActive) {
+        onSend(value.trim());
+        setValue('');
+      }
+    }
+  };
+
+  const handleClick = () => {
+    if (isActive) {
+      onCancel();
+    } else if (value.trim()) {
+      onSend(value.trim());
+      setValue('');
+    }
+  };
+
+  return (
+    <div className="p-4 border-t border-border/50">
+      <div className="flex gap-2">
+        <textarea
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onCompositionStart={() => { isComposingRef.current = true; }}
+          onCompositionEnd={() => { isComposingRef.current = false; }}
+          placeholder={isActive ? "等待响应..." : "输入消息..."}
+          className="input-field flex-1 resize-none"
+          rows={1}
+          disabled={isActive}
+        />
+        <button
+          onClick={handleClick}
+          disabled={!isActive && !value.trim()}
+          className={cn(
+            'btn-primary px-4',
+            (!isActive && !value.trim()) ? 'opacity-50 cursor-not-allowed' : ''
+          )}
+        >
+          {isActive ? (
+            <Square className="w-4 h-4" />
+          ) : (
+            <Send className="w-4 h-4" />
+          )}
+        </button>
+      </div>
+    </div>
+  );
+});
+
+// ── 消息气泡，避免列表整体重渲染 ─────────────────────────
+const MessageBubble = memo(function MessageBubble({ message }: { message: Message }) {
+  return (
+    <div
+      className={cn(
+        'flex gap-3',
+        message.role === 'user' ? 'justify-end' : 'justify-start'
+      )}
+    >
+      {message.role === 'assistant' && (
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center flex-shrink-0">
+          <Bot className="w-4 h-4 text-white" />
+        </div>
+      )}
+      <div
+        className={cn(
+          'max-w-[80%] rounded-2xl px-4 py-2.5',
+          message.role === 'user'
+            ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white'
+            : 'bg-muted'
+        )}
+      >
+        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        {message.created_at && (
+          <p className={cn(
+            'text-xs mt-1',
+            message.role === 'user' ? 'text-white/70' : 'text-muted-foreground'
+          )}>
+            {new Date(message.created_at).toLocaleTimeString('zh-CN', {
+              hour: '2-digit',
+              minute: '2-digit'
+            })}
+          </p>
+        )}
+      </div>
+      {message.role === 'user' && (
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+          <User className="w-4 h-4 text-white" />
+        </div>
+      )}
+    </div>
+  );
+});
+
+// ── 主组件 ──────────────────────────────────────────────
 interface ConversationViewProps {
   teamId: string;
   onClose: () => void;
 }
 
 export function ConversationView({ teamId, onClose }: ConversationViewProps) {
-  const { messages, fetchMessages } = useTeamStore();
-  const [input, setInput] = useState('');
+  const fetchMessages = useTeamStore((s) => s.fetchMessages);
+  const storeMessages = useTeamStore((s) => s.messages);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [showStream, setShowStream] = useState(false);
+  const [streamInput, setStreamInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamTerminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
@@ -29,7 +139,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
   const isActive = agentExec.status === 'started' || agentExec.status === 'thinking';
 
   // Claude Stream hook for real-time output
-  const { isConnected, isExecuting, output, execute, cancel, error: streamError } = useClaudeStream({
+  const { isConnected, isExecuting, execute, cancel } = useClaudeStream({
     onOutput: (line, isError) => {
       xtermRef.current?.write(
         isError
@@ -42,16 +152,13 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
     },
   });
 
-  // Keep ref updated with latest messages
   useEffect(() => {
-    setLocalMessages(messages.filter(m => m.team_id === teamId));
-  }, [messages, teamId]);
+    setLocalMessages(storeMessages.filter(m => m.team_id === teamId));
+  }, [storeMessages, teamId]);
 
-  // When agent execution completes, refresh messages
   useEffect(() => {
     if (agentExec.status === 'completed' || agentExec.status === 'failed') {
       fetchMessages(teamId);
-      // Reset after a short delay so the thinking indicator disappears
       const timer = setTimeout(() => agentExec.reset(), 500);
       return () => clearTimeout(timer);
     }
@@ -64,6 +171,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [localMessages]);
+
   useEffect(() => {
     if (!streamTerminalRef.current) return;
 
@@ -81,11 +189,8 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
 
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
-
     terminal.open(streamTerminalRef.current);
-    requestAnimationFrame(() => {
-      fitAddon.fit();
-    });
+    requestAnimationFrame(() => fitAddon.fit());
 
     xtermRef.current = terminal;
     fitAddonRef.current = fitAddon;
@@ -94,11 +199,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
     terminal.writeln('');
 
     const resizeObserver = new ResizeObserver(() => {
-      try {
-        fitAddonRef.current?.fit();
-      } catch {
-        // Ignore fit errors during rapid resize
-      }
+      try { fitAddonRef.current?.fit(); } catch { /* ignore */ }
     });
     resizeObserver.observe(streamTerminalRef.current);
 
@@ -108,35 +209,29 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
     };
   }, []);
 
-  const handleSend = async () => {
-    if (!input.trim() || isActive) return;
+  const handleSend = useCallback((text: string) => {
+    if (!text || isActive) return;
 
     const userMessage: Message = {
       id: `temp-${Date.now()}`,
       team_id: teamId,
       role: 'user',
       message_type: 'User',
-      content: input.trim(),
+      content: text,
       created_at: new Date().toISOString(),
     };
 
     setLocalMessages(prev => [...prev, userMessage]);
-    setInput('');
+    agentExec.execute(teamId, text);
+  }, [teamId, isActive, agentExec]);
 
-    // Non-blocking — returns immediately, WS tracks progress
-    await agentExec.execute(teamId, userMessage.content);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
+  const handleCancel = useCallback(() => {
+    agentExec.cancel();
+  }, [agentExec]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-card rounded-l-2xl shadow-2xl border-l border-border/50 overflow-hidden flex flex-col animate-slide-in">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-gradient-to-r from-emerald-500/5 to-green-500/5">
@@ -174,45 +269,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
             </div>
           ) : (
             localMessages.map((message) => (
-              <div
-                key={message.id}
-                className={cn(
-                  'flex gap-3',
-                  message.role === 'user' ? 'justify-end' : 'justify-start'
-                )}
-              >
-                {message.role === 'assistant' && (
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center flex-shrink-0">
-                    <Bot className="w-4 h-4 text-white" />
-                  </div>
-                )}
-                <div
-                  className={cn(
-                    'max-w-[80%] rounded-2xl px-4 py-2.5',
-                    message.role === 'user'
-                      ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white'
-                      : 'bg-muted'
-                  )}
-                >
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                  {message.created_at && (
-                    <p className={cn(
-                      'text-xs mt-1',
-                      message.role === 'user' ? 'text-white/70' : 'text-muted-foreground'
-                    )}>
-                      {new Date(message.created_at).toLocaleTimeString('zh-CN', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                  )}
-                </div>
-                {message.role === 'user' && (
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center flex-shrink-0">
-                    <User className="w-4 h-4 text-white" />
-                  </div>
-                )}
-              </div>
+              <MessageBubble key={message.id} message={message} />
             ))
           )}
           {isActive && (
@@ -239,7 +296,6 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
         {/* Streaming Terminal Panel */}
         {showStream && (
           <div className="border-t border-border/50 bg-[#1e1e1e]">
-            {/* Stream header */}
             <div className="flex items-center justify-between px-3 py-1.5 bg-[#252526]">
               <span className="text-xs text-gray-400 flex items-center gap-1">
                 <TerminalIcon className="w-3 h-3" />
@@ -263,20 +319,18 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
                 )}
               </div>
             </div>
-            {/* Terminal */}
             <div ref={streamTerminalRef} className="h-[200px] px-2 py-1" />
-            {/* Stream input */}
             <div className="flex gap-2 p-2 bg-[#252526] border-t border-[#3c3c3c]">
               <input
                 type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
+                value={streamInput}
+                onChange={(e) => setStreamInput(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    if (isConnected && input.trim()) {
-                      execute(input.trim());
-                      setInput('');
+                    if (isConnected && streamInput.trim()) {
+                      execute(streamInput.trim());
+                      setStreamInput('');
                     }
                   }
                 }}
@@ -286,12 +340,12 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
               />
               <button
                 onClick={() => {
-                  if (input.trim()) {
-                    execute(input.trim());
-                    setInput('');
+                  if (streamInput.trim()) {
+                    execute(streamInput.trim());
+                    setStreamInput('');
                   }
                 }}
-                disabled={!input.trim() || !isConnected || isExecuting}
+                disabled={!streamInput.trim() || !isConnected || isExecuting}
                 className="px-3 py-1.5 text-sm bg-[#007acc] hover:bg-[#007acc]/80 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send className="w-3.5 h-3.5" />
@@ -300,34 +354,8 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
           </div>
         )}
 
-        {/* Input */}
-        <div className="p-4 border-t border-border/50">
-          <div className="flex gap-2">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={isActive ? "等待响应..." : "输入消息..."}
-              className="input-field flex-1 resize-none"
-              rows={1}
-              disabled={isActive}
-            />
-            <button
-              onClick={() => isActive ? agentExec.cancel() : handleSend()}
-              disabled={!isActive && !input.trim()}
-              className={cn(
-                'btn-primary px-4',
-                (!isActive && !input.trim()) ? 'opacity-50 cursor-not-allowed' : ''
-              )}
-            >
-              {isActive ? (
-                <Square className="w-4 h-4" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-            </button>
-          </div>
-        </div>
+        {/* Input — 独立组件，打字不触发消息列表/终端重渲染 */}
+        <ChatInput isActive={isActive} onSend={handleSend} onCancel={handleCancel} />
       </div>
     </div>
   );

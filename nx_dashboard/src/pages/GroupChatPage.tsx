@@ -86,6 +86,7 @@ export function GroupChatPage() {
   const [selectedSkillIndex, setSelectedSkillIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const skillHintRef = useRef<HTMLDivElement>(null);
+  const isComposingRef = useRef(false);
 
   // Create form state
   const [createForm, setCreateForm] = useState<CreateGroupSessionRequest>({
@@ -600,6 +601,7 @@ export function GroupChatPage() {
                           }
                         }}
                         onKeyDown={(e) => {
+                          if (isComposingRef.current) return;
                           if (showSkillHint) {
                             if (e.key === 'ArrowDown') {
                               e.preventDefault();
@@ -624,6 +626,8 @@ export function GroupChatPage() {
                         }}
                         placeholder="输入消息... (输入 / 触发技能)"
                         className="input flex-1 pr-20"
+                        onCompositionStart={() => { isComposingRef.current = true; }}
+                        onCompositionEnd={() => { isComposingRef.current = false; }}
                       />
                       {/* Skill hint trigger indicator */}
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
