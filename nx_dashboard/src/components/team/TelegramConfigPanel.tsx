@@ -1,82 +1,103 @@
 import { useState, useEffect } from 'react';
-import { X, Zap, Loader2, Check, Copy, ExternalLink } from 'lucide-react';
+import { X, Loader2, Check, Bot, Power, PowerOff, Save, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTeamStore, TelegramConfig } from '@/stores/teamStore';
-import { API_BASE_URL } from '@/api/constants';
+import { useTeamStore, MemberBotStatus } from '@/stores/teamStore';
 
 interface TelegramConfigPanelProps {
   teamId: string;
   onClose: () => void;
 }
 
+interface MemberRowState {
+  botToken: string;
+  chatId: string;
+  saving: boolean;
+  saved: boolean;
+  expanded: boolean;
+}
+
 export function TelegramConfigPanel({ teamId, onClose }: TelegramConfigPanelProps) {
-  const { getTelegramConfig, configureTelegram, enableTelegram, telegramConfig } = useTeamStore();
+  const { getMemberBots, configureMemberBot, toggleAllMemberBots } = useTeamStore();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [botToken, setBotToken] = useState('');
-  const [chatId, setChatId] = useState('');
-  const [enabled, setEnabled] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [members, setMembers] = useState<MemberBotStatus[]>([]);
+  const [rowStates, setRowStates] = useState<Record<string, MemberRowState>>({});
+  const [togglingAll, setTogglingAll] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadConfig();
+    loadBots();
   }, [teamId]);
 
-  const loadConfig = async () => {
+  const loadBots = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
-      const config = await getTelegramConfig(teamId);
-      if (config) {
-        setBotToken(config.bot_token || '');
-        setChatId(config.chat_id || '');
-        setEnabled(config.enabled);
+      const data = await getMemberBots(teamId);
+      setMembers(data);
+      const initial: Record<string, MemberRowState> = {};
+      for (const m of data) {
+        initial[m.role_id] = {
+          botToken: m.bot_config?.bot_token ?? '',
+          chatId: m.bot_config?.chat_id ?? '',
+          saving: false,
+          saved: false,
+          expanded: false,
+        };
       }
-    } catch (error) {
-      console.error('Failed to load Telegram config:', error);
+      setRowStates(initial);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setLoadError(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSave = async () => {
-    setSaving(true);
+  const updateRow = (roleId: string, patch: Partial<MemberRowState>) => {
+    setRowStates((prev) => ({ ...prev, [roleId]: { ...prev[roleId], ...patch } }));
+  };
+
+  const handleSaveMember = async (roleId: string) => {
+    const row = rowStates[roleId];
+    if (!row?.botToken.trim()) return;
+    updateRow(roleId, { saving: true });
     try {
-      await configureTelegram(teamId, {
-        bot_token: botToken.trim() || undefined,
-        chat_id: chatId.trim() || undefined,
-        enabled,
+      const updated = await configureMemberBot(teamId, roleId, {
+        role_id: roleId,
+        bot_token: row.botToken.trim(),
+        chat_id: row.chatId.trim() || undefined,
       });
-    } catch (error) {
-      console.error('Failed to save Telegram config:', error);
+      setMembers((prev) => prev.map((m) => (m.role_id === roleId ? updated : m)));
+      updateRow(roleId, { saved: true });
+      setTimeout(() => updateRow(roleId, { saved: false }), 2000);
+    } catch (e) {
+      console.error('Failed to save bot config', e);
     } finally {
-      setSaving(false);
+      updateRow(roleId, { saving: false });
     }
   };
 
-  const handleToggleEnabled = async () => {
-    const newEnabled = !enabled;
-    setEnabled(newEnabled);
+  const handleToggleAll = async (enabled: boolean) => {
+    setTogglingAll(true);
     try {
-      await enableTelegram(teamId, newEnabled);
-    } catch (error) {
-      setEnabled(!newEnabled);
-      console.error('Failed to toggle Telegram:', error);
+      const updated = await toggleAllMemberBots(teamId, enabled);
+      setMembers(updated);
+    } catch (e) {
+      console.error('Failed to toggle all bots', e);
+    } finally {
+      setTogglingAll(false);
     }
   };
 
-  const handleCopyWebhookUrl = () => {
-    const url = `${API_BASE_URL}/api/v1/teams/${teamId}/telegram/webhook`;
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const anyPolling = members.some((m) => m.is_polling);
+  const configuredCount = members.filter((m) => m.bot_config?.bot_token).length;
 
   if (loading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center">
         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-        <div className="relative w-full max-w-md bg-card rounded-2xl shadow-2xl border border-border/50 p-8">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground mx-auto" />
+        <div className="relative w-full max-w-2xl bg-card rounded-2xl shadow-2xl border border-border/50 p-8 flex justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
         </div>
       </div>
     );
@@ -85,128 +106,171 @@ export function TelegramConfigPanel({ teamId, onClose }: TelegramConfigPanelProp
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-card rounded-2xl shadow-2xl border border-border/50 overflow-hidden">
+      <div className="relative w-full max-w-2xl bg-card rounded-2xl shadow-2xl border border-border/50 overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-gradient-to-r from-blue-500/5 to-cyan-500/5">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-gradient-to-r from-blue-500/5 to-cyan-500/5 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 shadow-lg shadow-blue-500/25">
-              <Zap className="w-5 h-5 text-white" />
+              <Bot className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold">Telegram 配置</h2>
-              <p className="text-xs text-muted-foreground">接收团队通知</p>
+              <h2 className="text-lg font-semibold">成员 Bot 分配</h2>
+              <p className="text-xs text-muted-foreground">
+                为团队每个成员单独绑定 Telegram Bot
+                {configuredCount > 0 && ` · 已配置 ${configuredCount}/${members.length}`}
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-accent transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-6 space-y-4">
-          {/* Enable Toggle */}
-          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-500/5 to-cyan-500/5 rounded-xl border border-blue-500/10">
-            <div className="flex items-center gap-3">
-              <div className={cn(
-                'w-10 h-10 rounded-full flex items-center justify-center',
-                enabled ? 'bg-blue-500' : 'bg-muted'
-              )}>
-                <Zap className={cn('w-5 h-5', enabled ? 'text-white' : 'text-muted-foreground')} />
-              </div>
-              <div>
-                <p className="font-medium">启用 Telegram</p>
-                <p className="text-xs text-muted-foreground">
-                  {enabled ? '已启用通知推送' : '未启用'}
-                </p>
-              </div>
-            </div>
+          <div className="flex items-center gap-2">
+            {/* Toggle All */}
             <button
-              onClick={handleToggleEnabled}
+              onClick={() => handleToggleAll(!anyPolling)}
+              disabled={togglingAll || configuredCount === 0}
               className={cn(
-                'relative w-12 h-6 rounded-full transition-colors',
-                enabled ? 'bg-blue-500' : 'bg-muted'
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
+                anyPolling
+                  ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
+                  : 'bg-green-500/10 text-green-600 hover:bg-green-500/20',
+                (togglingAll || configuredCount === 0) && 'opacity-50 cursor-not-allowed'
               )}
             >
-              <div className={cn(
-                'absolute top-1 w-4 h-4 rounded-full bg-white transition-transform',
-                enabled ? 'translate-x-7' : 'translate-x-1'
-              )} />
-            </button>
-          </div>
-
-          {/* Bot Token */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Bot Token</label>
-            <input
-              type="password"
-              value={botToken}
-              onChange={(e) => setBotToken(e.target.value)}
-              placeholder="从 @BotFather 获取的 token"
-              className="input-field"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              格式: 123456789:ABCdefGHIjklMNOpqrSTUvwxyz
-            </p>
-          </div>
-
-          {/* Chat ID */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Chat ID</label>
-            <input
-              type="text"
-              value={chatId}
-              onChange={(e) => setChatId(e.target.value)}
-              placeholder="您的 Telegram Chat ID"
-              className="input-field"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              发送消息给 @userinfobot 获取您的 Chat ID
-            </p>
-          </div>
-
-          {/* Webhook URL */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Webhook URL</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={`${API_BASE_URL}/api/v1/teams/${teamId}/telegram/webhook`}
-                readOnly
-                className="input-field flex-1 text-xs"
-              />
-              <button
-                onClick={handleCopyWebhookUrl}
-                className="btn-secondary px-3"
-                title="复制"
-              >
-                {copied ? (
-                  <Check className="w-4 h-4 text-green-500" />
-                ) : (
-                  <Copy className="w-4 h-4" />
-                )}
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              在 Telegram Bot 设置中配置此 webhook URL
-            </p>
-          </div>
-
-          {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-border/50">
-            <button onClick={onClose} className="btn-secondary">
-              取消
-            </button>
-            <button onClick={handleSave} disabled={saving} className="btn-primary">
-              {saving ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  保存中...
-                </>
+              {togglingAll ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : anyPolling ? (
+                <PowerOff className="w-3.5 h-3.5" />
               ) : (
-                <>保存</>
+                <Power className="w-3.5 h-3.5" />
               )}
+              {anyPolling ? '全部停止' : '全部启动'}
+            </button>
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-accent transition-colors">
+              <X className="w-5 h-5" />
             </button>
           </div>
+        </div>
+
+        {/* Members List */}
+        <div className="overflow-y-auto flex-1 p-4 space-y-2">
+          {members.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Bot className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              {loadError ? (
+                <p className="text-red-500 text-sm">{loadError}</p>
+              ) : (
+                <p>该团队暂无成员</p>
+              )}
+            </div>
+          ) : (
+            members.map((member) => {
+              const row = rowStates[member.role_id];
+              if (!row) return null;
+              const hasToken = !!member.bot_config?.bot_token;
+
+              return (
+                <div
+                  key={member.role_id}
+                  className={cn(
+                    'rounded-xl border transition-all',
+                    member.is_polling
+                      ? 'border-green-500/30 bg-green-500/5'
+                      : hasToken
+                      ? 'border-blue-500/20 bg-blue-500/5'
+                      : 'border-border/50 bg-card'
+                  )}
+                >
+                  {/* Row Header */}
+                  <div
+                    className="flex items-center gap-3 px-4 py-3 cursor-pointer"
+                    onClick={() => updateRow(member.role_id, { expanded: !row.expanded })}
+                  >
+                    {/* Status dot */}
+                    <div className={cn(
+                      'w-2.5 h-2.5 rounded-full flex-shrink-0',
+                      member.is_polling ? 'bg-green-500 animate-pulse' : hasToken ? 'bg-blue-400' : 'bg-muted-foreground/30'
+                    )} />
+                    <span className="font-medium flex-1">{member.role_name}</span>
+                    <span className={cn(
+                      'text-xs px-2 py-0.5 rounded-full',
+                      member.is_polling
+                        ? 'bg-green-500/15 text-green-600'
+                        : hasToken
+                        ? 'bg-blue-500/15 text-blue-600'
+                        : 'bg-muted text-muted-foreground'
+                    )}>
+                      {member.is_polling ? '运行中' : hasToken ? '已配置' : '未配置'}
+                    </span>
+                    {row.expanded ? (
+                      <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                    )}
+                  </div>
+
+                  {/* Expanded Config */}
+                  {row.expanded && (
+                    <div className="px-4 pb-4 space-y-3 border-t border-border/30 pt-3">
+                      <div>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                          Bot Token
+                        </label>
+                        <input
+                          type="password"
+                          value={row.botToken}
+                          onChange={(e) => updateRow(member.role_id, { botToken: e.target.value })}
+                          placeholder="从 @BotFather 获取"
+                          className="input-field text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                          Chat ID
+                        </label>
+                        <input
+                          type="text"
+                          value={row.chatId}
+                          onChange={(e) => updateRow(member.role_id, { chatId: e.target.value })}
+                          placeholder="填写要接收消息的 Chat ID"
+                          className="input-field text-sm"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          先给该 Bot 发一条消息，再访问 https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates 查看 chat.id
+                        </p>
+                      </div>
+                      <div className="flex justify-end">
+                        <button
+                          onClick={() => handleSaveMember(member.role_id)}
+                          disabled={row.saving || !row.botToken.trim()}
+                          className={cn(
+                            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
+                            row.saved
+                              ? 'bg-green-500/15 text-green-600'
+                              : 'btn-primary',
+                            (row.saving || !row.botToken.trim()) && 'opacity-50 cursor-not-allowed'
+                          )}
+                        >
+                          {row.saving ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : row.saved ? (
+                            <Check className="w-3.5 h-3.5" />
+                          ) : (
+                            <Save className="w-3.5 h-3.5" />
+                          )}
+                          {row.saved ? '已保存' : '保存'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Footer hint */}
+        <div className="px-6 py-3 border-t border-border/50 bg-muted/30 flex-shrink-0">
+          <p className="text-xs text-muted-foreground">
+            每个成员绑定独立 Bot Token，保存后可通过"全部启动"开启轮询接收消息
+          </p>
         </div>
       </div>
     </div>

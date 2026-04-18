@@ -28,7 +28,7 @@ pub struct SearchState {
     /// Hybrid search engine (simplified)
     hybrid_engine: Arc<RwLock<HybridEngine>>,
     /// Workspace path for real file indexing
-    workspace_path: Arc<parking_lot::RwLock<Option<String>>>,
+    pub(crate) workspace_path: Arc<parking_lot::RwLock<Option<String>>>,
 }
 
 impl SearchState {
@@ -40,6 +40,76 @@ impl SearchState {
             hybrid_engine: Arc::new(RwLock::new(HybridEngine::empty())),
             workspace_path,
         }
+    }
+
+    /// Reindex a workspace directory, building FTS and semantic indices
+    /// Returns (documents_indexed, chunks_indexed, index_size_bytes)
+    pub async fn reindex_workspace(&self, workspace: &str) -> (usize, usize, usize) {
+        let source_extensions = ["rs", "ts", "tsx", "js", "jsx", "py", "go", "java", "md"];
+        let mut documents_indexed: usize = 0;
+        let mut chunks_indexed: usize = 0;
+        let mut new_fts_docs = Vec::new();
+        let mut new_semantic_docs = Vec::new();
+        let chunk_size = 20;
+
+        if let Ok(entries) = scan_source_files(workspace, &source_extensions) {
+            for (path, content, language) in entries {
+                let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+                chunks_indexed += lines.len();
+
+                let mut chunks = Vec::new();
+                for (chunk_idx, chunk_lines) in lines.chunks(chunk_size).enumerate() {
+                    let start_line = chunk_idx * chunk_size + 1;
+                    let end_line = start_line + chunk_lines.len() - 1;
+                    chunks.push(SemanticChunk {
+                        id: format!("chunk-{}-{}", documents_indexed, chunk_idx),
+                        content: chunk_lines.join("\n"),
+                        start_line,
+                        end_line,
+                        vector: vec![],
+                    });
+                }
+
+                new_semantic_docs.push(SemanticDocument {
+                    id: format!("doc-{}", documents_indexed),
+                    path: path.clone(),
+                    chunks,
+                    language: Some(language.clone()),
+                });
+
+                new_fts_docs.push(IndexedDocument {
+                    id: format!("doc-{}", documents_indexed),
+                    path,
+                    content,
+                    language: Some(language),
+                    lines,
+                });
+                documents_indexed += 1;
+            }
+        }
+
+        let index_size_bytes = new_fts_docs.iter()
+            .map(|d| d.content.len())
+            .sum::<usize>();
+
+        // Update FTS index
+        {
+            let mut fts_index = self.fts_index.write().await;
+            fts_index.documents = new_fts_docs.clone();
+        }
+        // Update semantic index
+        {
+            let mut semantic_index = self.semantic_index.write().await;
+            semantic_index.documents = new_semantic_docs.clone();
+        }
+        // Update hybrid engine
+        {
+            let mut hybrid = self.hybrid_engine.write().await;
+            hybrid.fts_index.documents = new_fts_docs;
+            hybrid.semantic_index.documents = new_semantic_docs;
+        }
+
+        (documents_indexed, chunks_indexed, index_size_bytes)
     }
 }
 
@@ -101,10 +171,11 @@ pub async fn search(
 
     let search_time_ms = start.elapsed().as_millis() as u64;
 
+    let total_hits = results.len();
     let response = SearchResult {
         query: query.clone(),
         results,
-        total_hits: 0, // Will be set by each search implementation
+        total_hits,
         search_time_ms,
         search_mode: mode,
         available_modes: vec![SearchMode::FTS, SearchMode::Semantic, SearchMode::Hybrid],
@@ -118,67 +189,37 @@ pub async fn search(
 /// Request body: IndexRequest
 pub async fn reindex(
     State(state): State<Arc<AppState>>,
-    Json(_request): Json<IndexRequest>,
+    Json(request): Json<IndexRequest>,
 ) -> impl IntoResponse {
     let start = std::time::Instant::now();
 
-    // Read the workspace path
-    let workspace_path = {
+    // 优先使用请求中的 workspace_path，否则用 state 中的默认值
+    let workspace = if !request.workspace_path.is_empty() {
+        {
+            let mut wp = state.search_state.workspace_path.write();
+            *wp = Some(request.workspace_path.clone());
+        }
+        request.workspace_path.clone()
+    } else {
         let wp = state.search_state.workspace_path.read();
-        wp.clone()
-    };
-
-    let workspace = match workspace_path {
-        Some(p) => p,
-        None => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(IndexResponse {
-                    documents_indexed: 0,
-                    chunks_indexed: 0,
-                    index_size_bytes: 0,
-                    indexing_time_ms: 0,
-                }),
-            );
+        match wp.clone() {
+            Some(p) => p,
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(IndexResponse {
+                        documents_indexed: 0,
+                        chunks_indexed: 0,
+                        index_size_bytes: 0,
+                        indexing_time_ms: 0,
+                    }),
+                );
+            }
         }
     };
 
-    // Scan workspace and index files
-    let source_extensions = ["rs", "ts", "tsx", "js", "jsx", "py", "go", "java", "md"];
-    let mut documents_indexed: usize = 0;
-    let mut chunks_indexed: usize = 0;
-    let mut new_fts_docs = Vec::new();
-
-    if let Ok(entries) = scan_source_files(&workspace, &source_extensions) {
-        for (path, content, language) in entries {
-            let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
-            chunks_indexed += lines.len();
-            new_fts_docs.push(IndexedDocument {
-                id: format!("doc-{}", documents_indexed),
-                path,
-                content,
-                language: Some(language),
-                lines,
-            });
-            documents_indexed += 1;
-        }
-    }
-
-    let index_size_bytes = new_fts_docs.iter()
-        .map(|d| d.content.len())
-        .sum::<usize>();
-
-    // Update FTS index
-    {
-        let mut fts_index = state.search_state.fts_index.write().await;
-        fts_index.documents = new_fts_docs.clone();
-    }
-
-    // Update hybrid engine's FTS index
-    {
-        let mut hybrid = state.search_state.hybrid_engine.write().await;
-        hybrid.fts_index.documents = new_fts_docs;
-    }
+    let (documents_indexed, chunks_indexed, index_size_bytes) =
+        state.search_state.reindex_workspace(&workspace).await;
 
     let response = IndexResponse {
         documents_indexed,
@@ -237,34 +278,54 @@ impl FtsIndex {
         Self { documents: Vec::new() }
     }
 
-    fn search(&self, query: &str, _options: &SearchOptions) -> Vec<FtsSearchHit> {
+    fn search(&self, query: &str, options: &SearchOptions) -> Vec<FtsSearchHit> {
         let query_lower = query.to_lowercase();
+        let query_terms: Vec<&str> = query_lower.split_whitespace().collect();
+        let limit = options.limit.unwrap_or(20);
+        let min_score = options.min_score.unwrap_or(0.1);
         let mut results = Vec::new();
 
         for doc in &self.documents {
-            for (line_num, line) in doc.lines.iter().enumerate() {
-                if line.to_lowercase().contains(&query_lower) {
-                    let score = if line.to_lowercase().starts_with(&query_lower) {
-                        1.0
-                    } else {
-                        0.5
-                    };
-
-                    results.push(FtsSearchHit {
-                        document_id: doc.id.clone(),
-                        file: doc.path.clone(),
-                        line_number: line_num + 1,
-                        snippet: line.clone(),
-                        score,
-                        matched_terms: vec![query.to_string()],
-                        language: doc.language.clone(),
-                    });
+            // 语言过滤
+            if let Some(ref lang_filter) = options.language_filter {
+                if let Some(ref doc_lang) = doc.language {
+                    if !lang_filter.iter().any(|l| l.eq_ignore_ascii_case(doc_lang)) {
+                        continue;
+                    }
                 }
+            }
+
+            for (line_num, line) in doc.lines.iter().enumerate() {
+                let line_lower = line.to_lowercase();
+                let matched: Vec<&str> = query_terms.iter()
+                    .filter(|t| line_lower.contains(*t))
+                    .copied()
+                    .collect();
+                if matched.is_empty() { continue; }
+
+                // 评分: term 匹配率 + 完全匹配 bonus + 行首匹配 bonus
+                let term_ratio = matched.len() as f32 / query_terms.len().max(1) as f32;
+                let exact_bonus = if line_lower.contains(&query_lower) { 0.3 } else { 0.0 };
+                let start_bonus = if line_lower.trim_start().starts_with(&query_lower) { 0.2 } else { 0.0 };
+                let score = (term_ratio * 0.5 + exact_bonus + start_bonus).min(1.0);
+
+                if score < min_score { continue; }
+
+                results.push(FtsSearchHit {
+                    document_id: doc.id.clone(),
+                    file: doc.path.clone(),
+                    line_number: line_num + 1,
+                    snippet: line.clone(),
+                    score,
+                    matched_terms: matched.iter().map(|s| s.to_string()).collect(),
+                    language: doc.language.clone(),
+                });
             }
         }
 
         // Sort by score descending
         results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.truncate(limit);
         results
     }
 }
@@ -280,6 +341,7 @@ struct SemanticIndex {
     documents: Vec<SemanticDocument>,
 }
 
+#[derive(Clone)]
 struct SemanticDocument {
     id: String,
     path: String,
@@ -287,6 +349,7 @@ struct SemanticDocument {
     language: Option<String>,
 }
 
+#[derive(Clone)]
 struct SemanticChunk {
     id: String,
     content: String,
@@ -301,31 +364,53 @@ impl SemanticIndex {
     }
 
     fn search(&self, query: &str, options: &SearchOptions) -> Vec<SemanticSearchHit> {
-        // Simplified: generate mock embeddings and return results
         let limit = options.limit.unwrap_or(20);
+        let min_score = options.min_score.unwrap_or(0.1);
+        let query_lower = query.to_lowercase();
+        let query_terms: Vec<&str> = query_lower.split_whitespace().collect();
 
         let mut results = Vec::new();
         for doc in &self.documents {
-            for chunk in &doc.chunks {
-                // In real implementation, would compute cosine similarity
-                // For mock, just check if query appears in content
-                if chunk.content.to_lowercase().contains(&query.to_lowercase()) {
-                    results.push(SemanticSearchHit {
-                        chunk_id: chunk.id.clone(),
-                        document_id: doc.id.clone(),
-                        file: doc.path.clone(),
-                        start_line: chunk.start_line,
-                        end_line: chunk.end_line,
-                        snippet: chunk.content.clone(),
-                        semantic_score: 0.85,
-                        relevance_score: Some(0.85),
-                        language: doc.language.clone(),
-                        symbol_context: None,
-                    });
+            // 语言过滤
+            if let Some(ref lang_filter) = options.language_filter {
+                if let Some(ref doc_lang) = doc.language {
+                    if !lang_filter.iter().any(|l| l.eq_ignore_ascii_case(doc_lang)) {
+                        continue;
+                    }
                 }
+            }
+
+            for chunk in &doc.chunks {
+                let chunk_lower = chunk.content.to_lowercase();
+                let matched_count = query_terms.iter()
+                    .filter(|t| chunk_lower.contains(*t))
+                    .count();
+                if matched_count == 0 { continue; }
+
+                // 基于 term 匹配率 + 词密度计算评分
+                let term_ratio = matched_count as f32 / query_terms.len().max(1) as f32;
+                let total_words = chunk_lower.split_whitespace().count().max(1) as f32;
+                let density = matched_count as f32 / total_words;
+                let score = (term_ratio * 0.6 + density * 0.4).min(1.0);
+
+                if score < min_score { continue; }
+
+                results.push(SemanticSearchHit {
+                    chunk_id: chunk.id.clone(),
+                    document_id: doc.id.clone(),
+                    file: doc.path.clone(),
+                    start_line: chunk.start_line,
+                    end_line: chunk.end_line,
+                    snippet: chunk.content.clone(),
+                    semantic_score: score,
+                    relevance_score: Some(score),
+                    language: doc.language.clone(),
+                    symbol_context: None,
+                });
             }
         }
 
+        results.sort_by(|a, b| b.semantic_score.partial_cmp(&a.semantic_score).unwrap_or(std::cmp::Ordering::Equal));
         results.truncate(limit);
         results
     }

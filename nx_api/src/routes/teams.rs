@@ -18,6 +18,25 @@ use crate::models::team::{
     ExecuteRoleTaskResponse, ExecuteTeamTaskRequest, SkillPriority, Team, TeamMessage, TeamRole,
     TelegramBotConfig, TelegramConfigRequest, UpdateRoleRequest, UpdateTeamRequest,
 };
+
+/// Bot status for a single team member
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct MemberBotStatus {
+    pub role_id: String,
+    pub role_name: String,
+    pub bot_config: Option<TelegramBotConfig>,
+    pub is_polling: bool,
+}
+
+/// Configure a single member's bot (used in batch request)
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct MemberBotConfigItem {
+    pub role_id: String,
+    pub bot_token: String,
+    pub chat_id: Option<String>,
+    pub notifications_enabled: Option<bool>,
+    pub conversation_enabled: Option<bool>,
+}
 use crate::routes::AppState;
 use crate::services::team_service::{RoleWithSkills, TeamWithRoles};
 
@@ -986,6 +1005,104 @@ pub async fn enable_team_telegram(
     }
 
     Ok(Json(config))
+}
+
+/// Get bot status for all members of a team
+pub async fn get_team_member_bots(
+    State(state): State<Arc<AppState>>,
+    Path(team_id): Path<String>,
+) -> ApiResponse<Vec<MemberBotStatus>> {
+    let roles = state.teams_state.team_service.list_roles(&team_id)
+        .map_err(|e| AppError::from(e))?;
+
+    let statuses = roles
+        .into_iter()
+        .map(|role| {
+            let bot_config = state.teams_state.team_service.get_telegram_config(&role.id).ok();
+            let is_polling = state.teams_state.telegram_service.is_polling(&role.id);
+            MemberBotStatus {
+                role_id: role.id.clone(),
+                role_name: role.name.clone(),
+                bot_config,
+                is_polling,
+            }
+        })
+        .collect();
+
+    Ok(Json(statuses))
+}
+
+/// Configure bot for a specific member in a team
+pub async fn configure_member_bot(
+    State(state): State<Arc<AppState>>,
+    Path((team_id, role_id)): Path<(String, String)>,
+    Json(request): Json<MemberBotConfigItem>,
+) -> ApiResponse<MemberBotStatus> {
+    // Verify role belongs to this team
+    let roles = state.teams_state.team_service.list_roles(&team_id)
+        .map_err(|e| AppError::from(e))?;
+    if !roles.iter().any(|r| r.id == role_id) {
+        return Err(AppError {
+            status: StatusCode::NOT_FOUND,
+            message: format!("Role {} not found in team {}", role_id, team_id),
+        });
+    }
+
+    let bot_config = state.teams_state.team_service.configure_telegram(
+        &role_id,
+        request.bot_token,
+        request.chat_id,
+        request.notifications_enabled,
+        request.conversation_enabled,
+    ).map_err(|e| AppError::from(e))?;
+
+    let role = roles.into_iter().find(|r| r.id == role_id).unwrap();
+    let is_polling = state.teams_state.telegram_service.is_polling(&role_id);
+
+    Ok(Json(MemberBotStatus {
+        role_id,
+        role_name: role.name,
+        bot_config: Some(bot_config),
+        is_polling,
+    }))
+}
+
+/// Toggle bot polling for all members in a team
+pub async fn toggle_all_member_bots(
+    State(state): State<Arc<AppState>>,
+    Path((team_id, enabled)): Path<(String, bool)>,
+) -> ApiResponse<Vec<MemberBotStatus>> {
+    let roles = state.teams_state.team_service.list_roles(&team_id)
+        .map_err(|e| AppError::from(e))?;
+
+    let mut statuses = Vec::new();
+    for role in &roles {
+        let config_result = state.teams_state.team_service.enable_telegram(&role.id, enabled);
+        let bot_config = match config_result {
+            Ok(cfg) => {
+                if enabled {
+                    state.teams_state.telegram_service.start_polling(role.id.clone(), cfg.bot_token.clone());
+                } else {
+                    state.teams_state.telegram_service.stop_polling(&role.id);
+                }
+                Some(cfg)
+            }
+            Err(_) => {
+                // Role has no bot configured — skip silently
+                None
+            }
+        };
+
+        let is_polling = state.teams_state.telegram_service.is_polling(&role.id);
+        statuses.push(MemberBotStatus {
+            role_id: role.id.clone(),
+            role_name: role.name.clone(),
+            bot_config,
+            is_polling,
+        });
+    }
+
+    Ok(Json(statuses))
 }
 
 /// Send a test message via Telegram

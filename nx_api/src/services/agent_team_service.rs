@@ -393,28 +393,53 @@ Return your response directly. If using a skill, invoke it according to its exec
         // 获取当前工作区路径
         let working_dir = self.current_workspace_path.read().clone();
 
-        // Single Claude CLI call (同步等待)
+        // Register process for monitoring
+        let execution_id = format!("team-{}", uuid::Uuid::new_v4());
+        let first_role_name = team_with_roles.roles.first().map(|r| r.role.name.clone()).unwrap_or_else(|| "dispatcher".to_string());
+        self.register_process(&execution_id, &team.id, &first_role_name, &team.id, &request.task);
+
+        // Single Claude CLI call — use spawn() to capture PID
         let mut cmd = tokio::process::Command::new("claude");
         cmd.args(["-p", "--dangerously-skip-permissions", &full_prompt]);
+        cmd.stdin(std::process::Stdio::null());
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
         if let Some(ref dir) = working_dir {
             cmd.current_dir(dir);
             tracing::info!("[AgentTeam] 执行 Claude CLI，当前目录: {}", dir);
         }
-        // 设置 120 秒超时，防止请求挂起
-        let output = timeout(Duration::from_secs(120), cmd.output()).await;
+
+        let mut child = cmd.spawn()
+            .map_err(|e| {
+                self.set_process_status(&execution_id, ProcessStatus::Failed);
+                AgentTeamServiceError::AiError(format!("Failed to spawn Claude CLI: {}", e))
+            })?;
+
+        // Capture PID for process monitoring
+        if let Some(pid) = child.id() {
+            self.set_process_pid(&execution_id, pid);
+        }
+
+        // Wait with timeout
+        let output = timeout(Duration::from_secs(120), child.wait_with_output()).await;
 
         let response = match output {
             Ok(Ok(out)) if out.status.success() => {
-                String::from_utf8_lossy(&out.stdout).trim().to_string()
+                let resp = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                self.complete_process(&execution_id, &resp);
+                resp
             }
             Ok(Ok(out)) => {
                 let stderr = String::from_utf8_lossy(&out.stderr);
+                self.set_process_status(&execution_id, ProcessStatus::Failed);
                 return Err(AgentTeamServiceError::AiError(stderr.to_string()));
             }
             Ok(Err(e)) => {
+                self.set_process_status(&execution_id, ProcessStatus::Failed);
                 return Err(AgentTeamServiceError::AiError(format!("Failed to execute Claude CLI: {}", e)));
             }
             Err(_) => {
+                self.set_process_status(&execution_id, ProcessStatus::Failed);
                 return Err(AgentTeamServiceError::AiError("Claude CLI execution timeout after 120 seconds".to_string()));
             }
         };
@@ -570,15 +595,30 @@ Return your response directly. If using a skill, invoke it according to its exec
         cmd.args(["-p", "--dangerously-skip-permissions", &full_prompt]);
         // 不继承 stdin，避免挂起
         cmd.stdin(std::process::Stdio::null());
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
         if let Some(ref dir) = working_dir {
             cmd.current_dir(dir);
             tracing::info!("[AgentTeam] 执行 Claude CLI，当前目录: {}", dir);
         }
 
+        // Use spawn() to capture PID for process monitoring
+        println!("[AGENT-5b] About to spawn cmd...");
+        tracing::info!("[AgentTeamService-5b] About to spawn...");
+        let mut child = cmd.spawn()
+            .map_err(|e| {
+                self.set_process_status(&execution_id, ProcessStatus::Failed);
+                AgentTeamServiceError::AiError(format!("Failed to spawn Claude CLI: {}", e))
+            })?;
+
+        // Capture PID
+        if let Some(pid) = child.id() {
+            self.set_process_pid(&execution_id, pid);
+            tracing::info!("[AgentTeam] Process PID: {}", pid);
+        }
+
         // 设置 120 秒超时
-        println!("[AGENT-5b] About to call timeout(cmd.output())...");
-        tracing::info!("[AgentTeamService-5b] About to call timeout...");
-        let output = timeout(Duration::from_secs(120), cmd.output()).await;
+        let output = timeout(Duration::from_secs(120), child.wait_with_output()).await;
 
         println!("[AGENT-6] timeout() returned");
         tracing::info!("[AgentTeamService-6] timeout() returned");
@@ -593,11 +633,13 @@ Return your response directly. If using a skill, invoke it according to its exec
             Ok(Err(e)) => {
                 println!("[DEBUG] cmd.output() error: {:?}", e);
                 tracing::error!("[AgentTeam] cmd.output() error: {:?}", e);
+                self.set_process_status(&execution_id, ProcessStatus::Failed);
                 return Err(AgentTeamServiceError::AiError(format!("cmd.output() error: {}", e)));
             }
             Err(_) => {
                 println!("[DEBUG] TIMEOUT after 120 seconds!");
                 tracing::error!("[AgentTeam] TIMEOUT after 120 seconds!");
+                self.set_process_status(&execution_id, ProcessStatus::Failed);
                 return Err(AgentTeamServiceError::AiError("Claude CLI execution timeout after 120 seconds".to_string()));
             }
         };
@@ -609,7 +651,9 @@ Return your response directly. If using a skill, invoke it according to its exec
             true => {
                 println!("[DEBUG] Claude CLI success");
                 tracing::info!("[AgentTeam] Claude CLI success");
-                String::from_utf8_lossy(&output.stdout).trim().to_string()
+                let resp = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                self.complete_process(&execution_id, &resp);
+                resp
             }
             false => {
                 let stderr = String::from_utf8_lossy(&output.stderr);
@@ -708,10 +752,26 @@ Return your response directly. If using a skill, invoke it according to its exec
         );
         let _ = self.team_service.add_message(assistant_msg);
 
-        // Send response via Telegram
+        // Send response via Telegram (reply to the original message in groups)
         if let Some(chat_id) = &config.chat_id {
             self.telegram_service
-                .send_message(&config.bot_token, chat_id, &response)
+                .send_message_with_reply(
+                    &config.bot_token,
+                    chat_id,
+                    &response,
+                    message.message_id,
+                )
+                .await
+                .map_err(|e| AgentTeamServiceError::Telegram(e.to_string()))?;
+        } else {
+            // No configured chat_id — reply to the chat the message came from
+            self.telegram_service
+                .send_message_with_reply(
+                    &config.bot_token,
+                    &message.chat_id.to_string(),
+                    &response,
+                    message.message_id,
+                )
                 .await
                 .map_err(|e| AgentTeamServiceError::Telegram(e.to_string()))?;
         }

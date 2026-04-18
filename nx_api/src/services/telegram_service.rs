@@ -12,7 +12,14 @@ use thiserror::Error;
 use tokio::sync::broadcast;
 use tokio::time::{sleep, Duration};
 
-use crate::models::team::{TelegramBotConfig, TelegramUpdate};
+use crate::models::team::TelegramBotConfig;
+
+/// Cached bot identity from getMe
+#[derive(Debug, Clone)]
+pub struct BotIdentity {
+    pub user_id: i64,
+    pub username: String,
+}
 
 /// Telegram API error
 #[derive(Debug, Error)]
@@ -49,6 +56,7 @@ pub struct InboundTelegramMessage {
     pub chat_id: i64,
     pub text: String,
     pub update_id: i64,
+    pub message_id: Option<i64>,
 }
 
 /// Telegram service for Bot API integration
@@ -61,6 +69,8 @@ pub struct TelegramService {
     message_sender: broadcast::Sender<InboundTelegramMessage>,
     /// Active polling tasks: role_id -> shutdown oneshot sender (drop to signal stop)
     active_polls: Arc<RwLock<HashMap<String, tokio::sync::oneshot::Sender<()>>>>,
+    /// Cached bot identities: bot_token -> BotIdentity (user_id + username)
+    bot_identities: Arc<RwLock<HashMap<String, BotIdentity>>>,
 }
 
 impl TelegramService {
@@ -72,6 +82,7 @@ impl TelegramService {
             offsets: Arc::new(RwLock::new(HashMap::new())),
             message_sender,
             active_polls: Arc::new(RwLock::new(HashMap::new())),
+            bot_identities: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -82,6 +93,7 @@ impl TelegramService {
 
     /// Start long polling for a specific bot in the background.
     /// If polling is already running for this role_id, does nothing.
+    /// Calls getMe first to cache bot identity for @mention filtering in groups.
     /// Returns immediately.
     pub fn start_polling(&self, role_id: String, bot_token: String) {
         // Check if already polling
@@ -96,6 +108,7 @@ impl TelegramService {
         let offsets = Arc::clone(&self.offsets);
         let message_sender = self.message_sender.clone();
         let active_polls = Arc::clone(&self.active_polls);
+        let bot_identities = Arc::clone(&self.bot_identities);
 
         // Create shutdown channel
         let (shutdown_tx, mut shutdown_rx) = tokio::sync::oneshot::channel();
@@ -113,6 +126,27 @@ impl TelegramService {
                 .build()
                 .unwrap_or_else(|_| Client::new());
 
+            // Call getMe to cache bot identity (needed for @mention filtering)
+            let bot_identity = Self::get_me_inner(&client, &bot_token).await;
+            match &bot_identity {
+                Ok(identity) => {
+                    tracing::info!(
+                        "Bot identity for role {}: @{} (id={})",
+                        role_id, identity.username, identity.user_id
+                    );
+                    let mut identities = bot_identities.write();
+                    identities.insert(bot_token.clone(), identity.clone());
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to get bot identity for role {}: {} — group @mention filtering disabled",
+                        role_id, e
+                    );
+                }
+            }
+
+            let bot_id = bot_identity.as_ref().ok().cloned();
+
             let mut offset = {
                 let offsets_guard = offsets.read();
                 offsets_guard.get(&bot_token).copied().unwrap_or(0)
@@ -120,10 +154,8 @@ impl TelegramService {
 
             tracing::info!("Starting Telegram long polling for role {}", role_id);
 
-            // Convert oneshot to broadcast-like behavior by polling the receiver each iteration
             loop {
                 tokio::select! {
-                    // Create a new biased recv on each iteration by shadowing
                     _ = &mut shutdown_rx => {
                         tracing::info!("Long polling shutdown for role {}", role_id);
                         break;
@@ -134,17 +166,48 @@ impl TelegramService {
                                 for update in &new_updates {
                                     offset = update.update_id + 1;
 
-                                    if let Some(text) = &update.text {
-                                        if !text.is_empty() {
-                                            let inbound = InboundTelegramMessage {
-                                                role_id: role_id.clone(),
-                                                chat_id: update.chat_id,
-                                                text: text.clone(),
-                                                update_id: update.update_id,
-                                            };
-                                            let _ = message_sender.send(inbound);
+                                    // Skip updates without a message
+                                    let text = match update.text() {
+                                        Some(t) if !t.is_empty() => t.to_string(),
+                                        _ => continue,
+                                    };
+
+                                    let chat_id = match update.chat_id() {
+                                        Some(id) => id,
+                                        None => continue,
+                                    };
+
+                                    // Group chat filtering: only respond if @mentioned or replied to
+                                    if !update.is_private_chat() {
+                                        let should_respond = if let Some(ref identity) = bot_id {
+                                            update.mentions_bot(&identity.username)
+                                                || update.is_reply_to_bot(identity.user_id)
+                                        } else {
+                                            // No identity cached — skip group messages to avoid spam
+                                            false
+                                        };
+
+                                        if !should_respond {
+                                            continue;
                                         }
                                     }
+
+                                    // Strip @mention from text for cleaner AI input
+                                    let clean_text = if let Some(ref identity) = bot_id {
+                                        update.text_without_mention(&identity.username)
+                                            .unwrap_or(text)
+                                    } else {
+                                        text
+                                    };
+
+                                    let inbound = InboundTelegramMessage {
+                                        role_id: role_id.clone(),
+                                        chat_id,
+                                        text: clean_text,
+                                        update_id: update.update_id,
+                                        message_id: update.message_id(),
+                                    };
+                                    let _ = message_sender.send(inbound);
                                 }
 
                                 // Persist offset
@@ -191,7 +254,7 @@ impl TelegramService {
         client: &Client,
         bot_token: &str,
         offset: i64,
-    ) -> Result<Vec<TelegramUpdate>, TelegramError> {
+    ) -> Result<Vec<crate::models::team::TelegramUpdate>, TelegramError> {
         let url = format!("https://api.telegram.org/bot{}/getUpdates", bot_token);
         let mut url_with_offset = format!("{}?timeout=30", url);
         if offset > 0 {
@@ -202,7 +265,7 @@ impl TelegramService {
             .get(&url_with_offset)
             .send()
             .await?
-            .json::<TelegramResponse<Vec<TelegramUpdate>>>()
+            .json::<TelegramResponse<Vec<crate::models::team::TelegramUpdate>>>()
             .await?;
 
         if !response.ok {
@@ -215,24 +278,72 @@ impl TelegramService {
         Ok(response.result.unwrap_or_default())
     }
 
-    /// Send a message via a bot
+    /// Call getMe to get bot identity (user_id + username)
+    async fn get_me_inner(
+        client: &Client,
+        bot_token: &str,
+    ) -> Result<BotIdentity, TelegramError> {
+        let url = format!("https://api.telegram.org/bot{}/getMe", bot_token);
+        let response = client.get(&url).send().await?;
+
+        #[derive(Deserialize)]
+        struct GetMeResult {
+            id: i64,
+            username: Option<String>,
+        }
+
+        let api_response: TelegramResponse<GetMeResult> = response.json().await?;
+
+        if !api_response.ok {
+            return Err(TelegramError::Api {
+                code: api_response.error_code.unwrap_or(0),
+                message: api_response.description.unwrap_or_default(),
+            });
+        }
+
+        let result = api_response
+            .result
+            .ok_or(TelegramError::InvalidToken)?;
+
+        Ok(BotIdentity {
+            user_id: result.id,
+            username: result.username.unwrap_or_default(),
+        })
+    }
+
+    /// Send a message via a bot, optionally as a reply to a specific message
     pub async fn send_message(
         &self,
         bot_token: &str,
         chat_id: &str,
         text: &str,
     ) -> Result<(), TelegramError> {
+        self.send_message_with_reply(bot_token, chat_id, text, None).await
+    }
+
+    /// Send a message via a bot with optional reply_to_message_id
+    pub async fn send_message_with_reply(
+        &self,
+        bot_token: &str,
+        chat_id: &str,
+        text: &str,
+        reply_to_message_id: Option<i64>,
+    ) -> Result<(), TelegramError> {
         let url = format!("https://api.telegram.org/bot{}/sendMessage", bot_token);
 
-        let params = serde_json::json!({
+        let mut params = serde_json::json!({
             "chat_id": chat_id,
             "text": text,
             "parse_mode": "Markdown",
         });
 
+        if let Some(reply_id) = reply_to_message_id {
+            params["reply_to_message_id"] = serde_json::json!(reply_id);
+        }
+
         let response = self.client.post(&url).json(&params).send().await?;
 
-        let api_response: TelegramResponse<()> = response.json().await?;
+        let api_response: TelegramResponse<serde_json::Value> = response.json().await?;
 
         if !api_response.ok {
             let code = api_response.error_code.unwrap_or(0);

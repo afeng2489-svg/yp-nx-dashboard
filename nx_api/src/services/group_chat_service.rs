@@ -225,6 +225,11 @@ impl GroupChatService {
         Ok(self.repo.get_sessions_by_team(team_id)?)
     }
 
+    /// Get all sessions
+    pub async fn get_all_sessions(&self) -> Result<Vec<GroupSession>, GroupChatServiceError> {
+        Ok(self.repo.get_all_sessions()?)
+    }
+
     /// Get session detail with participants and conclusion
     pub async fn get_session_detail(&self, id: &str) -> Result<GroupSessionDetail, GroupChatServiceError> {
         let session = self.get_session(id).await?;
@@ -283,16 +288,22 @@ impl GroupChatService {
             return Err(GroupChatServiceError::SessionNotActive(session_id.to_string()));
         }
 
-        // Add participants
+        // Add participants — fetch actual role names from team service
+        let mut role_name_map: HashMap<String, String> = HashMap::new();
         for role_id in &request.participant_role_ids {
+            let role_name = match self.team_service.get_role(role_id) {
+                Ok(role) => role.name.clone(),
+                Err(_) => role_id.clone(), // fallback to role_id if not found
+            };
+            role_name_map.insert(role_id.clone(), role_name.clone());
             let participant = GroupParticipant {
                 role_id: role_id.clone(),
-                role_name: role_id.clone(),  // TODO: fetch actual role name
+                role_name,
                 joined_at: chrono::Utc::now(),
                 last_spoke_at: None,
                 message_count: 0,
             };
-            self.repo.add_participant(&participant)?;
+            self.repo.add_participant(session_id, &participant)?;
         }
 
         // Update session status
@@ -385,11 +396,15 @@ impl GroupChatService {
             .map_err(|e| GroupChatServiceError::ClaudeCli(e))?;
 
         // Parse response and create message
+        let role_name = match self.team_service.get_role(&request.role_id) {
+            Ok(role) => role.name.clone(),
+            Err(_) => request.role_id.clone(),
+        };
         let turn_number = session.current_turn;
         let message = GroupMessage::new(
             session_id.to_string(),
             request.role_id.clone(),
-            request.role_id.clone(),  // TODO: fetch actual role name
+            role_name,
             response,
             vec![],  // TODO: parse tool calls if any
             request.reply_to,
@@ -432,12 +447,18 @@ impl GroupChatService {
             .await
             .map_err(|e| GroupChatServiceError::ClaudeCli(e))?;
 
+        // Resolve role name
+        let role_name = match self.team_service.get_role(role_id) {
+            Ok(role) => role.name.clone(),
+            Err(_) => role_id.to_string(),
+        };
+
         // Create message
         let turn_number = session.current_turn;
         let message = GroupMessage::new(
             session_id.to_string(),
             role_id.to_string(),
-            role_id.to_string(),  // TODO: fetch actual role name
+            role_name,
             response,
             vec![],
             None,
@@ -481,7 +502,11 @@ impl GroupChatService {
         }
 
         let role_id = state.speaking_order[state.current_speaker_index].clone();
-        Ok(Some((role_id.clone(), role_id)))  // (role_id, role_name)
+        let role_name = match self.team_service.get_role(&role_id) {
+            Ok(role) => role.name.clone(),
+            Err(_) => role_id.clone(),
+        };
+        Ok(Some((role_id, role_name)))
     }
 
     /// Advance to next speaker
@@ -591,7 +616,7 @@ impl GroupChatService {
         if let Some(mut p) = participants.into_iter().find(|p| p.role_id == role_id) {
             p.message_count += 1;
             p.last_spoke_at = Some(chrono::Utc::now());
-            self.repo.update_participant(&p)?;
+            self.repo.update_participant(session_id, &p)?;
         }
         Ok(())
     }
@@ -704,5 +729,65 @@ mod tests {
         // Just verify the session was created correctly
         assert_eq!(session.name, "架构讨论");
         assert_eq!(session.topic, "微服务 vs 单体");
+    }
+
+    // ── HistoryContext ────────────────────────────────────────────────────────
+
+    fn make_messages(count: usize) -> Vec<GroupMessage> {
+        (0..count)
+            .map(|i| GroupMessage::new(
+                "session-1".to_string(),
+                "role-1".to_string(),
+                "Speaker".to_string(),
+                format!("Message {}", i),
+                vec![],
+                None,
+                i as u32,
+            ))
+            .collect()
+    }
+
+    #[test]
+    fn test_history_context_under_threshold_keeps_all() {
+        let messages = make_messages(HISTORY_THRESHOLD);
+        let ctx = HistoryContext::from_messages(&messages);
+
+        assert!(ctx.summary.is_none(), "no summary when under threshold");
+        assert_eq!(ctx.recent_messages.len(), HISTORY_THRESHOLD);
+    }
+
+    #[test]
+    fn test_history_context_over_threshold_generates_summary() {
+        let messages = make_messages(HISTORY_THRESHOLD + 5);
+        let ctx = HistoryContext::from_messages(&messages);
+
+        assert!(ctx.summary.is_some(), "summary should be present over threshold");
+        assert_eq!(ctx.recent_messages.len(), RECENT_MESSAGE_COUNT);
+    }
+
+    #[test]
+    fn test_history_context_empty_messages() {
+        let ctx = HistoryContext::from_messages(&[]);
+        assert!(ctx.summary.is_none());
+        assert!(ctx.recent_messages.is_empty());
+    }
+
+    #[test]
+    fn test_history_context_recent_messages_are_the_last_ones() {
+        let total = HISTORY_THRESHOLD + 10;
+        let messages = make_messages(total);
+        let ctx = HistoryContext::from_messages(&messages);
+
+        // Recent messages should be the last RECENT_MESSAGE_COUNT items
+        let expected_start = total - RECENT_MESSAGE_COUNT;
+        for (i, msg) in ctx.recent_messages.iter().enumerate() {
+            assert_eq!(
+                msg.content,
+                format!("Message {}", expected_start + i),
+                "recent[{}] should be message {}",
+                i,
+                expected_start + i
+            );
+        }
     }
 }

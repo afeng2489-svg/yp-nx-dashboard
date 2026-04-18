@@ -44,6 +44,21 @@ export interface TelegramConfig {
   updated_at?: string;
 }
 
+export interface MemberBotStatus {
+  role_id: string;
+  role_name: string;
+  bot_config: TelegramConfig | null;
+  is_polling: boolean;
+}
+
+export interface MemberBotConfigItem {
+  role_id: string;
+  bot_token: string;
+  chat_id?: string;
+  notifications_enabled?: boolean;
+  conversation_enabled?: boolean;
+}
+
 // Memory types
 export interface MemorySearchResult {
   chunk_id: string;
@@ -168,6 +183,10 @@ interface TeamStore {
   configureTelegram: (teamId: string, config: Partial<TelegramConfig>) => Promise<void>;
   getTelegramConfig: (teamId: string) => Promise<TelegramConfig | null>;
   enableTelegram: (teamId: string, enabled: boolean) => Promise<void>;
+  // Per-member bot actions
+  getMemberBots: (teamId: string) => Promise<MemberBotStatus[]>;
+  configureMemberBot: (teamId: string, roleId: string, config: MemberBotConfigItem) => Promise<MemberBotStatus>;
+  toggleAllMemberBots: (teamId: string, enabled: boolean) => Promise<MemberBotStatus[]>;
 
   // Memory actions
   searchMemory: (teamId: string, query: string) => Promise<MemorySearchResponse>;
@@ -738,6 +757,30 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       set({ error: `Failed to update Telegram settings: ${message}` });
       throw error;
     }
+  },
+
+  getMemberBots: async (teamId) => {
+    const response = await fetch(`${API_BASE}/api/v1/teams/${teamId}/members/bots`);
+    if (!response.ok) throw new Error(`Failed to get member bots: ${response.status}`);
+    return response.json();
+  },
+
+  configureMemberBot: async (teamId, roleId, config) => {
+    const response = await fetch(`${API_BASE}/api/v1/teams/${teamId}/members/${roleId}/bot`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    if (!response.ok) throw new Error(`Failed to configure member bot: ${response.status}`);
+    return response.json();
+  },
+
+  toggleAllMemberBots: async (teamId, enabled) => {
+    const response = await fetch(`${API_BASE}/api/v1/teams/${teamId}/members/bots/${enabled}`, {
+      method: 'POST',
+    });
+    if (!response.ok) throw new Error(`Failed to toggle member bots: ${response.status}`);
+    return response.json();
   },
 
   // Memory actions

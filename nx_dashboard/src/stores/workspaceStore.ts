@@ -20,6 +20,14 @@ export interface FileNode {
   modified_at: string;
 }
 
+export interface OpenFile {
+  path: string;
+  content: string;
+  language: string;
+  isDirty: boolean;
+  originalContent: string;
+}
+
 // Git diff types
 export type GitDiffType = 'added' | 'modified' | 'deleted';
 
@@ -74,6 +82,10 @@ interface WorkspaceStore {
   filesLoading: boolean;
   error: string | null;
 
+  // File editor state
+  openFiles: OpenFile[];
+  activeFilePath: string | null;
+
   fetchWorkspaces: () => Promise<void>;
   selectWorkspace: (workspace: Workspace | null) => void;
   createWorkspace: (name: string, description?: string, rootPath?: string) => Promise<Workspace | null>;
@@ -84,6 +96,14 @@ interface WorkspaceStore {
   browseFiles: (path?: string) => Promise<void>;
   navigateToPath: (path: string) => void;
   getParentPath: () => string;
+
+  // File editor operations
+  openFile: (path: string) => Promise<void>;
+  closeFile: (path: string) => void;
+  saveFile: (path: string) => Promise<boolean>;
+  deleteFile: (path: string) => Promise<boolean>;
+  setActiveFile: (path: string) => void;
+  updateFileContent: (path: string, content: string) => void;
 
   // Git operations
   gitDiffs: GitDiff[];
@@ -149,6 +169,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       gitDiffs: [],
       gitStatus: null,
       diffsLoading: false,
+      openFiles: [],
+      activeFilePath: null,
 
       fetchWorkspaces: async () => {
         set({ loading: true, error: null });
@@ -316,6 +338,147 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         const parts = path.split('/');
         parts.pop();
         return parts.join('/');
+      },
+
+      // File editor operations
+      openFile: async (path: string) => {
+        const ws = get().currentWorkspace;
+        if (!ws?.id) return;
+
+        // If already open, just activate
+        const existing = get().openFiles.find((f) => f.path === path);
+        if (existing) {
+          set({ activeFilePath: path });
+          return;
+        }
+
+        const url = `${API_BASE}/api/v1/workspaces/${ws.id}/file?path=${encodeURIComponent(path)}`;
+        try {
+          const response = await fetchWithTimeout(url);
+          if (!response.ok) {
+            const body = await response.text();
+            // Binary file or unreadable — show friendly message, not a store-level error
+            if (body.includes('二进制文件') || body.includes('UTF-8')) {
+              set({ error: '无法打开二进制文件' });
+              setTimeout(() => set({ error: null }), 3000);
+              return;
+            }
+            throw new ApiError(`Failed to read file: ${response.status}`, response.status);
+          }
+          const data = await response.json();
+          const newFile: OpenFile = {
+            path: data.path,
+            content: data.content,
+            language: data.language,
+            isDirty: false,
+            originalContent: data.content,
+          };
+          set((state) => ({
+            openFiles: [...state.openFiles, newFile],
+            activeFilePath: path,
+          }));
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Failed to open file',
+          });
+        }
+      },
+
+      closeFile: (path: string) => {
+        set((state) => {
+          const newOpenFiles = state.openFiles.filter((f) => f.path !== path);
+          let newActiveFile = state.activeFilePath;
+          if (state.activeFilePath === path) {
+            // Activate the last remaining tab, or null
+            newActiveFile = newOpenFiles.length > 0
+              ? newOpenFiles[newOpenFiles.length - 1].path
+              : null;
+          }
+          return { openFiles: newOpenFiles, activeFilePath: newActiveFile };
+        });
+      },
+
+      saveFile: async (path: string) => {
+        const ws = get().currentWorkspace;
+        if (!ws?.id) return false;
+
+        const file = get().openFiles.find((f) => f.path === path);
+        if (!file) return false;
+
+        try {
+          const response = await fetchWithTimeout(
+            `${API_BASE}/api/v1/workspaces/${ws.id}/file?path=${encodeURIComponent(path)}`,
+            {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content: file.content }),
+            }
+          );
+          if (!response.ok) {
+            throw new ApiError(`Failed to save file: ${response.status}`, response.status);
+          }
+          set((state) => ({
+            openFiles: state.openFiles.map((f) =>
+              f.path === path
+                ? { ...f, isDirty: false, originalContent: f.content }
+                : f
+            ),
+          }));
+          return true;
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Failed to save file',
+          });
+          return false;
+        }
+      },
+
+      deleteFile: async (path: string) => {
+        const ws = get().currentWorkspace;
+        if (!ws?.id) return false;
+
+        try {
+          const response = await fetchWithTimeout(
+            `${API_BASE}/api/v1/workspaces/${ws.id}/file?path=${encodeURIComponent(path)}`,
+            { method: 'DELETE' }
+          );
+          if (!response.ok) {
+            throw new ApiError(`Failed to delete file: ${response.status}`, response.status);
+          }
+          // Close the tab if open
+          set((state) => {
+            const newOpenFiles = state.openFiles.filter((f) => f.path !== path);
+            let newActiveFile = state.activeFilePath;
+            if (state.activeFilePath === path) {
+              newActiveFile = newOpenFiles.length > 0
+                ? newOpenFiles[newOpenFiles.length - 1].path
+                : null;
+            }
+            return { openFiles: newOpenFiles, activeFilePath: newActiveFile };
+          });
+          // Refresh file list
+          get().browseFiles(get().currentPath || undefined);
+          return true;
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Failed to delete file',
+          });
+          return false;
+        }
+      },
+
+      setActiveFile: (path: string) => {
+        set({ activeFilePath: path });
+      },
+
+      updateFileContent: (path: string, content: string) => {
+        set((state) => ({
+          openFiles: state.openFiles.map((f) =>
+            f.path === path
+              ? { ...f, content, isDirty: content !== f.originalContent }
+              : f
+          ),
+        }));
       },
 
       // Git operations

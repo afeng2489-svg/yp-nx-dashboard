@@ -239,13 +239,140 @@ impl TelegramBotConfig {
     }
 }
 
-/// Telegram update from long polling
+/// Telegram entity (mentions, commands, etc.)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelegramEntity {
+    #[serde(rename = "type")]
+    pub entity_type: String,
+    pub offset: i64,
+    pub length: i64,
+}
+
+/// Telegram user info
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelegramUser {
+    pub id: i64,
+    pub is_bot: bool,
+    pub first_name: String,
+    pub username: Option<String>,
+}
+
+/// Telegram chat info
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelegramChat {
+    pub id: i64,
+    #[serde(rename = "type")]
+    pub chat_type: String,
+    pub title: Option<String>,
+}
+
+/// Telegram message object
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelegramMessageObj {
+    pub message_id: i64,
+    pub from: Option<TelegramUser>,
+    pub chat: TelegramChat,
+    pub text: Option<String>,
+    #[serde(default)]
+    pub entities: Vec<TelegramEntity>,
+    pub reply_to_message: Option<Box<TelegramMessageObj>>,
+}
+
+/// Telegram update from long polling (matches Telegram Bot API format)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TelegramUpdate {
     pub update_id: i64,
-    pub chat_id: i64,
-    pub text: Option<String>,
-    pub chat_type: String,
+    pub message: Option<TelegramMessageObj>,
+}
+
+impl TelegramUpdate {
+    /// Check if this message mentions a specific bot username
+    pub fn mentions_bot(&self, bot_username: &str) -> bool {
+        let msg = match &self.message {
+            Some(m) => m,
+            None => return false,
+        };
+
+        let text = match &msg.text {
+            Some(t) => t,
+            None => return false,
+        };
+
+        // Check entities for @mention
+        let mention_tag = format!("@{}", bot_username);
+        for entity in &msg.entities {
+            if entity.entity_type == "mention" {
+                let start = entity.offset as usize;
+                let end = start + entity.length as usize;
+                if let Some(mention) = text.get(start..end) {
+                    if mention.eq_ignore_ascii_case(&mention_tag) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Also check for bot_command entities targeting this bot (e.g. /start@mybot)
+        for entity in &msg.entities {
+            if entity.entity_type == "bot_command" {
+                let start = entity.offset as usize;
+                let end = start + entity.length as usize;
+                if let Some(cmd) = text.get(start..end) {
+                    if cmd.to_lowercase().ends_with(&format!("@{}", bot_username.to_lowercase())) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
+    /// Check if this is a reply to a message from a specific bot user ID
+    pub fn is_reply_to_bot(&self, bot_user_id: i64) -> bool {
+        self.message
+            .as_ref()
+            .and_then(|m| m.reply_to_message.as_ref())
+            .and_then(|r| r.from.as_ref())
+            .map(|from| from.id == bot_user_id)
+            .unwrap_or(false)
+    }
+
+    /// Check if this is a private chat
+    pub fn is_private_chat(&self) -> bool {
+        self.message
+            .as_ref()
+            .map(|m| m.chat.chat_type == "private")
+            .unwrap_or(false)
+    }
+
+    /// Get chat ID from the message
+    pub fn chat_id(&self) -> Option<i64> {
+        self.message.as_ref().map(|m| m.chat.id)
+    }
+
+    /// Get text from the message
+    pub fn text(&self) -> Option<&str> {
+        self.message.as_ref().and_then(|m| m.text.as_deref())
+    }
+
+    /// Get message_id for reply_to
+    pub fn message_id(&self) -> Option<i64> {
+        self.message.as_ref().map(|m| m.message_id)
+    }
+
+    /// Get chat type
+    pub fn chat_type(&self) -> Option<&str> {
+        self.message.as_ref().map(|m| m.chat.chat_type.as_str())
+    }
+
+    /// Strip the @bot_username mention from the text
+    pub fn text_without_mention(&self, bot_username: &str) -> Option<String> {
+        let text = self.text()?;
+        let mention = format!("@{}", bot_username);
+        let cleaned = text.replace(&mention, "").trim().to_string();
+        if cleaned.is_empty() { None } else { Some(cleaned) }
+    }
 }
 
 /// Team execution request

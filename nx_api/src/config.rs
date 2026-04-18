@@ -33,7 +33,7 @@ impl Default for ApiConfig {
             allowed_origins: vec!["http://localhost:3000".to_string()],
             max_concurrent_executions: 10,
             default_timeout_secs: 300,
-            db_path: "nexus.db".to_string(),
+            db_path: resolve_default_db_path(),
         }
     }
 }
@@ -63,35 +63,100 @@ impl ApiConfig {
                 .unwrap_or_else(|_| "300".to_string())
                 .parse()
                 .unwrap_or(300),
-            db_path: std::env::var("NEXUS_DB_PATH")
-                .unwrap_or_else(|_| resolve_default_db_path()),
+            db_path: resolve_db_path(),
         }
     }
 }
 
+/// 统一数据库路径入口
+///
+/// 1. 检查 NEXUS_DB_PATH 环境变量
+/// 2. 验证：路径必须是绝对路径且位于 nx_dashboard/ 目录下
+/// 3. 如不满足条件则自动解析
+fn resolve_db_path() -> String {
+    if let Ok(env_path) = std::env::var("NEXUS_DB_PATH") {
+        let p = std::path::Path::new(&env_path);
+        // 验证：必须是绝对路径，且父目录名为 nx_dashboard
+        let parent_ok = p.parent()
+            .and_then(|parent| parent.file_name())
+            .map(|name| name == "nx_dashboard")
+            .unwrap_or(false);
+
+        if p.is_absolute() && parent_ok {
+            // 确保父目录存在
+            if let Some(parent) = p.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            eprintln!("[DB] NEXUS_DB_PATH (validated): {}", env_path);
+            return env_path;
+        }
+        eprintln!(
+            "[DB] WARNING: NEXUS_DB_PATH='{}' 无效（必须是绝对路径且在 nx_dashboard/ 目录下），忽略并自动解析",
+            env_path
+        );
+    } else {
+        eprintln!("[DB] NEXUS_DB_PATH not set, auto-resolving...");
+    }
+    resolve_default_db_path()
+}
+
 /// 查找统一的数据库路径
-/// 优先级：可执行文件所在项目根/nx_dashboard/nexus.db → 当前目录向上查找 → fallback nexus.db
+///
+/// 所有启动方式（Tauri桌面应用、cargo run、release二进制）都必须解析到同一个绝对路径：
+///   <workspace_root>/nx_dashboard/nexus.db
+///
+/// 判断 workspace root 的标志：目录同时包含 Cargo.toml 和 nx_dashboard/ 子目录
 fn resolve_default_db_path() -> String {
-    // 策略1: 基于可执行文件位置 (target/release/nx_api → 项目根)
+    let db_subpath = std::path::Path::new("nx_dashboard").join("nexus.db");
+
+    // 辅助函数：判断某个目录是否为 workspace root
+    let is_workspace_root = |dir: &std::path::Path| -> bool {
+        dir.join("Cargo.toml").exists() && dir.join("nx_dashboard").is_dir()
+    };
+
+    // 策略1: 基于可执行文件位置向上查找 workspace root
     if let Ok(exe) = std::env::current_exe() {
+        // 先 canonicalize 解析符号链接
+        let exe = exe.canonicalize().unwrap_or(exe);
         for ancestor in exe.ancestors().skip(1) {
-            let candidate = ancestor.join("nx_dashboard").join("nexus.db");
-            if candidate.exists() {
-                return candidate.to_string_lossy().to_string();
+            if is_workspace_root(ancestor) {
+                let db_path = ancestor.join(&db_subpath);
+                let _ = std::fs::create_dir_all(db_path.parent().unwrap());
+                eprintln!("[DB resolve] 策略1(exe): {} => {}", exe.display(), db_path.display());
+                return db_path.to_string_lossy().to_string();
             }
         }
     }
 
-    // 策略2: 基于当前工作目录向上查找
+    // 策略2: 基于当前工作目录向上查找 workspace root
     if let Ok(cwd) = std::env::current_dir() {
         for ancestor in cwd.ancestors() {
-            let candidate = ancestor.join("nx_dashboard").join("nexus.db");
-            if candidate.exists() {
-                return candidate.to_string_lossy().to_string();
+            if is_workspace_root(ancestor) {
+                let db_path = ancestor.join(&db_subpath);
+                let _ = std::fs::create_dir_all(db_path.parent().unwrap());
+                eprintln!("[DB resolve] 策略2(cwd): {} => {}", cwd.display(), db_path.display());
+                return db_path.to_string_lossy().to_string();
             }
         }
     }
 
-    // fallback
-    "nexus.db".to_string()
+    // 策略3: 基于 CARGO_MANIFEST_DIR 编译期嵌入的路径（仅开发环境有效）
+    let compile_time_root = env!("CARGO_MANIFEST_DIR"); // nx_api/
+    let manifest_dir = std::path::Path::new(compile_time_root);
+    if let Some(parent) = manifest_dir.parent() {
+        if is_workspace_root(parent) {
+            let db_path = parent.join(&db_subpath);
+            let _ = std::fs::create_dir_all(db_path.parent().unwrap());
+            eprintln!("[DB resolve] 策略3(compile-time): {} => {}", compile_time_root, db_path.display());
+            return db_path.to_string_lossy().to_string();
+        }
+    }
+
+    // 最终 fallback: 绝对路径 ~/.nexus/nexus.db（绝不使用相对路径）
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let fallback_dir = std::path::Path::new(&home).join(".nexus");
+    let _ = std::fs::create_dir_all(&fallback_dir);
+    let db_path = fallback_dir.join("nexus.db");
+    eprintln!("[DB resolve] 最终fallback: {}", db_path.display());
+    db_path.to_string_lossy().to_string()
 }

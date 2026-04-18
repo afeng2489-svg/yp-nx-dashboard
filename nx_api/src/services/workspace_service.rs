@@ -37,6 +37,97 @@ impl From<RepositoryError> for WorkspaceServiceError {
     }
 }
 
+/// 文件内容响应
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct FileContent {
+    pub path: String,
+    pub content: String,
+    pub language: String,
+    pub size: u64,
+    pub modified_at: String,
+}
+
+/// 从扩展名推断编辑器语言
+fn detect_language(path: &Path) -> String {
+    match path.extension().and_then(|e| e.to_str()) {
+        Some("rs") => "rust",
+        Some("ts") | Some("tsx") => "typescript",
+        Some("js") | Some("jsx") => "javascript",
+        Some("py") => "python",
+        Some("go") => "go",
+        Some("java") => "java",
+        Some("md") => "markdown",
+        Some("json") => "json",
+        Some("toml") => "toml",
+        Some("yaml") | Some("yml") => "yaml",
+        Some("html") => "html",
+        Some("css") => "css",
+        Some("scss") => "scss",
+        Some("sql") => "sql",
+        Some("sh") | Some("bash") | Some("zsh") => "shell",
+        Some("xml") => "xml",
+        Some("c") | Some("h") => "c",
+        Some("cpp") | Some("hpp") | Some("cc") => "cpp",
+        Some("swift") => "swift",
+        Some("kt") => "kotlin",
+        Some("rb") => "ruby",
+        Some("php") => "php",
+        _ => "plaintext",
+    }
+    .to_string()
+}
+
+/// 验证文件路径安全性（防止路径遍历）
+fn validate_file_path(root: &str, relative_path: &str) -> Result<std::path::PathBuf, WorkspaceServiceError> {
+    // 拒绝包含 .. 的路径
+    if relative_path.contains("..") {
+        return Err(WorkspaceServiceError::FileError(
+            "路径不允许包含 '..'".to_string(),
+        ));
+    }
+
+    let full_path = Path::new(root).join(relative_path);
+
+    // 规范化后验证仍在根目录下
+    let canonical_root = Path::new(root)
+        .canonicalize()
+        .map_err(|e| WorkspaceServiceError::FileError(format!("根目录无法解析: {}", e)))?;
+
+    // 如果文件不存在，canonicalize 会失败，所以验证父目录
+    let check_path = if full_path.exists() {
+        full_path
+            .canonicalize()
+            .map_err(|e| WorkspaceServiceError::FileError(format!("路径无法解析: {}", e)))?
+    } else {
+        // 文件不存在时（写入新文件场景），验证父目录
+        let parent = full_path
+            .parent()
+            .ok_or_else(|| WorkspaceServiceError::FileError("无效路径".to_string()))?;
+        if !parent.exists() {
+            return Err(WorkspaceServiceError::FileError(
+                format!("父目录不存在: {}", parent.display()),
+            ));
+        }
+        let canonical_parent = parent
+            .canonicalize()
+            .map_err(|e| WorkspaceServiceError::FileError(format!("父目录无法解析: {}", e)))?;
+        if !canonical_parent.starts_with(&canonical_root) {
+            return Err(WorkspaceServiceError::FileError(
+                "路径超出工作区范围".to_string(),
+            ));
+        }
+        return Ok(full_path);
+    };
+
+    if !check_path.starts_with(&canonical_root) {
+        return Err(WorkspaceServiceError::FileError(
+            "路径超出工作区范围".to_string(),
+        ));
+    }
+
+    Ok(check_path)
+}
+
 /// 文件节点（文件或目录）
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct FileNode {
@@ -223,6 +314,148 @@ impl WorkspaceService {
         });
 
         Ok(nodes)
+    }
+
+    /// 读取文件内容
+    pub fn read_file_content(
+        &self,
+        workspace_id: &str,
+        file_path: &str,
+    ) -> Result<FileContent, WorkspaceServiceError> {
+        let workspace = self
+            .repository
+            .find_by_id(workspace_id)?
+            .ok_or_else(|| WorkspaceServiceError::NotFound(workspace_id.to_string()))?;
+
+        let root = workspace
+            .root_path
+            .ok_or_else(|| WorkspaceServiceError::FileError("工作区未设置根目录".to_string()))?;
+
+        let full_path = validate_file_path(&root, file_path)?;
+
+        if !full_path.exists() {
+            return Err(WorkspaceServiceError::FileError(format!(
+                "文件不存在: {}",
+                file_path
+            )));
+        }
+
+        if full_path.is_dir() {
+            return Err(WorkspaceServiceError::FileError(
+                "不能读取目录内容".to_string(),
+            ));
+        }
+
+        // 限制文件大小 ≤ 5MB
+        let metadata = std::fs::metadata(&full_path)
+            .map_err(|e| WorkspaceServiceError::FileError(format!("读取元数据失败: {}", e)))?;
+
+        if metadata.len() > 5 * 1024 * 1024 {
+            return Err(WorkspaceServiceError::FileError(
+                "文件大小超过 5MB 限制".to_string(),
+            ));
+        }
+
+        let content = match std::fs::read_to_string(&full_path) {
+            Ok(c) => c,
+            Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
+                return Err(WorkspaceServiceError::FileError(
+                    "无法打开二进制文件".to_string(),
+                ));
+            }
+            Err(e) => {
+                return Err(WorkspaceServiceError::FileError(format!(
+                    "读取文件失败: {}",
+                    e
+                )));
+            }
+        };
+
+        let modified_at = metadata
+            .modified()
+            .ok()
+            .map(|t| {
+                chrono::DateTime::<Utc>::from(t)
+                    .format("%Y-%m-%d %H:%M:%S")
+                    .to_string()
+            })
+            .unwrap_or_default();
+
+        let language = detect_language(&full_path);
+
+        Ok(FileContent {
+            path: file_path.to_string(),
+            content,
+            language,
+            size: metadata.len(),
+            modified_at,
+        })
+    }
+
+    /// 写入文件内容
+    pub fn write_file_content(
+        &self,
+        workspace_id: &str,
+        file_path: &str,
+        content: &str,
+    ) -> Result<(), WorkspaceServiceError> {
+        let workspace = self
+            .repository
+            .find_by_id(workspace_id)?
+            .ok_or_else(|| WorkspaceServiceError::NotFound(workspace_id.to_string()))?;
+
+        let root = workspace
+            .root_path
+            .ok_or_else(|| WorkspaceServiceError::FileError("工作区未设置根目录".to_string()))?;
+
+        let full_path = validate_file_path(&root, file_path)?;
+
+        if full_path.is_dir() {
+            return Err(WorkspaceServiceError::FileError(
+                "不能写入目录".to_string(),
+            ));
+        }
+
+        std::fs::write(&full_path, content)
+            .map_err(|e| WorkspaceServiceError::FileError(format!("写入文件失败: {}", e)))?;
+
+        Ok(())
+    }
+
+    /// 删除文件
+    pub fn delete_file(
+        &self,
+        workspace_id: &str,
+        file_path: &str,
+    ) -> Result<(), WorkspaceServiceError> {
+        let workspace = self
+            .repository
+            .find_by_id(workspace_id)?
+            .ok_or_else(|| WorkspaceServiceError::NotFound(workspace_id.to_string()))?;
+
+        let root = workspace
+            .root_path
+            .ok_or_else(|| WorkspaceServiceError::FileError("工作区未设置根目录".to_string()))?;
+
+        let full_path = validate_file_path(&root, file_path)?;
+
+        if !full_path.exists() {
+            return Err(WorkspaceServiceError::FileError(format!(
+                "文件不存在: {}",
+                file_path
+            )));
+        }
+
+        if full_path.is_dir() {
+            return Err(WorkspaceServiceError::FileError(
+                "不能通过此接口删除目录".to_string(),
+            ));
+        }
+
+        std::fs::remove_file(&full_path)
+            .map_err(|e| WorkspaceServiceError::FileError(format!("删除文件失败: {}", e)))?;
+
+        Ok(())
     }
 
     /// Git 变更类型
@@ -518,5 +751,71 @@ mod tests {
 
         let found = service.get_workspace(&created.id).unwrap();
         assert!(found.is_none());
+    }
+
+    // ── detect_language ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_detect_language_rust() {
+        assert_eq!(detect_language(std::path::Path::new("main.rs")), "rust");
+    }
+
+    #[test]
+    fn test_detect_language_typescript() {
+        assert_eq!(detect_language(std::path::Path::new("app.ts")), "typescript");
+        assert_eq!(detect_language(std::path::Path::new("comp.tsx")), "typescript");
+    }
+
+    #[test]
+    fn test_detect_language_python() {
+        assert_eq!(detect_language(std::path::Path::new("script.py")), "python");
+    }
+
+    #[test]
+    fn test_detect_language_shell() {
+        assert_eq!(detect_language(std::path::Path::new("run.sh")), "shell");
+        assert_eq!(detect_language(std::path::Path::new("setup.bash")), "shell");
+        assert_eq!(detect_language(std::path::Path::new("env.zsh")), "shell");
+    }
+
+    #[test]
+    fn test_detect_language_unknown() {
+        assert_eq!(detect_language(std::path::Path::new("data.xyz")), "plaintext");
+        assert_eq!(detect_language(std::path::Path::new("noext")), "plaintext");
+    }
+
+    // ── validate_file_path ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_validate_file_path_rejects_dotdot() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().to_str().unwrap();
+
+        let err = validate_file_path(root, "../etc/passwd").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains(".."), "should mention '..'");
+    }
+
+    #[test]
+    fn test_validate_file_path_rejects_embedded_dotdot() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().to_str().unwrap();
+
+        let err = validate_file_path(root, "a/../../etc/passwd").unwrap_err();
+        assert!(err.to_string().contains(".."));
+    }
+
+    #[test]
+    fn test_validate_file_path_accepts_valid_relative_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().to_str().unwrap();
+
+        // Create file so canonicalize succeeds
+        let file_path = tmp.path().join("src/main.rs");
+        std::fs::create_dir_all(file_path.parent().unwrap()).unwrap();
+        std::fs::write(&file_path, b"").unwrap();
+
+        let result = validate_file_path(root, "src/main.rs");
+        assert!(result.is_ok(), "valid path should be accepted: {:?}", result);
     }
 }

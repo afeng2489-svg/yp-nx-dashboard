@@ -166,6 +166,167 @@ pub async fn get_git_status(
     }
 }
 
+/// 检测工作区项目脚本
+pub async fn detect_scripts(
+    State(state): State<Arc<AppState>>,
+    Path(workspace_id): Path<String>,
+) -> Result<Json<ProjectScriptsResponse>, (StatusCode, String)> {
+    let workspace = state
+        .workspace_service
+        .get_workspace(&workspace_id)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Workspace not found".to_string()))?;
+
+    let root_path = workspace
+        .root_path
+        .as_deref()
+        .ok_or_else(|| (StatusCode::BAD_REQUEST, "Workspace has no root_path".to_string()))?;
+
+    let root = std::path::Path::new(root_path);
+    if !root.exists() {
+        return Err((StatusCode::BAD_REQUEST, format!("Path does not exist: {}", root_path)));
+    }
+
+    let mut scripts = Vec::new();
+    let mut project_type = "unknown".to_string();
+
+    // Node.js: package.json
+    let pkg_json = root.join("package.json");
+    if pkg_json.exists() {
+        project_type = "node".to_string();
+        if let Ok(content) = std::fs::read_to_string(&pkg_json) {
+            if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
+                if let Some(pkg_scripts) = pkg.get("scripts").and_then(|s| s.as_object()) {
+                    for (name, _cmd) in pkg_scripts {
+                        let command = if name == "test" {
+                            format!("npm test")
+                        } else {
+                            format!("npm run {}", name)
+                        };
+                        scripts.push(ScriptEntry {
+                            name: name.clone(),
+                            command,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // Rust: Cargo.toml
+    let cargo_toml = root.join("Cargo.toml");
+    if cargo_toml.exists() {
+        if project_type == "unknown" {
+            project_type = "rust".to_string();
+        }
+        scripts.push(ScriptEntry { name: "run".to_string(), command: "cargo run".to_string() });
+        scripts.push(ScriptEntry { name: "build".to_string(), command: "cargo build".to_string() });
+        scripts.push(ScriptEntry { name: "test".to_string(), command: "cargo test".to_string() });
+        scripts.push(ScriptEntry { name: "check".to_string(), command: "cargo check".to_string() });
+    }
+
+    // Python: pyproject.toml or requirements.txt
+    let pyproject = root.join("pyproject.toml");
+    let requirements = root.join("requirements.txt");
+    let manage_py = root.join("manage.py");
+    if pyproject.exists() || requirements.exists() {
+        if project_type == "unknown" {
+            project_type = "python".to_string();
+        }
+        if manage_py.exists() {
+            scripts.push(ScriptEntry { name: "runserver".to_string(), command: "python manage.py runserver".to_string() });
+        }
+        scripts.push(ScriptEntry { name: "python".to_string(), command: "python main.py".to_string() });
+        if requirements.exists() {
+            scripts.push(ScriptEntry { name: "install".to_string(), command: "pip install -r requirements.txt".to_string() });
+        }
+    }
+
+    // Makefile
+    let makefile = root.join("Makefile");
+    if makefile.exists() {
+        if project_type == "unknown" {
+            project_type = "make".to_string();
+        }
+        if let Ok(content) = std::fs::read_to_string(&makefile) {
+            for line in content.lines() {
+                if let Some(target) = line.strip_suffix(':').or_else(|| {
+                    line.split(':').next().filter(|t| !t.contains('\t') && !t.starts_with('#') && !t.starts_with('.') && !t.contains(' '))
+                }) {
+                    let target = target.trim();
+                    if !target.is_empty() && !target.starts_with('#') && !target.starts_with('.') {
+                        scripts.push(ScriptEntry { name: target.to_string(), command: format!("make {}", target) });
+                    }
+                }
+                if scripts.len() > 20 { break; }
+            }
+        }
+    }
+
+    Ok(Json(ProjectScriptsResponse { project_type, scripts }))
+}
+
+/// 读取文件内容
+pub async fn read_file(
+    State(state): State<Arc<AppState>>,
+    Path(workspace_id): Path<String>,
+    Query(params): Query<FileQuery>,
+) -> Result<Json<FileContentResponse>, (StatusCode, String)> {
+    let file_path = params.path.ok_or_else(|| {
+        (StatusCode::BAD_REQUEST, "Missing 'path' query parameter".to_string())
+    })?;
+
+    match state.workspace_service.read_file_content(&workspace_id, &file_path) {
+        Ok(content) => Ok(Json(FileContentResponse {
+            path: content.path,
+            content: content.content,
+            language: content.language,
+            size: content.size,
+            modified_at: content.modified_at,
+        })),
+        Err(e) => {
+            let status = match &e {
+                crate::services::workspace_service::WorkspaceServiceError::NotFound(_) => StatusCode::NOT_FOUND,
+                _ => StatusCode::BAD_REQUEST,
+            };
+            Err((status, e.to_string()))
+        }
+    }
+}
+
+/// 写入文件内容
+pub async fn write_file(
+    State(state): State<Arc<AppState>>,
+    Path(workspace_id): Path<String>,
+    Query(params): Query<FileQuery>,
+    Json(payload): Json<WriteFileRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let file_path = params.path.ok_or_else(|| {
+        (StatusCode::BAD_REQUEST, "Missing 'path' query parameter".to_string())
+    })?;
+
+    match state.workspace_service.write_file_content(&workspace_id, &file_path, &payload.content) {
+        Ok(()) => Ok(StatusCode::OK),
+        Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
+    }
+}
+
+/// 删除文件
+pub async fn delete_file(
+    State(state): State<Arc<AppState>>,
+    Path(workspace_id): Path<String>,
+    Query(params): Query<FileQuery>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let file_path = params.path.ok_or_else(|| {
+        (StatusCode::BAD_REQUEST, "Missing 'path' query parameter".to_string())
+    })?;
+
+    match state.workspace_service.delete_file(&workspace_id, &file_path) {
+        Ok(()) => Ok(StatusCode::NO_CONTENT),
+        Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
+    }
+}
+
 // ============ 请求/响应类型 ============
 
 #[derive(Debug, Deserialize)]
@@ -235,4 +396,35 @@ pub struct GitStatusResponse {
     pub ahead: u32,
     pub behind: u32,
     pub is_dirty: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ProjectScriptsResponse {
+    pub project_type: String,
+    pub scripts: Vec<ScriptEntry>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ScriptEntry {
+    pub name: String,
+    pub command: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FileQuery {
+    pub path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WriteFileRequest {
+    pub content: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FileContentResponse {
+    pub path: String,
+    pub content: String,
+    pub language: String,
+    pub size: u64,
+    pub modified_at: String,
 }

@@ -16,6 +16,7 @@ use crate::services::{WorkflowService, ExecutionService, SessionService, SqliteS
 use crate::middleware::auth::ApiKeyAuth;
 use crate::ws::TerminalWsHandler;
 use crate::ws::ClaudeStreamWsHandler;
+use crate::ws::RunCommandWsHandler;
 use crate::ws::AgentExecutionManager;
 use crate::routes::teams_state::TeamsAppState;
 use nexus_ai::{AIModelManager, AIManagerConfig, APIConfig, ProviderType, ModelConfig};
@@ -39,6 +40,48 @@ pub mod projects;
 pub mod group_chat;
 pub mod memory;
 pub mod processes;
+
+/// 查找 .claude/agents 目录
+/// 与 DB 路径解析同策略：exe 祖先 → CWD 祖先 → 编译期路径
+fn resolve_agents_dir() -> PathBuf {
+    let subpath = std::path::Path::new(".claude").join("agents");
+
+    let is_workspace_root = |dir: &std::path::Path| -> bool {
+        dir.join("Cargo.toml").exists() && dir.join("nx_dashboard").is_dir()
+    };
+
+    // 策略1: exe 祖先
+    if let Ok(exe) = std::env::current_exe() {
+        let exe = exe.canonicalize().unwrap_or(exe);
+        for ancestor in exe.ancestors().skip(1) {
+            if is_workspace_root(ancestor) {
+                return ancestor.join(&subpath);
+            }
+        }
+    }
+
+    // 策略2: CWD 祖先
+    if let Ok(cwd) = std::env::current_dir() {
+        for ancestor in cwd.ancestors() {
+            if is_workspace_root(ancestor) {
+                return ancestor.join(&subpath);
+            }
+        }
+    }
+
+    // 策略3: 编译期路径
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    if let Some(parent) = manifest_dir.parent() {
+        if is_workspace_root(parent) {
+            return parent.join(&subpath);
+        }
+    }
+
+    // fallback
+    std::env::current_dir()
+        .unwrap_or_default()
+        .join(&subpath)
+}
 
 /// 从环境变量加载 AI 配置
 fn load_ai_config_from_env() -> AIManagerConfig {
@@ -208,14 +251,11 @@ impl AppState {
         );
 
         // 创建技能服务（文件型，直接读写 .claude/agents/*.md）
-        // 优先使用 AGENTS_DIR 环境变量（通过 Tauri app 传递），否则使用当前目录
+        // 优先使用 AGENTS_DIR 环境变量（通过 Tauri app 传递），否则自动查找 workspace root
         let agents_dir = std::env::var("AGENTS_DIR")
             .map(PathBuf::from)
-            .unwrap_or_else(|_| {
-                std::env::current_dir()
-                    .unwrap_or_default()
-                    .join(".claude/agents")
-            });
+            .unwrap_or_else(|_| resolve_agents_dir());
+        tracing::info!("[Skills] Using agents directory: {:?}", agents_dir);
         let skill_service = crate::services::SkillService::with_agents_dir(agents_dir.clone())
             .expect(&format!("Failed to create skill service with agents_dir: {:?}", agents_dir));
         let skill_service_for_agent = skill_service.clone();
@@ -366,6 +406,8 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/workspaces/:id/diffs", get(workspaces::get_git_diffs))
         .route("/api/v1/workspaces/:id/diff/*file_path", get(workspaces::get_file_diff))
         .route("/api/v1/workspaces/:id/git/status", get(workspaces::get_git_status))
+        .route("/api/v1/workspaces/:id/scripts", get(workspaces::detect_scripts))
+        .route("/api/v1/workspaces/:id/file", get(workspaces::read_file).put(workspaces::write_file).delete(workspaces::delete_file))
         // 测试生成路由
         .route("/api/v1/test-gen", post(test_gen::generate_tests))
         .route("/api/v1/test-gen/unit", post(test_gen::generate_unit_tests))
@@ -381,8 +423,8 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/templates/:id/instantiate", post(templates::instantiate_template))
         .route("/api/v1/templates/category/:category", get(templates::list_templates_by_category))
         // 搜索路由
-        .route("/api/v1/search", get(search::search))
-        .route("/api/v1/search", post(search::reindex))
+        .route("/api/v1/search", get(search::search).post(search::reindex))
+        .route("/api/v1/search/index", post(search::reindex))
         .route("/api/v1/search/modes", get(search::get_search_modes))
         // Wisdom 路由
         .route("/api/v1/wisdom", get(wisdom::list_wisdom))
@@ -458,6 +500,7 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/skills/:id/execute", post(skills::execute_skill))
         .route("/api/v1/skills/:id/generate-workflow", post(skills::generate_workflow_from_skill))
         .route("/api/v1/skills/import-from-agents", post(skills::import_from_agents))
+        .route("/api/v1/skills/import", post(skills::import_skill))
         // 团队路由
         .route("/api/v1/teams", get(teams::list_teams))
         .route("/api/v1/teams", post(teams::create_team))
@@ -472,6 +515,10 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/teams/:team_id/telegram", get(teams::get_team_telegram_config))
         .route("/api/v1/teams/:team_id/telegram", put(teams::configure_team_telegram))
         .route("/api/v1/teams/:team_id/telegram/:enabled", post(teams::enable_team_telegram))
+        // Per-member bot management
+        .route("/api/v1/teams/:team_id/members/bots", get(teams::get_team_member_bots))
+        .route("/api/v1/teams/:team_id/members/:role_id/bot", put(teams::configure_member_bot))
+        .route("/api/v1/teams/:team_id/members/bots/:enabled", post(teams::toggle_all_member_bots))
         .route("/api/v1/roles/:id", get(teams::get_role))
         .route("/api/v1/roles/:id", put(teams::update_role))
         .route("/api/v1/roles/:id", delete(teams::delete_role))
@@ -521,6 +568,7 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/ws/sessions/:id", get(sessions::session_ws))
         .route("/ws/terminal", get(terminal_ws_handler))
         .route("/ws/claude-stream", get(claude_stream_ws_handler))
+        .route("/ws/run-command", get(run_command_ws_handler))
         .route("/ws/agent-executions/:execution_id", get(agent_execution_ws_handler))
         // 应用认证中间件到所有 API 和 WebSocket 路由
         .route_layer(axum::middleware::from_fn_with_state(
@@ -564,6 +612,17 @@ async fn claude_stream_ws_handler(
     ws: axum::extract::ws::WebSocketUpgrade,
 ) -> impl axum::response::IntoResponse {
     let handler = ClaudeStreamWsHandler::new();
+
+    ws.on_upgrade(async move |socket| {
+        handler.handle(socket).await;
+    })
+}
+
+/// 通用命令执行 WebSocket 处理函数
+async fn run_command_ws_handler(
+    ws: axum::extract::ws::WebSocketUpgrade,
+) -> impl axum::response::IntoResponse {
+    let handler = RunCommandWsHandler::new();
 
     ws.on_upgrade(async move |socket| {
         handler.handle(socket).await;

@@ -421,6 +421,42 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
     }
   },
 
+  importSkill: async (source: 'url' | 'file' | 'paste', content: string, filename?: string) => {
+    set({ saving: true, error: null });
+    try {
+      const response = await fetchWithTimeout(`${API_BASE}/api/v1/skills/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source, content, filename }),
+      });
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(err || `导入失败: ${response.status}`);
+      }
+      const data: SkillDetail = await response.json();
+      set((state) => ({
+        skills: [...state.skills, {
+          id: data.id,
+          name: data.name,
+          description: data.description,
+          category: data.category,
+          version: data.version,
+          tags: data.tags,
+          parameter_count: data.parameters.length,
+          is_preset: data.is_preset,
+        }],
+        saving: false,
+      }));
+      return data;
+    } catch (error) {
+      set({
+        saving: false,
+        error: error instanceof Error ? error.message : '导入技能失败',
+      });
+      return null;
+    }
+  },
+
   clearSearch: () => set({ searchResults: [] }),
 
   clearError: () => set({ error: null }),

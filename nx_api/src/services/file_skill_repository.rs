@@ -438,6 +438,27 @@ impl FileSkillRepository {
             .collect())
     }
 
+    /// 从原始 .md 内容导入技能
+    pub fn import_from_content(&self, content: &str, fallback_id: &str) -> Result<SkillRecord, FileSkillRepositoryError> {
+        let record = self.parse_content(content, fallback_id)?;
+
+        let file_path = self.get_file_path(&record.id);
+        if file_path.exists() {
+            return Err(FileSkillRepositoryError::AlreadyExists(record.id.clone()));
+        }
+
+        // 直接写入原始内容（保留原始格式）
+        std::fs::write(&file_path, content)?;
+
+        self.reload_cache()?;
+
+        // 从缓存中获取最终结果
+        self.cache.read().iter()
+            .find(|r| r.id == record.id)
+            .cloned()
+            .ok_or_else(|| FileSkillRepositoryError::ParseError("导入后缓存中未找到技能".to_string()))
+    }
+
     /// 检查技能是否存在
     pub fn exists(&self, id: &str) -> Result<bool, FileSkillRepositoryError> {
         Ok(self.get_file_path(id).exists())
@@ -479,5 +500,139 @@ impl FileSkillRepository {
         }
 
         Ok(files)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── parse_content ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_content_with_frontmatter() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = FileSkillRepository::new(tmp.path().to_path_buf()).unwrap();
+
+        let md = r#"---
+name: My Skill
+description: Does something cool
+category: development
+tags: ["rust", "testing"]
+---
+
+This is the instruction body.
+"#;
+        let record = repo.parse_content(md, "my-skill").unwrap();
+        assert_eq!(record.id, "my-skill");
+        assert_eq!(record.name, "My Skill");
+        assert_eq!(record.description, "Does something cool");
+        assert_eq!(record.category, "development");
+        assert!(record.tags.contains(&"rust".to_string()));
+        assert!(record.tags.contains(&"testing".to_string()));
+        assert!(record.code.as_deref().unwrap_or("").contains("instruction body"));
+    }
+
+    #[test]
+    fn test_parse_content_no_frontmatter_uses_body_as_code() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = FileSkillRepository::new(tmp.path().to_path_buf()).unwrap();
+
+        let md = "Just raw instructions with no frontmatter.\n";
+        let record = repo.parse_content(md, "raw-skill").unwrap();
+        assert_eq!(record.id, "raw-skill");
+        assert!(record.code.as_deref().unwrap_or("").contains("raw instructions"));
+    }
+
+    #[test]
+    fn test_parse_content_defaults_category_to_general() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = FileSkillRepository::new(tmp.path().to_path_buf()).unwrap();
+
+        let md = "---\nname: Min Skill\n---\nBody.\n";
+        let record = repo.parse_content(md, "min-skill").unwrap();
+        assert_eq!(record.category, "general");
+    }
+
+    // ── file CRUD ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_create_and_list_skill() {
+        use crate::models::skill::CreateSkillRequest;
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = FileSkillRepository::new(tmp.path().to_path_buf()).unwrap();
+
+        let req = CreateSkillRequest {
+            id: "test-skill".to_string(),
+            name: "Test Skill".to_string(),
+            description: "A test skill".to_string(),
+            category: "testing".to_string(),
+            version: None,
+            author: None,
+            tags: Some(vec!["test".to_string()]),
+            parameters: None,
+            code: Some("Do the thing.".to_string()),
+        };
+
+        repo.create(req).unwrap();
+
+        let all = repo.list().unwrap();
+        assert!(all.iter().any(|s| s.id == "test-skill"), "skill should be in list");
+    }
+
+    #[test]
+    fn test_create_duplicate_returns_error() {
+        use crate::models::skill::CreateSkillRequest;
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = FileSkillRepository::new(tmp.path().to_path_buf()).unwrap();
+
+        let req = CreateSkillRequest {
+            id: "dup-skill".to_string(),
+            name: "Dup Skill".to_string(),
+            description: "desc".to_string(),
+            category: "general".to_string(),
+            version: None,
+            author: None,
+            tags: None,
+            parameters: None,
+            code: None,
+        };
+
+        repo.create(req.clone()).unwrap();
+        let result = repo.create(req);
+        assert!(matches!(result, Err(FileSkillRepositoryError::AlreadyExists(_))));
+    }
+
+    #[test]
+    fn test_get_nonexistent_returns_none() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = FileSkillRepository::new(tmp.path().to_path_buf()).unwrap();
+
+        let result = repo.get("nonexistent").unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_delete_skill_removes_from_list() {
+        use crate::models::skill::CreateSkillRequest;
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = FileSkillRepository::new(tmp.path().to_path_buf()).unwrap();
+
+        let req = CreateSkillRequest {
+            id: "to-delete".to_string(),
+            name: "To Delete".to_string(),
+            description: "".to_string(),
+            category: "general".to_string(),
+            version: None,
+            author: None,
+            tags: None,
+            parameters: None,
+            code: None,
+        };
+        repo.create(req).unwrap();
+        repo.delete("to-delete").unwrap();
+
+        let found = repo.get("to-delete").unwrap();
+        assert!(found.is_none(), "deleted skill should not be findable");
     }
 }

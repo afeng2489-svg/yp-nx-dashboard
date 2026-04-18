@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 /// Group discussion status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum GroupStatus {
     Pending,     // 等待开始
     Active,      // 讨论中
@@ -43,6 +44,7 @@ impl GroupStatus {
 
 /// Speaking strategy for group discussion
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SpeakingStrategy {
     Free,      // 自由发言
     RoundRobin, // 轮询发言
@@ -78,6 +80,7 @@ impl SpeakingStrategy {
 
 /// Consensus strategy
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ConsensusStrategy {
     Majority,  // 多数同意
     Unanimous, // 全员同意
@@ -301,6 +304,7 @@ pub struct GetMessagesRequest {
 /// Group session with participants
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GroupSessionDetail {
+    #[serde(flatten)]
     pub session: GroupSession,
     pub participants: Vec<GroupParticipant>,
     pub message_count: u32,
@@ -315,4 +319,11 @@ pub struct DiscussionTurnInfo {
     pub next_speaker_role_id: Option<String>,
     pub next_speaker_role_name: Option<String>,
     pub speaking_order: Vec<String>,  // 角色ID列表
+}
+
+/// Next speaker info
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NextSpeakerInfo {
+    pub role_id: String,
+    pub role_name: String,
 }

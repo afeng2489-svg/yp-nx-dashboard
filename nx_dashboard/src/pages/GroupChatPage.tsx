@@ -61,7 +61,7 @@ export function GroupChatPage() {
   } = useGroupChatStore();
 
   const { currentWorkspace, browseFiles } = useWorkspaceStore();
-  const { teams, roles } = useTeamStore();
+  const { teams, roles, fetchTeams, fetchRoles } = useTeamStore();
   const { skills, fetchSkills } = useSkillStore();
   const { confirmState, showConfirm, hideConfirm } = useConfirmModal();
 
@@ -105,14 +105,10 @@ export function GroupChatPage() {
     participant_role_ids: [],
   });
 
-  // Fetch sessions on mount and when workspace changes
+  // Fetch sessions on mount
   useEffect(() => {
-    if (currentWorkspace?.id) {
-      fetchSessions(currentWorkspace.id);
-    } else {
-      fetchSessions();
-    }
-  }, [currentWorkspace?.id, fetchSessions]);
+    fetchSessions();
+  }, [fetchSessions]);
 
   // Fetch session detail when selected
   useEffect(() => {
@@ -128,10 +124,18 @@ export function GroupChatPage() {
     }
   }, [selectedSessionId, fetchSession, fetchMessages, getNextSpeaker]);
 
+  // Fetch roles when current session's team changes
+  useEffect(() => {
+    if (currentSession?.team_id && !roles[currentSession.team_id]) {
+      fetchRoles(currentSession.team_id);
+    }
+  }, [currentSession?.team_id, roles, fetchRoles]);
+
   // Fetch skills for skill hint
   useEffect(() => {
     fetchSkills();
-  }, [fetchSkills]);
+    fetchTeams();
+  }, [fetchSkills, fetchTeams]);
 
   // Filter skills based on search
   const filteredSkills = skillSearch
@@ -291,12 +295,17 @@ export function GroupChatPage() {
   };
 
   const getStatusBadge = (status: GroupSession['status']) => {
-    const badges = {
-      pending: 'bg-yellow-500/20 text-yellow-500',
-      active: 'bg-green-500/20 text-green-500',
-      concluded: 'bg-gray-500/20 text-gray-500',
+    const config: Record<string, { cls: string; label: string }> = {
+      pending: { cls: 'bg-yellow-500/20 text-yellow-500', label: '待开始' },
+      active: { cls: 'bg-green-500/20 text-green-500', label: '讨论中' },
+      concluded: { cls: 'bg-gray-500/20 text-gray-500', label: '已结束' },
     };
-    return cn('px-2 py-0.5 rounded text-xs font-medium', badges[status]);
+    const c = config[status] || config.pending;
+    return (
+      <span className={cn('px-2 py-0.5 rounded text-xs font-medium', c.cls)}>
+        {c.label}
+      </span>
+    );
   };
 
   const getStrategyLabel = (strategy: SpeakingStrategy) => {

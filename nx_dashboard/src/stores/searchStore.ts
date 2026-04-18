@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
-import type { SearchResult, SearchMode } from '@/types/search';
+import type { SearchResult, SearchMode, IndexResponse } from '@/types/search';
 
 // API_BASE_URL is imported from constants
 
@@ -11,12 +11,15 @@ interface SearchState {
   query: string;
   mode: SearchMode;
   lastSearchTime: number | null;
+  isIndexing: boolean;
+  indexInfo: IndexResponse | null;
 }
 
 interface SearchActions {
   setQuery: (query: string) => void;
   setMode: (mode: SearchMode) => void;
   search: (query: string, mode: SearchMode) => Promise<void>;
+  reindex: (workspacePath: string) => Promise<IndexResponse | null>;
   clearResults: () => void;
 }
 
@@ -30,6 +33,8 @@ export const useSearchStore = create<SearchStore>((set, get) => ({
   query: '',
   mode: 'hybrid',
   lastSearchTime: null,
+  isIndexing: false,
+  indexInfo: null,
 
   // Actions
   setQuery: (query) => set({ query }),
@@ -70,6 +75,31 @@ export const useSearchStore = create<SearchStore>((set, get) => ({
         isLoading: false,
         results: null,
       });
+    }
+  },
+
+  reindex: async (workspacePath: string) => {
+    set({ isIndexing: true, error: null });
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/search/index`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_path: workspacePath, force: true }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Reindex failed: ${response.statusText}`);
+      }
+
+      const data: IndexResponse = await response.json();
+      set({ isIndexing: false, indexInfo: data });
+      return data;
+    } catch (error) {
+      set({
+        isIndexing: false,
+        error: error instanceof Error ? error.message : 'Reindex failed',
+      });
+      return null;
     }
   },
 

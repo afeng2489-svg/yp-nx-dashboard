@@ -1750,6 +1750,7 @@ pub struct CurrentWorkspaceResponse {
 }
 
 /// 设置当前工作区路径（用于 Claude CLI --project 参数）
+/// 同时自动触发搜索索引重建
 pub async fn set_current_workspace(
     State(state): State<Arc<AppState>>,
     Json(request): Json<SetCurrentWorkspaceRequest>,
@@ -1757,6 +1758,22 @@ pub async fn set_current_workspace(
     let mut current = state.current_workspace_path.write();
     *current = request.path.clone();
     tracing::info!("当前工作区路径已设置为: {:?}", request.path);
+    drop(current);
+
+    // 自动触发搜索索引重建
+    if let Some(ref path) = request.path {
+        let search_state = state.search_state.clone();
+        let workspace = path.clone();
+        tokio::spawn(async move {
+            tracing::info!("自动触发搜索索引重建: {}", workspace);
+            {
+                let mut wp = search_state.workspace_path.write();
+                *wp = Some(workspace.clone());
+            }
+            let (docs, _chunks, _size) = search_state.reindex_workspace(&workspace).await;
+            tracing::info!("搜索索引重建完成, 索引了 {} 个文件", docs);
+        });
+    }
 
     Ok(Json(serde_json::json!({
         "success": true,

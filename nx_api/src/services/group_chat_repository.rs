@@ -29,6 +29,7 @@ pub trait GroupChatRepository: Send + Sync {
     fn create_session(&self, session: &GroupSession) -> Result<(), GroupChatRepositoryError>;
     fn get_session(&self, id: &str) -> Result<Option<GroupSession>, GroupChatRepositoryError>;
     fn get_sessions_by_team(&self, team_id: &str) -> Result<Vec<GroupSession>, GroupChatRepositoryError>;
+    fn get_all_sessions(&self) -> Result<Vec<GroupSession>, GroupChatRepositoryError>;
     fn update_session(&self, session: &GroupSession) -> Result<(), GroupChatRepositoryError>;
     fn delete_session(&self, id: &str) -> Result<(), GroupChatRepositoryError>;
 
@@ -38,9 +39,9 @@ pub trait GroupChatRepository: Send + Sync {
     fn get_message_count(&self, session_id: &str) -> Result<u32, GroupChatRepositoryError>;
 
     // Participant operations
-    fn add_participant(&self, participant: &GroupParticipant) -> Result<(), GroupChatRepositoryError>;
+    fn add_participant(&self, session_id: &str, participant: &GroupParticipant) -> Result<(), GroupChatRepositoryError>;
     fn get_participants(&self, session_id: &str) -> Result<Vec<GroupParticipant>, GroupChatRepositoryError>;
-    fn update_participant(&self, participant: &GroupParticipant) -> Result<(), GroupChatRepositoryError>;
+    fn update_participant(&self, session_id: &str, participant: &GroupParticipant) -> Result<(), GroupChatRepositoryError>;
 
     // Conclusion operations
     fn save_conclusion(&self, conclusion: &GroupConclusion) -> Result<(), GroupChatRepositoryError>;
@@ -221,6 +222,43 @@ impl GroupChatRepository for SqliteGroupChatRepository {
         Ok(sessions)
     }
 
+    fn get_all_sessions(&self) -> Result<Vec<GroupSession>, GroupChatRepositoryError> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, team_id, name, topic, status, speaking_strategy, consensus_strategy,
+                    moderator_role_id, max_turns, current_turn, turn_policy, created_at, updated_at
+             FROM group_sessions ORDER BY created_at DESC",
+        )?;
+
+        let rows = stmt.query_map([], |row| {
+            Ok(GroupSession {
+                id: row.get(0)?,
+                team_id: row.get(1)?,
+                name: row.get(2)?,
+                topic: row.get(3)?,
+                status: GroupStatus::from_str(&row.get::<_, String>(4)?),
+                speaking_strategy: SpeakingStrategy::from_str(&row.get::<_, String>(5)?),
+                consensus_strategy: ConsensusStrategy::from_str(&row.get::<_, String>(6)?),
+                moderator_role_id: row.get(7)?,
+                max_turns: row.get(8)?,
+                current_turn: row.get(9)?,
+                turn_policy: row.get(10)?,
+                created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(11)?)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
+                updated_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(12)?)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .unwrap_or_else(|_| Utc::now()),
+            })
+        })?;
+
+        let mut sessions = Vec::new();
+        for session in rows {
+            sessions.push(session?);
+        }
+        Ok(sessions)
+    }
+
     fn update_session(&self, session: &GroupSession) -> Result<(), GroupChatRepositoryError> {
         self.conn.lock().execute(
             r#"UPDATE group_sessions SET
@@ -310,13 +348,13 @@ impl GroupChatRepository for SqliteGroupChatRepository {
         Ok(count as u32)
     }
 
-    fn add_participant(&self, participant: &GroupParticipant) -> Result<(), GroupChatRepositoryError> {
+    fn add_participant(&self, session_id: &str, participant: &GroupParticipant) -> Result<(), GroupChatRepositoryError> {
         self.conn.lock().execute(
             r#"INSERT OR REPLACE INTO group_participants
                (session_id, role_id, role_name, joined_at, last_spoke_at, message_count)
                VALUES (?1, ?2, ?3, ?4, ?5, ?6)"#,
             params![
-                participant.role_id,  // session_id
+                session_id,
                 participant.role_id,
                 participant.role_name,
                 participant.joined_at.to_rfc3339(),
@@ -355,13 +393,13 @@ impl GroupChatRepository for SqliteGroupChatRepository {
         Ok(participants)
     }
 
-    fn update_participant(&self, participant: &GroupParticipant) -> Result<(), GroupChatRepositoryError> {
+    fn update_participant(&self, session_id: &str, participant: &GroupParticipant) -> Result<(), GroupChatRepositoryError> {
         self.conn.lock().execute(
             r#"UPDATE group_participants SET
                last_spoke_at = ?3, message_count = ?4
                WHERE session_id = ?1 AND role_id = ?2"#,
             params![
-                participant.role_id,  // session_id used as session_id
+                session_id,
                 participant.role_id,
                 participant.last_spoke_at.map(|dt| dt.to_rfc3339()),
                 participant.message_count,
@@ -442,11 +480,15 @@ impl SqliteGroupChatRepository {
 mod tests {
     use super::*;
 
+    fn make_repo() -> SqliteGroupChatRepository {
+        let repo = SqliteGroupChatRepository::new(":memory:").unwrap();
+        repo.init_tables().unwrap();
+        repo
+    }
+
     #[test]
     fn test_create_and_get_session() {
-        let conn = Connection::open_in_memory().unwrap();
-        let repo = SqliteGroupChatRepository::new(Arc::new(conn));
-        repo.init_tables().unwrap();
+        let repo = make_repo();
 
         let session = GroupSession::new(
             "team-1".to_string(),

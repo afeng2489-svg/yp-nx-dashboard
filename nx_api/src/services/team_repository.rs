@@ -503,12 +503,13 @@ impl TeamRepository for SqliteTeamRepository {
 
     fn find_roles_by_team(&self, team_id: &str) -> Result<Vec<TeamRole>, TeamRepositoryError> {
         let conn = self.conn.lock();
-        // Use junction table for many-to-many relationship
+        // Union: roles in junction table OR roles with direct team_id field (legacy)
         let mut stmt = conn.prepare(
-            "SELECT r.id, r.team_id, r.name, r.description, r.model_config, r.system_prompt, r.trigger_keywords, r.created_at, r.updated_at
+            "SELECT DISTINCT r.id, r.team_id, r.name, r.description, r.model_config, r.system_prompt, r.trigger_keywords, r.created_at, r.updated_at
              FROM team_roles r
-             INNER JOIN team_role_members m ON r.id = m.role_id
-             WHERE m.team_id = ?1
+             WHERE r.id IN (
+                 SELECT role_id FROM team_role_members WHERE team_id = ?1
+             ) OR r.team_id = ?1
              ORDER BY r.created_at ASC",
         )?;
 

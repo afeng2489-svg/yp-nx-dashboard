@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSkillStore, type SkillSummary, type CreateSkillRequest, type UpdateSkillRequest } from '@/stores/skillStore';
 import { useSkillsQuery, useSkillDetailQuery, useSkillCategoriesQuery } from '@/hooks/useReactQuery';
 import { showSuccess, showError } from '@/lib/toast';
-import { Pencil, Trash2, Plus, X } from 'lucide-react';
+import { Pencil, Trash2, Plus, X, Download, Link, FileText, ClipboardPaste } from 'lucide-react';
 
 export default function SkillsPage() {
   const {
@@ -18,6 +18,7 @@ export default function SkillsPage() {
     createSkill,
     updateSkill,
     deleteSkill,
+    importSkill,
     fetchStats,
     clearSearch,
     clearError,
@@ -32,6 +33,14 @@ export default function SkillsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
   const [executionResult, setExecutionResult] = useState<string | null>(null);
+
+  // Import dialog state
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importMode, setImportMode] = useState<'url' | 'file' | 'paste'>('url');
+  const [importContent, setImportContent] = useState('');
+  const [importFilename, setImportFilename] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<{ name: string; description: string; category: string; tags: string[] } | null>(null);
 
   // Edit form state
   const [editForm, setEditForm] = useState<CreateSkillRequest>({
@@ -201,6 +210,93 @@ export default function SkillsPage() {
     }
   };
 
+  // === 导入功能 ===
+  const parseFrontmatter = (content: string) => {
+    const lines = content.split('\n');
+    let inFrontmatter = false;
+    let name = '';
+    let description = '';
+    let category = 'general';
+    let tags: string[] = ['agent'];
+
+    for (const line of lines) {
+      if (line.trim() === '---') {
+        if (!inFrontmatter) { inFrontmatter = true; continue; }
+        else break;
+      }
+      if (!inFrontmatter) continue;
+      const match = line.match(/^(\w+):\s*(.+)/);
+      if (!match) continue;
+      const [, key, value] = match;
+      if (key === 'name') name = value.trim();
+      else if (key === 'description') description = value.trim();
+      else if (key === 'category') category = value.trim();
+      else if (key === 'tags') {
+        try { tags = JSON.parse(value.trim()); } catch { tags = value.split(',').map(t => t.trim()); }
+      }
+    }
+    return name ? { name, description, category, tags } : null;
+  };
+
+  const handleImportContentChange = (content: string) => {
+    setImportContent(content);
+    if (importMode === 'paste' || importMode === 'file') {
+      setImportPreview(parseFrontmatter(content));
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFilename(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      setImportContent(text);
+      setImportPreview(parseFrontmatter(text));
+    };
+    reader.readAsText(file);
+  };
+
+  const handleFileDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (!file || !file.name.endsWith('.md')) return;
+    setImportFilename(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      setImportContent(text);
+      setImportPreview(parseFrontmatter(text));
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImport = async () => {
+    if (!importContent.trim()) {
+      showError('导入失败', '内容不能为空');
+      return;
+    }
+    setImporting(true);
+    const result = await importSkill(
+      importMode,
+      importContent,
+      importFilename || undefined,
+    );
+    setImporting(false);
+    if (result) {
+      showSuccess('导入成功', `技能 "${result.name}" 已导入`);
+      setShowImportDialog(false);
+      setImportContent('');
+      setImportFilename('');
+      setImportPreview(null);
+      refetchSkills();
+      fetchStats();
+    } else {
+      showError('导入失败', useSkillStore.getState().error || '未知错误');
+    }
+  };
+
   const handleOpenExecuteDialog = () => {
     if (!currentSkill) return;
     // Initialize param values with defaults
@@ -299,14 +395,21 @@ export default function SkillsPage() {
           </div>
         </form>
 
-        {/* 新建按钮 */}
-        <div className="p-4 border-b border-gray-200">
+        {/* 新建 & 导入按钮 */}
+        <div className="p-4 border-b border-gray-200 flex gap-2">
           <button
             onClick={handleOpenCreateDialog}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            新建技能
+            新建
+          </button>
+          <button
+            onClick={() => { setShowImportDialog(true); setImportMode('url'); setImportContent(''); setImportFilename(''); setImportPreview(null); }}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            导入
           </button>
         </div>
 
@@ -731,6 +834,163 @@ export default function SkillsPage() {
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {executing ? '执行中...' : '执行'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 导入弹窗 */}
+      {showImportDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">导入技能</h2>
+              <button
+                onClick={() => setShowImportDialog(false)}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              {/* 模式切换 */}
+              <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => { setImportMode('url'); setImportContent(''); setImportPreview(null); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    importMode === 'url' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <Link className="w-4 h-4" />
+                  URL
+                </button>
+                <button
+                  onClick={() => { setImportMode('file'); setImportContent(''); setImportPreview(null); setImportFilename(''); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    importMode === 'file' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <FileText className="w-4 h-4" />
+                  文件
+                </button>
+                <button
+                  onClick={() => { setImportMode('paste'); setImportContent(''); setImportPreview(null); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    importMode === 'paste' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <ClipboardPaste className="w-4 h-4" />
+                  粘贴
+                </button>
+              </div>
+
+              {/* URL 模式 */}
+              {importMode === 'url' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    .md 文件 URL
+                  </label>
+                  <input
+                    type="url"
+                    value={importContent}
+                    onChange={(e) => setImportContent(e.target.value)}
+                    placeholder="https://raw.githubusercontent.com/.../skill.md"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    支持 GitHub raw 链接等可直接访问的 .md 文件 URL
+                  </p>
+                </div>
+              )}
+
+              {/* 文件模式 */}
+              {importMode === 'file' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    选择 .md 文件
+                  </label>
+                  <div
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={handleFileDrop}
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
+                    onClick={() => document.getElementById('import-file-input')?.click()}
+                  >
+                    <input
+                      id="import-file-input"
+                      type="file"
+                      accept=".md"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    {importFilename ? (
+                      <div>
+                        <FileText className="w-8 h-8 mx-auto text-blue-500 mb-2" />
+                        <p className="text-sm font-medium text-gray-900">{importFilename}</p>
+                        <p className="text-xs text-gray-500 mt-1">点击更换文件</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <Download className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                        <p className="text-sm text-gray-600">拖拽 .md 文件到此处</p>
+                        <p className="text-xs text-gray-400 mt-1">或点击选择文件</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 粘贴模式 */}
+              {importMode === 'paste' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Markdown 内容
+                  </label>
+                  <textarea
+                    value={importContent}
+                    onChange={(e) => handleImportContentChange(e.target.value)}
+                    placeholder={"---\nname: My Skill\ndescription: 技能描述\ncategory: development\ntags: [\"agent\"]\ninstruction: |\n  技能指令内容...\n---"}
+                    rows={12}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                  />
+                </div>
+              )}
+
+              {/* 预览区 */}
+              {importPreview && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <h3 className="text-sm font-medium text-green-800 mb-2">解析预览</h3>
+                  <div className="space-y-1 text-sm">
+                    <div><span className="text-green-600 font-medium">名称:</span> {importPreview.name}</div>
+                    {importPreview.description && (
+                      <div><span className="text-green-600 font-medium">描述:</span> {importPreview.description}</div>
+                    )}
+                    <div><span className="text-green-600 font-medium">分类:</span> {importPreview.category}</div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-green-600 font-medium">标签:</span>
+                      {importPreview.tags.map(tag => (
+                        <span key={tag} className="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">{tag}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => setShowImportDialog(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleImport}
+                disabled={importing || !importContent.trim()}
+                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {importing ? '导入中...' : '导入'}
               </button>
             </div>
           </div>

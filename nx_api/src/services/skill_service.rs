@@ -331,6 +331,49 @@ impl SkillService {
         Ok(count)
     }
 
+    /// 导入技能（从 URL、文件内容或粘贴文本）
+    pub async fn import_skill(&self, source: &str, content: &str, filename: Option<&str>) -> Result<SkillDetail, SkillServiceError> {
+        let (md_content, fallback_id) = match source {
+            "url" => {
+                // 从 URL 下载内容
+                let url = content.trim();
+                if url.is_empty() {
+                    return Err(SkillServiceError::ValidationFailed("URL 不能为空".to_string()));
+                }
+                let response = reqwest::get(url).await
+                    .map_err(|e| SkillServiceError::FileError(format!("下载失败: {}", e)))?;
+                if !response.status().is_success() {
+                    return Err(SkillServiceError::FileError(format!("下载失败: HTTP {}", response.status())));
+                }
+                let body = response.text().await
+                    .map_err(|e| SkillServiceError::FileError(format!("读取内容失败: {}", e)))?;
+                if body.len() > 1_048_576 {
+                    return Err(SkillServiceError::ValidationFailed("文件大小超过 1MB 限制".to_string()));
+                }
+                // 从 URL 路径提取文件名
+                let url_filename = url.rsplit('/').next()
+                    .unwrap_or("imported-skill")
+                    .trim_end_matches(".md");
+                (body, url_filename.to_string())
+            }
+            "file" | "paste" => {
+                if content.trim().is_empty() {
+                    return Err(SkillServiceError::ValidationFailed("内容不能为空".to_string()));
+                }
+                let id = filename
+                    .map(|f| f.trim_end_matches(".md").to_string())
+                    .unwrap_or_else(|| format!("imported-{}", chrono::Utc::now().timestamp()));
+                (content.to_string(), id)
+            }
+            _ => {
+                return Err(SkillServiceError::ValidationFailed(format!("不支持的来源类型: {}", source)));
+            }
+        };
+
+        let record = self.file_repo.import_from_content(&md_content, &fallback_id)?;
+        Ok(self.record_to_detail(&record))
+    }
+
     /// 获取所有技能文件信息
     pub fn list_skill_files(&self) -> Result<Vec<crate::services::file_skill_repository::SkillFileInfo>, SkillServiceError> {
         self.file_repo.list_files()

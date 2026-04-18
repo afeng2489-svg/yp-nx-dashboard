@@ -14,7 +14,7 @@ use crate::error::ApiError;
 use crate::models::group_chat::{
     ConcludeDiscussionRequest, CreateGroupSessionRequest, GetMessagesRequest,
     GroupConclusion, GroupMessage, GroupSession, GroupSessionDetail, DiscussionTurnInfo,
-    SendMessageRequest, StartDiscussionRequest, UpdateGroupSessionRequest,
+    NextSpeakerInfo, SendMessageRequest, StartDiscussionRequest, UpdateGroupSessionRequest,
 };
 use crate::routes::AppState;
 use crate::services::group_chat_service::GroupChatServiceError;
@@ -49,7 +49,7 @@ pub async fn list_sessions(
     let sessions = if let Some(team_id) = &query.team_id {
         service.get_sessions_by_team(team_id).await?
     } else {
-        vec![]  // Return empty if no team_id provided
+        service.get_all_sessions().await?
     };
 
     Ok(Json(sessions))
@@ -154,7 +154,7 @@ pub async fn send_message(
 pub async fn get_next_speaker(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Result<Json<Option<(String, String)>>, ApiError> {
+) -> Result<Json<Option<NextSpeakerInfo>>, ApiError> {
     let service = &state.group_chat_service;
 
     let next = service
@@ -162,7 +162,7 @@ pub async fn get_next_speaker(
         .await
         .map_err(ApiError::from)?;
 
-    Ok(Json(next))
+    Ok(Json(next.map(|(role_id, role_name)| NextSpeakerInfo { role_id, role_name })))
 }
 
 /// Advance to next speaker

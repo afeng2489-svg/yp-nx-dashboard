@@ -17,8 +17,10 @@ import {
   Loader2,
   AlertCircle,
   GitCommit,
+  Play,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ProjectRunner } from './ProjectRunner';
 
 // 文件变更类型 - 使用 workspaceStore 中的类型
 type DiffType = 'added' | 'modified' | 'deleted';
@@ -281,8 +283,7 @@ function SessionGroup() {
 
 // 主文件侧边栏组件
 export function FileSidebar() {
-  const [activeTab, setActiveTab] = useState<'files' | 'diffs' | 'sessions'>('files');
-  const [selectedFile, setSelectedFile] = useState<string | undefined>();
+  const [activeTab, setActiveTab] = useState<'files' | 'diffs' | 'sessions' | 'runner'>('files');
   const [searchQuery, setSearchQuery] = useState('');
 
   const {
@@ -294,6 +295,8 @@ export function FileSidebar() {
     browseFiles,
     navigateToPath,
     getParentPath,
+    openFile,
+    activeFilePath,
     gitDiffs,
     gitStatus,
     diffsLoading,
@@ -324,7 +327,7 @@ export function FileSidebar() {
     if (isDirectory) {
       navigateToPath(path);
     } else {
-      setSelectedFile(path);
+      openFile(path);
     }
   };
 
@@ -384,6 +387,7 @@ export function FileSidebar() {
           { id: 'files' as const, label: '文件', icon: Folder },
           { id: 'diffs' as const, label: '变更', icon: GitBranch },
           { id: 'sessions' as const, label: '会话', icon: Tag },
+          { id: 'runner' as const, label: '运行', icon: Play },
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -481,7 +485,7 @@ export function FileSidebar() {
                 key={file.id}
                 file={{ name: file.name, path: file.path, is_directory: file.is_directory }}
                 onClick={handleFileClick}
-                selectedPath={selectedFile}
+                selectedPath={activeFilePath ?? undefined}
               />
             ))}
           </div>
@@ -528,6 +532,10 @@ export function FileSidebar() {
           <div className="p-3">
             <SessionGroup />
           </div>
+        )}
+
+        {activeTab === 'runner' && (
+          <ProjectRunner />
         )}
       </div>
     </div>

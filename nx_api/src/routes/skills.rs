@@ -207,6 +207,35 @@ pub struct ImportAgentsResponse {
     pub message: String,
 }
 
+/// 导入技能请求
+#[derive(Debug, serde::Deserialize)]
+pub struct ImportSkillRequest {
+    pub source: String,           // "url" | "file" | "paste"
+    pub content: String,          // URL 地址或 .md 文件内容
+    pub filename: Option<String>, // 可选文件名，用于推导 skill id
+}
+
+/// 导入技能（从 URL、文件内容或粘贴文本）
+pub async fn import_skill(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<ImportSkillRequest>,
+) -> Result<Json<SkillDetail>, (axum::http::StatusCode, String)> {
+    state.skill_service
+        .import_skill(&req.source, &req.content, req.filename.as_deref())
+        .await
+        .map(Json)
+        .map_err(|e| {
+            let status = match e {
+                crate::services::skill_service::SkillServiceError::AlreadyExists(_) =>
+                    axum::http::StatusCode::CONFLICT,
+                crate::services::skill_service::SkillServiceError::ValidationFailed(_) =>
+                    axum::http::StatusCode::BAD_REQUEST,
+                _ => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            };
+            (status, e.to_string())
+        })
+}
+
 /// 从技能生成工作流
 pub async fn generate_workflow_from_skill(
     State(state): State<Arc<AppState>>,
