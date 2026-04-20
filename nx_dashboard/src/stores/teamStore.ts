@@ -153,6 +153,19 @@ interface TeamStore {
   error: string | null;
   abortController: AbortController | null;
 
+  // 监控模式：Record<teamId, enabled>，持久化到 localStorage
+  teamMonitorMode: Record<string, boolean>;
+  // 当前活跃的团队任务（监控模式下显示悬浮卡）
+  activeTeamTask: {
+    teamId: string;
+    teamName: string;
+    task: string;
+    status: 'running' | 'done' | 'error';
+    partialOutput?: string;
+    result?: string;
+    error?: string;
+  } | null;
+
   // Team actions
   fetchTeams: () => Promise<void>;
   getTeam: (id: string) => Promise<Team | null>;
@@ -179,6 +192,11 @@ interface TeamStore {
   executeTask: (teamId: string, task: string) => Promise<ExecutionResult>;
   stopExecution: () => void;
 
+  // Monitor mode actions
+  setTeamMonitorMode: (teamId: string, enabled: boolean) => void;
+  setActiveTeamTask: (task: TeamStore['activeTeamTask']) => void;
+  clearActiveTeamTask: () => void;
+
   // Telegram actions
   configureTelegram: (teamId: string, config: Partial<TelegramConfig>) => Promise<void>;
   getTelegramConfig: (teamId: string) => Promise<TelegramConfig | null>;
@@ -196,6 +214,16 @@ interface TeamStore {
   clearError: () => void;
 }
 
+// 从 localStorage 恢复监控模式设置
+function loadMonitorMode(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem('team_monitor_mode');
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
 export const useTeamStore = create<TeamStore>((set, get) => ({
   teams: [],
   currentTeam: null,
@@ -205,6 +233,8 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
   loading: false,
   error: null,
   abortController: null,
+  teamMonitorMode: loadMonitorMode(),
+  activeTeamTask: null,
 
   // Team actions
   fetchTeams: async () => {
@@ -632,6 +662,21 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
     const controller = new AbortController();
     set({ abortController: controller });
 
+    // 如果该团队开启了监控模式，显示悬浮卡
+    const { teamMonitorMode, teams } = get();
+    const isMonitor = teamMonitorMode[teamId] ?? false;
+    if (isMonitor) {
+      const team = teams.find(t => t.id === teamId);
+      set({
+        activeTeamTask: {
+          teamId,
+          teamName: team?.name ?? '团队',
+          task,
+          status: 'running',
+        },
+      });
+    }
+
     try {
       // Execute task - 记忆搜索和存储全部由后端处理
       const response = await fetch(`${API_BASE}/api/v1/teams/${teamId}/execute`, {
@@ -660,16 +705,43 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
             errorMessage = response.statusText;
           }
         }
+        if (isMonitor) {
+          set((state) => ({
+            activeTeamTask: state.activeTeamTask
+              ? { ...state.activeTeamTask, status: 'error', error: errorMessage }
+              : null,
+          }));
+        }
         throw new ApiError(errorMessage, response.status);
       }
 
       const result: ExecutionResult = await response.json();
       console.log('[ExecuteTask] Execution result success:', result.success);
 
+      if (isMonitor) {
+        set((state) => ({
+          activeTeamTask: state.activeTeamTask
+            ? {
+                ...state.activeTeamTask,
+                status: result.success ? 'done' : 'error',
+                result: result.final_output,
+                error: result.error ?? undefined,
+              }
+            : null,
+        }));
+      }
+
       return result;
     } catch (error) {
       // Don't show error if it was aborted
       if (error instanceof Error && error.name === 'AbortError') {
+        if (isMonitor) {
+          set((state) => ({
+            activeTeamTask: state.activeTeamTask
+              ? { ...state.activeTeamTask, status: 'error', error: '已取消' }
+              : null,
+          }));
+        }
         throw new ApiError('Task cancelled', 0);
       }
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -687,6 +759,18 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       set({ abortController: null });
     }
   },
+
+  setTeamMonitorMode: (teamId, enabled) => {
+    set((state) => {
+      const next = { ...state.teamMonitorMode, [teamId]: enabled };
+      try { localStorage.setItem('team_monitor_mode', JSON.stringify(next)); } catch { /* ignore */ }
+      return { teamMonitorMode: next };
+    });
+  },
+
+  setActiveTeamTask: (task) => set({ activeTeamTask: task }),
+
+  clearActiveTeamTask: () => set({ activeTeamTask: null }),
 
   // Telegram actions
   configureTelegram: async (teamId, config) => {

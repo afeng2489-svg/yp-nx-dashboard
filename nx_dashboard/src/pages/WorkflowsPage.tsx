@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { useWorkflowsQuery } from '@/hooks/useReactQuery';
 import { useNavigate } from 'react-router-dom';
 import { useWorkflowStore, Workflow, Agent } from '@/stores/workflowStore';
+import { WorkflowTutorialModal } from '@/components/workflow/WorkflowTutorialModal';
 import { useExecutionStore } from '@/stores/executionStore';
 import { useSkillStore, type SkillSummary } from '@/stores/skillStore';
 import { useWorkspaceStore, onWorkspaceChange } from '@/stores/workspaceStore';
-import { Plus, Trash2, Play, Edit, X, Users, GitBranch, Clock, Sparkles, FileText, Wand2, Search } from 'lucide-react';
+import { Plus, Trash2, Play, Edit, X, Users, GitBranch, Clock, Sparkles, FileText, Wand2, Search, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 import { showSuccess, showError } from '@/lib/toast';
@@ -332,7 +333,7 @@ function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelP
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <GitBranch className="w-4 h-4" />
-              阶段 ({workflow.stages?.length || 0})
+              阶段 ({workflow.stage_count ?? workflow.stages?.length ?? 0})
             </h4>
             <div className="space-y-3">
               {workflow.stages?.map((stage, index) => (
@@ -364,7 +365,7 @@ function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelP
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Users className="w-4 h-4" />
-              智能体 ({workflow.agents?.length || 0})
+              智能体 ({workflow.agent_count ?? workflow.agents?.length ?? 0})
             </h4>
             <div className="space-y-3">
               {workflow.agents?.map((agent) => {
@@ -464,11 +465,14 @@ const SAMPLE_WORKFLOWS: Workflow[] = [
 export function WorkflowsPage() {
   const navigate = useNavigate();
   const { getWorkflow, deleteWorkflow, setCurrentWorkflow, createWorkflow } = useWorkflowStore();
+  const { startExecution, connectWebSocket } = useExecutionStore();
   const { currentWorkspace } = useWorkspaceStore();
   const [displayWorkflows, setDisplayWorkflows] = useState<Workflow[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [showSkillModal, setShowSkillModal] = useState(false);
+  const [tutorialWorkflow, setTutorialWorkflow] = useState<Workflow | null>(null);
+  const [tutorialLoading, setTutorialLoading] = useState<string | null>(null);
   const { confirmState, showConfirm, hideConfirm } = useConfirmModal();
 
   // Use React Query for fetching
@@ -542,6 +546,20 @@ export function WorkflowsPage() {
 
   const [executingIds, setExecutingIds] = useState<Set<string>>(new Set());
 
+  const handleShowTutorial = async (workflow: Workflow, e: React.MouseEvent) => {
+    e.stopPropagation();
+    // 如果已有完整数据（stages 不为空），直接展示
+    if (workflow.stages.length > 0) {
+      setTutorialWorkflow(workflow);
+      return;
+    }
+    // 否则先拉取完整详情
+    setTutorialLoading(workflow.id);
+    const full = await getWorkflow(workflow.id);
+    setTutorialLoading(null);
+    if (full) setTutorialWorkflow(full);
+  };
+
   const handleExecute = async (workflow: Workflow, e: React.MouseEvent) => {
     e.stopPropagation();
 
@@ -550,26 +568,13 @@ export function WorkflowsPage() {
     setExecutingIds(prev => new Set(prev).add(workflow.id));
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/executions/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workflow_id: workflow.id, variables: {} }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        console.log('Execution started:', data);
-        useExecutionStore.setState((state) => ({
-          executions: [...state.executions, data]
-        }));
-        navigate('/executions');
-      } else {
-        showError(`执行失败: ${data.error || workflow.name}`);
-      }
+      // startExecution 内部自动建立 WS 连接，确保能收到 workflow_paused 事件
+      const execution = await startExecution(workflow.id, {});
+      connectWebSocket(execution.id);
+      navigate('/executions');
     } catch (error) {
-      console.error('Failed to start execution:', error);
-      showError(`执行失败: ${error}`);
+      const msg = error instanceof Error ? error.message : String(error);
+      showError(`执行失败: ${msg}`);
     } finally {
       setExecutingIds(prev => {
         const next = new Set(prev);
@@ -662,11 +667,11 @@ export function WorkflowsPage() {
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gradient-to-r from-indigo-500/10 to-purple-500/10 text-xs font-medium text-indigo-600 border border-indigo-500/20">
                       <GitBranch className="w-3 h-3" />
-                      {workflow.stages?.length || 0} 阶段
+                      {workflow.stage_count ?? workflow.stages?.length ?? 0} 阶段
                     </span>
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10 text-xs font-medium text-purple-600 border border-purple-500/20">
                       <Users className="w-3 h-3" />
-                      {workflow.agents?.length || 0} 智能体
+                      {workflow.agent_count ?? workflow.agents?.length ?? 0} 智能体
                     </span>
                     <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                       <Clock className="w-3 h-3" />
@@ -681,6 +686,23 @@ export function WorkflowsPage() {
                 </div>
 
                 <div className="flex items-center gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={(e) => handleShowTutorial(workflow, e)}
+                    disabled={tutorialLoading === workflow.id}
+                    className={cn(
+                      'p-2.5 rounded-xl transition-all duration-200',
+                      'bg-gradient-to-r from-sky-500 to-blue-500',
+                      'text-white shadow-lg shadow-sky-500/25',
+                      'hover:shadow-sky-500/40 hover:-translate-y-0.5 active:translate-y-0'
+                    )}
+                    title="查看使用教程"
+                  >
+                    {tutorialLoading === workflow.id ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
                   <button
                     onClick={(e) => handleExecute(workflow, e)}
                     disabled={executingIds.has(workflow.id)}
@@ -768,6 +790,13 @@ export function WorkflowsPage() {
         onCancel={hideConfirm}
         variant={confirmState.variant || 'danger'}
       />
+
+      {tutorialWorkflow && (
+        <WorkflowTutorialModal
+          workflow={tutorialWorkflow}
+          onClose={() => setTutorialWorkflow(null)}
+        />
+      )}
     </div>
   );
 }

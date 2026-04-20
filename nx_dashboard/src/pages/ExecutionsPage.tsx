@@ -2,10 +2,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useExecutionsQuery } from '@/hooks/useReactQuery';
 import { useExecutionStore, Execution, StageResult } from '@/stores/executionStore';
 import { onWorkspaceChange } from '@/stores/workspaceStore';
-import { showError } from '@/lib/toast';
 import { XCircle, Clock, CheckCircle, Play, AlertCircle, Loader2, X, ChevronRight, Terminal, Activity, PauseCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { WorkflowPauseModal } from '@/components/execution/WorkflowPauseModal';
 
 // 工作流操作说明
 const WORKFLOW_OPERATIONS = [
@@ -521,7 +519,7 @@ function ExecutionCard({
 
 // 主页面组件
 export function ExecutionsPage() {
-  const { cancelExecution, connectWebSocket, resumeExecution, dismissPause, pendingPause } = useExecutionStore();
+  const { cancelExecution, connectWebSocket } = useExecutionStore();
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
 
   // Use React Query for fetching
@@ -546,6 +544,14 @@ export function ExecutionsPage() {
       connectWebSocket(liveSelectedExecution.id);
     }
   }, [liveSelectedExecution?.id, liveSelectedExecution?.status, connectWebSocket]);
+
+  // Auto-connect WS for ALL running executions so pause events are never missed.
+  // Without this, workflow_paused events are lost if the user hasn't manually
+  // clicked on the execution to open the detail panel.
+  useEffect(() => {
+    const running = executions.filter((e) => e.status === 'running');
+    running.forEach((e) => connectWebSocket(e.id));
+  }, [executions, connectWebSocket]);
 
   const handleCancel = useCallback(
     (id: string) => {
@@ -620,20 +626,6 @@ export function ExecutionsPage() {
         />
       )}
 
-      {pendingPause && (
-        <WorkflowPauseModal
-          pause={pendingPause}
-          onResume={(value) => {
-            const ok = resumeExecution(pendingPause.execution_id, value);
-            if (!ok) {
-              showError('WebSocket 未连接，正在重连，请稍后重试');
-              connectWebSocket(pendingPause.execution_id);
-            }
-            return ok;
-          }}
-          onDismiss={dismissPause}
-        />
-      )}
     </div>
   );
 }

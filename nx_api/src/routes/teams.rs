@@ -304,6 +304,7 @@ pub async fn execute_team_task(
             let task_future = execute_role_task_with_context(
                 State(state_bg.clone()),
                 Json(role_task_request),
+                Some((tx.clone(), exec_id.clone())),
             );
             tokio::pin!(task_future);
 
@@ -382,7 +383,7 @@ pub async fn execute_team_task(
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
         interval.tick().await;
 
-        let task_future = state_bg.teams_state.agent_team_service.execute_team_task(enhanced_request);
+        let task_future = state_bg.teams_state.agent_team_service.execute_team_task(enhanced_request, Some((tx.clone(), exec_id.clone())));
         tokio::pin!(task_future);
 
         let result = loop {
@@ -474,10 +475,11 @@ async fn find_role_by_trigger(
     None
 }
 
-/// execute_role_task 的内部版本，支持传入已构建的请求
+/// execute_role_task 的内部版本，支持传入已构建的请求和可选的流式发送器
 async fn execute_role_task_with_context(
     State(state): State<Arc<AppState>>,
     Json(request): Json<crate::models::team::ExecuteRoleTaskRequest>,
+    stream_tx: Option<(tokio::sync::broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>, String)>,
 ) -> ApiResponse<crate::models::team::ExecuteRoleTaskResponse> {
     println!("[DEBUG] execute_role_task_with_context CALLED, role_id: {}", request.role_id);
     tracing::info!("[Route] execute_role_task_with_context 被调用，role_id: {}", request.role_id);
@@ -520,7 +522,7 @@ async fn execute_role_task_with_context(
     let response = state
         .teams_state
         .agent_team_service
-        .execute_role_task(enhanced_request)
+        .execute_role_task(enhanced_request, stream_tx)
         .await?;
     println!("[DEBUG-6] agent_team_service.execute_role_task returned");
     tracing::info!("[Route-6] agent_team_service.execute_role_task returned");
@@ -849,7 +851,7 @@ pub async fn execute_role_task(
     let response = state
         .teams_state
         .agent_team_service
-        .execute_role_task(enhanced_request)
+        .execute_role_task(enhanced_request, None)
         .await?;
 
     // 5. Store conversation to memory (async, non-blocking)

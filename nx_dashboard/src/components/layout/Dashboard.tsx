@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { Allotment } from 'allotment';
 import 'allotment/dist/style.css';
+import { GlobalOpsOverlay } from '@/components/global/GlobalOpsOverlay';
 
 export function Dashboard() {
   const [showFileSidebar, setShowFileSidebar] = useState(true);
@@ -70,6 +71,7 @@ export function Dashboard() {
           </main>
         </div>
       </div>
+      <GlobalOpsOverlay />
     </div>
   );
 }

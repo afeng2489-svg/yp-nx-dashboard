@@ -7,7 +7,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use thiserror::Error;
 use tokio::sync::broadcast;
-use tokio::time::timeout;
 use parking_lot::RwLock as ParkingRwLock;
 
 use nexus_ai::AIModelManager;
@@ -22,6 +21,105 @@ use crate::services::skill_service::SkillService;
 use crate::services::telegram_service::{InboundTelegramMessage, TelegramService};
 use crate::services::team_service::TeamService;
 use crate::services::ai_provider_service::ProviderService;
+
+/// Strip ANSI escape codes from a string (for clean card display).
+fn strip_ansi(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut iter = s.chars().peekable();
+    while let Some(c) = iter.next() {
+        if c == '\x1b' {
+            match iter.peek() {
+                Some(&'[') => {
+                    iter.next();
+                    for ch in iter.by_ref() {
+                        if ch.is_ascii_alphabetic() { break; }
+                    }
+                }
+                Some(&']') => {
+                    iter.next();
+                    for ch in iter.by_ref() {
+                        if ch == '\x07' || ch == '\x1b' { break; }
+                    }
+                }
+                _ => { iter.next(); }
+            }
+        } else if c != '\r' {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Run Claude CLI, streaming stderr lines as Output events (real-time progress).
+/// stdout is collected as the final result returned to the caller.
+/// Both pipes are drained concurrently so neither can deadlock.
+async fn run_claude(
+    args: &[&str],
+    working_dir: Option<&str>,
+    stream_tx: Option<&(broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>, String)>,
+    timeout_secs: u64,
+) -> Result<(Option<u32>, bool, String), String> {
+    use tokio::io::AsyncBufReadExt;
+
+    let mut cmd = tokio::process::Command::new("claude");
+    cmd.args(args);
+    cmd.stdin(std::process::Stdio::null());
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped()); // piped — drained by a concurrent task, no deadlock
+    if let Some(dir) = working_dir {
+        cmd.current_dir(dir);
+    }
+
+    let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn Claude CLI: {}", e))?;
+    let pid = child.id();
+
+    let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
+
+    // Clone sender so the stderr task can own it
+    let stderr_sender = stream_tx.map(|(tx, id)| (tx.clone(), id.clone()));
+
+    // Drain stderr concurrently: prevents buffer deadlock AND streams progress to the card
+    let stderr_handle = tokio::spawn(async move {
+        let mut stderr_lines = tokio::io::BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = stderr_lines.next_line().await {
+            if let Some((ref tx, ref id)) = stderr_sender {
+                let clean = strip_ansi(&line);
+                let trimmed = clean.trim().to_string();
+                if !trimmed.is_empty() {
+                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Output {
+                        execution_id: id.clone(),
+                        partial_output: format!("{}\n", trimmed),
+                    });
+                }
+            }
+        }
+    });
+
+    let mut stdout_lines = tokio::io::BufReader::new(stdout).lines();
+    let mut full_output = String::new();
+
+    let timed_out = tokio::time::timeout(Duration::from_secs(timeout_secs), async {
+        while let Ok(Some(line)) = stdout_lines.next_line().await {
+            full_output.push_str(&line);
+            full_output.push('\n');
+        }
+    }).await.is_err();
+
+    // Kill BEFORE wait — Node.js ignores broken-pipe so child.wait() would block forever
+    if timed_out {
+        stderr_handle.abort();
+        let _ = child.kill().await;
+        let _ = child.wait().await;
+        return Err(format!("Claude CLI timeout after {}s", timeout_secs));
+    }
+
+    // Process exited (stdout EOF) — give stderr task up to 2s to flush remaining lines
+    let _ = tokio::time::timeout(Duration::from_secs(2), stderr_handle).await;
+
+    let status = child.wait().await.map_err(|e| format!("wait failed: {}", e))?;
+    Ok((pid, status.success(), full_output.trim().to_string()))
+}
 
 /// Agent team service error
 #[derive(Debug, Error)]
@@ -311,9 +409,12 @@ impl AgentTeamService {
     /// Sends team/role/skill context to Claude in ONE call, letting Claude decide:
     /// - If a skill matches → execute the skill chain
     /// - If no skill matches → return normal AI response
+    ///
+    /// `stream_tx`: if Some, streams stdout lines as AgentExecutionEvent::Output events
     pub async fn execute_team_task(
         &self,
         request: ExecuteTeamTaskRequest,
+        stream_tx: Option<(broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>, String)>,
     ) -> Result<ExecuteTeamTaskResponse, AgentTeamServiceError> {
         // Load team
         let team = self
@@ -394,55 +495,34 @@ Return your response directly. If using a skill, invoke it according to its exec
         let working_dir = self.current_workspace_path.read().clone();
 
         // Register process for monitoring
-        let execution_id = format!("team-{}", uuid::Uuid::new_v4());
+        let proc_exec_id = format!("team-{}", uuid::Uuid::new_v4());
         let first_role_name = team_with_roles.roles.first().map(|r| r.role.name.clone()).unwrap_or_else(|| "dispatcher".to_string());
-        self.register_process(&execution_id, &team.id, &first_role_name, &team.id, &request.task);
+        self.register_process(&proc_exec_id, &team.id, &first_role_name, &team.id, &request.task);
 
-        // Single Claude CLI call — use spawn() to capture PID
-        let mut cmd = tokio::process::Command::new("claude");
-        cmd.args(["-p", "--dangerously-skip-permissions", &full_prompt]);
-        cmd.stdin(std::process::Stdio::null());
-        cmd.stdout(std::process::Stdio::piped());
-        cmd.stderr(std::process::Stdio::piped());
-        if let Some(ref dir) = working_dir {
-            cmd.current_dir(dir);
-            tracing::info!("[AgentTeam] 执行 Claude CLI，当前目录: {}", dir);
-        }
-
-        let mut child = cmd.spawn()
-            .map_err(|e| {
-                self.set_process_status(&execution_id, ProcessStatus::Failed);
-                AgentTeamServiceError::AiError(format!("Failed to spawn Claude CLI: {}", e))
-            })?;
-
-        // Capture PID for process monitoring
-        if let Some(pid) = child.id() {
-            self.set_process_pid(&execution_id, pid);
-        }
-
-        // Wait with timeout
-        let output = timeout(Duration::from_secs(120), child.wait_with_output()).await;
-
-        let response = match output {
-            Ok(Ok(out)) if out.status.success() => {
-                let resp = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                self.complete_process(&execution_id, &resp);
-                resp
+        // Single Claude CLI call — 600s timeout for long-running tasks
+        let pty_result = run_claude(
+            &["-p", "--dangerously-skip-permissions", &full_prompt],
+            working_dir.as_deref(),
+            stream_tx.as_ref(),
+            1800, // 30 min — complex coding tasks can take 25+ min
+        ).await;
+        let (pid, success, response) = match pty_result {
+            Err(e) => {
+                self.set_process_status(&proc_exec_id, ProcessStatus::Failed);
+                return Err(AgentTeamServiceError::AiError(e));
             }
-            Ok(Ok(out)) => {
-                let stderr = String::from_utf8_lossy(&out.stderr);
-                self.set_process_status(&execution_id, ProcessStatus::Failed);
-                return Err(AgentTeamServiceError::AiError(stderr.to_string()));
-            }
-            Ok(Err(e)) => {
-                self.set_process_status(&execution_id, ProcessStatus::Failed);
-                return Err(AgentTeamServiceError::AiError(format!("Failed to execute Claude CLI: {}", e)));
-            }
-            Err(_) => {
-                self.set_process_status(&execution_id, ProcessStatus::Failed);
-                return Err(AgentTeamServiceError::AiError("Claude CLI execution timeout after 120 seconds".to_string()));
-            }
+            Ok(r) => r,
         };
+
+        if let Some(p) = pid {
+            self.set_process_pid(&proc_exec_id, p);
+        }
+
+        if !success {
+            self.set_process_status(&proc_exec_id, ProcessStatus::Failed);
+            return Err(AgentTeamServiceError::AiError("Claude CLI exited with error".to_string()));
+        }
+        self.complete_process(&proc_exec_id, &response);
 
         // Save assistant message (use first role as responder if skill was used)
         let responder_id = team_with_roles.roles.first().map(|r| r.role.id.clone()).unwrap_or_default();
@@ -500,10 +580,11 @@ Return your response directly. If using a skill, invoke it according to its exec
 
     /// Execute a task for a single role (with its assigned skills)
     ///
-    /// This method processes the AI request synchronously and returns the actual response.
+    /// `stream_tx`: if Some, streams stdout lines as AgentExecutionEvent::Output events
     pub async fn execute_role_task(
         &self,
         request: ExecuteRoleTaskRequest,
+        stream_tx: Option<(broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>, String)>,
     ) -> Result<ExecuteRoleTaskResponse, AgentTeamServiceError> {
         println!("[AGENT-1] execute_role_task CALLED, role_id: {}", request.role_id);
         tracing::info!("[AgentTeamService] execute_role_task 被调用，role_id: {}", request.role_id);
@@ -588,80 +669,39 @@ Return your response directly. If using a skill, invoke it according to its exec
             }
         }
 
-        println!("[AGENT-5] Creating cmd...");
-        tracing::info!("[AgentTeamService-5] Creating cmd...");
+        println!("[AGENT-5] Spawning Claude CLI...");
+        tracing::info!("[AgentTeamService-5] Spawning Claude CLI...");
 
-        let mut cmd = tokio::process::Command::new("claude");
-        cmd.args(["-p", "--dangerously-skip-permissions", &full_prompt]);
-        // 不继承 stdin，避免挂起
-        cmd.stdin(std::process::Stdio::null());
-        cmd.stdout(std::process::Stdio::piped());
-        cmd.stderr(std::process::Stdio::piped());
-        if let Some(ref dir) = working_dir {
-            cmd.current_dir(dir);
-            tracing::info!("[AgentTeam] 执行 Claude CLI，当前目录: {}", dir);
-        }
+        let pty_result = run_claude(
+            &["-p", "--dangerously-skip-permissions", &full_prompt],
+            working_dir.as_deref(),
+            stream_tx.as_ref(),
+            1800, // 30 min — complex coding tasks can take 25+ min
+        ).await;
 
-        // Use spawn() to capture PID for process monitoring
-        println!("[AGENT-5b] About to spawn cmd...");
-        tracing::info!("[AgentTeamService-5b] About to spawn...");
-        let mut child = cmd.spawn()
-            .map_err(|e| {
+        println!("[AGENT-6] Claude CLI completed");
+        tracing::info!("[AgentTeamService-6] Claude CLI completed");
+
+        let (pid, success, response) = match pty_result {
+            Err(e) => {
                 self.set_process_status(&execution_id, ProcessStatus::Failed);
-                AgentTeamServiceError::AiError(format!("Failed to spawn Claude CLI: {}", e))
-            })?;
-
-        // Capture PID
-        if let Some(pid) = child.id() {
-            self.set_process_pid(&execution_id, pid);
-            tracing::info!("[AgentTeam] Process PID: {}", pid);
-        }
-
-        // 设置 120 秒超时
-        let output = timeout(Duration::from_secs(120), child.wait_with_output()).await;
-
-        println!("[AGENT-6] timeout() returned");
-        tracing::info!("[AgentTeamService-6] timeout() returned");
-
-        // 处理超时和结果
-        let output = match output {
-            Ok(Ok(out)) => {
-                println!("[DEBUG] cmd.output() succeeded");
-                tracing::info!("[AgentTeam] cmd.output() succeeded");
-                out
+                return Err(AgentTeamServiceError::AiError(e));
             }
-            Ok(Err(e)) => {
-                println!("[DEBUG] cmd.output() error: {:?}", e);
-                tracing::error!("[AgentTeam] cmd.output() error: {:?}", e);
-                self.set_process_status(&execution_id, ProcessStatus::Failed);
-                return Err(AgentTeamServiceError::AiError(format!("cmd.output() error: {}", e)));
-            }
-            Err(_) => {
-                println!("[DEBUG] TIMEOUT after 120 seconds!");
-                tracing::error!("[AgentTeam] TIMEOUT after 120 seconds!");
-                self.set_process_status(&execution_id, ProcessStatus::Failed);
-                return Err(AgentTeamServiceError::AiError("Claude CLI execution timeout after 120 seconds".to_string()));
-            }
+            Ok(r) => r,
         };
 
-        println!("[DEBUG] Checking output status...");
-        tracing::info!("[AgentTeam] Checking output status");
+        if let Some(p) = pid {
+            self.set_process_pid(&execution_id, p);
+            tracing::info!("[AgentTeam] Process PID: {}", p);
+        }
 
-        let response = match output.status.success() {
-            true => {
-                println!("[DEBUG] Claude CLI success");
-                tracing::info!("[AgentTeam] Claude CLI success");
-                let resp = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                self.complete_process(&execution_id, &resp);
-                resp
-            }
-            false => {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                println!("[DEBUG] Claude CLI failed, stderr: {}", stderr);
-                tracing::error!("[AgentTeam] Claude CLI failed: {}", stderr);
-                return Err(AgentTeamServiceError::AiError(stderr.to_string()));
-            }
-        };
+        if !success {
+            self.set_process_status(&execution_id, ProcessStatus::Failed);
+            return Err(AgentTeamServiceError::AiError("Claude CLI exited with error".to_string()));
+        }
+
+        tracing::info!("[AgentTeam] Claude CLI success");
+        self.complete_process(&execution_id, &response);
 
         // Save assistant message
         let assistant_msg = TeamMessage::assistant_message(

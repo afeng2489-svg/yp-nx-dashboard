@@ -140,7 +140,7 @@ impl ProjectService {
             context,
         };
 
-        let result = self.agent_team_service.execute_team_task(execute_req)
+        let result = self.agent_team_service.execute_team_task(execute_req, None)
             .await
             .map_err(|e| ProjectError::ExecutionError(e.to_string()))?;
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTeamStore, Team, Role, Message, TelegramConfig } from '@/stores/teamStore';
 import { useWorkspaceStore, onWorkspaceChange } from '@/stores/workspaceStore';
 import { useTeamsQuery } from '@/hooks/useReactQuery';
-import { Plus, Trash2, Edit, X, Users, Clock, Sparkles, Settings, Send, MessageCircle, Bot, Zap, Loader2, UserPlus, Eye } from 'lucide-react';
+import { Plus, Trash2, Edit, X, Users, Clock, Sparkles, Settings, Send, MessageCircle, Bot, Zap, Loader2, UserPlus, Eye, Radio } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TeamDetailPanel } from '@/components/team/TeamDetailPanel';
 import { RoleCard } from '@/components/team/RoleCard';
@@ -13,7 +13,7 @@ import { AddExistingRoleModal } from '@/components/team/AddExistingRoleModal';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 
 export function TeamsPage() {
-  const { getTeam, deleteTeam, setCurrentTeam, currentTeam, roles, fetchRoles } = useTeamStore();
+  const { getTeam, deleteTeam, setCurrentTeam, currentTeam, roles, fetchRoles, teamMonitorMode, setTeamMonitorMode } = useTeamStore();
   const { currentWorkspace } = useWorkspaceStore();
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -259,6 +259,20 @@ export function TeamsPage() {
                     title="删除"
                   >
                     <Trash2 className="w-4 h-4" />
+                  </button>
+                  {/* 监控模式开关 */}
+                  <button
+                    onClick={() => setTeamMonitorMode(team.id, !(teamMonitorMode[team.id] ?? false))}
+                    className={cn(
+                      'p-2.5 rounded-xl transition-all duration-200',
+                      teamMonitorMode[team.id]
+                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40'
+                        : 'hover:bg-accent text-muted-foreground hover:text-foreground',
+                      'hover:-translate-y-0.5'
+                    )}
+                    title={teamMonitorMode[team.id] ? '监控模式（点击切换为自动模式）' : '自动模式（点击切换为监控模式）'}
+                  >
+                    <Radio className="w-4 h-4" />
                   </button>
                 </div>
               </div>

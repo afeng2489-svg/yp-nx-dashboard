@@ -9,15 +9,33 @@ export interface Workflow {
   description?: string;
   stages: Stage[];
   agents: Agent[];
+  triggers?: WorkflowTrigger[];
+  // 列表摘要时由 API 返回，详情加载前作为展示用计数
+  stage_count?: number;
+  agent_count?: number;
   created_at?: string;
   updated_at?: string;
   workspace_id?: string;
 }
 
+export interface WorkflowTrigger {
+  type: string;
+  inputs?: Record<string, WorkflowInput>;
+}
+
+export interface WorkflowInput {
+  type: string;
+  required?: boolean;
+  description?: string;
+}
+
 export interface Stage {
   name: string;
+  stage_type?: string;
   agents: string[];
   parallel: boolean;
+  question?: string;
+  options?: Array<{ label: string; value: string; description?: string }>;
 }
 
 export interface Agent {
@@ -126,6 +144,8 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
         description: s.description,
         stages: [],
         agents: [],
+        stage_count: s.stage_count,
+        agent_count: s.agent_count,
         created_at: undefined,
         updated_at: undefined,
       }));
@@ -155,7 +175,21 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
         );
       }
 
-      return await response.json();
+      // 后端返回 { id, name, version, description, definition: { stages, agents, triggers, ... }, created_at, updated_at }
+      // 需要把 definition 里的 stages/agents/triggers 提升到顶层
+      const raw = await response.json();
+      const def = raw.definition ?? {};
+      return {
+        id: raw.id,
+        name: raw.name,
+        version: raw.version,
+        description: raw.description,
+        stages: def.stages ?? [],
+        agents: def.agents ?? [],
+        triggers: def.triggers ?? [],
+        created_at: raw.created_at,
+        updated_at: raw.updated_at,
+      } as Workflow;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       console.error(`Failed to get workflow ${id}:`, message);

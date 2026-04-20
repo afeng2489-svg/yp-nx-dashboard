@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { WS_BASE_URL } from '@/api/constants';
+import { useTeamStore } from '@/stores/teamStore';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -59,6 +60,12 @@ export function useAgentExecution(): UseAgentExecutionReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const timerRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
+  // Track whether an execution is in-flight so we don't close the WS on unmount
+  const isRunningRef = useRef(false);
+  // For reconnect: remember the last execId and monitorCtx
+  const reconnectTimerRef = useRef<number | null>(null);
+  const lastExecIdRef = useRef<string | null>(null);
+  const lastMonitorCtxRef = useRef<{ teamId: string; teamName: string; task: string } | null>(null);
 
   // Local elapsed timer (updates every second, independent of WS heartbeat)
   const startLocalTimer = useCallback(() => {
@@ -75,19 +82,49 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     }
   }, []);
 
-  // Cleanup on unmount
+  // Cleanup on unmount — keep WS alive if task is still running so the
+  // store update (setActiveTeamTask) fires even after the component closes
   useEffect(() => {
     return () => {
       stopLocalTimer();
-      wsRef.current?.close();
+      if (reconnectTimerRef.current !== null) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      if (!isRunningRef.current) {
+        wsRef.current?.close();
+      }
     };
   }, [stopLocalTimer]);
 
-  /** Connect to WS and listen for events */
-  const connectWs = useCallback((execId: string) => {
+  /** Connect to WS and listen for events, with auto-reconnect on drop */
+  const connectWs = useCallback((execId: string, monitorCtx: { teamId: string; teamName: string; task: string } | null = null) => {
+    // Store for reconnect
+    lastExecIdRef.current = execId;
+    lastMonitorCtxRef.current = monitorCtx;
+
     const wsUrl = `${WS_BASE_URL}/ws/agent-executions/${execId}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
+    let accOutput = ''; // 累积 partial output（仅用于监控卡）
+
+    const scheduleReconnect = () => {
+      if (!isRunningRef.current) return; // task finished — no reconnect needed
+      if (reconnectTimerRef.current !== null) return; // already scheduled
+      if (monitorCtx) {
+        useTeamStore.getState().setActiveTeamTask({
+          ...monitorCtx,
+          status: 'running',
+          partialOutput: accOutput ? `${accOutput}\n⟳ 正在重连...` : '⟳ 正在重连...',
+        });
+      }
+      reconnectTimerRef.current = window.setTimeout(() => {
+        reconnectTimerRef.current = null;
+        if (isRunningRef.current) {
+          connectWs(execId, monitorCtx);
+        }
+      }, 3000);
+    };
 
     ws.onmessage = (event) => {
       try {
@@ -101,10 +138,25 @@ export function useAgentExecution(): UseAgentExecutionReturn {
             if (data.elapsed_secs !== undefined) {
               setElapsedSecs(data.elapsed_secs);
             }
+            if (monitorCtx && !accOutput) {
+              useTeamStore.getState().setActiveTeamTask({
+                ...monitorCtx,
+                status: 'running',
+                partialOutput: `AI 正在处理... (${data.elapsed_secs ?? 0}s)`,
+              });
+            }
             break;
           case 'output':
             if (data.partial_output) {
               setPartialOutput((prev) => prev + data.partial_output);
+              if (monitorCtx) {
+                accOutput += data.partial_output;
+                useTeamStore.getState().setActiveTeamTask({
+                  ...monitorCtx,
+                  status: 'running',
+                  partialOutput: accOutput,
+                });
+              }
             }
             break;
           case 'completed':
@@ -112,15 +164,43 @@ export function useAgentExecution(): UseAgentExecutionReturn {
             setResult(data.result ?? null);
             setDurationMs(data.duration_ms ?? null);
             stopLocalTimer();
+            isRunningRef.current = false;
+            if (reconnectTimerRef.current !== null) {
+              clearTimeout(reconnectTimerRef.current);
+              reconnectTimerRef.current = null;
+            }
+            if (monitorCtx) {
+              useTeamStore.getState().setActiveTeamTask({
+                ...monitorCtx,
+                status: 'done',
+                result: data.result ?? '',
+              });
+            }
             break;
           case 'failed':
             setStatus('failed');
             setError(data.error ?? 'Unknown error');
             stopLocalTimer();
+            isRunningRef.current = false;
+            if (monitorCtx) {
+              useTeamStore.getState().setActiveTeamTask({
+                ...monitorCtx,
+                status: 'error',
+                error: data.error ?? 'Unknown error',
+              });
+            }
             break;
           case 'cancelled':
             setStatus('cancelled');
             stopLocalTimer();
+            isRunningRef.current = false;
+            if (monitorCtx) {
+              useTeamStore.getState().setActiveTeamTask({
+                ...monitorCtx,
+                status: 'error',
+                error: '已取消',
+              });
+            }
             break;
         }
       } catch {
@@ -129,18 +209,25 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     };
 
     ws.onerror = () => {
-      // WS error — don't overwrite existing status if already terminal
-      setStatus((prev) =>
-        prev === 'completed' || prev === 'failed' || prev === 'cancelled'
-          ? prev
-          : 'failed'
-      );
-      setError('WebSocket connection error');
-      stopLocalTimer();
+      // WS connection error — if the task is still running, try to reconnect.
+      // Don't mark the card as failed: the backend task continues regardless of WS state.
+      if (!isRunningRef.current) {
+        setStatus((prev) =>
+          prev === 'completed' || prev === 'failed' || prev === 'cancelled' ? prev : 'failed'
+        );
+        setError('WebSocket connection error');
+        stopLocalTimer();
+      } else {
+        scheduleReconnect();
+      }
     };
 
     ws.onclose = () => {
       wsRef.current = null;
+      // If task still running and connection dropped, schedule reconnect
+      if (isRunningRef.current) {
+        scheduleReconnect();
+      }
     };
   }, [stopLocalTimer]);
 
@@ -154,6 +241,20 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     setError(null);
     setDurationMs(null);
     startLocalTimer();
+    isRunningRef.current = true;
+
+    // 如果该团队开启了监控模式，更新全局悬浮卡
+    const { teamMonitorMode, teams, setActiveTeamTask } = useTeamStore.getState();
+    const isMonitor = teamMonitorMode[teamId] ?? false;
+    if (isMonitor) {
+      const team = teams.find(t => t.id === teamId);
+      setActiveTeamTask({
+        teamId,
+        teamName: team?.name ?? '团队',
+        task,
+        status: 'running',
+      });
+    }
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/teams/${teamId}/execute`, {
@@ -163,6 +264,15 @@ export function useAgentExecution(): UseAgentExecutionReturn {
       });
 
       if (!response.ok) {
+        if (isMonitor) {
+          useTeamStore.getState().setActiveTeamTask({
+            teamId,
+            teamName: teams.find(t => t.id === teamId)?.name ?? '团队',
+            task,
+            status: 'error',
+            error: `HTTP ${response.status}`,
+          });
+        }
         throw new Error(`HTTP ${response.status}`);
       }
 
@@ -182,19 +292,41 @@ export function useAgentExecution(): UseAgentExecutionReturn {
 
       if (execId) {
         setExecutionId(execId);
-        connectWs(execId);
+        connectWs(execId, isMonitor ? { teamId, teamName: teams.find(t => t.id === teamId)?.name ?? '团队', task } : null);
         return execId;
       } else {
         // Fallback: treat as synchronous completion
         setStatus('completed');
-        setResult(data.final_output ?? '');
+        isRunningRef.current = false;
+        const finalOutput = data.final_output ?? '';
+        setResult(finalOutput);
         stopLocalTimer();
+        if (isMonitor) {
+          useTeamStore.getState().setActiveTeamTask({
+            teamId,
+            teamName: teams.find(t => t.id === teamId)?.name ?? '团队',
+            task,
+            status: 'done',
+            result: finalOutput,
+          });
+        }
         return null;
       }
     } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
       setStatus('failed');
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError(errMsg);
       stopLocalTimer();
+      isRunningRef.current = false;
+      if (isMonitor) {
+        useTeamStore.getState().setActiveTeamTask({
+          teamId,
+          teamName: teams.find(t => t.id === teamId)?.name ?? '团队',
+          task,
+          status: 'error',
+          error: errMsg,
+        });
+      }
       return null;
     }
   }, [connectWs, startLocalTimer, stopLocalTimer]);
