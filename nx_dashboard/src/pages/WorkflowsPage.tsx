@@ -76,7 +76,7 @@ function SkillSelectorModal({ isOpen, onClose, onSelect }: SkillSelectorModalPro
       fetchSkills();
       fetchCategories();
     }
-  }, [isOpen]);
+  }, [isOpen, fetchSkills, fetchCategories]);
 
   const filteredSkills = skills.filter(skill => {
     const matchesSearch = !searchQuery ||

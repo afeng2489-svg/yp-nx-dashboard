@@ -4,6 +4,13 @@
 
 use serde::{Deserialize, Serialize};
 
+/// 用户输入选项（pause 时展示给前端）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowOption {
+    pub label: String,
+    pub value: String,
+}
+
 /// 执行事件
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -22,6 +29,19 @@ pub enum ExecutionEvent {
     Completed { execution_id: String },
     /// 失败
     Failed { execution_id: String, error: String },
+    /// 工作流暂停，等待用户选择
+    WorkflowPaused {
+        execution_id: String,
+        stage_name: String,
+        question: String,
+        options: Vec<WorkflowOption>,
+    },
+    /// 工作流从暂停中恢复
+    WorkflowResumed {
+        execution_id: String,
+        stage_name: String,
+        chosen_value: String,
+    },
 }
 
 /// 执行状态

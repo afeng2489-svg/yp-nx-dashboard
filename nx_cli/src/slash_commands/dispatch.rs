@@ -100,16 +100,43 @@ impl SlashCommandDispatcher {
             None
         };
 
-        // Parse arguments
+        // Parse arguments — handle quoted values (e.g. key="value with spaces")
         let mut args = Args::new();
-        let arg_parts = &parts[1..];
-        for arg in arg_parts.iter() {
-            if let Some((key, value)) = arg.split_once('=') {
-                args = args.with_arg(key, value);
+        let arg_str = parts[1..].join(" ");
+        let mut remaining = arg_str.as_str();
+        while !remaining.is_empty() {
+            remaining = remaining.trim_start();
+            if remaining.is_empty() {
+                break;
+            }
+            if let Some(eq_pos) = remaining.find('=') {
+                let key = remaining[..eq_pos].trim();
+                let after_eq = &remaining[eq_pos + 1..];
+                let (value, rest) = if after_eq.starts_with('"') {
+                    // Quoted value: scan for closing quote
+                    let inner = &after_eq[1..];
+                    if let Some(close) = inner.find('"') {
+                        (&inner[..close], inner[close + 1..].trim_start())
+                    } else {
+                        // Unclosed quote — treat rest as value
+                        (inner, "")
+                    }
+                } else {
+                    // Unquoted value: ends at next whitespace
+                    let end = after_eq.find(char::is_whitespace).unwrap_or(after_eq.len());
+                    (after_eq[..end].trim(), after_eq[end..].trim_start())
+                };
+                if !key.is_empty() {
+                    args = args.with_arg(key, value);
+                }
+                remaining = rest;
             } else {
-                // Handle positional arguments
+                // Positional argument (no '=')
+                let end = remaining.find(char::is_whitespace).unwrap_or(remaining.len());
+                let token = &remaining[..end];
                 let arg_name = format!("arg{}", args.keys().count() + 1);
-                args = args.with_arg(arg_name, *arg);
+                args = args.with_arg(arg_name, token);
+                remaining = remaining[end..].trim_start();
             }
         }
 

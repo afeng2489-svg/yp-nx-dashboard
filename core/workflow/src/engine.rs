@@ -9,8 +9,9 @@ use tokio::process::Command;
 
 use crate::{WorkflowDefinition, WorkflowState, WorkflowStatus, StageOutput, AgentState, AgentStatus};
 use crate::events::{EventEmitter, WorkflowEvent};
-use crate::parser::WorkflowError as ParserWorkflowError;
+use crate::parser::{WorkflowError as ParserWorkflowError, StageType};
 use nexus_ai::ChatMessage;
+use regex::Regex;
 
 /// 共享工作流状态
 type SharedState = Arc<RwLock<WorkflowState>>;
@@ -21,6 +22,8 @@ pub struct WorkflowEngine {
     event_emitter: Arc<dyn EventEmitter>,
     /// 工作目录（用于 Claude CLI --project 参数）
     working_directory: Option<String>,
+    /// user_input stage 用：前端通过此 channel 发回用户选择的值
+    resume_rx: Option<Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<String>>>>,
 }
 
 impl WorkflowEngine {
@@ -29,6 +32,7 @@ impl WorkflowEngine {
         Self {
             event_emitter,
             working_directory: None,
+            resume_rx: None,
         }
     }
 
@@ -37,6 +41,20 @@ impl WorkflowEngine {
         Self {
             event_emitter,
             working_directory,
+            resume_rx: None,
+        }
+    }
+
+    /// 创建支持 user_input pause/resume 的引擎
+    pub fn with_resume_channel(
+        event_emitter: Arc<dyn EventEmitter>,
+        working_directory: Option<String>,
+        resume_rx: tokio::sync::mpsc::Receiver<String>,
+    ) -> Self {
+        Self {
+            event_emitter,
+            working_directory,
+            resume_rx: Some(Arc::new(tokio::sync::Mutex::new(resume_rx))),
         }
     }
 
@@ -59,60 +77,147 @@ impl WorkflowEngine {
             state.write().set_var(key, value.clone());
         }
 
-        // 顺序执行阶段
-        for (stage_idx, stage) in workflow.stages.iter().enumerate() {
+        // ── 新执行循环：支持条件跳转、user_input 暂停、loop ──
+        let mut current_stage_name: Option<String> =
+            workflow.stages.first().map(|s| s.name.clone());
+
+        while let Some(ref stage_name) = current_stage_name.clone() {
             if state.read().should_stop() {
                 break;
             }
+
+            // 找到当前要执行的 stage
+            let stage_idx = workflow.stages.iter().position(|s| &s.name == stage_name);
+            let stage = match stage_idx {
+                Some(idx) => workflow.stages[idx].clone(),
+                None => {
+                    return Err(WorkflowError::Execution(
+                        format!("找不到 stage: {}", stage_name)
+                    ));
+                }
+            };
 
             {
                 let s = state.read();
                 self.event_emitter.emit(WorkflowEvent::StageStarted {
                     execution_id: s.execution_id,
                     stage_name: stage.name.clone(),
-                    stage_index: stage_idx,
+                    stage_index: stage_idx.unwrap_or(0),
                 });
             }
 
-            // 执行阶段（带 on_error 重试逻辑）
-            let outputs = match self.execute_stage(&state, stage, &workflow.agents).await {
-                Ok(outputs) => outputs,
-                Err(e) => {
-                    if let Some(ref error_handler) = workflow.on_error {
-                        if error_handler.retry {
-                            let mut last_err = e;
-                            let mut retry_result = None;
-                            for attempt in 1..=error_handler.max_retries {
-                                tracing::warn!(
-                                    "Stage '{}' 失败，重试 {}/{}",
-                                    stage.name, attempt, error_handler.max_retries
-                                );
-                                match self.execute_stage(&state, stage, &workflow.agents).await {
-                                    Ok(outputs) => {
-                                        retry_result = Some(outputs);
-                                        break;
-                                    }
-                                    Err(e) => {
-                                        last_err = e;
-                                    }
-                                }
-                            }
-                            match retry_result {
-                                Some(outputs) => outputs,
-                                None => return Err(last_err),
+            // 根据 stage 类型分发执行
+            let outputs = match stage.stage_type {
+                StageType::UserInput => {
+                    let question = stage.question.clone().unwrap_or_default();
+                    let options = stage.options.clone();
+                    let output_var = stage.output_var.clone().unwrap_or_default();
+
+                    self.event_emitter.emit(WorkflowEvent::WorkflowPaused {
+                        execution_id: state.read().execution_id,
+                        stage_name: stage.name.clone(),
+                        question: question.clone(),
+                        options: options.iter().map(|o| (o.label.clone(), o.value.clone())).collect(),
+                    });
+
+                    // 等待 resume_tx channel 收到用户选择
+                    let chosen_value = if let Some(ref resume_rx) = self.resume_rx {
+                        let mut rx = resume_rx.lock().await;
+                        rx.recv().await.unwrap_or_default()
+                    } else {
+                        // 单元测试时没有 channel，用第一个选项的 value 作为默认
+                        stage.options.first().map(|o| o.value.clone()).unwrap_or_default()
+                    };
+
+                    if !output_var.is_empty() {
+                        state.write().set_var(
+                            &output_var,
+                            serde_json::Value::String(chosen_value.clone()),
+                        );
+                    }
+
+                    vec![StageOutput {
+                        path: format!("user_input://{}", stage.name),
+                        content: Some(chosen_value),
+                        agent_id: None,
+                    }]
+                }
+
+                StageType::Loop => {
+                    let mut loop_outputs = Vec::new();
+                    let mut iteration = 0usize;
+
+                    loop {
+                        iteration += 1;
+                        if iteration > stage.max_iterations {
+                            return Err(WorkflowError::Execution(format!(
+                                "Loop stage '{}' 超过最大循环次数 {}",
+                                stage.name, stage.max_iterations
+                            )));
+                        }
+
+                        for body_stage_name in &stage.body_stages {
+                            let body_idx = workflow.stages.iter().position(|s| &s.name == body_stage_name);
+                            let body_stage = match body_idx {
+                                Some(idx) => workflow.stages[idx].clone(),
+                                None => return Err(WorkflowError::Execution(
+                                    format!("Loop body 找不到 stage: {}", body_stage_name)
+                                )),
+                            };
+                            let body_outputs = self.execute_stage(&state, &body_stage, &workflow.agents).await?;
+                            loop_outputs.extend(body_outputs);
+                        }
+
+                        if let Some(ref cond) = stage.break_condition {
+                            if Self::evaluate_condition(cond, &state.read().variables) {
+                                break;
                             }
                         } else {
-                            return Err(e);
+                            break;
                         }
-                    } else {
-                        return Err(e);
+                    }
+                    loop_outputs
+                }
+
+                StageType::Agent => {
+                    match self.execute_stage(&state, &stage, &workflow.agents).await {
+                        Ok(outputs) => outputs,
+                        Err(e) => {
+                            if let Some(ref error_handler) = workflow.on_error {
+                                if error_handler.retry {
+                                    let mut last_err = e;
+                                    let mut retry_result = None;
+                                    for attempt in 1..=error_handler.max_retries {
+                                        tracing::warn!(
+                                            "Stage '{}' 失败，重试 {}/{}",
+                                            stage.name, attempt, error_handler.max_retries
+                                        );
+                                        match self.execute_stage(&state, &stage, &workflow.agents).await {
+                                            Ok(outputs) => {
+                                                retry_result = Some(outputs);
+                                                break;
+                                            }
+                                            Err(e) => { last_err = e; }
+                                        }
+                                    }
+                                    match retry_result {
+                                        Some(outputs) => outputs,
+                                        None => return Err(last_err),
+                                    }
+                                } else {
+                                    return Err(e);
+                                }
+                            } else {
+                                return Err(e);
+                            }
+                        }
                     }
                 }
             };
 
             {
                 let mut s = state.write();
-                s.record_stage(&stage.name, outputs);
+                s.record_stage(&stage.name, outputs.clone());
             }
 
             {
@@ -120,8 +225,32 @@ impl WorkflowEngine {
                 self.event_emitter.emit(WorkflowEvent::StageCompleted {
                     execution_id: s.execution_id,
                     stage_name: stage.name.clone(),
-                    outputs: s.stage_results.last().unwrap().outputs.clone(),
+                    outputs: outputs.clone(),
                 });
+            }
+
+            // ── 计算下一个 stage ──
+            if stage.stage_type == StageType::Loop {
+                current_stage_name = Self::next_after(&workflow.stages, &stage.name);
+            } else if stage.next.is_empty() {
+                current_stage_name = Self::next_after(&workflow.stages, &stage.name);
+            } else {
+                let vars = state.read().variables.clone();
+                let mut jumped = false;
+                for transition in &stage.next {
+                    let should_jump = match &transition.condition {
+                        None => true,
+                        Some(cond) => Self::evaluate_condition(cond, &vars),
+                    };
+                    if should_jump {
+                        current_stage_name = Some(transition.goto.clone());
+                        jumped = true;
+                        break;
+                    }
+                }
+                if !jumped {
+                    current_stage_name = Self::next_after(&workflow.stages, &stage.name);
+                }
             }
         }
 
@@ -140,6 +269,68 @@ impl WorkflowEngine {
             variables: s.variables.clone(),
             stage_results: s.stage_results.clone(),
         })
+    }
+
+    /// 返回 stages 数组中 current_name 之后的下一个 stage 名（没有则 None 表示结束）
+    fn next_after(stages: &[crate::parser::StageDefinition], current_name: &str) -> Option<String> {
+        stages.iter()
+            .position(|s| s.name == current_name)
+            .and_then(|idx| stages.get(idx + 1))
+            .map(|s| s.name.clone())
+    }
+
+    /// 求值条件表达式
+    /// 支持：  变量名 == '值'  |  变量名 != '值'  |  变量名 >= 数字  |  变量名 <= 数字
+    fn evaluate_condition(
+        condition: &str,
+        vars: &std::collections::HashMap<String, serde_json::Value>,
+    ) -> bool {
+        let cond = condition.trim();
+
+        if let Some(idx) = cond.find(" == ") {
+            let var_name = cond[..idx].trim();
+            let expected = cond[idx + 4..].trim().trim_matches('\'').trim_matches('"');
+            return vars.get(var_name)
+                .and_then(|v| v.as_str())
+                .map(|v| v == expected)
+                .unwrap_or(false);
+        }
+
+        if let Some(idx) = cond.find(" != ") {
+            let var_name = cond[..idx].trim();
+            let expected = cond[idx + 4..].trim().trim_matches('\'').trim_matches('"');
+            return vars.get(var_name)
+                .and_then(|v| v.as_str())
+                .map(|v| v != expected)
+                .unwrap_or(true);
+        }
+
+        if let Some(idx) = cond.find(" >= ") {
+            let var_name = cond[..idx].trim();
+            let threshold: f64 = cond[idx + 4..].trim().parse().unwrap_or(0.0);
+            return vars.get(var_name)
+                .and_then(|v| v.as_str().and_then(|s| s.parse::<f64>().ok())
+                    .or_else(|| v.as_f64()))
+                .map(|v| v >= threshold)
+                .unwrap_or(false);
+        }
+
+        if let Some(idx) = cond.find(" <= ") {
+            let var_name = cond[..idx].trim();
+            let threshold: f64 = cond[idx + 4..].trim().parse().unwrap_or(0.0);
+            return vars.get(var_name)
+                .and_then(|v| v.as_str().and_then(|s| s.parse::<f64>().ok())
+                    .or_else(|| v.as_f64()))
+                .map(|v| v <= threshold)
+                .unwrap_or(false);
+        }
+
+        if let Some(v) = vars.get(cond) {
+            return v.as_str().map(|s| s == "true").unwrap_or(false)
+                || v.as_bool().unwrap_or(false);
+        }
+
+        false
     }
 
     /// 执行单个阶段
@@ -277,6 +468,25 @@ impl WorkflowEngine {
                 agent_state.last_message = Some(response.clone());
                 agent_state.updated_at = chrono::Utc::now();
 
+                // ── 变量提取：从输出中提取变量写入 state ──
+                for extraction in &agent.extract_vars {
+                    if let Ok(re) = Regex::new(&extraction.pattern) {
+                        if let Some(cap) = re.captures(&response) {
+                            if let Some(val) = cap.get(1) {
+                                state.write().set_var(
+                                    &extraction.name,
+                                    serde_json::Value::String(val.as_str().to_string()),
+                                );
+                                tracing::debug!(
+                                    "变量提取: {} = {}",
+                                    extraction.name,
+                                    val.as_str()
+                                );
+                            }
+                        }
+                    }
+                }
+
                 // 写回完成状态
                 state.write().update_agent(&agent.id, agent_state);
 
@@ -344,6 +554,7 @@ impl Clone for WorkflowEngine {
         Self {
             event_emitter: self.event_emitter.clone(),
             working_directory: self.working_directory.clone(),
+            resume_rx: self.resume_rx.clone(),
         }
     }
 }

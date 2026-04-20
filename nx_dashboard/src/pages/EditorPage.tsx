@@ -116,7 +116,7 @@ export function EditorPage() {
 
   return (
     <ReactFlowProvider>
-      <div className="h-screen flex flex-col bg-background">
+      <div className="h-screen bg-background" style={{ display: 'grid', gridTemplateRows: 'auto 1fr auto' }}>
         <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
           <div className="flex items-center gap-4">
             <button
@@ -184,16 +184,16 @@ export function EditorPage() {
           </div>
         </header>
 
-        <div className="flex-1 flex overflow-hidden">
-          <aside className="w-auto p-4 border-r border-border overflow-y-auto">
+        <div className="flex overflow-hidden" style={{ minHeight: 0 }}>
+          <aside className="w-auto p-4 border-r border-border overflow-y-auto" style={{ flexShrink: 0 }}>
             <NodePalette />
           </aside>
 
-          <main className="flex-1 relative">
+          <main className="relative" style={{ flex: '1 1 0', minWidth: 0, overflow: 'hidden' }}>
             <WorkflowCanvas />
           </main>
 
-          <aside className="w-auto p-4 border-l border-border overflow-y-auto">
+          <aside className="w-auto p-4 border-l border-border overflow-y-auto" style={{ flexShrink: 0 }}>
             <PropertyPanel />
           </aside>
         </div>
@@ -201,12 +201,12 @@ export function EditorPage() {
         <footer className="px-4 py-2 border-t border-border bg-card">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <div className="flex items-center gap-4">
-              <span>Nodes: {useEditorStore.getState().nodes.length}</span>
-              <span>Edges: {useEditorStore.getState().edges.length}</span>
+              <span>节点: {useEditorStore.getState().nodes.length}</span>
+              <span>连线: {useEditorStore.getState().edges.length}</span>
             </div>
             <div className="flex items-center gap-4">
-              <span>Press Ctrl+K for commands</span>
-              <span>Drag nodes to canvas</span>
+              <span>按 Ctrl+K 打开命令</span>
+              <span>拖拽节点到画布</span>
             </div>
           </div>
         </footer>

@@ -182,7 +182,7 @@ function ShortcutsSettings() {
           <p className="text-sm font-medium">启用快捷键</p>
           <p className="text-xs text-muted-foreground">全局键盘快捷键</p>
         </div>
-        <ToggleSwitch defaultChecked={isEnabled} onChange={() => setEnabled(!isEnabled)} />
+        <ToggleSwitch checked={isEnabled} onChange={(v) => setEnabled(v)} />
       </div>
 
       <div className="rounded-xl border border-border overflow-hidden">

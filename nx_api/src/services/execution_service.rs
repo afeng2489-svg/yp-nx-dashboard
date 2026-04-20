@@ -88,6 +88,8 @@ use crate::services::execution_bridge::WorkflowEventBridge;
 pub struct ExecutionService {
     executions: Arc<Mutex<HashMap<String, Execution>>>,
     event_sender: broadcast::Sender<ExecutionEvent>,
+    /// user_input pause/resume channel 注册表（execution_id → sender）
+    resume_channels: Arc<Mutex<HashMap<String, tokio::sync::mpsc::Sender<String>>>>,
 }
 
 impl std::fmt::Debug for ExecutionService {
@@ -99,10 +101,11 @@ impl std::fmt::Debug for ExecutionService {
 impl ExecutionService {
     /// 创建新的执行服务
     pub fn new() -> Self {
-        let (event_sender, _) = broadcast::channel(100);
+        let (event_sender, _) = broadcast::channel(1000);
         Self {
             executions: Arc::new(Mutex::new(HashMap::new())),
             event_sender,
+            resume_channels: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -226,6 +229,16 @@ impl ExecutionService {
         }
     }
 
+    /// 恢复暂停中的执行（user_input stage）
+    pub fn resume_execution(&self, execution_id: &str, value: String) -> bool {
+        let channels = self.resume_channels.lock();
+        if let Some(tx) = channels.get(execution_id) {
+            tx.try_send(value).is_ok()
+        } else {
+            false
+        }
+    }
+
     /// 模拟执行（用于测试）
     pub fn simulate_execution(&self, workflow_id: String) -> Execution {
         let execution = self.start_execution(workflow_id, serde_json::json!({}));
@@ -306,14 +319,23 @@ impl ExecutionService {
         // 3. 创建事件发射器（桥接到 ExecutionService）
         let event_emitter = Arc::new(WorkflowEventBridge::new(self.clone()));
 
-        // 4. 创建工作流引擎（使用 Claude CLI，不依赖 AI 提供商注册表）
-        let engine = WorkflowEngine::with_working_directory(event_emitter, working_directory);
+        // 4. 创建 resume channel，支持 user_input 暂停/恢复
+        let (resume_tx, resume_rx) = tokio::sync::mpsc::channel::<String>(1);
 
-        // 5. 启动执行
+        // 5. 创建工作流引擎（使用 Claude CLI，附带 resume channel）
+        let engine = WorkflowEngine::with_resume_channel(event_emitter, working_directory, resume_rx);
+
+        // 6. 启动执行
         let execution = self.start_execution(workflow_id.clone(), variables);
         let exec_id = execution.id.clone();
 
-        // 6. 在后台执行工作流（不阻塞）
+        // 7. 注册 resume channel
+        {
+            let mut channels = self.resume_channels.lock();
+            channels.insert(exec_id.clone(), resume_tx);
+        }
+
+        // 8. 在后台执行工作流（不阻塞）
         let exec_service = self.clone();
         let workflow_def = definition.clone();
 
@@ -324,6 +346,7 @@ impl ExecutionService {
                         "工作流执行完成: execution_id={}, status={:?}",
                         result.execution_id, result.status
                     );
+                    exec_service.resume_channels.lock().remove(&exec_id);
                     exec_service.update_status(&exec_id, ExecutionStatus::Completed);
                     exec_service.broadcast(ExecutionEvent::Completed {
                         execution_id: exec_id,
@@ -332,6 +355,7 @@ impl ExecutionService {
                 Err(e) => {
                     let error_msg = e.to_string();
                     tracing::error!("工作流执行失败: {}", error_msg);
+                    exec_service.resume_channels.lock().remove(&exec_id);
                     exec_service.set_error(&exec_id, error_msg.clone());
                     exec_service.update_status(&exec_id, ExecutionStatus::Failed);
                     exec_service.broadcast(ExecutionEvent::Failed {

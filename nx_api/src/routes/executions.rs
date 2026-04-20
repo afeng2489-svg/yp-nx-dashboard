@@ -169,10 +169,43 @@ pub async fn execution_ws(
 
     ws.on_upgrade(|socket: axum::extract::ws::WebSocket| async move {
         use axum::extract::ws::Message;
+        use tokio::sync::broadcast::error::RecvError;
+
         let (mut sender, mut receive) = socket.split();
+
+        // 先订阅，再发送快照，避免错过事件（race condition fix）
         let mut receiver = state.execution_service.subscribe();
 
-        // 克隆 state 以在闭包中使用
+        // 立即发送当前执行状态快照（catch-up）
+        if let Some(execution) = state.execution_service.get_execution(&id) {
+            let stage_results: Vec<serde_json::Value> = execution.stage_results.iter().map(|sr| {
+                serde_json::json!({
+                    "stage_name": sr.stage_name,
+                    "outputs": sr.outputs,
+                    "completed_at": sr.completed_at.map(|dt| dt.to_rfc3339()),
+                })
+            }).collect();
+
+            let status_json = serde_json::to_value(&execution.status)
+                .ok()
+                .and_then(|v| v.as_str().map(|s| s.to_string()))
+                .unwrap_or_else(|| "unknown".to_string());
+
+            let snapshot = serde_json::json!({
+                "type": "snapshot",
+                "execution_id": execution.id,
+                "status": status_json,
+                "stage_results": stage_results,
+                "error": execution.error,
+            });
+
+            if let Ok(json) = serde_json::to_string(&snapshot) {
+                if sender.send(Message::Text(json)).await.is_err() {
+                    return; // 客户端已断开
+                }
+            }
+        }
+
         let exec_service = state.execution_service.clone();
         let target_id = id.clone();
 
@@ -181,7 +214,6 @@ pub async fn execution_ws(
             while let Some(msg) = receive.next().await {
                 if let Ok(Message::Text(text)) = msg {
                     tracing::debug!("收到客户端消息: {}", text);
-                    // 处理客户端消息（如取消执行）
                     if text.contains("\"action\":\"cancel\"") {
                         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
                             if let Some(exec_id) = json.get("execution_id").and_then(|v| v.as_str()) {
@@ -193,30 +225,42 @@ pub async fn execution_ws(
             }
         });
 
-        // 发送执行事件
+        // 发送执行事件（处理 lagged 错误）
         let send_task = tokio::spawn(async move {
-            while let Ok(event) = receiver.recv().await {
-                let event_id = match &event {
-                    ExecutionEvent::Started { execution_id, .. } => execution_id.clone(),
-                    ExecutionEvent::StatusChanged { execution_id, .. } => execution_id.clone(),
-                    ExecutionEvent::StageStarted { execution_id, .. } => execution_id.clone(),
-                    ExecutionEvent::StageCompleted { execution_id, .. } => execution_id.clone(),
-                    ExecutionEvent::Output { execution_id, .. } => execution_id.clone(),
-                    ExecutionEvent::Completed { execution_id } => execution_id.clone(),
-                    ExecutionEvent::Failed { execution_id, .. } => execution_id.clone(),
-                };
+            loop {
+                match receiver.recv().await {
+                    Ok(event) => {
+                        let event_id = match &event {
+                            ExecutionEvent::Started { execution_id, .. } => execution_id.clone(),
+                            ExecutionEvent::StatusChanged { execution_id, .. } => execution_id.clone(),
+                            ExecutionEvent::StageStarted { execution_id, .. } => execution_id.clone(),
+                            ExecutionEvent::StageCompleted { execution_id, .. } => execution_id.clone(),
+                            ExecutionEvent::Output { execution_id, .. } => execution_id.clone(),
+                            ExecutionEvent::Completed { execution_id } => execution_id.clone(),
+                            ExecutionEvent::Failed { execution_id, .. } => execution_id.clone(),
+                            ExecutionEvent::WorkflowPaused { execution_id, .. } => execution_id.clone(),
+                            ExecutionEvent::WorkflowResumed { execution_id, .. } => execution_id.clone(),
+                        };
 
-                if event_id == target_id {
-                    if let Ok(json) = serde_json::to_string(&event) {
-                        if sender.send(Message::Text(json)).await.is_err() {
-                            break;
+                        if event_id == target_id {
+                            if let Ok(json) = serde_json::to_string(&event) {
+                                if sender.send(Message::Text(json)).await.is_err() {
+                                    break;
+                                }
+                            }
                         }
+                    }
+                    Err(RecvError::Lagged(n)) => {
+                        tracing::warn!("WebSocket 接收器滞后 {} 条消息，继续", n);
+                        // 继续接收，不断开
+                    }
+                    Err(RecvError::Closed) => {
+                        break;
                     }
                 }
             }
         });
 
-        // 等待任一任务完成
         tokio::select! {
             _ = receive_task => {}
             _ = send_task => {}

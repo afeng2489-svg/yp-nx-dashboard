@@ -221,7 +221,9 @@ impl CLIRegistry {
         }
 
         // Qwen - 中文支持、数学、逻辑
-        if prompt_lower.contains("中文")
+        let has_cjk = prompt.chars().any(|c| ('\u{4E00}'..='\u{9FFF}').contains(&c));
+        if has_cjk
+            || prompt_lower.contains("中文")
             || prompt_lower.contains("math")
             || prompt_lower.contains("逻辑")
         {

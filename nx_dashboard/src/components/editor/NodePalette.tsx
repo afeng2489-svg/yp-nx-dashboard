@@ -10,23 +10,23 @@ interface PaletteItem {
 const paletteItems: PaletteItem[] = [
   {
     type: 'agent',
-    label: 'Agent',
-    description: 'AI agent with role and model',
+    label: '智能体',
+    description: '具有角色和模型的 AI 智能体',
   },
   {
     type: 'stage',
-    label: 'Stage',
-    description: 'Group agents in parallel/sequential',
+    label: '阶段',
+    description: '串行或并行编排智能体',
   },
   {
     type: 'condition',
-    label: 'Condition',
-    description: 'Branch based on expression',
+    label: '条件',
+    description: '基于表达式的分支判断',
   },
   {
     type: 'loop',
-    label: 'Loop',
-    description: 'Repeat workflow steps',
+    label: '循环',
+    description: '重复执行工作流步骤',
   },
 ];
 
@@ -42,7 +42,7 @@ export function NodePalette() {
   return (
     <div className="w-64 bg-card border border-border rounded-lg shadow-md p-4">
       <h3 className="font-semibold text-sm mb-3 text-foreground">
-        Node Palette
+        节点面板
       </h3>
       <div className="space-y-2">
         {paletteItems.map((item) => {
@@ -79,13 +79,13 @@ export function NodePalette() {
 
       <div className="mt-6 pt-4 border-t border-border">
         <h4 className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
-          Quick Tips
+          快速提示
         </h4>
         <ul className="text-xs text-muted-foreground space-y-1">
-          <li>• Drag nodes to canvas</li>
-          <li>• Connect via handles</li>
-          <li>• Click to select</li>
-          <li>• Delete with Backspace</li>
+          <li>• 拖拽节点到画布</li>
+          <li>• 通过连接点连线</li>
+          <li>• 点击以选中</li>
+          <li>• Backspace 键删除</li>
         </ul>
       </div>
     </div>

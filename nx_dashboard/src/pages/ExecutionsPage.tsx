@@ -1,10 +1,11 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useExecutionsQuery } from '@/hooks/useReactQuery';
 import { useExecutionStore, Execution, StageResult } from '@/stores/executionStore';
 import { onWorkspaceChange } from '@/stores/workspaceStore';
-import { XCircle, Clock, CheckCircle, Play, AlertCircle, Loader2, X, ChevronRight, Terminal, Activity } from 'lucide-react';
+import { showError } from '@/lib/toast';
+import { XCircle, Clock, CheckCircle, Play, AlertCircle, Loader2, X, ChevronRight, Terminal, Activity, PauseCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { API_BASE_URL, WS_BASE_URL } from '@/api/constants';
+import { WorkflowPauseModal } from '@/components/execution/WorkflowPauseModal';
 
 // 工作流操作说明
 const WORKFLOW_OPERATIONS = [
@@ -26,6 +27,11 @@ const STATUS_CONFIG = {
     icon: Loader2,
     gradient: 'from-blue-500 to-indigo-500',
     label: '运行中',
+  },
+  paused: {
+    icon: PauseCircle,
+    gradient: 'from-amber-400 to-orange-500',
+    label: '等待输入',
   },
   completed: {
     icon: CheckCircle,
@@ -118,6 +124,12 @@ function ExecutionDetailModal({
               >
                 取消执行
               </button>
+            )}
+            {execution.status === 'paused' && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30">
+                <PauseCircle className="w-4 h-4 text-amber-500 animate-pulse" />
+                <span className="text-sm text-amber-600 font-medium">等待用户输入</span>
+              </div>
             )}
             <button
               onClick={onClose}
@@ -279,52 +291,75 @@ function StageResultCard({
 function ExecutionLogs({ executionId }: { executionId: string }) {
   const [logs, setLogs] = useState<string[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
-  const WS_BASE = WS_BASE_URL;
+  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    const newLogs: string[] = [
-      `[${formatTime(new Date().toISOString())}] 连接到执行: ${executionId}`,
-      `[${formatTime(new Date().toISOString())}] 等待服务器响应...`,
-    ];
-    setLogs(newLogs);
+    setLogs([`[${formatTime(new Date().toISOString())}] 正在连接到执行: ${executionId}...`]);
+    setWsConnected(false);
 
-    // 连接 WebSocket 获取实时日志
-    const ws = new WebSocket(`${WS_BASE}/ws/executions/${executionId}`);
+    const ws = new WebSocket(`/ws/executions/${executionId}`);
+    wsRef.current = ws;
 
     ws.onopen = () => {
+      if (wsRef.current !== ws) return;
       setWsConnected(true);
-      setLogs((prev) => [...prev, `[${formatTime(new Date().toISOString())}] WebSocket 已连接`]);
+      setLogs(prev => [...prev, `[${formatTime(new Date().toISOString())}] 已连接，等待执行数据...`]);
     };
 
     ws.onmessage = (event) => {
+      if (wsRef.current !== ws) return;
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'output') {
-          setLogs((prev) => [...prev, `[${formatTime(new Date().toISOString())}] ${data.line}`]);
+        const ts = formatTime(new Date().toISOString());
+        if (data.type === 'snapshot') {
+          const lines: string[] = [`[${ts}] 当前状态: ${data.status}`];
+          if (data.error) {
+            lines.push(`[${ts}] 错误: ${data.error}`);
+          }
+          if (data.stage_results?.length > 0) {
+            data.stage_results.forEach((sr: { stage_name: string }) => {
+              lines.push(`[${ts}] [阶段] 已完成: ${sr.stage_name}`);
+            });
+          } else if (data.status === 'running') {
+            lines.push(`[${ts}] 执行进行中，等待阶段更新...`);
+          } else if (data.status === 'completed') {
+            lines.push(`[${ts}] 执行已完成`);
+          }
+          setLogs(prev => [...prev, ...lines]);
+        } else if (data.type === 'workflow_paused') {
+          setLogs(prev => [...prev, `[${ts}] [⏸ 等待输入] 阶段 "${data.stage_name}": ${data.question}`]);
+        } else if (data.type === 'workflow_resumed') {
+          setLogs(prev => [...prev, `[${ts}] [▶ 已恢复] 用户选择: ${data.chosen_value}`]);
+        } else if (data.type === 'output') {
+          setLogs(prev => [...prev, `[${ts}] ${data.line}`]);
         } else if (data.type === 'stage_started') {
-          setLogs((prev) => [...prev, `[${formatTime(new Date().toISOString())}] 阶段开始: ${data.stage_name}`]);
+          setLogs(prev => [...prev, `[${ts}] [阶段] 开始: ${data.stage_name}`]);
         } else if (data.type === 'stage_completed') {
-          setLogs((prev) => [...prev, `[${formatTime(new Date().toISOString())}] 阶段完成: ${data.stage_name}`]);
+          setLogs(prev => [...prev, `[${ts}] [阶段] 完成: ${data.stage_name}`]);
         } else if (data.type === 'completed') {
-          setLogs((prev) => [...prev, `[${formatTime(new Date().toISOString())}] 执行完成`]);
+          setLogs(prev => [...prev, `[${ts}] [完成] 工作流执行成功`]);
+          setWsConnected(false);
         } else if (data.type === 'failed') {
-          setLogs((prev) => [...prev, `[${formatTime(new Date().toISOString())}] 执行失败: ${data.error}`]);
+          setLogs(prev => [...prev, `[${ts}] [失败] ${data.error}`]);
+          setWsConnected(false);
         }
       } catch (e) {
-        console.error('Failed to parse log message:', e);
+        // ignore parse errors
       }
     };
 
     ws.onclose = () => {
+      if (wsRef.current !== ws) return;
       setWsConnected(false);
-      setLogs((prev) => [...prev, `[${formatTime(new Date().toISOString())}] WebSocket 连接已关闭`]);
     };
 
     ws.onerror = () => {
-      setLogs((prev) => [...prev, `[${formatTime(new Date().toISOString())}] WebSocket 错误`]);
+      if (wsRef.current !== ws) return;
+      // onerror always precedes onclose, no need to log separately
     };
 
     return () => {
+      wsRef.current = null;
       ws.close();
     };
   }, [executionId]);
@@ -486,11 +521,16 @@ function ExecutionCard({
 
 // 主页面组件
 export function ExecutionsPage() {
-  const { cancelExecution } = useExecutionStore();
-  const [selectedExecution, setSelectedExecution] = useState<Execution | null>(null);
+  const { cancelExecution, connectWebSocket, resumeExecution, dismissPause, pendingPause } = useExecutionStore();
+  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
 
   // Use React Query for fetching
   const { executions, loading, refetch } = useExecutionsQuery();
+
+  // The live execution from store (auto-updates via WS events)
+  const liveSelectedExecution = selectedExecutionId
+    ? executions.find((e) => e.id === selectedExecutionId) ?? null
+    : null;
 
   // Listen for workspace changes
   useEffect(() => {
@@ -499,6 +539,13 @@ export function ExecutionsPage() {
     });
     return () => { unsubscribe(); };
   }, [refetch]);
+
+  // Connect store WS when opening modal for a running execution
+  useEffect(() => {
+    if (liveSelectedExecution?.status === 'running') {
+      connectWebSocket(liveSelectedExecution.id);
+    }
+  }, [liveSelectedExecution?.id, liveSelectedExecution?.status, connectWebSocket]);
 
   const handleCancel = useCallback(
     (id: string) => {
@@ -558,18 +605,33 @@ export function ExecutionsPage() {
             <ExecutionCard
               key={execution.id}
               execution={execution}
-              onClick={() => setSelectedExecution(execution)}
+              onClick={() => setSelectedExecutionId(execution.id)}
               onCancel={handleCancel}
             />
           ))}
         </div>
       )}
 
-      {selectedExecution && (
+      {liveSelectedExecution && (
         <ExecutionDetailModal
-          execution={selectedExecution}
-          onClose={() => setSelectedExecution(null)}
+          execution={liveSelectedExecution}
+          onClose={() => setSelectedExecutionId(null)}
           onCancel={handleCancel}
+        />
+      )}
+
+      {pendingPause && (
+        <WorkflowPauseModal
+          pause={pendingPause}
+          onResume={(value) => {
+            const ok = resumeExecution(pendingPause.execution_id, value);
+            if (!ok) {
+              showError('WebSocket 未连接，正在重连，请稍后重试');
+              connectWebSocket(pendingPause.execution_id);
+            }
+            return ok;
+          }}
+          onDismiss={dismissPause}
         />
       )}
     </div>

@@ -113,6 +113,7 @@ function useLogStream(executionId: string | undefined) {
 const STATUS_ICONS = {
   pending: <Clock className="w-4 h-4 text-gray-400" />,
   running: <Loader2 className="w-4 h-4 text-yellow-500 animate-spin" />,
+  paused: <Clock className="w-4 h-4 text-amber-500" />,
   completed: <CheckCircle className="w-4 h-4 text-green-500" />,
   failed: <XCircle className="w-4 h-4 text-red-500" />,
   cancelled: <Square className="w-4 h-4 text-gray-400" />,

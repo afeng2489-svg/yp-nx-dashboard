@@ -82,6 +82,17 @@ pub struct InputDefinition {
     pub description: Option<String>,
 }
 
+/// 变量提取规则
+/// agent 执行完后，用正则从输出中提取变量写入 WorkflowState
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VarExtraction {
+    /// 写入 state 的变量名
+    pub name: String,
+    /// 正则表达式，第一个捕获组为变量值
+    /// 例：pattern: "EXTRACT:confidence=([0-9.]+)"
+    pub pattern: String,
+}
+
 /// 智能体定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentDefinition {
@@ -99,6 +110,9 @@ pub struct AgentDefinition {
     /// 附加配置
     #[serde(default)]
     pub config: AgentConfig,
+    /// 从输出中提取变量（为空则不提取，完全向后兼容）
+    #[serde(default)]
+    pub extract_vars: Vec<VarExtraction>,
 }
 
 /// 智能体配置
@@ -133,12 +147,52 @@ impl Default for AgentConfig {
     }
 }
 
+/// Stage 类型
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum StageType {
+    /// 原有类型：运行 agents（默认，向后兼容）
+    #[default]
+    Agent,
+    /// 新增：暂停等待用户在前端做选择
+    UserInput,
+    /// 新增：循环执行 body_stages 直到 break_condition 为 true
+    Loop,
+}
+
+/// 阶段跳转规则
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StageTransition {
+    /// 跳转条件表达式，引用 state 变量
+    /// 格式：  "变量名 == '字符串'"  或  "变量名 >= 数字"
+    /// 为空时作为兜底 fallback，无条件跳转
+    #[serde(default)]
+    pub condition: Option<String>,
+    /// 跳转目标 stage 的 name 字段值
+    pub goto: String,
+}
+
+/// 用户输入选项（配合 stage_type: user_input 使用）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserInputOption {
+    /// 展示给用户的文字
+    pub label: String,
+    /// 写入 output_var 的值
+    pub value: String,
+    /// 选项说明（可选）
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
 /// 阶段定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StageDefinition {
-    /// 阶段名称
+    /// 阶段名称（在 next.goto 中通过此名称引用）
     pub name: String,
-    /// 此阶段的智能体
+    /// Stage 类型（默认 agent，向后兼容）
+    #[serde(default)]
+    pub stage_type: StageType,
+    /// 此阶段的智能体（stage_type=agent 时使用）
     #[serde(default)]
     pub agents: Vec<String>,
     /// 是否并行运行智能体
@@ -150,7 +204,34 @@ pub struct StageDefinition {
     /// 即使智能体失败也继续
     #[serde(default)]
     pub continue_on_error: bool,
+    /// 条件跳转规则（为空时按 stages 数组顺序执行，向后兼容）
+    #[serde(default)]
+    pub next: Vec<StageTransition>,
+
+    // ---- user_input 专用字段 ----
+    /// 展示给用户的问题文本
+    #[serde(default)]
+    pub question: Option<String>,
+    /// 选项列表
+    #[serde(default)]
+    pub options: Vec<UserInputOption>,
+    /// 用户选择结果写入的变量名
+    #[serde(default)]
+    pub output_var: Option<String>,
+
+    // ---- loop 专用字段 ----
+    /// 循环退出条件（引用 state 变量，格式同 StageTransition.condition）
+    #[serde(default)]
+    pub break_condition: Option<String>,
+    /// 每次循环执行的 stage 名称列表
+    #[serde(default)]
+    pub body_stages: Vec<String>,
+    /// 最大循环次数（超出后工作流 failed）
+    #[serde(default = "default_max_loop")]
+    pub max_iterations: usize,
 }
+
+fn default_max_loop() -> usize { 10 }
 
 /// 输出定义
 #[derive(Debug, Clone, Serialize, Deserialize)]

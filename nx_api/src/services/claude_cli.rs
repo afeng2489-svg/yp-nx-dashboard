@@ -108,8 +108,8 @@ pub async fn summarize_for_memory(
     user_message: &str,
     assistant_reply: &str,
 ) -> Result<nx_memory::StructuredMemory, String> {
-    let user_truncated = &user_message[..user_message.len().min(500)];
-    let assistant_truncated = &assistant_reply[..assistant_reply.len().min(500)];
+    let user_truncated: String = user_message.chars().take(500).collect();
+    let assistant_truncated: String = assistant_reply.chars().take(500).collect();
 
     let prompt = format!(
         r#"Summarize this conversation into JSON. Return ONLY valid JSON, no markdown fences, no explanation.
@@ -126,7 +126,7 @@ Assistant: {}"#,
     let json_str = extract_json_from_response(&raw)?;
 
     serde_json::from_str::<nx_memory::StructuredMemory>(&json_str)
-        .map_err(|e| format!("JSON parse error: {} from: {}", e, &json_str[..json_str.len().min(200)]))
+        .map_err(|e| format!("JSON parse error: {} from: {}", e, json_str.chars().take(200).collect::<String>()))
 }
 
 /// 使用 Claude CLI 扩展搜索查询为关键词集合
@@ -137,7 +137,7 @@ pub async fn expand_query_for_search(query: &str) -> Result<String, String> {
         return Ok(query.to_string());
     }
 
-    let query_truncated = &query[..query.len().min(300)];
+    let query_truncated: String = query.chars().take(300).collect();
     let prompt = format!(
         "Extract 5-8 search keywords from this query. Return ONLY the keywords separated by spaces, no explanation, no numbering.\nQuery: {}",
         query_truncated
@@ -169,7 +169,7 @@ fn extract_json_from_response(raw: &str) -> Result<String, String> {
 
     Err(format!(
         "No JSON found in response: {}",
-        &trimmed[..trimmed.len().min(200)]
+        trimmed.chars().take(200).collect::<String>()
     ))
 }
 

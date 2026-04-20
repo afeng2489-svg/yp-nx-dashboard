@@ -52,13 +52,16 @@ export interface InstantiateRequest {
   variables?: Record<string, unknown>;
 }
 
-export type TemplateCategory = 'planning' | 'development' | 'analysis' | 'security';
+export type TemplateCategory = 'planning' | 'development' | 'analysis' | 'security' | 'testing' | 'research' | 'writing';
 
 export const TEMPLATE_CATEGORIES: { value: TemplateCategory; label: string }[] = [
-  { value: 'planning', label: 'Planning' },
-  { value: 'development', label: 'Development' },
-  { value: 'analysis', label: 'Analysis' },
-  { value: 'security', label: 'Security' },
+  { value: 'planning', label: '规划' },
+  { value: 'development', label: '开发' },
+  { value: 'analysis', label: '分析' },
+  { value: 'security', label: '安全' },
+  { value: 'testing', label: '测试' },
+  { value: 'research', label: '调研' },
+  { value: 'writing', label: '写作' },
 ];
 
 // API_BASE_URL is imported from constants

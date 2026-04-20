@@ -49,9 +49,9 @@ const createStageNode = (
 export const workflowTemplates: WorkflowTemplate[] = [
   {
     id: 'simple-plan',
-    name: 'Simple Plan',
-    description: 'Single agent task execution',
-    category: 'basic',
+    name: '单智能体任务',
+    description: '单个智能体执行任务',
+    category: 'planning',
     nodes: [
       createAgentNode('planner', 'claude-opus-4-6', 400, 200),
     ],
@@ -59,14 +59,14 @@ export const workflowTemplates: WorkflowTemplate[] = [
   },
   {
     id: 'multi-cli-plan',
-    name: 'Multi-CLI Plan',
-    description: 'Parallel execution across multiple agents',
-    category: 'collaboration',
+    name: '多智能体并行',
+    description: '多个智能体并行协作执行',
+    category: 'development',
     nodes: [
-      createStageNode('Parallel Tasks', 400, 100, true),
-      createAgentNode('developer', 'claude-sonnet-4-6', 250, 250, 'You are a developer agent that writes code.'),
-      createAgentNode('reviewer', 'claude-sonnet-4-6', 400, 250, 'You are a reviewer agent that reviews code.'),
-      createAgentNode('tester', 'claude-sonnet-4-6', 550, 250, 'You are a tester agent that runs tests.'),
+      createStageNode('并行任务', 400, 100, true),
+      createAgentNode('developer', 'claude-sonnet-4-6', 250, 250, '你是一位开发工程师，负责编写代码。'),
+      createAgentNode('reviewer', 'claude-sonnet-4-6', 400, 250, '你是一位代码审查员，负责审查代码质量。'),
+      createAgentNode('tester', 'claude-sonnet-4-6', 550, 250, '你是一位测试工程师，负责编写和执行测试。'),
     ],
     edges: [
       {
@@ -94,14 +94,14 @@ export const workflowTemplates: WorkflowTemplate[] = [
   },
   {
     id: 'tdd-workflow',
-    name: 'TDD Workflow',
-    description: 'Test-driven development cycle',
+    name: 'TDD 测试驱动开发',
+    description: '测试驱动开发循环：先写测试，再实现，最后审查',
     category: 'testing',
     nodes: [
-      createStageNode('Write Test', 300, 100, false),
-      createAgentNode('tester', 'claude-haiku-4-5', 150, 220, 'Write a failing test for the next feature.'),
-      createAgentNode('developer', 'claude-opus-4-6', 300, 220, 'Implement the feature to make the test pass.'),
-      createAgentNode('reviewer', 'claude-sonnet-4-6', 450, 220, 'Review the implementation for quality.'),
+      createStageNode('编写测试', 300, 100, false),
+      createAgentNode('tester', 'claude-haiku-4-5', 150, 220, '为下一个功能编写失败的测试用例。'),
+      createAgentNode('developer', 'claude-opus-4-6', 300, 220, '实现功能代码使测试通过。'),
+      createAgentNode('reviewer', 'claude-sonnet-4-6', 450, 220, '审查代码实现质量。'),
     ],
     edges: [
       {
@@ -129,15 +129,15 @@ export const workflowTemplates: WorkflowTemplate[] = [
   },
   {
     id: 'brainstorm',
-    name: 'Brainstorm',
-    description: 'Multi-role brainstorming session',
-    category: 'brainstorm',
+    name: '多角色头脑风暴',
+    description: '规划者、研究者、写作者协作头脑风暴',
+    category: 'planning',
     nodes: [
-      createStageNode('Brainstorm', 400, 80, true),
-      createAgentNode('planner', 'claude-opus-4-6', 200, 200, 'You are a planner. Break down the problem into actionable steps.'),
-      createAgentNode('researcher', 'claude-sonnet-4-6', 330, 200, 'You are a researcher. Gather relevant information and context.'),
-      createAgentNode('writer', 'claude-haiku-4-5', 460, 200, 'You are a writer. Synthesize ideas into clear proposals.'),
-      createStageNode('Review', 400, 320, false),
+      createStageNode('头脑风暴', 400, 80, true),
+      createAgentNode('planner', 'claude-opus-4-6', 200, 200, '你是规划者，将问题拆解为可行动的步骤。'),
+      createAgentNode('researcher', 'claude-sonnet-4-6', 330, 200, '你是研究者，收集相关信息和背景知识。'),
+      createAgentNode('writer', 'claude-haiku-4-5', 460, 200, '你是写作者，将想法综合成清晰的方案。'),
+      createStageNode('审查', 400, 320, false),
     ],
     edges: [
       {

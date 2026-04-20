@@ -161,18 +161,18 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
 // Helper functions for task type and status display
 export const taskTypeLabels: Record<TaskType, string> = {
-  workflow_execution: 'Workflow Execution',
-  code_review: 'Code Review',
-  security_audit: 'Security Audit',
-  cleanup: 'Cleanup',
+  workflow_execution: '工作流执行',
+  code_review: '代码审查',
+  security_audit: '安全审计',
+  cleanup: '清理任务',
 };
 
 export const taskStatusLabels: Record<TaskStatus, string> = {
-  pending: 'Pending',
-  running: 'Running',
-  completed: 'Completed',
-  failed: 'Failed',
-  cancelled: 'Cancelled',
+  pending: '等待中',
+  running: '运行中',
+  completed: '已完成',
+  failed: '已失败',
+  cancelled: '已取消',
 };
 
 export const taskStatusColors: Record<TaskStatus, string> = {

@@ -208,13 +208,16 @@ impl SandboxExecutor {
         // The closure runs between fork() and exec() in the child process.
         unsafe {
             cmd.pre_exec(move || {
-                // RLIMIT_AS — virtual memory limit
-                let mem = libc::rlimit {
-                    rlim_cur: memory_limit,
-                    rlim_max: memory_limit,
-                };
-                if libc::setrlimit(libc::RLIMIT_AS, &mem) != 0 {
-                    return Err(std::io::Error::last_os_error());
+                // RLIMIT_AS — virtual memory limit (Linux only; macOS does not enforce it)
+                #[cfg(target_os = "linux")]
+                {
+                    let mem = libc::rlimit {
+                        rlim_cur: memory_limit,
+                        rlim_max: memory_limit,
+                    };
+                    if libc::setrlimit(libc::RLIMIT_AS, &mem) != 0 {
+                        return Err(std::io::Error::last_os_error());
+                    }
                 }
 
                 // RLIMIT_CPU — CPU time limit in seconds

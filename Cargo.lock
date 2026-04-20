@@ -1181,6 +1181,7 @@ dependencies = [
  "chrono",
  "nexus-ai",
  "parking_lot",
+ "regex",
  "serde",
  "serde_json",
  "serde_yaml",

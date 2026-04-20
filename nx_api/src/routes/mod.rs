@@ -41,6 +41,136 @@ pub mod group_chat;
 pub mod memory;
 pub mod processes;
 
+/// 查找 config/workflows 目录（YAML 种子文件）
+fn resolve_workflows_dir() -> Option<PathBuf> {
+    let subpath = std::path::Path::new("config").join("workflows");
+
+    let is_workspace_root = |dir: &std::path::Path| -> bool {
+        dir.join("Cargo.toml").exists() && dir.join("nx_dashboard").is_dir()
+    };
+
+    // 策略1: WORKFLOWS_DIR 环境变量
+    if let Ok(dir) = std::env::var("WORKFLOWS_DIR") {
+        let p = PathBuf::from(dir);
+        if p.is_dir() {
+            return Some(p);
+        }
+    }
+
+    // 策略2: exe 祖先
+    if let Ok(exe) = std::env::current_exe() {
+        let exe = exe.canonicalize().unwrap_or(exe);
+        for ancestor in exe.ancestors().skip(1) {
+            if is_workspace_root(ancestor) {
+                let p = ancestor.join(&subpath);
+                if p.is_dir() {
+                    return Some(p);
+                }
+            }
+        }
+    }
+
+    // 策略3: CWD 祖先
+    if let Ok(cwd) = std::env::current_dir() {
+        for ancestor in cwd.ancestors() {
+            if is_workspace_root(ancestor) {
+                let p = ancestor.join(&subpath);
+                if p.is_dir() {
+                    return Some(p);
+                }
+            }
+        }
+    }
+
+    // 策略4: 编译期路径
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    if let Some(parent) = manifest_dir.parent() {
+        if is_workspace_root(parent) {
+            let p = parent.join(&subpath);
+            if p.is_dir() {
+                return Some(p);
+            }
+        }
+    }
+
+    None
+}
+
+/// 将 config/workflows/*.yaml 种子文件 upsert 到数据库
+/// 规则：按 name 匹配；不存在则创建，已存在则跳过（避免覆盖用户修改）
+fn seed_workflows_from_yaml(workflow_service: &WorkflowService) {
+    let Some(dir) = resolve_workflows_dir() else {
+        tracing::debug!("[WorkflowSeeder] config/workflows 目录未找到，跳过");
+        return;
+    };
+
+    tracing::info!("[WorkflowSeeder] 扫描目录: {:?}", dir);
+
+    // 获取已有工作流名称集合
+    let existing_names: std::collections::HashSet<String> = match workflow_service.list_workflows() {
+        Ok(list) => list.into_iter().map(|w| w.name).collect(),
+        Err(e) => {
+            tracing::warn!("[WorkflowSeeder] 无法读取已有工作流: {}", e);
+            return;
+        }
+    };
+
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        tracing::warn!("[WorkflowSeeder] 无法读取目录: {:?}", dir);
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("yaml") {
+            continue;
+        }
+
+        let Ok(yaml) = std::fs::read_to_string(&path) else {
+            tracing::warn!("[WorkflowSeeder] 无法读取文件: {:?}", path);
+            continue;
+        };
+
+        // 解析 YAML 为 JSON
+        let definition: serde_json::Value = match serde_yaml::from_str(&yaml) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!("[WorkflowSeeder] YAML 解析失败 {:?}: {}", path, e);
+                continue;
+            }
+        };
+
+        let name = definition.get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+
+        if name.is_empty() {
+            tracing::warn!("[WorkflowSeeder] 跳过无名称文件: {:?}", path);
+            continue;
+        }
+
+        if existing_names.contains(&name) {
+            tracing::debug!("[WorkflowSeeder] 已存在，跳过: {}", name);
+            continue;
+        }
+
+        let version = definition.get("version")
+            .and_then(|v| v.as_str())
+            .unwrap_or("1.0")
+            .to_string();
+
+        let description = definition.get("description")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        match workflow_service.create_workflow(name.clone(), Some(version), description, definition) {
+            Ok(w) => tracing::info!("[WorkflowSeeder] 已导入: {} (id={})", name, w.id),
+            Err(e) => tracing::warn!("[WorkflowSeeder] 导入失败 {}: {}", name, e),
+        }
+    }
+}
+
 /// 查找 .claude/agents 目录
 /// 与 DB 路径解析同策略：exe 祖先 → CWD 祖先 → 编译期路径
 fn resolve_agents_dir() -> PathBuf {
@@ -227,6 +357,9 @@ impl AppState {
                 .expect("Failed to create workflow repository")
         );
         let workflow_service = WorkflowService::with_repository(workflow_repo);
+
+        // 启动时将 config/workflows/*.yaml 种子文件导入数据库
+        seed_workflows_from_yaml(&workflow_service);
 
         // 创建执行服务
         let execution_service = ExecutionService::new();

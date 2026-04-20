@@ -499,7 +499,7 @@ async fn execute_role_task_with_context(
     let memory_context = search_and_build_context(&state.memory_state, &role_team_id, &request.task).await;
     println!("[DEBUG-4] search_and_build_context returned, memory_context len: {}", memory_context.len());
     tracing::info!("[Memory] role_id: {}, task: {}, memory_context length: {}", request.role_id, request.task, memory_context.len());
-    tracing::debug!("[Memory] memory_context content (first 500 chars): {}", &memory_context[..memory_context.len().min(500)]);
+    tracing::debug!("[Memory] memory_context content (first 500 chars): {}", memory_context.chars().take(500).collect::<String>());
 
     // 3. 创建增强的请求（包含记忆上下文）
     let enhanced_request = crate::models::team::ExecuteRoleTaskRequest {
@@ -612,7 +612,7 @@ async fn search_and_build_context(
     tracing::debug!(
         "[Memory] Query expanded: '{}' -> '{}'",
         query,
-        &expanded_query[..expanded_query.len().min(200)]
+        expanded_query.chars().take(200).collect::<String>()
     );
 
     // 搜索相关记忆

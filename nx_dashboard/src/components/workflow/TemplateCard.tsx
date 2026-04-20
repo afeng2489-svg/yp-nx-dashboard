@@ -1,4 +1,4 @@
-import { GitBranch, Users, Eye, Zap, Brain, Shield, Code, ArrowRight } from 'lucide-react';
+import { GitBranch, Users, Eye, Zap, Brain, Shield, Code, ArrowRight, FlaskConical, Search, PenLine } from 'lucide-react';
 import type { TemplateSummary } from '@/stores/templateStore';
 import { cn } from '@/lib/utils';
 
@@ -14,6 +14,9 @@ const categoryIcons: Record<string, React.ComponentType<{ className?: string }>>
   development: Code,
   analysis: Zap,
   security: Shield,
+  testing: FlaskConical,
+  research: Search,
+  writing: PenLine,
 };
 
 const categoryColors: Record<string, string> = {
@@ -21,6 +24,9 @@ const categoryColors: Record<string, string> = {
   development: 'bg-green-500/10 text-green-600 border-green-500/20',
   analysis: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
   security: 'bg-red-500/10 text-red-600 border-red-500/20',
+  testing: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
+  research: 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20',
+  writing: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
 };
 
 export function TemplateCard({
@@ -87,11 +93,11 @@ export function TemplateCard({
       <div className="flex items-center gap-4 mb-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-1.5">
           <GitBranch className="w-3.5 h-3.5" />
-          <span>{template.stage_count} stages</span>
+          <span>{template.stage_count} 阶段</span>
         </div>
         <div className="flex items-center gap-1.5">
           <Users className="w-3.5 h-3.5" />
-          <span>{template.agent_count} agents</span>
+          <span>{template.agent_count} 智能体</span>
         </div>
       </div>
 
@@ -108,7 +114,7 @@ export function TemplateCard({
             flex items-center justify-center gap-1.5
           "
         >
-          <Eye className="w-3.5 h-3.5" /> Preview
+          <Eye className="w-3.5 h-3.5" /> 预览
         </button>
         <button
           onClick={(e) => {
@@ -121,7 +127,7 @@ export function TemplateCard({
             flex items-center justify-center gap-1.5
           "
         >
-          Use Template <ArrowRight className="w-3.5 h-3.5" />
+          使用模板 <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>
     </div>

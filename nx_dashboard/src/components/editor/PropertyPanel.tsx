@@ -29,7 +29,7 @@ export function PropertyPanel() {
               />
             </svg>
           </div>
-          <p className="text-sm">Select a node to edit its properties</p>
+          <p className="text-sm">选择节点以编辑属性</p>
         </div>
       </div>
     );
@@ -63,7 +63,7 @@ export function PropertyPanel() {
           <span className="text-lg">{icon}</span>
           <div>
             <h3 className="font-semibold text-sm capitalize">{data.type}</h3>
-            <p className="text-xs text-muted-foreground">Configure node</p>
+            <p className="text-xs text-muted-foreground">配置节点</p>
           </div>
         </div>
       </div>
@@ -71,7 +71,7 @@ export function PropertyPanel() {
       <div className="p-4 space-y-4">
         <div>
           <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-            Label
+            标签
           </label>
           <input
             type="text"
@@ -121,7 +121,7 @@ export function PropertyPanel() {
             hover:bg-destructive/90 transition-colors
           "
         >
-          Delete Node
+          删除节点
         </button>
       </div>
     </div>
@@ -139,7 +139,7 @@ function AgentConfigPanel({
     <div className="space-y-4">
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          Role
+          角色
         </label>
         <select
           value={config.role}
@@ -160,7 +160,7 @@ function AgentConfigPanel({
 
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          Model
+          模型
         </label>
         <select
           value={config.model}
@@ -181,7 +181,7 @@ function AgentConfigPanel({
 
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          CLI Provider
+          CLI 提供商
         </label>
         <select
           value={config.cliProvider}
@@ -202,7 +202,7 @@ function AgentConfigPanel({
 
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          System Prompt
+          系统提示词
         </label>
         <textarea
           value={config.prompt}
@@ -213,7 +213,7 @@ function AgentConfigPanel({
             border border-input bg-background
             focus:outline-none focus:ring-2 focus:ring-primary
           "
-          placeholder="You are a helpful assistant..."
+          placeholder="你是一位有用的助手..."
         />
       </div>
     </div>
@@ -231,7 +231,7 @@ function StageConfigPanel({
     <div className="space-y-4">
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          Stage Name
+          阶段名称
         </label>
         <input
           type="text"
@@ -254,7 +254,7 @@ function StageConfigPanel({
           className="w-4 h-4 rounded border-input text-primary focus:ring-primary"
         />
         <label htmlFor="parallel" className="text-sm">
-          Run agents in parallel
+          并行运行智能体
         </label>
       </div>
     </div>
@@ -272,7 +272,7 @@ function ConditionConfigPanel({
     <div className="space-y-4">
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          Expression
+          条件表达式
         </label>
         <input
           type="text"
@@ -286,14 +286,14 @@ function ConditionConfigPanel({
           placeholder="e.g., result.status === 'success'"
         />
         <p className="mt-1 text-xs text-muted-foreground">
-          JavaScript expression that returns true/false
+          返回 true/false 的 JavaScript 表达式
         </p>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-            True Label
+            为真时标签
           </label>
           <input
             type="text"
@@ -308,7 +308,7 @@ function ConditionConfigPanel({
         </div>
         <div>
           <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-            False Label
+            为假时标签
           </label>
           <input
             type="text"
@@ -337,7 +337,7 @@ function LoopConfigPanel({
     <div className="space-y-4">
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          Max Iterations
+          最大迭代次数
         </label>
         <input
           type="number"
@@ -362,7 +362,7 @@ function LoopConfigPanel({
           className="w-4 h-4 rounded border-input text-primary focus:ring-primary"
         />
         <label htmlFor="continueOnError" className="text-sm">
-          Continue on error
+          出错时继续
         </label>
       </div>
     </div>

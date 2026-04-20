@@ -6,6 +6,7 @@ import {
   MiniMap,
   BackgroundVariant,
   Panel,
+  useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -27,21 +28,22 @@ export function WorkflowCanvas() {
     selectNode,
   } = useEditorStore();
 
+  const { screenToFlowPosition } = useReactFlow();
+
   const handleDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
       const type = event.dataTransfer.getData('application/reactflow') as NodeType;
       if (!type) return;
 
-      const reactFlowBounds = event.currentTarget.getBoundingClientRect();
-      const position = {
-        x: event.clientX - reactFlowBounds.left,
-        y: event.clientY - reactFlowBounds.top,
-      };
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
 
       addNode(type, position);
     },
-    [addNode]
+    [addNode, screenToFlowPosition]
   );
 
   const handleDragOver = useCallback((event: React.DragEvent) => {
@@ -54,8 +56,13 @@ export function WorkflowCanvas() {
   }, [selectNode]);
 
   return (
-    <div className="w-full h-full" onDrop={handleDrop} onDragOver={handleDragOver}>
+    <div
+      style={{ position: 'absolute', inset: 0 }}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+    >
       <ReactFlow
+        style={{ width: '100%', height: '100%' }}
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
@@ -103,7 +110,7 @@ export function WorkflowCanvas() {
 
         <Panel position="top-left" className="!m-4">
           <div className="bg-card border border-border rounded-lg shadow-md px-3 py-2 text-sm text-muted-foreground">
-            Drag nodes from the palette to add them
+            拖拽左侧节点到画布
           </div>
         </Panel>
       </ReactFlow>

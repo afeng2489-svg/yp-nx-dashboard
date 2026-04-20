@@ -44,9 +44,10 @@ export function useWorkflowsQuery() {
     queryKey: ['workflows'],
     queryFn: async () => {
       await fetchWorkflows();
-      return workflows;
+      return useWorkflowStore.getState().workflows;
     },
-    staleTime: 1000 * 60, // 1 minute
+    staleTime: 0, // always re-fetch on mount so newly created workflows show immediately
+    refetchInterval: 1000 * 60, // background poll every minute
   });
 
   return {
@@ -64,9 +65,10 @@ export function useExecutionsQuery() {
     queryKey: ['executions'],
     queryFn: async () => {
       await fetchExecutions();
-      return executions;
+      return useExecutionStore.getState().executions;
     },
-    staleTime: 1000 * 30, // 30 seconds
+    staleTime: 0, // always re-fetch on mount
+    refetchInterval: 1000 * 15, // poll every 15s — executions change frequently
   });
 
   return {
@@ -84,9 +86,9 @@ export function useSessionsQuery() {
     queryKey: ['sessions'],
     queryFn: async () => {
       await fetchSessions();
-      return sessions;
+      return useSessionStore.getState().sessions;
     },
-    staleTime: 1000 * 30, // 30 seconds
+    staleTime: 0, // always re-fetch on mount
   });
 
   return {
@@ -105,7 +107,8 @@ export function useTasksQuery() {
     queryKey: ['tasks'],
     queryFn: async () => {
       await fetchTasks();
-      return { tasks, stats };
+      const s = useTaskStore.getState();
+      return { tasks: s.tasks, stats: s.stats };
     },
     staleTime: 1000 * 10, // 10 seconds for polling
     refetchInterval: 5000, // Auto-refresh every 5 seconds
@@ -129,7 +132,7 @@ export function useSkillsQuery() {
     queryKey: ['skills'],
     queryFn: async () => {
       await fetchSkills();
-      return skills;
+      return useSkillStore.getState().skills;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
@@ -150,7 +153,7 @@ export function useSkillDetailQuery(skillId: string | null) {
     queryFn: async () => {
       if (!skillId) return null;
       await fetchSkill(skillId);
-      return currentSkill;
+      return useSkillStore.getState().currentSkill;
     },
     enabled: !!skillId,
     staleTime: 1000 * 60 * 10, // 10 minutes
@@ -171,7 +174,7 @@ export function useSkillCategoriesQuery() {
     queryKey: ['skill-categories'],
     queryFn: async () => {
       await fetchCategories();
-      return categories;
+      return useSkillStore.getState().categories;
     },
     staleTime: 1000 * 60 * 10, // 10 minutes
   });
@@ -195,7 +198,7 @@ export function useTeamsQuery() {
       await fetchTeams();
       return useTeamStore.getState().teams;
     },
-    staleTime: 1000 * 60, // 1 minute
+    staleTime: 0, // always re-fetch on mount so new teams appear immediately
   });
 
   return {
@@ -227,17 +230,16 @@ export function useTeamDetailQuery(teamId: string | null) {
 
 export function useTeamRolesQuery(teamId: string | null) {
   const fetchRoles = useTeamStore((s) => s.fetchRoles);
-  const roles = useTeamStore((s) => s.roles);
 
   const query = useQuery({
     queryKey: ['team-roles', teamId],
     queryFn: async () => {
       if (!teamId) return [];
       await fetchRoles(teamId);
-      return roles[teamId] || [];
+      return useTeamStore.getState().roles[teamId] || [];
     },
     enabled: !!teamId,
-    staleTime: 1000 * 30, // 30 seconds
+    staleTime: 0, // always re-fetch on mount
   });
 
   return {
@@ -260,7 +262,7 @@ export function useWisdomEntriesQuery(category?: string | null) {
       // Re-read from store after fetch completes to get updated value
       return useWisdomStore.getState().entries;
     },
-    staleTime: 1000 * 60, // 1 minute
+    staleTime: 0, // always re-fetch on mount
   });
 
   return {
@@ -302,7 +304,7 @@ export function useSearchQuery(query: string, mode: SearchMode) {
     queryFn: async () => {
       if (!query.trim()) return null;
       await search(query, mode);
-      return results;
+      return useSearchStore.getState().results;
     },
     enabled: query.trim().length > 0,
     staleTime: 1000 * 60, // 1 minute - search results can be cached

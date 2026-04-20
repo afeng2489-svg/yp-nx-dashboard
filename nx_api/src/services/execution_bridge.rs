@@ -5,7 +5,7 @@
 use std::sync::Arc;
 use tokio::sync::broadcast;
 use nexus_workflow::events::{EventEmitter, WorkflowEvent};
-use crate::services::events::ExecutionEvent;
+use crate::services::events::{ExecutionEvent, WorkflowOption};
 use crate::services::ExecutionService;
 
 /// 工作流事件桥接器
@@ -57,9 +57,10 @@ impl WorkflowEventBridge {
                 })
             }
             WorkflowEvent::AgentCompleted { execution_id, agent_id, output } => {
+                let preview: String = output.chars().take(100).collect();
                 Some(ExecutionEvent::Output {
                     execution_id: execution_id.to_string(),
-                    line: format!("[Agent {}] Completed: {}", agent_id, &output[..output.len().min(100)]),
+                    line: format!("[Agent {}] Completed: {}", agent_id, preview),
                 })
             }
             WorkflowEvent::AgentFailed { execution_id, agent_id, error } => {
@@ -71,6 +72,24 @@ impl WorkflowEventBridge {
             WorkflowEvent::WorkflowCompleted { .. } => {
                 // 完成状态由 ExecutionService 自行设置
                 None
+            }
+            WorkflowEvent::WorkflowPaused { execution_id, stage_name, question, options } => {
+                Some(ExecutionEvent::WorkflowPaused {
+                    execution_id: execution_id.to_string(),
+                    stage_name,
+                    question,
+                    options: options
+                        .into_iter()
+                        .map(|(label, value)| WorkflowOption { label, value })
+                        .collect(),
+                })
+            }
+            WorkflowEvent::WorkflowResumed { execution_id, stage_name, chosen_value } => {
+                Some(ExecutionEvent::WorkflowResumed {
+                    execution_id: execution_id.to_string(),
+                    stage_name,
+                    chosen_value,
+                })
             }
             WorkflowEvent::WorkflowFailed { execution_id, error } => {
                 Some(ExecutionEvent::Failed {

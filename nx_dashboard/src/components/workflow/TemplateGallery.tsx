@@ -64,8 +64,8 @@ export function TemplateGallery({ isOpen, onClose, onUseTemplate }: TemplateGall
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
             <div>
-              <h2 className="text-lg font-semibold">Workflow Templates</h2>
-              <p className="text-sm text-muted-foreground">Choose a template to start your workflow</p>
+              <h2 className="text-lg font-semibold">工作流模板</h2>
+              <p className="text-sm text-muted-foreground">选择模板快速创建工作流</p>
             </div>
             <button
               onClick={onClose}
@@ -87,9 +87,8 @@ export function TemplateGallery({ isOpen, onClose, onUseTemplate }: TemplateGall
                 }
               `}
             >
-              All
-            </button>
-            {TEMPLATE_CATEGORIES.map((cat) => (
+              全部
+            </button>            {TEMPLATE_CATEGORIES.map((cat) => (
               <button
                 key={cat.value}
                 onClick={() => handleCategoryChange(cat.value)}
@@ -117,18 +116,18 @@ export function TemplateGallery({ isOpen, onClose, onUseTemplate }: TemplateGall
             ) : error ? (
               <BetterEmptyState
                 icon={GitBranch}
-                title="Failed to load templates"
+                title="加载模板失败"
                 description={error}
                 action={{
-                  label: 'Retry',
+                  label: '重试',
                   onClick: () => fetchTemplates(),
                 }}
               />
             ) : templates.length === 0 ? (
               <BetterEmptyState
                 icon={GitBranch}
-                title="No templates found"
-                description="Try selecting a different category or create a new template."
+                title="暂无模板"
+                description="请选择其他分类或稍后再试。"
               />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -198,7 +197,7 @@ function TemplatePreviewModal({
           {/* Stages */}
           <div>
             <h4 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
-              <GitBranch className="w-4 h-4" /> Stages ({template.stages.length})
+              <GitBranch className="w-4 h-4" /> 阶段 ({template.stages.length})
             </h4>
             <div className="space-y-3">
               {template.stages.map((stage, idx) => (
@@ -207,7 +206,7 @@ function TemplatePreviewModal({
                     <span className="font-medium">{stage.name}</span>
                     {stage.parallel && (
                       <span className="px-2 py-0.5 text-xs bg-blue-500/20 text-blue-600 rounded">
-                        Parallel
+                        并行
                       </span>
                     )}
                   </div>
@@ -231,7 +230,7 @@ function TemplatePreviewModal({
           {/* Agents */}
           <div>
             <h4 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
-              <Users className="w-4 h-4" /> Agents ({template.agents.length})
+              <Users className="w-4 h-4" /> 智能体 ({template.agents.length})
             </h4>
             <div className="space-y-2">
               {template.agents.map((agent) => (
@@ -253,13 +252,13 @@ function TemplatePreviewModal({
             onClick={onClose}
             className="flex-1 py-2 text-sm rounded-md border border-border hover:bg-accent transition-colors"
           >
-            Cancel
+            取消
           </button>
           <button
             onClick={onUse}
             className="flex-1 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
           >
-            Use Template <ArrowRight className="w-4 h-4" />
+            使用模板 <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       </div>

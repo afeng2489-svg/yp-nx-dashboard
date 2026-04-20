@@ -137,6 +137,7 @@ interface SkillStore {
   fetchByCategory: (category: string) => Promise<void>;
   fetchByTag: (tag: string) => Promise<void>;
   executeSkill: (request: ExecuteSkillRequest) => Promise<ExecuteSkillResponse>;
+  importSkill: (source: 'url' | 'file' | 'paste', content: string, filename?: string) => Promise<SkillDetail | null>;
   clearSearch: () => void;
   clearError: () => void;
   clearCurrentSkill: () => void;

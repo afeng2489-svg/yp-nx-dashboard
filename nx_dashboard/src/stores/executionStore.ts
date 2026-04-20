@@ -45,7 +45,7 @@ export function cleanupAllWebSockets() {
 export interface Execution {
   id: string;
   workflow_id: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
   variables?: Record<string, unknown>;
   stage_results?: StageResult[];
   started_at?: string;
@@ -68,7 +68,21 @@ type ExecutionEvent =
   | { type: 'output'; execution_id: string; line: string }
   | { type: 'completed'; execution_id: string }
   | { type: 'failed'; execution_id: string; error: string }
+  | { type: 'workflow_paused'; execution_id: string; stage_name: string; question: string; options: WorkflowPauseOption[] }
+  | { type: 'workflow_resumed'; execution_id: string; stage_name: string; chosen_value: string }
   | { type: 'pong' }; // heartbeat response
+
+export interface WorkflowPauseOption {
+  label: string;
+  value: string;
+}
+
+export interface WorkflowPauseState {
+  execution_id: string;
+  stage_name: string;
+  question: string;
+  options: WorkflowPauseOption[];
+}
 
 // 自定义错误类型
 class ApiError extends Error {
@@ -114,15 +128,19 @@ interface ExecutionStore {
   error: string | null;
   wsConnections: Map<string, WebSocket>;
   wsConnectionStatus: Map<string, ConnectionStatus>;
+  /** 当前等待用户输入的暂停状态（null 表示没有暂停） */
+  pendingPause: WorkflowPauseState | null;
 
   fetchExecutions: () => Promise<void>;
   getExecution: (id: string) => Promise<Execution | null>;
   startExecution: (workflowId: string, variables?: Record<string, unknown>) => Promise<Execution>;
   cancelExecution: (id: string) => Promise<void>;
+  resumeExecution: (executionId: string, value: string) => boolean;
   setCurrentExecution: (execution: Execution | null) => void;
   connectWebSocket: (executionId: string) => void;
   disconnectWebSocket: (executionId: string) => void;
   clearError: () => void;
+  dismissPause: () => void;
 }
 
 export const useExecutionStore = create<ExecutionStore>((set, get) => ({
@@ -132,6 +150,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
   error: null,
   wsConnections: new Map(),
   wsConnectionStatus: new Map(),
+  pendingPause: null,
 
   fetchExecutions: async () => {
     set({ loading: true, error: null });
@@ -236,6 +255,24 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
   },
 
   setCurrentExecution: (execution) => set({ currentExecution: execution }),
+
+  resumeExecution: (executionId, value) => {
+    const { wsConnections } = get();
+    const ws = wsConnections.get(executionId);
+    const canSend = ws !== undefined && ws.readyState === WebSocket.OPEN;
+    if (canSend) {
+      ws!.send(JSON.stringify({ type: 'resume_workflow', execution_id: executionId, value }));
+      set((state) => ({
+        pendingPause: state.pendingPause?.execution_id === executionId ? null : state.pendingPause,
+        executions: state.executions.map((e) =>
+          e.id === executionId ? { ...e, status: 'running' as const } : e
+        ),
+      }));
+    }
+    return canSend;
+  },
+
+  dismissPause: () => set({ pendingPause: null }),
 
   connectWebSocket: (executionId) => {
     const { wsConnections, wsConnectionStatus } = get();
@@ -390,6 +427,30 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
     function handleExecutionEvent(event: ExecutionEvent) {
       // Ignore pong messages - they don't have execution_id
       if (event.type === 'pong') {
+        return;
+      }
+
+      // Handle workflow_paused outside of executions array update
+      if (event.type === 'workflow_paused') {
+        set((state) => ({
+          pendingPause: {
+            execution_id: event.execution_id,
+            stage_name: event.stage_name,
+            question: event.question,
+            options: event.options,
+          },
+          executions: state.executions.map((e) =>
+            e.id === event.execution_id ? { ...e, status: 'running' as const } : e
+          ),
+        }));
+        return;
+      }
+
+      if (event.type === 'workflow_resumed') {
+        // Clear pause state if it matches
+        set((state) => ({
+          pendingPause: state.pendingPause?.execution_id === event.execution_id ? null : state.pendingPause,
+        }));
         return;
       }
 

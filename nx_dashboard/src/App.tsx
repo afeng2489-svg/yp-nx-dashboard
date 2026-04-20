@@ -45,10 +45,10 @@ function PageLoadingFallback() {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 30, // 30 seconds - consider data fresh for 30s
-      gcTime: 1000 * 60 * 5, // 5 minutes - keep unused data in cache for 5min
+      staleTime: 1000 * 20, // 20 seconds default — overridden per-query where needed
+      gcTime: 1000 * 60 * 5, // 5 minutes — keep unused cache
       retry: 1,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: false, // queries with staleTime: 0 already refetch on mount
     },
   },
 });

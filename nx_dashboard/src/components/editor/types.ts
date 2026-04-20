@@ -15,7 +15,7 @@ export interface WorkflowTemplate {
   id: string;
   name: string;
   description: string;
-  category: 'basic' | 'collaboration' | 'testing' | 'brainstorm';
+  category: 'basic' | 'collaboration' | 'testing' | 'brainstorm' | 'planning' | 'development';
   nodes: WorkflowNode[];
   edges: Edge[];
 }

@@ -71,6 +71,20 @@ pub enum WorkflowEvent {
         key: String,
         value: serde_json::Value,
     },
+    /// user_input stage 触发：工作流暂停等待用户选择
+    WorkflowPaused {
+        execution_id: Uuid,
+        stage_name: String,
+        question: String,
+        /// Vec<(展示文字, 值)>
+        options: Vec<(String, String)>,
+    },
+    /// 工作流从暂停中恢复
+    WorkflowResumed {
+        execution_id: Uuid,
+        stage_name: String,
+        chosen_value: String,
+    },
 }
 
 impl WorkflowEvent {
@@ -93,6 +107,8 @@ impl WorkflowEvent {
             WorkflowEvent::WorkflowFailed { execution_id, .. } => Some(*execution_id),
             WorkflowEvent::WorkflowCancelled { execution_id } => Some(*execution_id),
             WorkflowEvent::VariableSet { execution_id, .. } => Some(*execution_id),
+            WorkflowEvent::WorkflowPaused { execution_id, .. } => Some(*execution_id),
+            WorkflowEvent::WorkflowResumed { execution_id, .. } => Some(*execution_id),
         }
     }
 }

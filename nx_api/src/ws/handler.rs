@@ -7,7 +7,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-use crate::services::events::{ExecutionEvent, ExecutionStatus};
+use crate::services::events::{ExecutionEvent, ExecutionStatus, WorkflowOption};
 use crate::services::execution_service::ExecutionService;
 
 /// WebSocket 消息协议（客户端 -> 服务端）
@@ -30,6 +30,11 @@ pub enum ClientMessage {
     /// 取消订阅
     Unsubscribe {
         execution_id: String,
+    },
+    /// 恢复暂停的工作流
+    ResumeWorkflow {
+        execution_id: String,
+        value: String,
     },
 }
 
@@ -75,6 +80,19 @@ pub enum ServerMessage {
     /// 错误消息
     Error {
         message: String,
+    },
+    /// 工作流暂停，等待用户选择
+    WorkflowPaused {
+        execution_id: String,
+        stage_name: String,
+        question: String,
+        options: Vec<WorkflowOption>,
+    },
+    /// 工作流已从暂停恢复
+    WorkflowResumed {
+        execution_id: String,
+        stage_name: String,
+        chosen_value: String,
     },
 }
 
@@ -203,6 +221,8 @@ impl WebSocketHandler {
             ExecutionEvent::Output { execution_id, .. } => execution_id.clone(),
             ExecutionEvent::Completed { execution_id } => execution_id.clone(),
             ExecutionEvent::Failed { execution_id, .. } => execution_id.clone(),
+            ExecutionEvent::WorkflowPaused { execution_id, .. } => execution_id.clone(),
+            ExecutionEvent::WorkflowResumed { execution_id, .. } => execution_id.clone(),
         }
     }
 
@@ -247,6 +267,21 @@ impl WebSocketHandler {
                 execution_id,
                 error,
             }),
+            ExecutionEvent::WorkflowPaused { execution_id, stage_name, question, options } => {
+                Some(ServerMessage::WorkflowPaused {
+                    execution_id,
+                    stage_name,
+                    question,
+                    options,
+                })
+            }
+            ExecutionEvent::WorkflowResumed { execution_id, stage_name, chosen_value } => {
+                Some(ServerMessage::WorkflowResumed {
+                    execution_id,
+                    stage_name,
+                    chosen_value,
+                })
+            }
         }
     }
 
@@ -302,6 +337,17 @@ impl WebSocketHandler {
             ClientMessage::Unsubscribe { execution_id } => {
                 tracing::debug!("Unsubscribe from execution: {}", execution_id);
                 session.subscriptions.remove(&execution_id);
+            }
+
+            ClientMessage::ResumeWorkflow { execution_id, value } => {
+                tracing::info!("Resume workflow: {} with value: {}", execution_id, value);
+                if !execution_service.resume_execution(&execution_id, value) {
+                    let response = ServerMessage::Error {
+                        message: format!("Execution {} is not paused or not found", execution_id),
+                    };
+                    let json = response.to_json()?;
+                    sender.send(AxumMessage::Text(json)).await?;
+                }
             }
         }
 

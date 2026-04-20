@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { TemplateCard, TemplateCardSkeleton } from '@/components/workflow/TemplateCard';
 import { useTemplateStore, TEMPLATE_CATEGORIES, type TemplateSummary, type TemplateCategory } from '@/stores/templateStore';
 
 export function TemplatesPage() {
+  const navigate = useNavigate();
   const {
     templates,
     loading,
@@ -36,7 +39,16 @@ export function TemplatesPage() {
   };
 
   const handleUseTemplate = async (summary: TemplateSummary) => {
-    await instantiateTemplate(summary.id);
+    try {
+      const result = await instantiateTemplate(summary.id);
+      toast.success(`工作流「${result.name}」已创建`, {
+        description: '点击查看工作流列表',
+        action: { label: '前往', onClick: () => navigate('/workflows') },
+      });
+      navigate('/workflows');
+    } catch {
+      toast.error('创建工作流失败，请重试');
+    }
   };
 
   return (

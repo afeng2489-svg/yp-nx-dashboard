@@ -1,0 +1,155 @@
+name: review-cycle
+version: "1.0"
+description: "代码审查循环 - 支持三种审查深度，包含人工审查节点。"
+
+triggers:
+  - type: manual
+    inputs:
+      target:
+        type: string
+        required: true
+        description: "要审查的代码路径、模块名称或 PR 描述"
+
+variables:
+  target: ""
+  review_mode: "standard"
+  review_summary: ""
+
+agents:
+  - id: pre-analyzer
+    role: 预分析员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是代码预分析员。快速扫描目标并准备审查上下文。
+
+      审查目标：{{target}}
+
+      执行步骤：
+      1. 识别代码的主要职责和边界
+      2. 列出需要重点关注的模块（最多5个）
+      3. 标记潜在的高风险区域（安全、性能、正确性）
+
+      在最后一行输出：
+      EXTRACT:review_summary=<一句话描述代码主要功能和关键风险>
+    extract_vars:
+      - name: review_summary
+        pattern: "EXTRACT:review_summary=(.+)"
+
+  - id: quick-reviewer
+    role: 快速审查员
+    model: claude-sonnet-4-6
+    depends_on: [pre-analyzer]
+    prompt: |
+      执行快速代码扫描（review_mode=quick）。
+
+      目标：{{target}}
+      预分析摘要：{{review_summary}}
+
+      重点检查：
+      - 明显的逻辑错误和边界条件
+      - 安全漏洞（注入、认证、权限）
+      - 关键性能问题
+
+      输出：问题列表（仅高危和严重问题），每条格式：[严重度] 文件:行号 - 描述
+
+  - id: standard-reviewer
+    role: 标准审查员
+    model: claude-sonnet-4-6
+    depends_on: [pre-analyzer]
+    prompt: |
+      执行标准代码审查（review_mode=standard）。
+
+      目标：{{target}}
+      预分析摘要：{{review_summary}}
+
+      检查范围：
+      - 代码质量（可读性、命名、函数长度）
+      - 错误处理完整性
+      - 测试覆盖率评估
+      - 文档和注释
+      - 安全性和性能问题
+
+      输出：分级问题列表（严重/警告/建议），附改进建议。
+
+  - id: deep-reviewer
+    role: 深度审查员
+    model: claude-sonnet-4-6
+    depends_on: [pre-analyzer]
+    prompt: |
+      执行深度架构审查（review_mode=deep）。
+
+      目标：{{target}}
+      预分析摘要：{{review_summary}}
+
+      深度分析：
+      1. 架构合理性（职责分离、依赖关系、模块边界）
+      2. 安全审计（OWASP Top 10、认证授权、数据校验）
+      3. 性能分析（算法复杂度、数据库查询、并发安全）
+      4. 依赖分析（版本安全、许可证合规）
+      5. 可维护性（技术债务、扩展性）
+
+      输出：完整的架构评估报告，含优先级排序的改进路径。
+
+  - id: report-generator
+    role: 报告生成器
+    model: claude-sonnet-4-6
+    prompt: |
+      基于审查模式 "{{review_mode}}" 的审查结果，生成最终报告。
+
+      审查目标：{{target}}
+
+      生成结构化 Markdown 报告，包含：
+      ## 审查摘要
+      - 审查模式、目标、关键发现数量
+
+      ## 问题列表
+      按严重程度分组，每条包含：位置、描述、修复建议
+
+      ## 改进建议
+      优先处理事项（Top 3）
+
+      ## 结论
+      整体代码健康度评分（1-10）
+
+stages:
+  - name: 预分析
+    agents: [pre-analyzer]
+
+  - name: 选择审查模式
+    stage_type: user_input
+    question: "预分析完成。请选择本次代码审查的深度："
+    options:
+      - label: "⚡ 快速扫描 - 仅检查高危问题（~5分钟）"
+        value: "quick"
+        description: "适合紧急 hotfix 或小改动 review"
+      - label: "🔍 标准审查 - 全面代码质量检查（~15分钟）"
+        value: "standard"
+        description: "适合普通 PR review 和功能开发"
+      - label: "🔬 深度分析 - 架构与安全完整审查（~30分钟）"
+        value: "deep"
+        description: "适合重大重构、安全敏感功能、发版前审查"
+    output_var: review_mode
+    next:
+      - condition: "review_mode == 'quick'"
+        goto: 快速审查
+      - condition: "review_mode == 'deep'"
+        goto: 深度审查
+      - goto: 标准审查
+
+  - name: 快速审查
+    agents: [quick-reviewer]
+    next:
+      - goto: 生成报告
+
+  - name: 标准审查
+    agents: [standard-reviewer]
+    next:
+      - goto: 生成报告
+
+  - name: 深度审查
+    agents: [deep-reviewer]
+    next:
+      - goto: 生成报告
+
+  - name: 生成报告
+    agents: [report-generator]

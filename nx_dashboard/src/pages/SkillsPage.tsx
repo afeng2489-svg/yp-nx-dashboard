@@ -54,7 +54,7 @@ export default function SkillsPage() {
 
   // Use React Query for fetching
   const { skills, loading: skillsLoading, refetch: refetchSkills } = useSkillsQuery();
-  const { categories, loading: categoriesLoading, refetch: refetchCategories } = useSkillCategoriesQuery();
+  const { categories, loading: categoriesLoading } = useSkillCategoriesQuery();
   const { refetch: refetchSkillDetail } = useSkillDetailQuery(selectedSkill?.id || null);
 
   // Get skills directly from store when filtered
@@ -63,12 +63,10 @@ export default function SkillsPage() {
   // Combined loading state
   const isLoading = skillsLoading || categoriesLoading;
 
-  // Initial data fetch
+  // Fetch stats on mount (not managed by React Query)
   useEffect(() => {
-    refetchSkills();
-    refetchCategories();
     fetchStats();
-  }, [refetchSkills, refetchCategories, fetchStats]);
+  }, [fetchStats]);
 
   // Update selected skill detail when it changes
   useEffect(() => {
