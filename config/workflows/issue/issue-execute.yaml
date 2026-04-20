@@ -1,0 +1,160 @@
+name: issue-execute
+version: "1.0"
+description: "Issue 执行工作流 - 取队列中下一个 Issue，实施解决方案，循环直到成功，更新状态为 completed/failed。"
+
+triggers:
+  - type: manual
+    inputs:
+      issue_id:
+        type: string
+        required: true
+        description: "要执行的 Issue ID"
+
+variables:
+  issue_id: ""
+  execute_pass: "false"
+  verification_pass: "false"
+
+agents:
+  # ── 准备阶段 ──
+  - id: prepare-agent
+    role: 执行准备员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是执行准备员。读取 Issue 详情并准备执行环境。
+
+      Issue ID：{{issue_id}}
+
+      执行步骤：
+      1. 调用 GET /api/v1/issues/{{issue_id}} 获取 Issue 详情
+      2. 验证 Issue 状态是否为 queued（否则报告错误）
+      3. 检查所有 depends_on 的 Issue 是否已 completed
+      4. 读取 solution 字段的解决方案
+      5. 将状态更新为 executing：
+         PUT /api/v1/issues/{{issue_id}}
+         { "status": "executing" }
+      6. 准备实施清单
+
+      输出格式：
+      ## 执行准备完成
+
+      - Issue：[标题]
+      - 状态：queued → executing
+      - 解决方案摘要：[方案简述]
+      - 实施步骤：[从 solution 字段提取的步骤列表]
+
+  # ── 执行循环 Body ──
+  - id: implement-agent
+    role: 实施工程师
+    model: claude-sonnet-4-6
+    prompt: |
+      你是实施工程师。根据解决方案实施代码修改。
+
+      Issue ID：{{issue_id}}
+      准备信息：{{prepare-agent_output}}
+
+      执行步骤：
+      1. 按实施步骤逐一执行（使用 Edit/Write 工具）
+      2. 遵循代码规范（immutability、error handling、小函数）
+      3. 确保修改不破坏现有功能
+      4. 记录每个修改的文件和变更内容
+
+      在最后一行必须输出：
+      EXTRACT:execute_pass=true（如果所有修改已完成）
+      EXTRACT:execute_pass=false（如果还有未完成的部分）
+    extract_vars:
+      - name: execute_pass
+        pattern: "EXTRACT:execute_pass=(true|false)"
+
+  - id: verify-agent
+    role: 验证工程师
+    model: claude-sonnet-4-6
+    depends_on: [implement-agent]
+    prompt: |
+      你是验证工程师。验证实施是否解决了原始问题。
+
+      Issue ID：{{issue_id}}
+      实施结果：{{implement-agent_output}}
+
+      执行步骤：
+      1. 根据 Issue 描述，设计验证测试
+      2. 运行相关测试（使用 Bash 工具）
+      3. 手动验证修复效果
+      4. 检查是否有副作用
+
+      在最后一行必须输出：
+      EXTRACT:verification_pass=true（如果验证通过）
+      EXTRACT:verification_pass=false（如果验证失败，需要重新实施）
+    extract_vars:
+      - name: verification_pass
+        pattern: "EXTRACT:verification_pass=(true|false)"
+
+  # ── 完成阶段 ──
+  - id: complete-agent
+    role: 完成录入员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是完成录入员。将成功执行的 Issue 标记为 completed。
+
+      Issue ID：{{issue_id}}
+      执行结果：{{implement-agent_output}}
+      验证结果：{{verify-agent_output}}
+
+      执行步骤：
+      1. 更新 Issue 状态为 completed：
+         PUT /api/v1/issues/{{issue_id}}
+         { "status": "completed" }
+      2. 补充 solution 字段（如实施过程有额外发现）
+      3. 输出完成报告
+
+      输出格式：
+      ## Issue 执行完成
+
+      - Issue ID：{{issue_id}}
+      - 状态：executing → completed
+      - 修改文件列表：[列表]
+      - 验证结果：通过
+
+  - id: fail-agent
+    role: 失败处理员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是失败处理员。当执行失败时更新 Issue 状态并记录原因。
+
+      Issue ID：{{issue_id}}
+      执行结果：{{implement-agent_output}}
+
+      执行步骤：
+      1. 分析失败原因
+      2. 更新 Issue 状态为 failed：
+         PUT /api/v1/issues/{{issue_id}}
+         { "status": "failed" }
+      3. 将失败原因追加到 solution 字段
+
+      输出：失败报告和建议的下一步行动
+
+stages:
+  - name: 执行准备
+    agents: [prepare-agent]
+
+  - name: 执行循环
+    stage_type: loop
+    break_condition: "verification_pass == 'true'"
+    max_iterations: 3
+    body_stages: [实施代码, 验证结果]
+
+  - name: 实施代码
+    agents: [implement-agent]
+
+  - name: 验证结果
+    agents: [verify-agent]
+
+  - name: 标记完成
+    agents: [complete-agent]
+    next:
+      - condition: "verification_pass == 'true'"
+        goto: 标记完成
+      - goto: 标记失败
+
+  - name: 标记失败
+    agents: [fail-agent]

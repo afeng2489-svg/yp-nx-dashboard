@@ -1,0 +1,221 @@
+name: layout-extract
+version: "1.0"
+description: "UI 布局提取工作流 - 从图片/HTML 或网站 URL 中提取网格列数、对齐规则、组件层级关系、响应式断点，输出结构化 layout_spec JSON。"
+
+triggers:
+  - type: manual
+    inputs:
+      url:
+        type: string
+        required: false
+        description: "目标网站 URL（如 https://vercel.com），将通过 WebFetch 抓取页面结构进行布局分析"
+      image_path:
+        type: string
+        required: false
+        description: "设计稿图片路径（PNG/JPG/SVG），与 url 二选一"
+      html_path:
+        type: string
+        required: false
+        description: "HTML/TSX 文件路径，与 url 二选一"
+
+variables:
+  url: ""
+  image_path: ""
+  html_path: ""
+  layout_spec: "{}"
+  extract_complete: "false"
+
+agents:
+  - id: input-validator
+    role: 输入校验员
+    model: claude-haiku-4-5-20251001
+    prompt: |
+      你是输入校验员。验证布局提取工作流的输入参数。
+
+      url：{{url}}
+      image_path：{{image_path}}
+      html_path：{{html_path}}
+
+      校验规则：
+      1. url、image_path、html_path 至少提供一个
+      2. 如果 url 非空，验证它以 http:// 或 https:// 开头
+      3. 如果提供了文件路径，确认文件存在（使用 Read 工具尝试读取）
+      4. 支持的文件类型：
+         - 图片：.png, .jpg, .jpeg, .svg, .webp
+         - 代码：.html, .tsx, .jsx, .vue
+
+      输出格式：
+      ## 输入校验结果
+
+      - 输入模式：[url | file | both]
+      - URL 有效：[是/否/不适用]
+      - 文件存在：[是/否/不适用]
+      - 校验状态：[通过/失败]
+      - 备注：[如有问题，说明原因]
+
+  - id: grid-analyzer
+    role: 网格布局分析师
+    model: claude-sonnet-4-6
+    depends_on: [input-validator]
+    prompt: |
+      你是网格布局分析师。从设计稿、代码或网站中提取网格系统和布局结构。
+
+      url：{{url}}
+      image_path：{{image_path}}
+      html_path：{{html_path}}
+      校验结果：{{input-validator_output}}
+
+      分析任务（根据输入模式选择方法）：
+
+      【URL 模式 - url 非空时】
+      1. 使用 WebFetch 工具抓取该 URL 的 HTML 内容
+      2. 从以下位置提取网格信息：
+         - Tailwind 类名（grid-cols-*、flex、gap-*、container、max-w-*）
+         - CSS 变量中的布局定义
+         - 页面主要结构区域（header/nav/main/aside/footer）
+         - 典型区块的列数和间距
+      3. 如有需要，尝试抓取关联 CSS 文件
+
+      【文件模式 - url 为空时】
+      1. 如有代码，使用 Read/Grep 搜索 grid、flex、container 等关键词
+      2. 如有图片，根据视觉分析网格结构
+
+      输出格式（JSON）：
+      ```json
+      {
+        "grid": {
+          "columns": 12,
+          "column_gap": "1.5rem",
+          "row_gap": "1.5rem",
+          "container_max_width": "1280px",
+          "container_padding": "1rem"
+        },
+        "layout_regions": {
+          "header": { "height": "64px", "position": "fixed | sticky | static" },
+          "sidebar": { "width": "240px", "collapsible": true },
+          "main": { "padding": "1.5rem" },
+          "footer": { "height": "48px" }
+        },
+        "flex_patterns": ["justify-between", "items-center", "gap-4"],
+        "grid_patterns": ["grid-cols-3", "grid-cols-12", "col-span-4"]
+      }
+      ```
+
+  - id: hierarchy-analyzer
+    role: 组件层级分析师
+    model: claude-sonnet-4-6
+    depends_on: [input-validator]
+    prompt: |
+      你是组件层级分析师。从设计稿、代码或网站中提取组件层级关系和嵌套结构。
+
+      url：{{url}}
+      image_path：{{image_path}}
+      html_path：{{html_path}}
+      校验结果：{{input-validator_output}}
+
+      分析任务（根据输入模式选择方法）：
+
+      【URL 模式 - url 非空时】
+      1. 使用 WebFetch 工具抓取该 URL 的 HTML 内容
+      2. 分析 HTML 语义结构：
+         - nav、header、main、section、article、aside、footer 的嵌套关系
+         - 识别可复用 UI 模式（卡片、列表、表格、表单、导航）
+         - 提取关键组件的 class 命名规律
+         - 识别设计系统的组件命名约定
+
+      【文件模式 - url 为空时】
+      1. 使用 Read/Glob 工具分析文件结构中的组件
+      2. 构建组件树（页面 → 区域 → 组件 → 元素）
+
+      输出格式（JSON）：
+      ```json
+      {
+        "component_tree": {
+          "Page": {
+            "children": ["Header", "Sidebar", "MainContent", "Footer"],
+            "layout": "flex-col | grid"
+          },
+          "Header": {
+            "children": ["Logo", "NavLinks", "UserMenu"],
+            "layout": "flex-row justify-between"
+          }
+        },
+        "reusable_components": [
+          { "name": "Card", "type": "data-display", "props": ["title", "description", "actions"] }
+        ]
+      }
+      ```
+
+  - id: responsive-analyzer
+    role: 响应式规则分析师
+    model: claude-haiku-4-5-20251001
+    depends_on: [grid-analyzer]
+    prompt: |
+      你是响应式规则分析师。分析不同屏幕尺寸下的布局变化规则。
+
+      url：{{url}}
+      image_path：{{image_path}}
+      html_path：{{html_path}}
+      网格系统：{{grid-analyzer_output}}
+
+      分析任务（根据输入模式选择方法）：
+
+      【URL 模式 - url 非空时】
+      1. 从 grid-analyzer 的输出中提取响应式前缀（sm:/md:/lg:）使用情况
+      2. 推断各断点下的列数变化、导航变化、侧边栏变化
+      3. 如果可以，用 WebFetch 尝试访问移动版 URL
+
+      【文件模式 - url 为空时】
+      使用 Read/Grep 搜索媒体查询和响应式前缀
+
+      输出格式（JSON）：
+      ```json
+      {
+        "responsive_rules": {
+          "mobile": { "columns": 1, "sidebar": "hidden", "nav": "hamburger", "font_scale": 0.9, "container_padding": "1rem" },
+          "tablet": { "columns": 2, "sidebar": "collapsed", "nav": "icons-only", "font_scale": 0.95, "container_padding": "1.5rem" },
+          "desktop": { "columns": 12, "sidebar": "expanded", "nav": "full", "font_scale": 1, "container_padding": "2rem" }
+        }
+      }
+      ```
+
+  - id: layout-aggregator
+    role: 布局规格聚合器
+    model: claude-sonnet-4-6
+    depends_on: [grid-analyzer, hierarchy-analyzer, responsive-analyzer]
+    prompt: |
+      你是布局规格聚合器。将各分析结果合并为完整的 layout_spec。
+
+      网格系统：{{grid-analyzer_output}}
+      组件层级：{{hierarchy-analyzer_output}}
+      响应式规则：{{responsive-analyzer_output}}
+
+      任务：
+      1. 解析各专家输出中的 JSON 块
+      2. 合并为统一的 layout_spec 对象
+      3. 补全缺失的必要字段（使用合理的默认值）
+      4. 验证 JSON 格式正确性
+
+      输出完整的 layout_spec JSON，并以如下格式结束：
+
+      EXTRACT:layout_spec={"grid":{...},"layout_regions":{...},"component_tree":{...},"responsive_rules":{...}}
+      EXTRACT:extract_complete=true
+    extract_vars:
+      - name: layout_spec
+        pattern: "EXTRACT:layout_spec=(.+)"
+      - name: extract_complete
+        pattern: "EXTRACT:extract_complete=(true|false)"
+
+stages:
+  - name: 输入校验
+    agents: [input-validator]
+
+  - name: 并行分析
+    parallel: true
+    agents: [grid-analyzer, hierarchy-analyzer]
+
+  - name: 响应式分析
+    agents: [responsive-analyzer]
+
+  - name: 聚合输出
+    agents: [layout-aggregator]

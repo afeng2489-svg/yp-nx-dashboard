@@ -1,0 +1,186 @@
+name: issue-discover
+version: "1.0"
+description: "Issue 发现工作流 - 多视角并行扫描代码库，发现并录入潜在问题。支持 bug/security/performance/maintainability/ux 五个维度。"
+
+triggers:
+  - type: manual
+    inputs:
+      target:
+        type: string
+        required: true
+        description: "扫描目标（文件路径、模块名或功能描述）"
+
+variables:
+  target: ""
+  issues_found: "false"
+
+agents:
+  # ── 并行多视角扫描 ──
+  - id: bug-scanner-agent
+    role: Bug 扫描员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是 Bug 扫描员。从 bug 视角分析目标代码，发现潜在的逻辑错误和运行时问题。
+
+      目标：{{target}}
+
+      执行步骤：
+      1. 读取目标相关代码文件（使用 Read、Glob 工具）
+      2. 识别以下类型的 bug：
+         - 空指针/空值未检查
+         - 整数溢出/下溢
+         - 竞态条件
+         - 资源泄漏（内存、文件句柄、连接）
+         - 错误路径未处理
+         - 边界条件错误
+      3. 为每个发现的问题提供：
+         - 问题描述
+         - 影响范围
+         - 严重程度（critical/high/medium/low）
+         - 初步修复建议
+
+      输出格式：
+      ## Bug 扫描报告
+
+      ### 发现的问题
+      [按严重程度排序的问题列表]
+
+  - id: security-scanner-agent
+    role: 安全扫描员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是安全扫描员。从安全视角分析目标代码，发现潜在的安全漏洞。
+
+      目标：{{target}}
+
+      执行步骤：
+      1. 读取目标相关代码文件（使用 Read、Glob 工具）
+      2. 检查以下安全问题：
+         - SQL 注入 / 命令注入
+         - XSS / CSRF
+         - 不安全的反序列化
+         - 硬编码的密钥/密码
+         - 不当的权限检查
+         - 敏感数据暴露
+         - 不安全的加密实现
+      3. 为每个发现的问题提供：
+         - 漏洞类型（OWASP 分类）
+         - CVE 风险等级
+         - 复现路径
+         - 修复建议
+
+      输出格式：
+      ## 安全扫描报告
+
+      ### 发现的漏洞
+      [按风险等级排序的漏洞列表]
+
+  - id: performance-scanner-agent
+    role: 性能扫描员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是性能扫描员。从性能视角分析目标代码，发现潜在的性能问题。
+
+      目标：{{target}}
+
+      执行步骤：
+      1. 读取目标相关代码文件（使用 Read、Glob 工具）
+      2. 识别以下性能问题：
+         - N+1 查询问题
+         - 不必要的克隆/复制
+         - 循环内的重复计算
+         - 缺少缓存
+         - 大对象的频繁分配
+         - 阻塞操作在异步上下文中
+         - 索引缺失
+      3. 为每个问题提供性能影响评估和优化建议
+
+      输出格式：
+      ## 性能扫描报告
+
+      ### 发现的性能问题
+      [按影响程度排序的问题列表]
+
+  - id: maintainability-scanner-agent
+    role: 可维护性扫描员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是可维护性扫描员。从可维护性视角分析目标代码，发现代码质量问题。
+
+      目标：{{target}}
+
+      执行步骤：
+      1. 读取目标相关代码文件（使用 Read、Glob 工具）
+      2. 识别以下可维护性问题：
+         - 函数过长（>50 行）
+         - 嵌套深度过高（>4 层）
+         - 重复代码（DRY 违反）
+         - 缺少测试覆盖
+         - 命名不规范
+         - 缺少文档
+         - 循环依赖
+      3. 提供重构建议和优先级
+
+      输出格式：
+      ## 可维护性扫描报告
+
+      ### 发现的问题
+      [按优先级排序的问题列表]
+
+  # ── 综合汇总 ──
+  - id: issue-aggregator-agent
+    role: Issue 汇总员
+    model: claude-sonnet-4-6
+    depends_on: [bug-scanner-agent, security-scanner-agent, performance-scanner-agent, maintainability-scanner-agent]
+    prompt: |
+      你是 Issue 汇总员。综合所有扫描结果，生成结构化的 Issue 列表并录入系统。
+
+      目标：{{target}}
+
+      各视角扫描结果：
+      【Bug 扫描】{{bug-scanner-agent_output}}
+      【安全扫描】{{security-scanner-agent_output}}
+      【性能扫描】{{performance-scanner-agent_output}}
+      【可维护性扫描】{{maintainability-scanner-agent_output}}
+
+      执行步骤：
+      1. 去重合并各视角发现的问题（相同问题合并，保留所有视角标注）
+      2. 按优先级排序（critical > high > medium > low）
+      3. 为每个 Issue 调用 API 创建记录：
+         POST /api/v1/issues
+         {
+           "title": "...",
+           "description": "...",
+           "priority": "critical|high|medium|low",
+           "perspectives": ["bug"|"security"|"performance"|"maintainability"],
+           "depends_on": []
+         }
+      4. 记录已创建的 Issue ID 列表
+
+      输出格式：
+      ## Issue 发现汇总报告
+
+      ### 已录入的 Issue
+      | ID | 标题 | 优先级 | 视角 |
+      |----|------|-------|------|
+      [已创建的 issue 列表]
+
+      ### 统计摘要
+      - 总发现数：X
+      - Critical：X
+      - High：X
+      - Medium：X
+      - Low：X
+
+      EXTRACT:issues_found=true
+    extract_vars:
+      - name: issues_found
+        pattern: "EXTRACT:issues_found=(true|false)"
+
+stages:
+  - name: 并行扫描
+    agents: [bug-scanner-agent, security-scanner-agent, performance-scanner-agent, maintainability-scanner-agent]
+    parallel: true
+
+  - name: Issue 录入
+    agents: [issue-aggregator-agent]

@@ -4,6 +4,7 @@ pub mod team;
 pub mod project;
 pub mod skill;
 pub mod group_chat;
+pub mod issue;
 
 pub use team::{
     CreateRoleRequest, CreateTeamRequest, ExecuteRoleTaskRequest, ExecuteRoleTaskResponse,

@@ -1,0 +1,117 @@
+name: issue-queue
+version: "1.0"
+description: "Issue 排队工作流 - 对 planned 状态的 Issue 进行 DAG 依赖排序，自动批量更新为 queued 状态，生成执行队列。"
+
+triggers:
+  - type: manual
+    inputs:
+      issue_ids:
+        type: string
+        required: false
+        description: "要排队的 Issue ID 列表（逗号分隔），留空则自动获取所有 planned 状态的 Issue"
+
+variables:
+  issue_ids: ""
+  queue_ready: "false"
+
+agents:
+  - id: fetch-planned-agent
+    role: 计划 Issue 获取员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是计划 Issue 获取员。获取所有待排队的 Issue。
+
+      指定 Issue IDs：{{issue_ids}}
+
+      执行步骤：
+      1. 如果指定了 issue_ids，调用 API 获取这些 Issue 详情
+      2. 否则调用 GET /api/v1/issues?status=planned 获取所有 planned 状态的 Issue
+      3. 提取每个 Issue 的 id、title、priority、depends_on
+      4. 输出结构化的 Issue 列表
+
+      输出格式：
+      ## 待排队的 Issue 列表
+
+      | ID | 标题 | 优先级 | 依赖 |
+      |----|------|-------|------|
+      [Issue 列表]
+
+      总计：X 个 Issue
+
+  - id: dag-sorter-agent
+    role: DAG 排序员
+    model: claude-sonnet-4-6
+    depends_on: [fetch-planned-agent]
+    prompt: |
+      你是 DAG 排序员。基于依赖关系对 Issue 进行拓扑排序。
+
+      Issue 列表：{{fetch-planned-agent_output}}
+
+      执行步骤：
+      1. 解析每个 Issue 的 depends_on 列表，构建依赖图
+      2. 检测循环依赖（如有则报告并建议打破方式）
+      3. 执行拓扑排序（被依赖的 Issue 排在前面）
+      4. 在同级（无依赖关系）的 Issue 之间，按优先级排序（critical > high > medium > low）
+      5. 输出有序的执行队列
+
+      输出格式：
+      ## 执行队列（拓扑排序后）
+
+      执行批次：
+      **批次 1**（无依赖，可并行）：
+      - [Issue ID] [标题] [优先级]
+
+      **批次 2**（依赖批次 1）：
+      - [Issue ID] [标题] [优先级]
+
+      [后续批次...]
+
+      总执行顺序：
+      1. [Issue ID] - [标题]
+      2. [Issue ID] - [标题]
+      ...
+
+  - id: queue-updater-agent
+    role: 队列状态更新员
+    model: claude-sonnet-4-6
+    depends_on: [dag-sorter-agent]
+    prompt: |
+      你是队列状态更新员。将排序后的 Issue 批量更新为 queued 状态。
+
+      排序结果：{{dag-sorter-agent_output}}
+
+      执行步骤：
+      1. 按执行顺序，为每个 Issue 调用：
+         PUT /api/v1/issues/{id}
+         { "status": "queued" }
+      2. 记录每个更新的结果
+      3. 汇总成功/失败数量
+
+      输出格式：
+      ## 队列更新完成
+
+      ### 更新结果
+      | 顺序 | Issue ID | 标题 | 更新状态 |
+      |------|---------|------|---------|
+      [更新结果列表]
+
+      ### 统计
+      - 成功：X 个
+      - 失败：X 个（如有，列出原因）
+
+      执行队列已就绪，可以开始执行。
+
+      EXTRACT:queue_ready=true
+    extract_vars:
+      - name: queue_ready
+        pattern: "EXTRACT:queue_ready=(true|false)"
+
+stages:
+  - name: 获取待排队 Issue
+    agents: [fetch-planned-agent]
+
+  - name: DAG 拓扑排序
+    agents: [dag-sorter-agent]
+
+  - name: 更新队列状态
+    agents: [queue-updater-agent]

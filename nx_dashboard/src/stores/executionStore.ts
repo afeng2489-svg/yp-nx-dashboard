@@ -59,6 +59,22 @@ export interface StageResult {
   completed_at?: string;
 }
 
+/** 实时输出行，供 InlineExecPanel 消费 */
+export interface RawLine {
+  id: number;
+  type: 'info' | 'output' | 'stage_started' | 'stage_completed' | 'completed' | 'error';
+  content: string;
+  stageName?: string;
+}
+
+// 每个 execution 的行计数器（模块级，不放进 store 避免序列化）
+const lineCounters = new Map<string, number>();
+function nextLineId(execId: string): number {
+  const n = (lineCounters.get(execId) ?? 0) + 1;
+  lineCounters.set(execId, n);
+  return n;
+}
+
 // 执行事件类型
 type ExecutionEvent =
   | { type: 'started'; execution_id: string; workflow_id: string }
@@ -128,6 +144,8 @@ interface ExecutionStore {
   error: string | null;
   wsConnections: Map<string, WebSocket>;
   wsConnectionStatus: Map<string, ConnectionStatus>;
+  /** 每个 execution 的实时输出行（给 InlineExecPanel 读取） */
+  outputLines: Map<string, RawLine[]>;
   /** 当前等待用户输入的暂停状态（null 表示没有暂停） */
   pendingPause: WorkflowPauseState | null;
 
@@ -150,6 +168,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
   error: null,
   wsConnections: new Map(),
   wsConnectionStatus: new Map(),
+  outputLines: new Map(),
   pendingPause: null,
 
   fetchExecutions: async () => {
@@ -424,10 +443,41 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       allWsConnections.delete(execId);
     };
 
+    function appendLine(execId: string, line: Omit<RawLine, 'id'>) {
+      set((state) => {
+        const map = new Map(state.outputLines);
+        const existing = map.get(execId) ?? [];
+        map.set(execId, [...existing, { ...line, id: nextLineId(execId) }]);
+        return { outputLines: map };
+      });
+    }
+
     function handleExecutionEvent(event: ExecutionEvent) {
       // Ignore pong messages - they don't have execution_id
       if (event.type === 'pong') {
         return;
+      }
+
+      // ── 实时输出行累积（供 InlineExecPanel 读取）──
+      switch (event.type) {
+        case 'started':
+          appendLine(event.execution_id, { type: 'info', content: '工作流已启动' });
+          break;
+        case 'stage_started':
+          appendLine(event.execution_id, { type: 'stage_started', content: '', stageName: event.stage_name });
+          break;
+        case 'output':
+          appendLine(event.execution_id, { type: 'output', content: event.line });
+          break;
+        case 'stage_completed':
+          appendLine(event.execution_id, { type: 'stage_completed', content: '', stageName: event.stage_name });
+          break;
+        case 'completed':
+          appendLine(event.execution_id, { type: 'completed', content: '工作流执行完成 ✓' });
+          break;
+        case 'failed':
+          appendLine(event.execution_id, { type: 'error', content: `执行失败: ${event.error}` });
+          break;
       }
 
       // Handle workflow_paused outside of executions array update

@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use parking_lot::RwLock;
 
 use crate::config::ApiConfig;
-use crate::services::{WorkflowService, ExecutionService, SessionService, SqliteSessionRepository, SqliteWorkflowRepository, SqliteWorkspaceRepository, WorkspaceService, TestGenerator, PluginService, WisdomService, SharedWisdomService, SkillService, TelegramService, SqliteTeamRepository, SqliteApiKeyRepository, ProjectService, SqliteProjectRepository, AgentTeamService, SqliteProviderRepository, ProviderService, GroupChatService, SqliteGroupChatRepository};
+use crate::services::{WorkflowService, ExecutionService, SessionService, SqliteSessionRepository, SqliteWorkflowRepository, SqliteWorkspaceRepository, WorkspaceService, TestGenerator, PluginService, WisdomService, SharedWisdomService, SkillService, TelegramService, SqliteTeamRepository, SqliteApiKeyRepository, ProjectService, SqliteProjectRepository, AgentTeamService, SqliteProviderRepository, ProviderService, GroupChatService, SqliteGroupChatRepository, SqliteIssueRepository};
 use crate::middleware::auth::ApiKeyAuth;
 use crate::ws::TerminalWsHandler;
 use crate::ws::ClaudeStreamWsHandler;
@@ -40,6 +40,7 @@ pub mod projects;
 pub mod group_chat;
 pub mod memory;
 pub mod processes;
+pub mod issues;
 
 /// 查找 config/workflows 目录（YAML 种子文件）
 fn resolve_workflows_dir() -> Option<PathBuf> {
@@ -96,7 +97,7 @@ fn resolve_workflows_dir() -> Option<PathBuf> {
     None
 }
 
-/// 将 config/workflows/*.yaml 种子文件 upsert 到数据库
+/// 将 config/workflows/**/*.yaml 种子文件 upsert 到数据库（递归扫描子目录）
 /// 规则：按 name 匹配；不存在则创建，已存在则跳过（避免覆盖用户修改）
 fn seed_workflows_from_yaml(workflow_service: &WorkflowService) {
     let Some(dir) = resolve_workflows_dir() else {
@@ -115,13 +116,29 @@ fn seed_workflows_from_yaml(workflow_service: &WorkflowService) {
         }
     };
 
-    let Ok(entries) = std::fs::read_dir(&dir) else {
+    seed_dir_recursive(workflow_service, &dir, &existing_names);
+}
+
+/// 递归扫描目录，导入所有 .yaml 工作流文件
+fn seed_dir_recursive(
+    workflow_service: &WorkflowService,
+    dir: &std::path::Path,
+    existing_names: &std::collections::HashSet<String>,
+) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
         tracing::warn!("[WorkflowSeeder] 无法读取目录: {:?}", dir);
         return;
     };
 
     for entry in entries.flatten() {
         let path = entry.path();
+
+        // 递归进入子目录
+        if path.is_dir() {
+            seed_dir_recursive(workflow_service, &path, existing_names);
+            continue;
+        }
+
         if path.extension().and_then(|e| e.to_str()) != Some("yaml") {
             continue;
         }
@@ -325,6 +342,8 @@ pub struct AppState {
     pub current_workspace_path: Arc<RwLock<Option<String>>>,
     /// API 密钥（用于认证中间件）
     pub api_key_config: Option<String>,
+    /// Issue 仓储
+    pub issue_repository: Arc<SqliteIssueRepository>,
 }
 
 impl AppState {
@@ -476,6 +495,12 @@ impl AppState {
         // 创建 Agent 执行管理器
         let agent_execution_manager = AgentExecutionManager::new();
 
+        // 创建 Issue 仓储
+        let issue_repository = Arc::new(
+            SqliteIssueRepository::new(config.db_path.as_ref())
+                .expect("Failed to create issue repository")
+        );
+
         Self {
             workflow_service,
             execution_service,
@@ -497,6 +522,7 @@ impl AppState {
             agent_execution_manager,
             current_workspace_path,
             api_key_config,
+            issue_repository,
         }
     }
 }
@@ -696,6 +722,12 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         // Process monitoring
         .route("/api/v1/processes", get(processes::list_processes))
         .route("/api/v1/processes/:execution_id/kill", post(processes::kill_process))
+        // Issue 路由
+        .route("/api/v1/issues", get(issues::list_issues))
+        .route("/api/v1/issues", post(issues::create_issue))
+        .route("/api/v1/issues/:id", get(issues::get_issue))
+        .route("/api/v1/issues/:id", put(issues::update_issue))
+        .route("/api/v1/issues/:id", delete(issues::delete_issue))
         // WebSocket 路由
         .route("/ws/executions/:id", get(executions::execution_ws))
         .route("/ws/sessions/:id", get(sessions::session_ws))

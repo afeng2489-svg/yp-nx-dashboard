@@ -1,0 +1,268 @@
+name: style-extract
+version: "1.0"
+description: "UI 设计风格提取工作流 - 从图片/代码或网站 URL 中提取主色/辅色/背景色、字体族/字重/字号、间距系统、圆角值，输出结构化 style_spec JSON。"
+
+triggers:
+  - type: manual
+    inputs:
+      url:
+        type: string
+        required: false
+        description: "目标网站 URL（如 https://tailwindui.com），将通过 WebFetch 抓取 HTML/CSS 提取设计规格"
+      image_path:
+        type: string
+        required: false
+        description: "设计稿图片路径（PNG/JPG/SVG），与 url 二选一"
+      code_path:
+        type: string
+        required: false
+        description: "已有代码路径（CSS/TSX/HTML），与 url 二选一"
+
+variables:
+  url: ""
+  image_path: ""
+  code_path: ""
+  style_spec: "{}"
+  extract_complete: "false"
+
+agents:
+  - id: input-validator
+    role: 输入校验员
+    model: claude-haiku-4-5-20251001
+    prompt: |
+      你是输入校验员。验证工作流输入参数。
+
+      url：{{url}}
+      image_path：{{image_path}}
+      code_path：{{code_path}}
+
+      校验规则：
+      1. url、image_path、code_path 至少提供一个
+      2. 如果 url 非空，验证它以 http:// 或 https:// 开头，尝试用 WebFetch 工具简单抓取确认可访问
+      3. 如果提供了文件路径，确认文件存在（使用 Read 工具尝试读取）
+      4. 支持的文件类型：
+         - 图片：.png, .jpg, .jpeg, .svg, .webp
+         - 代码：.css, .scss, .tsx, .jsx, .html
+
+      输出格式：
+      ## 输入校验结果
+
+      - 输入模式：[url | file | both]
+      - URL 可访问：[是/否/不适用]
+      - 文件存在：[是/否/不适用]
+      - 校验状态：[通过/失败]
+      - 备注：[如有问题，说明原因]
+
+  - id: color-extractor
+    role: 颜色提取专家
+    model: claude-sonnet-4-6
+    depends_on: [input-validator]
+    prompt: |
+      你是颜色提取专家。从设计稿、代码或网站中精确提取色彩系统。
+
+      url：{{url}}
+      image_path：{{image_path}}
+      code_path：{{code_path}}
+      校验结果：{{input-validator_output}}
+
+      提取任务（根据输入模式选择方法）：
+
+      【URL 模式 - url 非空时】
+      1. 使用 WebFetch 工具抓取该 URL 的 HTML 内容
+      2. 从以下位置提取颜色：
+         - <style> 标签中的 CSS 变量（--color-*、--primary、--background 等）
+         - Tailwind 类名（bg-*、text-*、border-*）推断调色板
+         - 内联 style 属性中的颜色值
+         - meta theme-color
+      3. 如页面引用了外部 CSS 文件，尝试用 WebFetch 抓取主要 CSS 文件（通常是 /styles/globals.css 或 /app.css）
+
+      【文件模式 - url 为空时】
+      1. 如有图片（image_path），使用 Read 工具读取并分析主要颜色
+      2. 如有代码（code_path），使用 Read/Grep 工具搜索颜色定义（hex、rgb、hsl、oklch、CSS 变量）
+
+      颜色分类：
+      - primary：主色（最突出的品牌色）
+      - secondary：辅色
+      - accent：强调色（CTA、链接等）
+      - background：背景色（页面、卡片、输入框）
+      - surface：表面色（模态、弹出层）
+      - text：文字色（主文字、次要文字、禁用）
+      - border：边框色
+      - error/warning/success/info：状态色
+      统一转换为 HEX 格式输出。
+
+      输出格式（JSON）：
+      ```json
+      {
+        "colors": {
+          "primary": "#XXXXXX",
+          "primary_hover": "#XXXXXX",
+          "secondary": "#XXXXXX",
+          "accent": "#XXXXXX",
+          "background": "#XXXXXX",
+          "surface": "#XXXXXX",
+          "text_primary": "#XXXXXX",
+          "text_secondary": "#XXXXXX",
+          "text_disabled": "#XXXXXX",
+          "border": "#XXXXXX",
+          "error": "#XXXXXX",
+          "warning": "#XXXXXX",
+          "success": "#XXXXXX",
+          "info": "#XXXXXX"
+        }
+      }
+      ```
+
+  - id: typography-extractor
+    role: 字体系统提取专家
+    model: claude-sonnet-4-6
+    depends_on: [input-validator]
+    prompt: |
+      你是字体系统提取专家。从设计稿、代码或网站中精确提取字体系统。
+
+      url：{{url}}
+      image_path：{{image_path}}
+      code_path：{{code_path}}
+      校验结果：{{input-validator_output}}
+
+      提取任务（根据输入模式选择方法）：
+
+      【URL 模式 - url 非空时】
+      1. 使用 WebFetch 工具抓取该 URL 的 HTML 内容
+      2. 从以下位置提取字体信息：
+         - <link> 标签中引用的 Google Fonts 或 Adobe Fonts（font-family 名称）
+         - <style> 中的 @font-face 和 CSS 变量（--font-sans、--font-mono 等）
+         - body/html 的 font-family、font-size 设置
+         - Tailwind 类名（text-sm/base/lg/xl/2xl 等）推断字号比例
+         - 标题元素（h1-h6）的 font-size/font-weight
+
+      【文件模式 - url 为空时】
+      1. 字体族（font-family）：识别主字体和等宽字体
+      2. 字号比例（font-size scale）：从最小到最大，使用 rem/px
+      3. 字重（font-weight）：常用字重值（400/500/600/700等）
+      4. 行高（line-height）：各场景的行高值
+
+      输出格式（JSON）：
+      ```json
+      {
+        "typography": {
+          "font_family_sans": "Inter, system-ui, sans-serif",
+          "font_family_mono": "JetBrains Mono, monospace",
+          "scale": {
+            "xs": "0.75rem",
+            "sm": "0.875rem",
+            "base": "1rem",
+            "lg": "1.125rem",
+            "xl": "1.25rem",
+            "2xl": "1.5rem",
+            "3xl": "1.875rem",
+            "4xl": "2.25rem"
+          },
+          "weights": {
+            "normal": 400,
+            "medium": 500,
+            "semibold": 600,
+            "bold": 700
+          },
+          "line_heights": {
+            "tight": "1.25",
+            "normal": "1.5",
+            "relaxed": "1.75"
+          }
+        }
+      }
+      ```
+
+  - id: spacing-extractor
+    role: 间距系统提取专家
+    model: claude-haiku-4-5-20251001
+    depends_on: [input-validator]
+    prompt: |
+      你是间距系统提取专家。从设计稿、代码或网站中提取间距和尺寸系统。
+
+      url：{{url}}
+      image_path：{{image_path}}
+      code_path：{{code_path}}
+      校验结果：{{input-validator_output}}
+
+      提取任务（根据输入模式选择方法）：
+
+      【URL 模式 - url 非空时】
+      1. 使用 WebFetch 工具抓取该 URL 的 HTML 内容
+      2. 从以下位置提取间距信息：
+         - CSS 变量中的 spacing/radius/shadow 定义
+         - Tailwind 类名（p-*/m-*/gap-*/rounded-*/shadow-*）推断常用间距值
+         - 容器类（container、max-w-*）推断最大宽度
+         - 响应式前缀（sm:/md:/lg:）推断断点设置
+
+      【文件模式 - url 为空时】
+      1. 间距比例（spacing scale）：padding、margin 常用值（4px 基准或 8px 基准）
+      2. 圆角值（border-radius）：button/card/input/full 等场景的圆角
+      3. 阴影系统（box-shadow）：none/sm/md/lg/xl 等层级
+      4. 响应式断点（breakpoints）：sm/md/lg/xl/2xl 对应的像素值
+
+      输出格式（JSON）：
+      ```json
+      {
+        "spacing": {
+          "scale": {
+            "1": "0.25rem", "2": "0.5rem", "3": "0.75rem", "4": "1rem",
+            "5": "1.25rem", "6": "1.5rem", "8": "2rem", "10": "2.5rem",
+            "12": "3rem", "16": "4rem", "20": "5rem", "24": "6rem"
+          }
+        },
+        "border_radius": {
+          "none": "0", "sm": "0.125rem", "md": "0.375rem", "lg": "0.5rem",
+          "xl": "0.75rem", "2xl": "1rem", "full": "9999px"
+        },
+        "shadows": {
+          "none": "none",
+          "sm": "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+          "md": "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+          "lg": "0 10px 15px -3px rgb(0 0 0 / 0.1)",
+          "xl": "0 20px 25px -5px rgb(0 0 0 / 0.1)"
+        },
+        "breakpoints": {
+          "sm": "640px", "md": "768px", "lg": "1024px", "xl": "1280px", "2xl": "1536px"
+        }
+      }
+      ```
+
+  - id: style-aggregator
+    role: 风格聚合器
+    model: claude-sonnet-4-6
+    depends_on: [color-extractor, typography-extractor, spacing-extractor]
+    prompt: |
+      你是风格聚合器。将各专家提取的设计 token 合并为完整的 style_spec。
+
+      颜色系统：{{color-extractor_output}}
+      字体系统：{{typography-extractor_output}}
+      间距系统：{{spacing-extractor_output}}
+
+      任务：
+      1. 解析各专家输出中的 JSON 块
+      2. 合并为统一的 style_spec 对象
+      3. 补全缺失的必要字段（使用合理的默认值）
+      4. 验证 JSON 格式正确性
+      5. 如果输入来自 URL，在 style_spec 中记录 source_url 字段
+
+      输出完整的 style_spec JSON，并以如下格式结束：
+
+      EXTRACT:style_spec={"colors":{...},"typography":{...},"spacing":{...},"border_radius":{...},"shadows":{...},"breakpoints":{...}}
+      EXTRACT:extract_complete=true
+    extract_vars:
+      - name: style_spec
+        pattern: "EXTRACT:style_spec=(.+)"
+      - name: extract_complete
+        pattern: "EXTRACT:extract_complete=(true|false)"
+
+stages:
+  - name: 输入校验
+    agents: [input-validator]
+
+  - name: 并行提取
+    parallel: true
+    agents: [color-extractor, typography-extractor, spacing-extractor]
+
+  - name: 聚合输出
+    agents: [style-aggregator]

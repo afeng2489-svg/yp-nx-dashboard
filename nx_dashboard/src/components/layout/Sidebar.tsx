@@ -1,4 +1,4 @@
-import { LayoutDashboard, GitBranch, Play, Terminal, Settings, ChevronLeft, ChevronRight, Monitor, Workflow, Search, ListTodo, Brain, FolderOpen, Wrench, Bot, Users, FolderPlus, ChevronDown, Loader2, MessageSquare, Activity, Globe } from 'lucide-react';
+import { LayoutDashboard, GitBranch, Play, Terminal, Settings, ChevronLeft, ChevronRight, Monitor, Workflow, Search, ListTodo, Brain, FolderOpen, Wrench, Bot, Users, FolderPlus, ChevronDown, Loader2, MessageSquare, Activity, Globe, Palette } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/uiStore';
@@ -13,6 +13,7 @@ const tabs = [
   { id: 'terminal' as const, label: '终端', icon: Monitor, path: '/terminal' },
   { id: 'sessions' as const, label: '会话', icon: Terminal, path: '/sessions' },
   { id: 'tasks' as const, label: '任务', icon: ListTodo, path: '/tasks' },
+  { id: 'ui-design' as const, label: 'UI 设计', icon: Palette, path: '/ui-design' },
   { id: 'wisdom' as const, label: '知识库', icon: Brain, path: '/wisdom' },
   { id: 'search' as const, label: '搜索', icon: Search, path: '/search' },
   { id: 'skills' as const, label: '技能', icon: Wrench, path: '/skills' },

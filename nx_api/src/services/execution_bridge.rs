@@ -38,16 +38,20 @@ impl WorkflowEventBridge {
                 })
             }
             WorkflowEvent::StageCompleted { execution_id, stage_name, outputs } => {
+                let exec_id = execution_id.to_string();
+                let output_json = serde_json::json!({ "stage": stage_name.clone(), "outputs": outputs });
+                // 持久化到 execution.stage_results，供详情弹窗展示
+                self.execution_service.add_stage_output(&exec_id, stage_name.clone(), output_json.clone());
                 Some(ExecutionEvent::StageCompleted {
-                    execution_id: execution_id.to_string(),
+                    execution_id: exec_id,
                     stage_name,
-                    output: serde_json::json!({ "outputs": outputs }),
+                    output: output_json,
                 })
             }
-            WorkflowEvent::AgentStarted { execution_id, agent_id, .. } => {
+            WorkflowEvent::AgentStarted { execution_id, agent_id, role } => {
                 Some(ExecutionEvent::Output {
                     execution_id: execution_id.to_string(),
-                    line: format!("[Agent {}] Started", agent_id),
+                    line: format!("[Agent {}] 开始执行（{}）", agent_id, role),
                 })
             }
             WorkflowEvent::AgentMessage { execution_id, agent_id, message } => {
@@ -57,10 +61,17 @@ impl WorkflowEventBridge {
                 })
             }
             WorkflowEvent::AgentCompleted { execution_id, agent_id, output } => {
-                let preview: String = output.chars().take(100).collect();
+                let exec_id = execution_id.to_string();
+                // 持久化完整 agent 输出，供详情弹窗和内联面板使用
+                self.execution_service.add_stage_output(
+                    &exec_id,
+                    format!("agent:{}", agent_id),
+                    serde_json::json!({ "agent_id": agent_id, "content": output }),
+                );
+                // 广播完整输出（不截断），供前端 WebSocket 实时接收
                 Some(ExecutionEvent::Output {
-                    execution_id: execution_id.to_string(),
-                    line: format!("[Agent {}] Completed: {}", agent_id, preview),
+                    execution_id: exec_id,
+                    line: format!("[Agent {}]\n{}", agent_id, output),
                 })
             }
             WorkflowEvent::AgentFailed { execution_id, agent_id, error } => {

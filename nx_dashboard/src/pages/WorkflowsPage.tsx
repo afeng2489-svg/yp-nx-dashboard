@@ -3,16 +3,42 @@ import { useWorkflowsQuery } from '@/hooks/useReactQuery';
 import { useNavigate } from 'react-router-dom';
 import { useWorkflowStore, Workflow, Agent } from '@/stores/workflowStore';
 import { WorkflowTutorialModal } from '@/components/workflow/WorkflowTutorialModal';
+import { WorkflowLaunchModal } from '@/components/workflow/WorkflowLaunchModal';
 import { useExecutionStore } from '@/stores/executionStore';
 import { useSkillStore, type SkillSummary } from '@/stores/skillStore';
 import { useWorkspaceStore, onWorkspaceChange } from '@/stores/workspaceStore';
-import { Plus, Trash2, Play, Edit, X, Users, GitBranch, Clock, Sparkles, FileText, Wand2, Search, Eye } from 'lucide-react';
+import { Plus, Trash2, Play, Edit, X, Users, GitBranch, Clock, Sparkles, FileText, Wand2, Search, Eye, Palette, Bug, Code2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 import { showSuccess, showError } from '@/lib/toast';
 import { API_BASE_URL } from '@/api/constants';
 
-// 操作指南组件
+// ── 工作流分类 ──────────────────────────────────────────
+type WorkflowCategory = 'all' | 'dev' | 'issue' | 'ui-design';
+
+const CATEGORY_LABELS: Record<WorkflowCategory, string> = {
+  all: '全部',
+  dev: '开发工具',
+  issue: 'Issue 管理',
+  'ui-design': 'UI 设计',
+};
+
+const CATEGORY_ICONS: Record<WorkflowCategory, React.ReactNode> = {
+  all: <GitBranch className="w-3.5 h-3.5" />,
+  dev: <Code2 className="w-3.5 h-3.5" />,
+  issue: <Bug className="w-3.5 h-3.5" />,
+  'ui-design': <Palette className="w-3.5 h-3.5" />,
+};
+
+const UI_DESIGN_NAMES = new Set(['style-extract', 'layout-extract', 'animation-extract', 'generate', 'codify-style', 'design-sync']);
+
+function getWorkflowCategory(name: string): WorkflowCategory {
+  if (name.startsWith('issue-')) return 'issue';
+  if (UI_DESIGN_NAMES.has(name)) return 'ui-design';
+  return 'dev';
+}
+
+
 function OperationGuide() {
   const [isVisible, setIsVisible] = useState(true);
 
@@ -465,7 +491,6 @@ const SAMPLE_WORKFLOWS: Workflow[] = [
 export function WorkflowsPage() {
   const navigate = useNavigate();
   const { getWorkflow, deleteWorkflow, setCurrentWorkflow, createWorkflow } = useWorkflowStore();
-  const { startExecution, connectWebSocket } = useExecutionStore();
   const { currentWorkspace } = useWorkspaceStore();
   const [displayWorkflows, setDisplayWorkflows] = useState<Workflow[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
@@ -473,6 +498,8 @@ export function WorkflowsPage() {
   const [showSkillModal, setShowSkillModal] = useState(false);
   const [tutorialWorkflow, setTutorialWorkflow] = useState<Workflow | null>(null);
   const [tutorialLoading, setTutorialLoading] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<WorkflowCategory>('all');
+  const [launchWorkflow, setLaunchWorkflow] = useState<Workflow | null>(null);
   const { confirmState, showConfirm, hideConfirm } = useConfirmModal();
 
   // Use React Query for fetching
@@ -544,7 +571,7 @@ export function WorkflowsPage() {
     }
   };
 
-  const [executingIds, setExecutingIds] = useState<Set<string>>(new Set());
+  const [executingIds] = useState<Set<string>>(new Set());
 
   const handleShowTutorial = async (workflow: Workflow, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -560,28 +587,9 @@ export function WorkflowsPage() {
     if (full) setTutorialWorkflow(full);
   };
 
-  const handleExecute = async (workflow: Workflow, e: React.MouseEvent) => {
+  const handleExecute = (workflow: Workflow, e: React.MouseEvent) => {
     e.stopPropagation();
-
-    if (executingIds.has(workflow.id)) return;
-
-    setExecutingIds(prev => new Set(prev).add(workflow.id));
-
-    try {
-      // startExecution 内部自动建立 WS 连接，确保能收到 workflow_paused 事件
-      const execution = await startExecution(workflow.id, {});
-      connectWebSocket(execution.id);
-      navigate('/executions');
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      showError(`执行失败: ${msg}`);
-    } finally {
-      setExecutingIds(prev => {
-        const next = new Set(prev);
-        next.delete(workflow.id);
-        return next;
-      });
-    }
+    setLaunchWorkflow(workflow);
   };
 
   if (loading) {
@@ -625,6 +633,39 @@ export function WorkflowsPage() {
 
       <OperationGuide />
 
+      {/* 分类 Tab */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {(['all', 'dev', 'issue', 'ui-design'] as WorkflowCategory[]).map(cat => {
+          const count = cat === 'all' ? displayWorkflows.length : displayWorkflows.filter(w => getWorkflowCategory(w.name) === cat).length;
+          return (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all border',
+                activeCategory === cat
+                  ? 'bg-primary/10 text-primary border-primary/30 shadow-sm'
+                  : 'border-border/50 hover:bg-accent text-muted-foreground'
+              )}
+            >
+              {CATEGORY_ICONS[cat]}
+              {CATEGORY_LABELS[cat]}
+              <span className={cn('ml-0.5 text-xs px-1.5 py-0.5 rounded-full', activeCategory === cat ? 'bg-primary/20' : 'bg-muted')}>{count}</span>
+            </button>
+          );
+        })}
+        {activeCategory === 'issue' && (
+          <button onClick={() => navigate('/tasks')} className="ml-auto flex items-center gap-1.5 text-xs text-indigo-600 hover:underline">
+            <Bug className="w-3.5 h-3.5" />前往 Issue 管理页
+          </button>
+        )}
+        {activeCategory === 'ui-design' && (
+          <button onClick={() => navigate('/ui-design')} className="ml-auto flex items-center gap-1.5 text-xs text-blue-600 hover:underline">
+            <Palette className="w-3.5 h-3.5" />前往 UI 设计工作台
+          </button>
+        )}
+      </div>
+
       {displayWorkflows.length === 0 ? (
         <div className="text-center py-16 bg-gradient-to-b from-card to-accent/20 rounded-2xl border border-border/50">
           <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 flex items-center justify-center">
@@ -639,7 +680,7 @@ export function WorkflowsPage() {
         </div>
       ) : (
         <div className="grid gap-4 stagger-children">
-          {displayWorkflows.map((workflow) => (
+          {displayWorkflows.filter(w => activeCategory === 'all' || getWorkflowCategory(w.name) === activeCategory).map((workflow) => (
             <div
               key={workflow.id}
               className={cn(
@@ -795,6 +836,13 @@ export function WorkflowsPage() {
         <WorkflowTutorialModal
           workflow={tutorialWorkflow}
           onClose={() => setTutorialWorkflow(null)}
+        />
+      )}
+
+      {launchWorkflow && (
+        <WorkflowLaunchModal
+          workflow={launchWorkflow}
+          onClose={() => setLaunchWorkflow(null)}
         />
       )}
     </div>

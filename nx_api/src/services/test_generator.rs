@@ -344,10 +344,9 @@ Generate complete, working test code that can be run immediately.
                 code.matches("#[test]").count()
             }
             TestFramework::PythonPytest => {
-                // Count def test_ or async def test_
-                code.matches("def test_")
-                    .count()
-                    + code.matches("async def test_").count()
+                // Count "def test_" — covers both sync and async test functions
+                // (async def test_ contains "def test_" as a substring, so no separate count needed)
+                code.matches("def test_").count()
             }
             TestFramework::JavaScriptJest | TestFramework::TypeScriptJest => {
                 // Count it(' or test(' or describe(

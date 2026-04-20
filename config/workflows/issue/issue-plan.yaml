@@ -1,0 +1,128 @@
+name: issue-plan
+version: "1.0"
+description: "Issue 规划工作流 - 对 discovered 状态的 Issue 进行根因分析、方案设计和依赖排序，生成可执行解决方案，状态迁移到 planned。"
+
+triggers:
+  - type: manual
+    inputs:
+      issue_id:
+        type: string
+        required: true
+        description: "要规划的 Issue ID"
+
+variables:
+  issue_id: ""
+  plan_complete: "false"
+
+agents:
+  - id: root-cause-agent
+    role: 根因分析员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是根因分析员。深入分析 Issue 的根本原因。
+
+      Issue ID：{{issue_id}}
+
+      执行步骤：
+      1. 调用 GET /api/v1/issues/{{issue_id}} 获取 Issue 详情
+      2. 读取相关代码文件（使用 Read、Glob、Grep 工具）
+      3. 构建问题的因果链（为什么会发生？）
+      4. 识别直接原因和根本原因
+      5. 评估问题影响范围
+
+      输出格式：
+      ## 根因分析报告
+
+      ### Issue 概述
+      [Issue 标题和描述]
+
+      ### 直接原因
+      [导致问题的直接代码/配置]
+
+      ### 根本原因
+      [最深层的原因]
+
+      ### 影响范围
+      [受影响的模块、用户、功能]
+
+  - id: solution-design-agent
+    role: 方案设计师
+    model: claude-sonnet-4-6
+    depends_on: [root-cause-agent]
+    prompt: |
+      你是方案设计师。基于根因分析设计解决方案。
+
+      Issue ID：{{issue_id}}
+      根因分析：{{root-cause-agent_output}}
+
+      执行步骤：
+      1. 生成 2-3 个备选解决方案
+      2. 对每个方案评估：
+         - 实施复杂度（低/中/高）
+         - 风险（低/中/高）
+         - 效果（解决率）
+         - 工作量估算
+      3. 选择最优方案并详细描述实施步骤
+      4. 识别实施前提条件和依赖项
+
+      输出格式：
+      ## 解决方案设计
+
+      ### 备选方案比较
+      | 方案 | 复杂度 | 风险 | 效果 | 工作量 |
+      |------|-------|------|------|-------|
+      [方案对比表]
+
+      ### 推荐方案
+      **方案描述**：[详细描述]
+
+      **实施步骤**：
+      1. [步骤 1]
+      2. [步骤 2]
+      ...
+
+      **前提条件**：[依赖的其他 Issue 或条件]
+
+  - id: plan-writer-agent
+    role: 计划录入员
+    model: claude-sonnet-4-6
+    depends_on: [solution-design-agent]
+    prompt: |
+      你是计划录入员。将规划结果写回 Issue 系统并更新状态。
+
+      Issue ID：{{issue_id}}
+      解决方案：{{solution-design-agent_output}}
+
+      执行步骤：
+      1. 整理推荐方案为结构化文本
+      2. 调用 API 更新 Issue：
+         PUT /api/v1/issues/{{issue_id}}
+         {
+           "status": "planned",
+           "solution": "[整理后的解决方案文本]"
+         }
+      3. 如果有依赖的其他 Issue，更新 depends_on 字段
+      4. 确认更新成功
+
+      输出格式：
+      ## 规划完成
+
+      - Issue ID：{{issue_id}}
+      - 状态：discovered → planned
+      - 解决方案已录入
+      - 依赖关系已设置（如有）
+
+      EXTRACT:plan_complete=true
+    extract_vars:
+      - name: plan_complete
+        pattern: "EXTRACT:plan_complete=(true|false)"
+
+stages:
+  - name: 根因分析
+    agents: [root-cause-agent]
+
+  - name: 方案设计
+    agents: [solution-design-agent]
+
+  - name: 录入计划
+    agents: [plan-writer-agent]

@@ -305,8 +305,22 @@ impl ExecutionService {
         use std::sync::Arc;
 
         // 1. 解析工作流定义
-        let definition: WorkflowDefinition = serde_yaml::from_str(workflow_yaml)
+        let mut definition: WorkflowDefinition = serde_yaml::from_str(workflow_yaml)
             .map_err(|e| ExecutionError::ParseError(format!("YAML 解析失败: {}", e)))?;
+
+        // 将用户传入的变量覆盖到工作流定义（非空值才覆盖，保留 YAML 默认值）
+        if let Some(vars) = variables.as_object() {
+            for (key, value) in vars {
+                let should_inject = match value {
+                    serde_json::Value::String(s) => !s.is_empty(),
+                    serde_json::Value::Null => false,
+                    _ => true,
+                };
+                if should_inject {
+                    definition.variables.insert(key.clone(), value.clone());
+                }
+            }
+        }
 
         // 2. 创建 AI 管理器（保留用于其他可能的需求）
         let _ai_manager = ai_config

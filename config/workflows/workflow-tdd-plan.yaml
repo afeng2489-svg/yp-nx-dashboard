@@ -1,0 +1,314 @@
+name: workflow-tdd-plan
+version: "1.0"
+description: "TDD 工作流规划 - 7 阶段 Red-Green-Refactor 方法论。发现测试空白、生成任务列表、循环执行直到全部通过。"
+
+triggers:
+  - type: manual
+    inputs:
+      target:
+        type: string
+        required: true
+        description: "要进行 TDD 的目标（功能描述、文件路径或模块名）"
+
+variables:
+  target: ""
+  all_tests_pass: "false"
+  l0_pass: "false"
+  coverage_ok: "false"
+
+agents:
+  # Phase 1: 发现当前会话目标
+  - id: session-discovery-agent
+    role: 会话目标发现员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是会话目标发现员。分析当前目标并提取需要测试的功能点。
+
+      目标：{{target}}
+
+      执行步骤：
+      1. 解析目标描述，识别需要实现/测试的功能点
+      2. 查看相关代码文件（使用 Glob 和 Read 工具）
+      3. 识别现有的代码结构和接口
+      4. 列出所有需要测试的公共接口、函数、类或行为
+      5. 识别关键的边界条件和异常情况
+
+      输出：
+      ## 目标分析
+      [目标的核心功能和边界]
+
+      ## 需要测试的功能点
+      - [功能点 1]: [描述]
+      - [功能点 2]: [描述]
+
+      ## 关键接口
+      [需要测试的公共 API 列表]
+
+      ## 边界条件
+      [重要的边界情况和异常路径]
+
+  # Phase 2: 上下文收集
+  - id: context-gathering-agent
+    role: 上下文收集员
+    model: claude-sonnet-4-6
+    depends_on: [session-discovery-agent]
+    prompt: |
+      你是上下文收集员。收集代码上下文以支持 TDD 实施。
+
+      目标：{{target}}
+
+      执行步骤：
+      1. 读取目标相关的所有文件（使用 Read、Glob 工具）
+      2. 分析现有依赖和 mock 策略
+      3. 识别测试框架和测试工具（package.json/Cargo.toml/requirements.txt 等）
+      4. 查看现有测试文件的模式和惯例
+      5. 识别需要 mock 的外部依赖
+
+      输出：
+      ## 技术栈
+      [语言/框架/测试工具]
+
+      ## 现有测试模式
+      [项目使用的测试惯例和目录结构]
+
+      ## 依赖分析
+      - 需要 mock 的依赖：[列表]
+      - 可以使用真实实现的依赖：[列表]
+
+      ## 测试文件组织
+      [测试文件应该放在哪里，命名规范]
+
+  # Phase 3: 测试覆盖分析
+  - id: coverage-analysis-agent
+    role: 覆盖率分析员
+    model: claude-sonnet-4-6
+    depends_on: [context-gathering-agent]
+    prompt: |
+      你是覆盖率分析员。分析当前测试覆盖并找出空白。
+
+      目标：{{target}}
+      上下文：{{context-gathering-agent_output}}
+
+      执行步骤：
+      1. 列出所有现有测试文件
+      2. 分析每个功能点的测试覆盖情况
+      3. 识别未被测试的代码路径
+      4. 评估当前测试质量（是否测试行为而非实现）
+      5. 计算估计覆盖率
+
+      输出：
+      ## 覆盖情况分析
+
+      | 功能点 | 是否有测试 | 测试质量 | 缺失场景 |
+      |--------|-----------|---------|---------|
+      [填写每个功能点的覆盖情况]
+
+      ## 覆盖空白
+      [未被测试的重要功能点和边界条件]
+
+      ## 优先级建议
+      [按重要性排序需要新增的测试]
+
+  # Phase 4: 冲突解决
+  - id: conflict-resolution-agent
+    role: 测试冲突解决员
+    model: claude-sonnet-4-6
+    depends_on: [coverage-analysis-agent]
+    prompt: |
+      你是测试冲突解决员。解决测试实施中的潜在冲突。
+
+      目标：{{target}}
+      覆盖分析：{{coverage-analysis-agent_output}}
+
+      执行步骤：
+      1. 识别 mock vs 真实依赖的决策冲突
+      2. 处理测试隔离问题（全局状态、数据库、文件系统）
+      3. 解决异步测试的时序问题
+      4. 处理测试数据管理策略
+      5. 提出具体的冲突解决方案
+
+      输出：
+      ## 冲突列表与解决方案
+
+      | 冲突 | 推荐方案 | 理由 |
+      |------|---------|------|
+      [填写每个冲突的解决方案]
+
+      ## 测试策略决策
+      - mock 策略：[具体决定]
+      - 测试数据：[工厂函数/fixtures/硬编码]
+      - 测试隔离：[具体方案]
+
+  # Phase 5: TDD 任务生成
+  - id: tdd-task-generation-agent
+    role: TDD 任务规划师
+    model: claude-sonnet-4-6
+    depends_on: [conflict-resolution-agent]
+    prompt: |
+      你是 TDD 任务规划师。生成完整的 Red-Green-Refactor 任务列表。
+
+      目标：{{target}}
+      覆盖分析：{{coverage-analysis-agent_output}}
+      冲突解决：{{conflict-resolution-agent_output}}
+
+      执行步骤：
+      1. 基于覆盖空白生成测试用例列表
+      2. 按 Red-Green-Refactor 循环组织任务
+      3. 确保测试先行（先写测试，后写实现）
+      4. 生成具体的测试代码框架
+
+      输出格式：
+      ## TDD 任务列表
+
+      ### 批次 1（核心功能）
+      **RED - 先写失败的测试**
+      ```[测试代码框架]```
+
+      **GREEN - 最小实现通过测试**
+      [实现要点]
+
+      **REFACTOR - 重构保持绿色**
+      [重构建议]
+
+      ### 批次 2（边界条件）
+      [同上格式]
+
+      ⚠️ 初始状态标记（引擎读取）：
+      EXTRACT:all_tests_pass=false
+    extract_vars:
+      - name: all_tests_pass
+        pattern: "EXTRACT:all_tests_pass=(true|false)"
+
+  # Phase 6: TDD 结构验证
+  - id: structure-validation-agent
+    role: TDD 结构验证员
+    model: claude-sonnet-4-6
+    depends_on: [tdd-task-generation-agent]
+    prompt: |
+      你是 TDD 结构验证员。验证生成的测试任务结构的合理性。
+
+      目标：{{target}}
+      任务列表：{{tdd-task-generation-agent_output}}
+
+      检查以下内容：
+      1. 测试是否真正先行于实现
+      2. 每个测试是否只测试一个行为
+      3. 测试命名是否描述性强（"should_do_X_when_Y"格式）
+      4. mock 使用是否合理（不过度 mock）
+      5. 是否覆盖了 80% 以上的重要功能
+
+      如果发现问题，提出修正建议。
+      如果结构合理，确认并准备执行。
+
+  # Phase 7 Body: 运行测试
+  - id: run-tests-agent
+    role: 测试运行员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是测试运行员。执行当前测试套件并分析结果。
+
+      目标：{{target}}
+      任务计划：{{tdd-task-generation-agent_output}}
+
+      执行步骤：
+      1. 根据任务列表编写（或更新）测试代码（使用 Write/Edit 工具）
+      2. 运行测试命令（使用 Bash 工具）
+      3. 记录所有测试结果
+
+      常见测试命令参考：
+      - TypeScript/JS: npm test 或 npx jest
+      - Rust: cargo test
+      - Python: pytest
+      - Go: go test ./...
+
+      在最后一行必须输出：
+      EXTRACT:all_tests_pass=true（如果全部通过）
+      EXTRACT:all_tests_pass=false（如果有失败）
+    extract_vars:
+      - name: all_tests_pass
+        pattern: "EXTRACT:all_tests_pass=(true|false)"
+
+  # Phase 7 Body: 失败分析
+  - id: analyze-failures-agent
+    role: 失败分析员
+    model: claude-sonnet-4-6
+    depends_on: [run-tests-agent]
+    prompt: |
+      你是失败分析员。分析测试失败原因并制定修复方案。
+
+      目标：{{target}}
+      测试结果：{{run-tests-agent_output}}
+
+      执行步骤：
+      1. 解析失败的测试用例列表
+      2. 对每个失败用例进行根因分析：
+         - 是实现代码的问题还是测试代码的问题
+         - 是 mock 配置错误还是业务逻辑错误
+      3. 制定修复优先级
+      4. 提出最小化修复方案
+
+      输出：
+      ## 失败分析
+
+      | 测试用例 | 失败原因 | 修复方案 | 优先级 |
+      |---------|---------|---------|-------|
+      [填写每个失败用例的分析]
+
+      ## 修复策略
+      [按优先级排序的修复步骤]
+
+  # Phase 7 Body: 修复代码
+  - id: fix-code-agent
+    role: 代码修复员
+    model: claude-sonnet-4-6
+    depends_on: [analyze-failures-agent]
+    prompt: |
+      你是代码修复员。根据失败分析实施修复。
+
+      目标：{{target}}
+      失败分析：{{analyze-failures-agent_output}}
+
+      执行步骤：
+      1. 按优先级实施修复方案（使用 Edit/Write 工具）
+      2. 只修改必要的最小代码
+      3. 确保修复不引入新问题
+      4. 更新相关文档（如有必要）
+
+stages:
+  # Phase 1-2: 发现和收集
+  - name: 会话发现
+    agents: [session-discovery-agent]
+
+  - name: 上下文收集
+    agents: [context-gathering-agent]
+
+  # Phase 3-4: 分析和规划
+  - name: 覆盖率分析
+    agents: [coverage-analysis-agent]
+
+  - name: 冲突解决
+    agents: [conflict-resolution-agent]
+
+  # Phase 5-6: 任务生成和验证
+  - name: 任务生成
+    agents: [tdd-task-generation-agent]
+
+  - name: 结构验证
+    agents: [structure-validation-agent]
+
+  # Phase 7: TDD 执行循环
+  - name: tdd-执行循环
+    stage_type: loop
+    break_condition: "all_tests_pass == 'true'"
+    max_iterations: 10
+    body_stages: [运行测试, 失败分析, 修复代码]
+
+  # Loop body stages (referenced by tdd-执行循环)
+  - name: 运行测试
+    agents: [run-tests-agent]
+
+  - name: 失败分析
+    agents: [analyze-failures-agent]
+
+  - name: 修复代码
+    agents: [fix-code-agent]

@@ -1,0 +1,252 @@
+name: animation-extract
+version: "1.0"
+description: "UI 动画提取工作流 - 从 CSS 文件、图片或网站 URL 中提取动画时长、缓动函数、触发条件、关键帧，输出结构化 animation_spec JSON。"
+
+triggers:
+  - type: manual
+    inputs:
+      url:
+        type: string
+        required: false
+        description: "目标网站 URL，将通过 WebFetch 抓取页面 CSS 分析动画系统"
+      css_path:
+        type: string
+        required: false
+        description: "CSS/SCSS/TSX 文件路径，包含动画定义，与 url 二选一"
+      image_path:
+        type: string
+        required: false
+        description: "设计稿图片路径，用于推断动画意图"
+
+variables:
+  url: ""
+  css_path: ""
+  image_path: ""
+  animation_spec: "{}"
+  extract_complete: "false"
+
+agents:
+  - id: input-validator
+    role: 输入校验员
+    model: claude-haiku-4-5-20251001
+    prompt: |
+      你是输入校验员。验证动画提取工作流的输入参数。
+
+      url：{{url}}
+      css_path：{{css_path}}
+      image_path：{{image_path}}
+
+      校验规则：
+      1. url、css_path、image_path 至少提供一个
+      2. 如果 url 非空，验证它以 http:// 或 https:// 开头
+      3. 如果提供了文件路径，确认文件存在（使用 Read 工具尝试读取）
+      4. 支持的文件类型：
+         - 代码：.css, .scss, .tsx, .jsx, .ts
+         - 图片：.png, .jpg, .jpeg, .svg, .webp（用于意图推断）
+
+      输出格式：
+      ## 输入校验结果
+
+      - 输入模式：[url | file | both]
+      - URL 有效：[是/否/不适用]
+      - 文件存在：[是/否/不适用]
+      - 校验状态：[通过/失败]
+      - 备注：[如有问题，说明原因]
+
+  - id: transition-extractor
+    role: 过渡动画提取专家
+    model: claude-sonnet-4-6
+    depends_on: [input-validator]
+    prompt: |
+      你是过渡动画提取专家。从 CSS 代码或网站中提取 transition 和基础动画属性。
+
+      url：{{url}}
+      css_path：{{css_path}}
+      image_path：{{image_path}}
+      校验结果：{{input-validator_output}}
+
+      提取任务（根据输入模式选择方法）：
+
+      【URL 模式 - url 非空时】
+      1. 使用 WebFetch 工具抓取该 URL 的 HTML 内容
+      2. 从 <style> 标签中搜索：
+         - transition 属性定义
+         - CSS 变量中的动画时长（--duration-*、--transition-*）
+         - Tailwind 过渡类（transition-*、duration-*、ease-*）
+      3. 如页面引用外部 CSS，尝试用 WebFetch 抓取主 CSS 文件
+      4. 根据网站整体风格推断动画节奏（简洁快速 vs 丰富缓慢）
+
+      【文件模式 - url 为空时】
+      1. 如有 CSS 文件，使用 Read/Grep 工具搜索：
+         - transition 属性、animation-duration、animation-timing-function
+         - ease, ease-in, ease-out, cubic-bezier
+         - duration-*, transition-*（Tailwind 类名）
+      2. 如只有图片，根据视觉风格推断
+
+      输出格式（JSON）：
+      ```json
+      {
+        "transitions": {
+          "fast": "150ms",
+          "normal": "200ms",
+          "slow": "300ms",
+          "very_slow": "500ms"
+        },
+        "easing": {
+          "default": "ease",
+          "enter": "ease-out",
+          "exit": "ease-in",
+          "smooth": "cubic-bezier(0.4, 0, 0.2, 1)",
+          "bounce": "cubic-bezier(0.34, 1.56, 0.64, 1)",
+          "sharp": "cubic-bezier(0.4, 0, 0.6, 1)"
+        },
+        "property_defaults": {
+          "color": "150ms ease",
+          "opacity": "200ms ease",
+          "transform": "200ms cubic-bezier(0.4, 0, 0.2, 1)",
+          "all": "200ms ease"
+        }
+      }
+      ```
+
+  - id: keyframe-extractor
+    role: 关键帧动画提取专家
+    model: claude-sonnet-4-6
+    depends_on: [input-validator]
+    prompt: |
+      你是关键帧动画提取专家。从 CSS 代码或网站中提取 @keyframes 和复杂动画序列。
+
+      url：{{url}}
+      css_path：{{css_path}}
+      image_path：{{image_path}}
+      校验结果：{{input-validator_output}}
+
+      提取任务（根据输入模式选择方法）：
+
+      【URL 模式 - url 非空时】
+      1. 使用 WebFetch 工具抓取该 URL 的 HTML 内容
+      2. 从 <style> 标签中搜索：
+         - @keyframes 定义
+         - animation: name duration easing iteration 规则
+         - Tailwind 内置动画类（animate-spin, animate-bounce, animate-pulse, animate-ping）
+         - CSS 变量中的动画名称
+      3. 如有外部 CSS 文件，尝试抓取并分析 @keyframes
+
+      【文件模式 - url 为空时】
+      1. 如有 CSS 文件，使用 Read/Grep 工具搜索 @keyframes、animation 属性
+      2. 提取每个 keyframe 的完整定义
+      3. 识别动画触发条件（hover/focus/active/scroll/load）
+
+      输出格式（JSON）：
+      ```json
+      {
+        "keyframes": {
+          "fade-in": { "from": {"opacity": "0"}, "to": {"opacity": "1"} },
+          "slide-in-from-top": {
+            "from": {"transform": "translateY(-100%)", "opacity": "0"},
+            "to": {"transform": "translateY(0)", "opacity": "1"}
+          },
+          "spin": { "from": {"transform": "rotate(0deg)"}, "to": {"transform": "rotate(360deg)"} }
+        },
+        "animations": {
+          "fade-in": { "keyframes": "fade-in", "duration": "200ms", "easing": "ease-out", "iteration": "1", "fill": "forwards" },
+          "loading-spin": { "keyframes": "spin", "duration": "1s", "easing": "linear", "iteration": "infinite" }
+        }
+      }
+      ```
+
+  - id: trigger-analyzer
+    role: 动画触发条件分析师
+    model: claude-haiku-4-5-20251001
+    depends_on: [transition-extractor, keyframe-extractor]
+    prompt: |
+      你是动画触发条件分析师。分析 UI 交互触发的动画规则。
+
+      url：{{url}}
+      css_path：{{css_path}}
+      过渡动画：{{transition-extractor_output}}
+      关键帧动画：{{keyframe-extractor_output}}
+
+      分析任务：
+      1. 梳理各 UI 组件的动画触发场景：
+         - hover：鼠标悬停
+         - focus：键盘/点击聚焦
+         - active：按下激活
+         - enter：元素进入视口/挂载
+         - exit：元素离开/卸载
+         - loading：加载中状态
+         - error/success：状态反馈
+      2. 定义每个触发场景对应的标准动画
+      3. 如果是 URL 模式，根据网站的交互风格（保守/活泼/极简）调整推荐
+
+      输出格式（JSON）：
+      ```json
+      {
+        "triggers": {
+          "hover": {
+            "button": "brightness(1.05), scale(1.02), 150ms ease",
+            "card": "shadow-lg, translateY(-2px), 200ms ease",
+            "link": "color change, 150ms ease"
+          },
+          "focus": {
+            "input": "ring-2 ring-primary, 150ms ease",
+            "button": "ring-2 ring-primary/50, 150ms ease"
+          },
+          "active": { "button": "scale(0.97), 100ms ease" },
+          "enter": {
+            "modal": "fade-in + scale(0.95→1), 200ms ease-out",
+            "toast": "slide-in-from-top, 300ms ease-out",
+            "dropdown": "fade-in + translateY(-4px→0), 150ms ease-out"
+          },
+          "exit": {
+            "modal": "fade-out, 150ms ease-in",
+            "toast": "fade-out + translateY(0→-8px), 200ms ease-in"
+          },
+          "loading": {
+            "spinner": "spin infinite 1s linear",
+            "skeleton": "pulse 2s ease-in-out infinite"
+          }
+        }
+      }
+      ```
+
+  - id: animation-aggregator
+    role: 动画规格聚合器
+    model: claude-sonnet-4-6
+    depends_on: [transition-extractor, keyframe-extractor, trigger-analyzer]
+    prompt: |
+      你是动画规格聚合器。将各专家提取的动画信息合并为完整的 animation_spec。
+
+      过渡动画：{{transition-extractor_output}}
+      关键帧动画：{{keyframe-extractor_output}}
+      触发规则：{{trigger-analyzer_output}}
+
+      任务：
+      1. 解析各专家输出中的 JSON 块
+      2. 合并为统一的 animation_spec 对象
+      3. 补全缺失的必要字段（使用合理的默认值）
+      4. 验证 JSON 格式正确性
+
+      输出完整的 animation_spec JSON，并以如下格式结束：
+
+      EXTRACT:animation_spec={"transitions":{...},"easing":{...},"keyframes":{...},"animations":{...},"triggers":{...}}
+      EXTRACT:extract_complete=true
+    extract_vars:
+      - name: animation_spec
+        pattern: "EXTRACT:animation_spec=(.+)"
+      - name: extract_complete
+        pattern: "EXTRACT:extract_complete=(true|false)"
+
+stages:
+  - name: 输入校验
+    agents: [input-validator]
+
+  - name: 并行提取
+    parallel: true
+    agents: [transition-extractor, keyframe-extractor]
+
+  - name: 触发规则分析
+    agents: [trigger-analyzer]
+
+  - name: 聚合输出
+    agents: [animation-aggregator]

@@ -468,6 +468,12 @@ impl WorkflowEngine {
                 agent_state.last_message = Some(response.clone());
                 agent_state.updated_at = chrono::Utc::now();
 
+                // ── 自动注入：将 agent 输出写入 {agent_id}_output 变量，供后续 agent 引用 ──
+                state.write().set_var(
+                    &format!("{}_output", agent.id),
+                    serde_json::Value::String(response.clone()),
+                );
+
                 // ── 变量提取：从输出中提取变量写入 state ──
                 for extraction in &agent.extract_vars {
                     if let Ok(re) = Regex::new(&extraction.pattern) {

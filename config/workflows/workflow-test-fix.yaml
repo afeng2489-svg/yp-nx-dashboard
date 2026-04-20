@@ -1,0 +1,265 @@
+name: workflow-test-fix
+version: "1.0"
+description: "渐进式测试修复工作流 - L0 静态分析 → L1 单元测试 → L2 集成测试 → L3 E2E 测试 → 覆盖率报告。每层循环直到通过再进入下一层。"
+
+triggers:
+  - type: manual
+    inputs:
+      target:
+        type: string
+        required: true
+        description: "要修复测试的目标路径或模块"
+
+variables:
+  target: ""
+  l0_pass: "false"
+  l1_pass: "false"
+  l2_pass: "false"
+  l3_pass: "false"
+
+agents:
+  # ── L0: 静态分析 ──
+  - id: static-analysis-agent
+    role: 静态分析员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是静态分析员。对目标代码进行静态分析，找出类型错误和编译问题。
+
+      目标：{{target}}
+
+      执行步骤：
+      1. 运行类型检查工具：
+         - TypeScript: npx tsc --noEmit
+         - Rust: cargo check
+         - Python: mypy 或 pyright
+         - Go: go vet ./...
+      2. 运行 Linter：
+         - JS/TS: npx eslint
+         - Rust: cargo clippy
+         - Python: ruff/flake8
+      3. 修复所有静态分析错误（使用 Edit 工具）
+      4. 重新运行确认已修复
+
+      在最后一行必须输出：
+      EXTRACT:l0_pass=true（如果静态分析全部通过）
+      EXTRACT:l0_pass=false（如果仍有问题）
+    extract_vars:
+      - name: l0_pass
+        pattern: "EXTRACT:l0_pass=(true|false)"
+
+  # ── L1: 单元测试 Loop Body ──
+  - id: run-unit-tests-agent
+    role: 单元测试执行员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是单元测试执行员。运行单元测试并记录结果。
+
+      目标：{{target}}
+
+      执行步骤：
+      1. 运行单元测试（仅单元测试，排除集成/E2E 测试）：
+         - Jest: npx jest --testPathPattern="unit" 或 npx jest --testPathIgnorePatterns="integration|e2e"
+         - Rust: cargo test --lib
+         - pytest: pytest tests/unit/
+         - Go: go test ./... -run "^Test" -short
+      2. 记录通过/失败数量和失败测试名称
+
+      在最后一行必须输出：
+      EXTRACT:l1_pass=true（如果所有单元测试通过）
+      EXTRACT:l1_pass=false（如果有失败）
+    extract_vars:
+      - name: l1_pass
+        pattern: "EXTRACT:l1_pass=(true|false)"
+
+  - id: fix-unit-agent
+    role: 单元测试修复员
+    model: claude-sonnet-4-6
+    depends_on: [run-unit-tests-agent]
+    prompt: |
+      你是单元测试修复员。分析并修复失败的单元测试。
+
+      目标：{{target}}
+      测试结果：{{run-unit-tests-agent_output}}
+
+      执行步骤：
+      1. 分析每个失败的单元测试的根本原因
+      2. 判断是实现代码问题还是测试代码问题
+      3. 实施最小化修复（使用 Edit 工具）
+      4. 优先修复：类型错误 > 逻辑错误 > mock 配置错误
+
+  # ── L2: 集成测试 Loop Body ──
+  - id: run-integration-tests-agent
+    role: 集成测试执行员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是集成测试执行员。运行集成测试。
+
+      目标：{{target}}
+
+      执行步骤：
+      1. 运行集成测试：
+         - Jest: npx jest --testPathPattern="integration"
+         - Rust: cargo test --test '*'
+         - pytest: pytest tests/integration/
+         - Go: go test ./... -run "Integration"
+      2. 如需要，启动测试数据库/服务（使用 Bash 工具）
+      3. 记录结果
+
+      在最后一行必须输出：
+      EXTRACT:l2_pass=true（如果所有集成测试通过）
+      EXTRACT:l2_pass=false（如果有失败）
+    extract_vars:
+      - name: l2_pass
+        pattern: "EXTRACT:l2_pass=(true|false)"
+
+  - id: fix-integration-agent
+    role: 集成测试修复员
+    model: claude-sonnet-4-6
+    depends_on: [run-integration-tests-agent]
+    prompt: |
+      你是集成测试修复员。修复失败的集成测试。
+
+      目标：{{target}}
+      测试结果：{{run-integration-tests-agent_output}}
+
+      执行步骤：
+      1. 分析集成测试失败原因（数据库连接、API 调用、配置问题等）
+      2. 修复环境配置或代码逻辑
+      3. 确保修复不破坏已通过的单元测试
+
+  # ── L3: E2E 测试 Loop Body ──
+  - id: run-e2e-tests-agent
+    role: E2E 测试执行员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是 E2E 测试执行员。运行端到端测试。
+
+      目标：{{target}}
+
+      执行步骤：
+      1. 确保服务正在运行（使用 Bash 工具检查）
+      2. 运行 E2E 测试：
+         - Playwright: npx playwright test
+         - Cypress: npx cypress run
+         - Selenium: 按项目配置运行
+      3. 如有截图/视频，记录路径
+      4. 记录失败的用户旅程
+
+      在最后一行必须输出：
+      EXTRACT:l3_pass=true（如果所有 E2E 测试通过）
+      EXTRACT:l3_pass=false（如果有失败）
+    extract_vars:
+      - name: l3_pass
+        pattern: "EXTRACT:l3_pass=(true|false)"
+
+  - id: fix-e2e-agent
+    role: E2E 测试修复员
+    model: claude-sonnet-4-6
+    depends_on: [run-e2e-tests-agent]
+    prompt: |
+      你是 E2E 测试修复员。修复失败的端到端测试。
+
+      目标：{{target}}
+      测试结果：{{run-e2e-tests-agent_output}}
+
+      执行步骤：
+      1. 分析 E2E 测试失败的用户旅程
+      2. 识别是 UI 问题、API 问题还是数据问题
+      3. 实施修复（使用 Edit 工具）
+      4. 确保修复不破坏其他 E2E 场景
+
+  # ── 覆盖率报告 ──
+  - id: coverage-report-agent
+    role: 覆盖率报告员
+    model: claude-sonnet-4-6
+    prompt: |
+      你是覆盖率报告员。生成完整的测试覆盖率报告。
+
+      目标：{{target}}
+
+      执行步骤：
+      1. 运行覆盖率工具：
+         - Jest: npx jest --coverage
+         - Rust: cargo llvm-cov
+         - pytest: pytest --cov={{target}} --cov-report=term-missing
+         - Go: go test ./... -cover
+      2. 分析覆盖率数据
+      3. 识别覆盖率不足的关键路径
+
+      ## 覆盖率报告
+
+      | 指标 | 当前值 | 目标值 | 是否达标 |
+      |------|-------|-------|---------|
+      | 行覆盖率 | X% | 80% | ✅/❌ |
+      | 分支覆盖率 | X% | 70% | ✅/❌ |
+      | 函数覆盖率 | X% | 85% | ✅/❌ |
+
+      ## 未覆盖的关键路径
+      [列出重要的未覆盖路径]
+
+      ## 建议
+      [提高覆盖率的具体建议]
+
+stages:
+  # ── L0: 静态分析 ──
+  - name: L0-静态分析
+    agents: [static-analysis-agent]
+    next:
+      - condition: "l0_pass == 'true'"
+        goto: L1-单元测试循环
+      - goto: L0-静态分析修复
+
+  # L0 失败时循环修复
+  - name: L0-静态分析修复
+    stage_type: loop
+    break_condition: "l0_pass == 'true'"
+    max_iterations: 5
+    body_stages: [L0-重新静态分析]
+    next:
+      - goto: L1-单元测试循环
+
+  - name: L0-重新静态分析
+    agents: [static-analysis-agent]
+
+  # ── L1: 单元测试循环 ──
+  - name: L1-单元测试循环
+    stage_type: loop
+    break_condition: "l1_pass == 'true'"
+    max_iterations: 5
+    body_stages: [运行单元测试, 修复单元测试]
+
+  - name: 运行单元测试
+    agents: [run-unit-tests-agent]
+
+  - name: 修复单元测试
+    agents: [fix-unit-agent]
+
+  # ── L2: 集成测试循环 ──
+  - name: L2-集成测试循环
+    stage_type: loop
+    break_condition: "l2_pass == 'true'"
+    max_iterations: 3
+    body_stages: [运行集成测试, 修复集成测试]
+
+  - name: 运行集成测试
+    agents: [run-integration-tests-agent]
+
+  - name: 修复集成测试
+    agents: [fix-integration-agent]
+
+  # ── L3: E2E 测试循环 ──
+  - name: L3-E2E测试循环
+    stage_type: loop
+    break_condition: "l3_pass == 'true'"
+    max_iterations: 3
+    body_stages: [运行E2E测试, 修复E2E测试]
+
+  - name: 运行E2E测试
+    agents: [run-e2e-tests-agent]
+
+  - name: 修复E2E测试
+    agents: [fix-e2e-agent]
+
+  # ── 覆盖率报告 ──
+  - name: 覆盖率报告
+    agents: [coverage-report-agent]

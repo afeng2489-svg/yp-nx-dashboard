@@ -1,0 +1,232 @@
+name: design-sync
+version: "1.0"
+description: "设计还原检查工作流 - 对比参考设计稿与代码实现，识别颜色/间距/字体/布局差异，生成同步报告并输出修复建议。"
+
+triggers:
+  - type: manual
+    inputs:
+      reference_path:
+        type: string
+        required: true
+        description: "参考设计稿路径（PNG/JPG）或设计 token JSON 文件路径"
+      source_path:
+        type: string
+        required: true
+        description: "代码实现路径（TSX/CSS 文件或目录）"
+      component_name:
+        type: string
+        required: false
+        description: "要检查的具体组件名称，不填则扫描整个 source_path"
+
+variables:
+  reference_path: ""
+  source_path: ""
+  component_name: ""
+  sync_report: "{}"
+  sync_complete: "false"
+  has_critical_diff: "false"
+
+agents:
+  - id: reference-reader
+    role: 参考设计读取员
+    model: claude-haiku-4-5-20251001
+    prompt: |
+      你是参考设计读取员。读取参考设计稿或设计 token 文件。
+
+      reference_path：{{reference_path}}
+      component_name：{{component_name}}
+
+      执行步骤：
+      1. 使用 Read 工具读取 {{reference_path}}
+      2. 判断输入类型：
+         - 如为 .json 文件：解析为 style_spec / design_tokens
+         - 如为图片（.png/.jpg/.svg）：分析视觉设计，提取颜色/排版/间距信息
+         - 如为 .css/.scss 文件：提取 CSS 变量和样式规则
+      3. 整理参考设计的关键属性
+
+      输出格式：
+      ## 参考设计读取结果
+
+      - 文件类型：[json | image | css]
+      - 读取状态：[成功/失败]
+
+      ### 参考设计关键属性
+      ```json
+      {
+        "colors": { ... },
+        "typography": { ... },
+        "spacing": { ... },
+        "components": { ... }
+      }
+      ```
+
+  - id: implementation-reader
+    role: 实现代码读取员
+    model: claude-haiku-4-5-20251001
+    prompt: |
+      你是实现代码读取员。扫描并读取代码实现。
+
+      source_path：{{source_path}}
+      component_name：{{component_name}}
+
+      执行步骤：
+      1. 检查 source_path 是文件还是目录
+      2. 如为目录：使用 Glob 工具扫描 **/*.tsx, **/*.css, **/*.scss 文件
+      3. 如指定了 component_name，优先读取对应文件
+      4. 使用 Read 工具读取相关文件内容
+      5. 提取实现中使用的：
+         - 颜色值（hex、rgb、css 变量）
+         - 字体属性（family、size、weight）
+         - 间距（margin、padding、gap）
+         - 圆角值（border-radius）
+         - 阴影（box-shadow）
+
+      输出格式：
+      ## 实现代码读取结果
+
+      - 扫描文件数：[N]
+      - 主要文件：[文件列表]
+
+      ### 实现中使用的设计属性
+      ```json
+      {
+        "colors_used": [...],
+        "typography_used": {...},
+        "spacing_used": [...],
+        "border_radius_used": [...],
+        "shadows_used": [...]
+      }
+      ```
+
+  - id: color-diff-agent
+    role: 颜色差异分析师
+    model: claude-haiku-4-5-20251001
+    depends_on: [reference-reader, implementation-reader]
+    prompt: |
+      你是颜色差异分析师。对比参考设计与实现代码的颜色差异。
+
+      参考设计：{{reference-reader_output}}
+      实现代码：{{implementation-reader_output}}
+
+      分析任务：
+      1. 逐一比较参考设计中的颜色与实现代码中使用的颜色
+      2. 计算颜色差异程度：
+         - 完全一致（差异 = 0）
+         - 轻微差异（色差 < 5%，视觉可接受）
+         - 明显差异（色差 5-15%，需关注）
+         - 严重差异（色差 > 15%，必须修复）
+      3. 标注哪些组件/元素使用了错误颜色
+      4. 检查是否使用了硬编码颜色（应改用 CSS 变量）
+
+      输出格式（JSON）：
+      ```json
+      {
+        "color_diffs": [
+          {
+            "token": "primary",
+            "reference": "#3B82F6",
+            "implementation": "#2563EB",
+            "severity": "moderate",
+            "location": "Button.tsx:32"
+          }
+        ],
+        "hardcoded_colors": [
+          {
+            "value": "#FF0000",
+            "location": "Card.tsx:15",
+            "suggestion": "use --color-error"
+          }
+        ],
+        "color_score": 85
+      }
+      ```
+
+  - id: layout-diff-agent
+    role: 布局差异分析师
+    model: claude-haiku-4-5-20251001
+    depends_on: [reference-reader, implementation-reader]
+    prompt: |
+      你是布局差异分析师。对比参考设计与实现代码的布局/间距/字体差异。
+
+      参考设计：{{reference-reader_output}}
+      实现代码：{{implementation-reader_output}}
+
+      分析任务：
+      1. 间距差异：比较 padding/margin/gap 的使用
+         - 是否遵循间距比例（4/8/12/16/24/32...）
+         - 是否使用了 CSS 变量（var(--spacing-N)）
+         - 是否有魔法数字（如 padding: 13px）
+      2. 字体差异：比较 font-family/size/weight/line-height
+         - 字号是否使用设计 scale
+         - 字重是否与设计一致
+      3. 圆角差异：比较 border-radius 使用
+      4. 布局结构差异：flex/grid 使用是否与设计意图一致
+
+      输出格式（JSON）：
+      ```json
+      {
+        "spacing_diffs": [
+          {
+            "property": "padding",
+            "reference": "16px (spacing-4)",
+            "implementation": "13px (hardcoded)",
+            "severity": "moderate",
+            "location": "Card.tsx:22"
+          }
+        ],
+        "typography_diffs": [
+          {
+            "property": "font-size",
+            "reference": "0.875rem (text-sm)",
+            "implementation": "14px (hardcoded)",
+            "severity": "minor",
+            "location": "Badge.tsx:8"
+          }
+        ],
+        "layout_score": 78
+      }
+      ```
+
+  - id: report-generator
+    role: 同步报告生成师
+    model: claude-sonnet-4-6
+    depends_on: [color-diff-agent, layout-diff-agent]
+    prompt: |
+      你是同步报告生成师。综合所有差异分析，生成完整的设计同步报告。
+
+      颜色差异：{{color-diff-agent_output}}
+      布局差异：{{layout-diff-agent_output}}
+      参考设计：{{reference-reader_output}}
+      实现代码：{{implementation-reader_output}}
+
+      报告生成规则：
+      1. 计算综合还原度评分（0-100分）
+      2. 按严重程度分类差异：
+         - CRITICAL（严重）：色差>15%，明显视觉偏差，必须修复
+         - HIGH（高）：5-15%差异，影响品牌一致性
+         - MEDIUM（中）：轻微偏差，建议修复
+         - LOW（低）：几乎无感知，可以忽略
+      3. 为每个问题生成具体的修复代码片段
+      4. 生成修复优先级列表
+
+      输出完整报告，并以如下格式结束：
+
+      EXTRACT:has_critical_diff=[true/false（是否有 CRITICAL 级别差异）]
+      EXTRACT:sync_complete=true
+    extract_vars:
+      - name: has_critical_diff
+        pattern: "EXTRACT:has_critical_diff=(true|false)"
+      - name: sync_complete
+        pattern: "EXTRACT:sync_complete=(true|false)"
+
+stages:
+  - name: 读取输入
+    parallel: true
+    agents: [reference-reader, implementation-reader]
+
+  - name: 并行差异分析
+    parallel: true
+    agents: [color-diff-agent, layout-diff-agent]
+
+  - name: 生成报告
+    agents: [report-generator]
