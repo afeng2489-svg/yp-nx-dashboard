@@ -66,12 +66,15 @@ impl WorkflowState {
     pub fn resolve_template(&self, template: &str) -> String {
         let mut result = template.to_string();
         for (key, value) in &self.variables {
-            let placeholder = format!("{{{{ {} }}}}", key);
             let value_str = match value {
                 serde_json::Value::String(s) => s.clone(),
                 other => other.to_string(),
             };
-            result = result.replace(&placeholder, &value_str);
+            // 匹配 {{key}} 和 {{ key }} 两种格式
+            let placeholder1 = format!("{{{{{}}}}}", key);
+            let placeholder2 = format!("{{{{ {} }}}}", key);
+            result = result.replace(&placeholder1, &value_str);
+            result = result.replace(&placeholder2, &value_str);
         }
         result
     }

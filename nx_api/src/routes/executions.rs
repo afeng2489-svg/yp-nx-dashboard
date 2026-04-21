@@ -20,10 +20,16 @@ pub async fn list_executions(
         .into_iter()
         .map(|e| {
             let workflow_id = e.workflow_id.clone();
+            let workflow_name = state.workflow_service
+                .get_workflow(&workflow_id)
+                .ok()
+                .flatten()
+                .map(|w| w.name)
+                .unwrap_or_else(|| workflow_id.clone());
             ExecutionSummary {
                 id: e.id,
                 workflow_id,
-                workflow_name: e.workflow_id,
+                workflow_name,
                 status: format!("{:?}", e.status).to_lowercase(),
                 started_at: e.started_at.map(|dt| dt.to_rfc3339()),
                 finished_at: e.finished_at.map(|dt| dt.to_rfc3339()),
@@ -197,6 +203,9 @@ pub async fn execution_ws(
                 "status": status_json,
                 "stage_results": stage_results,
                 "error": execution.error,
+                "output_log": execution.output_log,
+                "current_stage": execution.current_stage,
+                "pending_pause": execution.pending_pause,
             });
 
             if let Ok(json) = serde_json::to_string(&snapshot) {
@@ -214,11 +223,30 @@ pub async fn execution_ws(
             while let Some(msg) = receive.next().await {
                 if let Ok(Message::Text(text)) = msg {
                     tracing::debug!("收到客户端消息: {}", text);
-                    if text.contains("\"action\":\"cancel\"") {
-                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
-                            if let Some(exec_id) = json.get("execution_id").and_then(|v| v.as_str()) {
-                                exec_service.cancel_execution(exec_id);
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                        // Support both legacy `action` field and new `type` field
+                        let action = json.get("action").and_then(|v| v.as_str())
+                            .or_else(|| json.get("type").and_then(|v| v.as_str()))
+                            .unwrap_or("");
+                        let normalized = match action {
+                            "resume_workflow" => "resume",
+                            "cancel_execution" => "cancel",
+                            other => other,
+                        };
+                        match normalized {
+                            "cancel" => {
+                                if let Some(exec_id) = json.get("execution_id").and_then(|v| v.as_str()) {
+                                    exec_service.cancel_execution(exec_id);
+                                }
                             }
+                            "resume" => {
+                                if let Some(exec_id) = json.get("execution_id").and_then(|v| v.as_str()) {
+                                    if let Some(value) = json.get("value").and_then(|v| v.as_str()) {
+                                        exec_service.resume_execution(exec_id, value.to_string());
+                                    }
+                                }
+                            }
+                            _ => {}
                         }
                     }
                 }

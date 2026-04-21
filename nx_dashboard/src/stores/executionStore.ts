@@ -86,6 +86,7 @@ type ExecutionEvent =
   | { type: 'failed'; execution_id: string; error: string }
   | { type: 'workflow_paused'; execution_id: string; stage_name: string; question: string; options: WorkflowPauseOption[] }
   | { type: 'workflow_resumed'; execution_id: string; stage_name: string; chosen_value: string }
+  | { type: 'snapshot'; execution_id: string; status: string; current_stage?: string; output_log?: string[]; pending_pause?: { stage_name: string; question: string; options: WorkflowPauseOption[] } | null }
   | { type: 'pong' }; // heartbeat response
 
 export interface WorkflowPauseOption {
@@ -455,6 +456,35 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
     function handleExecutionEvent(event: ExecutionEvent) {
       // Ignore pong messages - they don't have execution_id
       if (event.type === 'pong') {
+        return;
+      }
+
+      // Handle snapshot (catch-up when connecting to already-running execution)
+      if (event.type === 'snapshot') {
+        if (event.pending_pause) {
+          set({ pendingPause: {
+            execution_id: event.execution_id,
+            stage_name: event.pending_pause.stage_name,
+            question: event.pending_pause.question,
+            options: event.pending_pause.options,
+          }});
+        }
+        if (event.output_log && event.output_log.length > 0) {
+          set((state) => {
+            const map = new Map(state.outputLines);
+            const existing = map.get(event.execution_id) ?? [];
+            if (existing.length === 0) {
+              // Only restore from snapshot if no lines yet (avoid duplicates)
+              const lines = event.output_log!.map((content) => ({
+                id: nextLineId(event.execution_id),
+                type: 'output' as const,
+                content,
+              }));
+              map.set(event.execution_id, lines);
+            }
+            return { outputLines: map };
+          });
+        }
         return;
       }
 

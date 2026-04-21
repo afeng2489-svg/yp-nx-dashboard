@@ -123,8 +123,7 @@ export function useClaudeStream(options: UseClaudeStreamOptions = {}): UseClaude
 
   // 连接 WebSocket
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${WS_BASE_URL}/ws/claude-stream`;
+    const wsUrl = `${WS_BASE_URL}/ws/claude-stream`;
 
     console.log('[ClaudeStream] 尝试连接 WebSocket:', wsUrl);
 

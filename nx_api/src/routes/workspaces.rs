@@ -190,77 +190,109 @@ pub async fn detect_scripts(
     let mut scripts = Vec::new();
     let mut project_type = "unknown".to_string();
 
-    // Node.js: package.json
-    let pkg_json = root.join("package.json");
-    if pkg_json.exists() {
-        project_type = "node".to_string();
-        if let Ok(content) = std::fs::read_to_string(&pkg_json) {
-            if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
-                if let Some(pkg_scripts) = pkg.get("scripts").and_then(|s| s.as_object()) {
-                    for (name, _cmd) in pkg_scripts {
-                        let command = if name == "test" {
-                            format!("npm test")
-                        } else {
-                            format!("npm run {}", name)
-                        };
-                        scripts.push(ScriptEntry {
-                            name: name.clone(),
-                            command,
-                        });
-                    }
+    // Helper: detect scripts in a specific directory (relative subdir prefix for commands)
+    let mut frontend_dir: Option<String> = None;
+    let mut backend_dir: Option<String> = None;
+
+    // Collect dirs to scan: root + 1-level subdirs
+    let mut scan_dirs: Vec<(std::path::PathBuf, String)> = vec![(root.to_path_buf(), String::new())];
+    if let Ok(entries) = std::fs::read_dir(root) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if !name.starts_with('.') && name != "node_modules" && name != "target" && name != "dist" {
+                    scan_dirs.push((path, name));
                 }
             }
         }
     }
 
-    // Rust: Cargo.toml
-    let cargo_toml = root.join("Cargo.toml");
-    if cargo_toml.exists() {
-        if project_type == "unknown" {
-            project_type = "rust".to_string();
-        }
-        scripts.push(ScriptEntry { name: "run".to_string(), command: "cargo run".to_string() });
-        scripts.push(ScriptEntry { name: "build".to_string(), command: "cargo build".to_string() });
-        scripts.push(ScriptEntry { name: "test".to_string(), command: "cargo test".to_string() });
-        scripts.push(ScriptEntry { name: "check".to_string(), command: "cargo check".to_string() });
-    }
+    for (dir, prefix) in &scan_dirs {
+        let cd_prefix = if prefix.is_empty() { String::new() } else { format!("cd {} && ", prefix) };
 
-    // Python: pyproject.toml or requirements.txt
-    let pyproject = root.join("pyproject.toml");
-    let requirements = root.join("requirements.txt");
-    let manage_py = root.join("manage.py");
-    if pyproject.exists() || requirements.exists() {
-        if project_type == "unknown" {
-            project_type = "python".to_string();
-        }
-        if manage_py.exists() {
-            scripts.push(ScriptEntry { name: "runserver".to_string(), command: "python manage.py runserver".to_string() });
-        }
-        scripts.push(ScriptEntry { name: "python".to_string(), command: "python main.py".to_string() });
-        if requirements.exists() {
-            scripts.push(ScriptEntry { name: "install".to_string(), command: "pip install -r requirements.txt".to_string() });
-        }
-    }
-
-    // Makefile
-    let makefile = root.join("Makefile");
-    if makefile.exists() {
-        if project_type == "unknown" {
-            project_type = "make".to_string();
-        }
-        if let Ok(content) = std::fs::read_to_string(&makefile) {
-            for line in content.lines() {
-                if let Some(target) = line.strip_suffix(':').or_else(|| {
-                    line.split(':').next().filter(|t| !t.contains('\t') && !t.starts_with('#') && !t.starts_with('.') && !t.contains(' '))
-                }) {
-                    let target = target.trim();
-                    if !target.is_empty() && !target.starts_with('#') && !target.starts_with('.') {
-                        scripts.push(ScriptEntry { name: target.to_string(), command: format!("make {}", target) });
+        // Node.js: package.json
+        let pkg_json = dir.join("package.json");
+        if pkg_json.exists() {
+            if project_type == "unknown" { project_type = "node".to_string(); }
+            if !prefix.is_empty() && frontend_dir.is_none() {
+                frontend_dir = Some(prefix.clone());
+            }
+            if let Ok(content) = std::fs::read_to_string(&pkg_json) {
+                if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(pkg_scripts) = pkg.get("scripts").and_then(|s| s.as_object()) {
+                        for (name, _) in pkg_scripts {
+                            let npm_cmd = if name == "test" { "npm test".to_string() } else { format!("npm run {}", name) };
+                            let label = if prefix.is_empty() { name.clone() } else { format!("[{}] {}", prefix, name) };
+                            scripts.push(ScriptEntry { name: label, command: format!("{}{}", cd_prefix, npm_cmd) });
+                        }
                     }
                 }
-                if scripts.len() > 20 { break; }
             }
         }
+
+        // Rust: Cargo.toml
+        let cargo_toml = dir.join("Cargo.toml");
+        if cargo_toml.exists() {
+            if project_type == "unknown" { project_type = "rust".to_string(); }
+            if !prefix.is_empty() && backend_dir.is_none() {
+                backend_dir = Some(prefix.clone());
+            }
+            let label = |s: &str| if prefix.is_empty() { s.to_string() } else { format!("[{}] {}", prefix, s) };
+            scripts.push(ScriptEntry { name: label("run"), command: format!("{}cargo run", cd_prefix) });
+            scripts.push(ScriptEntry { name: label("build"), command: format!("{}cargo build", cd_prefix) });
+            scripts.push(ScriptEntry { name: label("test"), command: format!("{}cargo test", cd_prefix) });
+            scripts.push(ScriptEntry { name: label("check"), command: format!("{}cargo check", cd_prefix) });
+        }
+
+        // Python
+        let pyproject = dir.join("pyproject.toml");
+        let requirements = dir.join("requirements.txt");
+        let manage_py = dir.join("manage.py");
+        if pyproject.exists() || requirements.exists() {
+            if project_type == "unknown" { project_type = "python".to_string(); }
+            let label = |s: &str| if prefix.is_empty() { s.to_string() } else { format!("[{}] {}", prefix, s) };
+            if manage_py.exists() {
+                scripts.push(ScriptEntry { name: label("runserver"), command: format!("{}python manage.py runserver", cd_prefix) });
+            }
+            scripts.push(ScriptEntry { name: label("python"), command: format!("{}python main.py", cd_prefix) });
+            if requirements.exists() {
+                scripts.push(ScriptEntry { name: label("install"), command: format!("{}pip install -r requirements.txt", cd_prefix) });
+            }
+        }
+
+        // Makefile
+        let makefile = dir.join("Makefile");
+        if makefile.exists() {
+            if project_type == "unknown" { project_type = "make".to_string(); }
+            if let Ok(content) = std::fs::read_to_string(&makefile) {
+                for line in content.lines() {
+                    if let Some(target) = line.strip_suffix(':').or_else(|| {
+                        line.split(':').next().filter(|t| !t.contains('\t') && !t.starts_with('#') && !t.starts_with('.') && !t.contains(' '))
+                    }) {
+                        let target = target.trim();
+                        if !target.is_empty() && !target.starts_with('#') && !target.starts_with('.') {
+                            let label = if prefix.is_empty() { target.to_string() } else { format!("[{}] {}", prefix, target) };
+                            scripts.push(ScriptEntry { name: label, command: format!("{}make {}", cd_prefix, target) });
+                        }
+                    }
+                    if scripts.len() > 40 { break; }
+                }
+            }
+        }
+    }
+
+    // If both frontend and backend detected, prepend a "start all" shortcut
+    if let (Some(fe), Some(be)) = (&frontend_dir, &backend_dir) {
+        let start_all = format!(
+            "osascript -e 'tell app \"Terminal\" to do script \"cd {} && cd {} && npm run dev\"' && cd {} && cargo run",
+            root_path, fe, be
+        );
+        scripts.insert(0, ScriptEntry {
+            name: "🚀 启动全部 (前端+后端)".to_string(),
+            command: start_all,
+        });
+        project_type = "fullstack".to_string();
     }
 
     Ok(Json(ProjectScriptsResponse { project_type, scripts }))

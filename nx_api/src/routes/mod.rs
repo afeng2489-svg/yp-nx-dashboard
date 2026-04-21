@@ -713,6 +713,7 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/group-sessions/:id/advance", post(group_chat::advance_speaker))
         .route("/api/v1/group-sessions/:id/conclude", post(group_chat::conclude_discussion))
         .route("/api/v1/group-sessions/:id/execute-turn/:role_id", post(group_chat::execute_role_turn))
+        .route("/api/v1/group-sessions/:id/execute-round", post(group_chat::execute_round))
         // 团队记忆路由
         .route("/api/v1/teams/:team_id/memories", post(memory::store_memory))
         .route("/api/v1/teams/:team_id/memories/search", post(memory::search_memory))

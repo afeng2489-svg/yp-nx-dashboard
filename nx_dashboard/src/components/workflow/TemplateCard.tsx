@@ -1,23 +1,13 @@
-import { GitBranch, Users, Eye, Zap, Brain, Shield, Code, ArrowRight, FlaskConical, Search, PenLine } from 'lucide-react';
+import { GitBranch, Users, Play } from 'lucide-react';
 import type { TemplateSummary } from '@/stores/templateStore';
 import { cn } from '@/lib/utils';
 
 interface TemplateCardProps {
   template: TemplateSummary;
-  onPreview: (template: TemplateSummary) => void;
-  onUse: (template: TemplateSummary) => void;
+  onLaunch: () => void;
   variant?: 'default' | 'compact';
 }
 
-const categoryIcons: Record<string, React.ComponentType<{ className?: string }>> = {
-  planning: Brain,
-  development: Code,
-  analysis: Zap,
-  security: Shield,
-  testing: FlaskConical,
-  research: Search,
-  writing: PenLine,
-};
 
 const categoryColors: Record<string, string> = {
   planning: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
@@ -31,11 +21,9 @@ const categoryColors: Record<string, string> = {
 
 export function TemplateCard({
   template,
-  onPreview,
-  onUse,
+  onLaunch,
   variant = 'default',
 }: TemplateCardProps) {
-  const CategoryIcon = categoryIcons[template.category] || GitBranch;
   const categoryColorClass = categoryColors[template.category] || categoryColors.planning;
 
   if (variant === 'compact') {
@@ -46,35 +34,28 @@ export function TemplateCard({
           hover:border-primary/50 hover:bg-accent/30
           transition-all cursor-pointer
         "
-        onClick={() => onPreview(template)}
+        onClick={onLaunch}
       >
         <div className="flex items-center gap-3">
           <div className={cn('p-2 rounded-lg border', categoryColorClass)}>
-            <CategoryIcon className="w-4 h-4" />
+            <Play className="w-4 h-4" />
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="font-medium text-sm truncate">{template.name}</h3>
             <p className="text-xs text-muted-foreground capitalize">{template.category}</p>
           </div>
-          <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+          <Play className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
         </div>
       </div>
     );
   }
 
   return (
-    <div
-      className="
-        p-5 rounded-xl border border-border bg-card
-        hover:border-primary/50 hover:shadow-md
-        transition-all cursor-pointer
-      "
-      onClick={() => onPreview(template)}
-    >
+    <div className="p-5 rounded-xl border border-border bg-card hover:border-primary/50 hover:shadow-md transition-all">
       {/* Header */}
       <div className="flex items-start gap-3 mb-4">
         <div className={cn('p-2.5 rounded-lg border', categoryColorClass)}>
-          <CategoryIcon className="w-5 h-5" />
+          <Play className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-base truncate">{template.name}</h3>
@@ -101,33 +82,18 @@ export function TemplateCard({
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-2 pt-3 border-t border-border">
+      {/* Launch button */}
+      <div className="pt-3 border-t border-border">
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onPreview(template);
-          }}
+          onClick={onLaunch}
           className="
-            flex-1 py-2 text-xs rounded-md border border-border
-            hover:bg-accent hover:border-accent transition-colors
-            flex items-center justify-center gap-1.5
-          "
-        >
-          <Eye className="w-3.5 h-3.5" /> 预览
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onUse(template);
-          }}
-          className="
-            flex-1 py-2 text-xs rounded-md bg-primary text-primary-foreground
+            w-full py-2 text-sm rounded-md bg-primary text-primary-foreground
             hover:opacity-90 transition-opacity
             flex items-center justify-center gap-1.5
           "
         >
-          使用模板 <ArrowRight className="w-3.5 h-3.5" />
+          <Play className="w-3.5 h-3.5" />
+          启动
         </button>
       </div>
     </div>

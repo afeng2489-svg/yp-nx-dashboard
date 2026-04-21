@@ -80,6 +80,8 @@ pub struct AgentExecutionManager {
     event_tx: broadcast::Sender<AgentExecutionEvent>,
     /// 取消令牌注册表
     cancel_tokens: std::sync::Arc<parking_lot::RwLock<std::collections::HashMap<String, CancellationToken>>>,
+    /// 已完成执行的最终事件缓存（供晚连接的 WS 客户端回放）
+    terminal_events: std::sync::Arc<parking_lot::RwLock<std::collections::HashMap<String, AgentExecutionEvent>>>,
 }
 
 impl AgentExecutionManager {
@@ -89,6 +91,7 @@ impl AgentExecutionManager {
         Self {
             event_tx,
             cancel_tokens: std::sync::Arc::new(parking_lot::RwLock::new(std::collections::HashMap::new())),
+            terminal_events: std::sync::Arc::new(parking_lot::RwLock::new(std::collections::HashMap::new())),
         }
     }
 
@@ -117,9 +120,20 @@ impl AgentExecutionManager {
         }
     }
 
-    /// 清理已完成的执行
+    /// 清理已完成的执行（同时缓存终态事件供晚连接的客户端回放）
     pub fn remove_execution(&self, execution_id: &str) {
         self.cancel_tokens.write().remove(execution_id);
+    }
+
+    /// 缓存终态事件（Completed / Failed / Cancelled），供晚连接的 WS 客户端回放
+    pub fn cache_terminal_event(&self, event: AgentExecutionEvent) {
+        let id = event.execution_id().to_string();
+        self.terminal_events.write().insert(id, event);
+    }
+
+    /// 获取已缓存的终态事件（晚连接的 WS 客户端使用）
+    pub fn get_terminal_event(&self, execution_id: &str) -> Option<AgentExecutionEvent> {
+        self.terminal_events.read().get(execution_id).cloned()
     }
 }
 
@@ -139,6 +153,15 @@ pub async fn handle_agent_execution_ws(
     let mut event_rx = manager.subscribe();
 
     tracing::info!("[AgentExecWS] 客户端连接，订阅 execution_id: {}", execution_id);
+
+    // 晚连接回放：若执行已完成，直接发送缓存的终态事件并关闭
+    if let Some(cached_event) = manager.get_terminal_event(&execution_id) {
+        tracing::info!("[AgentExecWS] 命中终态缓存，直接回放: {}", execution_id);
+        if let Ok(json) = serde_json::to_string(&cached_event) {
+            let _ = sender.send(AxumMessage::Text(json)).await;
+        }
+        return;
+    }
 
     loop {
         tokio::select! {

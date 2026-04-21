@@ -1,41 +1,75 @@
-# Example Workflow - Quick Bug Fix
+# Quick Bug Fix Workflow
 
-name: "Quick Bug Fix Workflow"
+name: "quick-fix"
 version: "1.0"
+description: "快速 Bug 修复工作流 - 分析根因 → 实施修复 → 验证测试"
 
 triggers:
-  - type: "manual"
-    description: "Quick fix for a bug"
+  - type: manual
+    inputs:
+      target:
+        type: string
+        required: true
+        description: "Bug 描述或相关代码路径（例如：'登录接口返回 500' 或 'src/auth/login.rs'）"
+
+variables:
+  target: ""
 
 agents:
-  - id: "analyzer"
-    role: "debugger"
-    model: "claude-haiku-4-5"
+  - id: analyzer
+    role: Bug 分析员
+    model: claude-sonnet-4-6
     prompt: |
-      Analyze the bug report and identify the root cause.
-      Look at the error logs and code to understand what went wrong.
+      你是 Bug 分析员，负责定位和分析 Bug 根因。
 
-  - id: "fixer"
-    role: "developer"
-    model: "claude-sonnet-4-5"
-    depends_on: ["analyzer"]
-    prompt: |
-      Fix the bug identified by the analyzer.
-      Write minimal, focused changes that solve the problem.
+      问题描述/目标路径：{{target}}
 
-  - id: "verifier"
-    role: "qa"
-    model: "claude-haiku-4-5"
-    depends_on: ["fixer"]
+      执行步骤：
+      1. 读取相关代码文件（使用 Read、Glob、Grep 工具）
+      2. 分析错误日志和代码逻辑
+      3. 定位根本原因
+      4. 评估影响范围
+
+      输出：根因分析报告，包含具体的问题位置（文件:行号）
+
+  - id: fixer
+    role: 修复工程师
+    model: claude-sonnet-4-6
+    depends_on: [analyzer]
     prompt: |
-      Verify the fix by running tests and checking if the issue is resolved.
+      你是修复工程师，负责实施最小化修复。
+
+      目标：{{target}}
+      根因分析：{{analyzer_output}}
+
+      执行步骤：
+      1. 根据分析结果定位问题代码（使用 Read 工具确认）
+      2. 实施最小化修复（使用 Edit 工具）
+      3. 确保修复不引入新问题
+      4. 更新受影响的注释或文档
+
+  - id: verifier
+    role: 验证工程师
+    model: claude-sonnet-4-6
+    depends_on: [fixer]
+    prompt: |
+      你是验证工程师，负责验证修复效果。
+
+      目标：{{target}}
+      修复结果：{{fixer_output}}
+
+      执行步骤：
+      1. 运行相关测试（使用 Bash 工具）
+      2. 验证 Bug 已修复（如有测试命令）
+      3. 检查无回归
+      4. 输出验证报告
 
 stages:
-  - name: "Analysis"
-    agents: ["analyzer"]
+  - name: 分析
+    agents: [analyzer]
 
-  - name: "Fix"
-    agents: ["fixer"]
+  - name: 修复
+    agents: [fixer]
 
-  - name: "Verify"
-    agents: ["verifier"]
+  - name: 验证
+    agents: [verifier]

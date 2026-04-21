@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useExecutionsQuery } from '@/hooks/useReactQuery';
 import { useExecutionStore, Execution, StageResult } from '@/stores/executionStore';
 import { onWorkspaceChange } from '@/stores/workspaceStore';
@@ -287,13 +288,25 @@ function StageResultCard({
 
 // 执行日志面板
 function ExecutionLogs({ executionId }: { executionId: string }) {
-  const [logs, setLogs] = useState<string[]>([]);
+  type LogEntry = { type: 'system' | 'output' | 'stage' | 'error'; text: string };
+  type PauseState = { stage_name: string; question: string; options: { label: string; value: string }[] };
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
+  const [currentStage, setCurrentStage] = useState<string | null>(null);
+  const [pauseState, setPauseState] = useState<PauseState | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const logsEndRef = useRef<HTMLDivElement>(null);
+
+  // 每次新日志追加时自动滚到底部
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
 
   useEffect(() => {
-    setLogs([`[${formatTime(new Date().toISOString())}] 正在连接到执行: ${executionId}...`]);
+    setLogs([]);
     setWsConnected(false);
+    setCurrentStage(null);
+    setPauseState(null);
 
     const ws = new WebSocket(`/ws/executions/${executionId}`);
     wsRef.current = ws;
@@ -301,47 +314,61 @@ function ExecutionLogs({ executionId }: { executionId: string }) {
     ws.onopen = () => {
       if (wsRef.current !== ws) return;
       setWsConnected(true);
-      setLogs(prev => [...prev, `[${formatTime(new Date().toISOString())}] 已连接，等待执行数据...`]);
     };
 
     ws.onmessage = (event) => {
       if (wsRef.current !== ws) return;
       try {
         const data = JSON.parse(event.data);
-        const ts = formatTime(new Date().toISOString());
+
         if (data.type === 'snapshot') {
-          const lines: string[] = [`[${ts}] 当前状态: ${data.status}`];
-          if (data.error) {
-            lines.push(`[${ts}] 错误: ${data.error}`);
+          const newLogs: LogEntry[] = [];
+
+          if (data.current_stage) {
+            setCurrentStage(data.current_stage);
           }
+          // 已完成阶段
           if (data.stage_results?.length > 0) {
             data.stage_results.forEach((sr: { stage_name: string }) => {
-              lines.push(`[${ts}] [阶段] 已完成: ${sr.stage_name}`);
+              newLogs.push({ type: 'stage', text: `✓ 阶段完成: ${sr.stage_name}` });
             });
-          } else if (data.status === 'running') {
-            lines.push(`[${ts}] 执行进行中，等待阶段更新...`);
-          } else if (data.status === 'completed') {
-            lines.push(`[${ts}] 执行已完成`);
           }
-          setLogs(prev => [...prev, ...lines]);
-        } else if (data.type === 'workflow_paused') {
-          setLogs(prev => [...prev, `[${ts}] [⏸ 等待输入] 阶段 "${data.stage_name}": ${data.question}`]);
-        } else if (data.type === 'workflow_resumed') {
-          setLogs(prev => [...prev, `[${ts}] [▶ 已恢复] 用户选择: ${data.chosen_value}`]);
+          // 历史输出日志（catch-up）
+          if (data.output_log?.length > 0) {
+            (data.output_log as string[]).forEach((line) => {
+              newLogs.push({ type: 'output', text: line });
+            });
+          }
+          if (data.error) {
+            newLogs.push({ type: 'error', text: data.error });
+          }
+
+          setLogs(newLogs);
         } else if (data.type === 'output') {
-          setLogs(prev => [...prev, `[${ts}] ${data.line}`]);
+          setLogs((prev) => [...prev, { type: 'output', text: data.line }]);
         } else if (data.type === 'stage_started') {
-          setLogs(prev => [...prev, `[${ts}] [阶段] 开始: ${data.stage_name}`]);
+          setCurrentStage(data.stage_name);
+          setLogs((prev) => [...prev, { type: 'stage', text: `▶ 阶段开始: ${data.stage_name}` }]);
         } else if (data.type === 'stage_completed') {
-          setLogs(prev => [...prev, `[${ts}] [阶段] 完成: ${data.stage_name}`]);
+          setLogs((prev) => [...prev, { type: 'stage', text: `✓ 阶段完成: ${data.stage_name}` }]);
+        } else if (data.type === 'workflow_paused') {
+          setLogs((prev) => [...prev, { type: 'system', text: `⏸ 暂停 — ${data.stage_name}` }]);
+          setPauseState({ stage_name: data.stage_name, question: data.question, options: data.options ?? [] });
+        } else if (data.type === 'workflow_resumed') {
+          setPauseState(null);
+          setLogs((prev) => [...prev, { type: 'system', text: `▶ 已选择: ${data.chosen_value}` }]);
         } else if (data.type === 'completed') {
-          setLogs(prev => [...prev, `[${ts}] [完成] 工作流执行成功`]);
+          setCurrentStage(null);
+          setPauseState(null);
+          setLogs((prev) => [...prev, { type: 'system', text: '✓ 工作流执行完成' }]);
           setWsConnected(false);
         } else if (data.type === 'failed') {
-          setLogs(prev => [...prev, `[${ts}] [失败] ${data.error}`]);
+          setCurrentStage(null);
+          setPauseState(null);
+          setLogs((prev) => [...prev, { type: 'error', text: `✗ 执行失败: ${data.error}` }]);
           setWsConnected(false);
         }
-      } catch (e) {
+      } catch {
         // ignore parse errors
       }
     };
@@ -352,8 +379,7 @@ function ExecutionLogs({ executionId }: { executionId: string }) {
     };
 
     ws.onerror = () => {
-      if (wsRef.current !== ws) return;
-      // onerror always precedes onclose, no need to log separately
+      // onerror always precedes onclose
     };
 
     return () => {
@@ -362,24 +388,76 @@ function ExecutionLogs({ executionId }: { executionId: string }) {
     };
   }, [executionId]);
 
+  const handleResume = (value: string) => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ action: 'resume', execution_id: executionId, value }));
+      setPauseState(null);
+      setLogs((prev) => [...prev, { type: 'system', text: `▶ 已选择: ${value}` }]);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#1e1e1e] rounded-xl overflow-hidden border border-white/5">
       <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-[#252526] to-[#1e1e1e] border-b border-white/5">
         <div className="flex items-center gap-2">
           <Terminal className="w-4 h-4 text-gray-400" />
           <span className="text-sm text-gray-400">执行日志</span>
+          {currentStage && (
+            <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 animate-pulse">
+              {currentStage}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500' : 'bg-red-500'}`} />
-          <span className="text-xs text-gray-400">{wsConnected ? '已连接' : '未连接'}</span>
+          <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-600'}`} />
+          <span className="text-xs text-gray-500">{wsConnected ? '实时' : '历史'}</span>
         </div>
       </div>
-      <div className="flex-1 overflow-auto p-4 font-mono text-xs space-y-1">
-        {logs.map((log, index) => (
-          <div key={index} className="text-gray-300 leading-relaxed hover:bg-white/5 px-2 py-1 rounded transition-colors">
-            {log}
+
+      {/* 暂停等待选项 UI */}
+      {pauseState && (
+        <div className="px-4 py-4 bg-amber-950/40 border-b border-amber-500/30">
+          <div className="flex items-center gap-2 mb-3">
+            <PauseCircle className="w-4 h-4 text-amber-400 animate-pulse flex-shrink-0" />
+            <p className="text-sm text-amber-300 font-medium">{pauseState.question}</p>
           </div>
-        ))}
+          <div className="flex flex-col gap-2">
+            {pauseState.options.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handleResume(opt.value)}
+                className="w-full text-left px-4 py-2.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-500/50 text-amber-200 text-sm transition-all"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-auto p-4 font-mono text-xs space-y-0.5">
+        {logs.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-600">等待输出...</p>
+          </div>
+        ) : (
+          logs.map((log, index) => (
+            <div
+              key={index}
+              className={cn(
+                'leading-relaxed px-2 py-0.5 rounded whitespace-pre-wrap break-all',
+                log.type === 'error'  ? 'text-red-400' :
+                log.type === 'stage'  ? 'text-emerald-400 font-semibold' :
+                log.type === 'system' ? 'text-blue-400' :
+                'text-gray-300'
+              )}
+            >
+              {log.text}
+            </div>
+          ))
+        )}
+        <div ref={logsEndRef} />
       </div>
     </div>
   );
@@ -519,11 +597,20 @@ function ExecutionCard({
 
 // 主页面组件
 export function ExecutionsPage() {
+  const location = useLocation();
   const { cancelExecution, connectWebSocket } = useExecutionStore();
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
 
   // Use React Query for fetching
   const { executions, loading, refetch } = useExecutionsQuery();
+
+  // Auto-open execution detail when navigated from template launch
+  useEffect(() => {
+    const state = location.state as { openExecutionId?: string } | null;
+    if (state?.openExecutionId) {
+      setSelectedExecutionId(state.openExecutionId);
+    }
+  }, [location.state]);
 
   // The live execution from store (auto-updates via WS events)
   const liveSelectedExecution = selectedExecutionId

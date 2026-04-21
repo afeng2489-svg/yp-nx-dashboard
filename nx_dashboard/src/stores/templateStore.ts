@@ -22,6 +22,7 @@ export interface Template {
   category: string;
   stages: Stage[];
   agents: Agent[];
+  variables: Record<string, unknown>;
 }
 
 export interface TemplateSummary {

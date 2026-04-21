@@ -12,81 +12,83 @@ use crate::services::ExecutionService;
 ///
 /// 将 WorkflowEngine 发出的 WorkflowEvent 转换为 ExecutionEvent，
 /// 并通过 ExecutionService 的广播通道发送。
+///
+/// `api_exec_id` 是 ExecutionService 分配的 UUID，用于替换
+/// WorkflowEngine 内部生成的 execution_id，保证事件能匹配到
+/// 正确的 Execution 记录。
 pub struct WorkflowEventBridge {
     execution_service: ExecutionService,
+    api_exec_id: String,
 }
 
 impl WorkflowEventBridge {
     /// 创建新的桥接器
-    pub fn new(execution_service: ExecutionService) -> Self {
-        Self { execution_service }
+    ///
+    /// `api_exec_id` 是 ExecutionService 分配的执行 ID，所有事件将使用该 ID。
+    pub fn new(execution_service: ExecutionService, api_exec_id: String) -> Self {
+        Self { execution_service, api_exec_id }
     }
 
     /// 将 WorkflowEvent 转换为 ExecutionEvent 并广播
+    ///
+    /// 始终使用 `api_exec_id` 替换 WorkflowEngine 内部的 execution_id。
     fn convert_and_broadcast(&self, event: WorkflowEvent) {
+        let id = self.api_exec_id.clone();
         let execution_event = match event {
-            WorkflowEvent::WorkflowStarted { execution_id, workflow_id } => {
+            WorkflowEvent::WorkflowStarted { workflow_id, .. } => {
                 Some(ExecutionEvent::Started {
-                    execution_id: execution_id.to_string(),
+                    execution_id: id,
                     workflow_id,
                 })
             }
-            WorkflowEvent::StageStarted { execution_id, stage_name, .. } => {
+            WorkflowEvent::StageStarted { stage_name, .. } => {
                 Some(ExecutionEvent::StageStarted {
-                    execution_id: execution_id.to_string(),
+                    execution_id: id,
                     stage_name,
                 })
             }
-            WorkflowEvent::StageCompleted { execution_id, stage_name, outputs } => {
-                let exec_id = execution_id.to_string();
+            WorkflowEvent::StageCompleted { stage_name, outputs, .. } => {
                 let output_json = serde_json::json!({ "stage": stage_name.clone(), "outputs": outputs });
-                // 持久化到 execution.stage_results，供详情弹窗展示
-                self.execution_service.add_stage_output(&exec_id, stage_name.clone(), output_json.clone());
+                self.execution_service.add_stage_output(&id, stage_name.clone(), output_json.clone());
                 Some(ExecutionEvent::StageCompleted {
-                    execution_id: exec_id,
+                    execution_id: id,
                     stage_name,
                     output: output_json,
                 })
             }
-            WorkflowEvent::AgentStarted { execution_id, agent_id, role } => {
+            WorkflowEvent::AgentStarted { agent_id, role, .. } => {
                 Some(ExecutionEvent::Output {
-                    execution_id: execution_id.to_string(),
+                    execution_id: id,
                     line: format!("[Agent {}] 开始执行（{}）", agent_id, role),
                 })
             }
-            WorkflowEvent::AgentMessage { execution_id, agent_id, message } => {
+            WorkflowEvent::AgentMessage { agent_id, message, .. } => {
                 Some(ExecutionEvent::Output {
-                    execution_id: execution_id.to_string(),
+                    execution_id: id,
                     line: format!("[Agent {}] {}", agent_id, message),
                 })
             }
-            WorkflowEvent::AgentCompleted { execution_id, agent_id, output } => {
-                let exec_id = execution_id.to_string();
-                // 持久化完整 agent 输出，供详情弹窗和内联面板使用
+            WorkflowEvent::AgentCompleted { agent_id, output, .. } => {
                 self.execution_service.add_stage_output(
-                    &exec_id,
+                    &id,
                     format!("agent:{}", agent_id),
                     serde_json::json!({ "agent_id": agent_id, "content": output }),
                 );
-                // 广播完整输出（不截断），供前端 WebSocket 实时接收
                 Some(ExecutionEvent::Output {
-                    execution_id: exec_id,
+                    execution_id: id,
                     line: format!("[Agent {}]\n{}", agent_id, output),
                 })
             }
-            WorkflowEvent::AgentFailed { execution_id, agent_id, error } => {
+            WorkflowEvent::AgentFailed { agent_id, error, .. } => {
                 Some(ExecutionEvent::Failed {
-                    execution_id: execution_id.to_string(),
+                    execution_id: id,
                     error: format!("Agent {} failed: {}", agent_id, error),
                 })
             }
-            WorkflowEvent::WorkflowCompleted { .. } => {
-                // 完成状态由 ExecutionService 自行设置
-                None
-            }
-            WorkflowEvent::WorkflowPaused { execution_id, stage_name, question, options } => {
+            WorkflowEvent::WorkflowCompleted { .. } => None,
+            WorkflowEvent::WorkflowPaused { stage_name, question, options, .. } => {
                 Some(ExecutionEvent::WorkflowPaused {
-                    execution_id: execution_id.to_string(),
+                    execution_id: id,
                     stage_name,
                     question,
                     options: options
@@ -95,28 +97,28 @@ impl WorkflowEventBridge {
                         .collect(),
                 })
             }
-            WorkflowEvent::WorkflowResumed { execution_id, stage_name, chosen_value } => {
+            WorkflowEvent::WorkflowResumed { stage_name, chosen_value, .. } => {
                 Some(ExecutionEvent::WorkflowResumed {
-                    execution_id: execution_id.to_string(),
+                    execution_id: id,
                     stage_name,
                     chosen_value,
                 })
             }
-            WorkflowEvent::WorkflowFailed { execution_id, error } => {
+            WorkflowEvent::WorkflowFailed { error, .. } => {
                 Some(ExecutionEvent::Failed {
-                    execution_id: execution_id.to_string(),
+                    execution_id: id,
                     error: format!("Workflow failed: {}", error),
                 })
             }
-            WorkflowEvent::WorkflowCancelled { execution_id } => {
+            WorkflowEvent::WorkflowCancelled { .. } => {
                 Some(ExecutionEvent::Failed {
-                    execution_id: execution_id.to_string(),
+                    execution_id: id,
                     error: "Workflow cancelled".to_string(),
                 })
             }
-            WorkflowEvent::VariableSet { execution_id, key, value } => {
+            WorkflowEvent::VariableSet { key, value, .. } => {
                 Some(ExecutionEvent::Output {
-                    execution_id: execution_id.to_string(),
+                    execution_id: id,
                     line: format!("[Variable] {} = {}", key, value),
                 })
             }

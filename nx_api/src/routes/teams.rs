@@ -318,9 +318,11 @@ pub async fn execute_team_task(
                         });
                     }
                     _ = cancel_token.cancelled() => {
-                        let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Cancelled {
+                        let event = crate::ws::agent_execution::AgentExecutionEvent::Cancelled {
                             execution_id: exec_id.clone(),
-                        });
+                        };
+                        manager.cache_terminal_event(event.clone());
+                        let _ = tx.send(event);
                         manager.remove_execution(&exec_id);
                         return;
                     }
@@ -329,17 +331,21 @@ pub async fn execute_team_task(
 
             match result {
                 Ok(Json(role_response)) => {
-                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Completed {
+                    let event = crate::ws::agent_execution::AgentExecutionEvent::Completed {
                         execution_id: exec_id.clone(),
                         result: role_response.response.clone(),
                         duration_ms: start.elapsed().as_millis() as u64,
-                    });
+                    };
+                    manager.cache_terminal_event(event.clone());
+                    let _ = tx.send(event);
                 }
                 Err(e) => {
-                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Failed {
+                    let event = crate::ws::agent_execution::AgentExecutionEvent::Failed {
                         execution_id: exec_id.clone(),
                         error: e.message.clone(),
-                    });
+                    };
+                    manager.cache_terminal_event(event.clone());
+                    let _ = tx.send(event);
                 }
             }
             manager.remove_execution(&exec_id);
@@ -425,17 +431,21 @@ pub async fn execute_team_task(
                     }
                 });
 
-                let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Completed {
+                let event = crate::ws::agent_execution::AgentExecutionEvent::Completed {
                     execution_id: exec_id.clone(),
                     result: response.final_output,
                     duration_ms: start.elapsed().as_millis() as u64,
-                });
+                };
+                manager.cache_terminal_event(event.clone());
+                let _ = tx.send(event);
             }
             Err(e) => {
-                let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Failed {
+                let event = crate::ws::agent_execution::AgentExecutionEvent::Failed {
                     execution_id: exec_id.clone(),
                     error: format!("{}", e),
-                });
+                };
+                manager.cache_terminal_event(event.clone());
+                let _ = tx.send(event);
             }
         }
         manager.remove_execution(&exec_id);
@@ -481,27 +491,18 @@ async fn execute_role_task_with_context(
     Json(request): Json<crate::models::team::ExecuteRoleTaskRequest>,
     stream_tx: Option<(tokio::sync::broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>, String)>,
 ) -> ApiResponse<crate::models::team::ExecuteRoleTaskResponse> {
-    println!("[DEBUG] execute_role_task_with_context CALLED, role_id: {}", request.role_id);
-    tracing::info!("[Route] execute_role_task_with_context 被调用，role_id: {}", request.role_id);
+    tracing::info!("[Route] execute_role_task_with_context called, role_id: {}", request.role_id);
 
     // 1. 获取 role 信息以确定 team_id
-    println!("[DEBUG-1] Getting role_with_skills for role_id: {}", request.role_id);
-    tracing::info!("[Route-1] Getting role_with_skills...");
     let role_with_skills = state.teams_state.team_service.get_role_with_skills(&request.role_id)
         .map_err(|e| AppError::from(crate::services::team_service::TeamServiceError::RoleNotFound(e.to_string())))?;
-    println!("[DEBUG-2] Got role_with_skills, role name: {}", role_with_skills.role.name);
-    tracing::info!("[Route-2] Got role_with_skills");
 
     let role_team_id = role_with_skills.role.team_id.clone().unwrap_or_default();
     tracing::info!("[Route] role_team_id: {}", role_team_id);
 
     // 2. 搜索相关记忆
-    println!("[DEBUG-3] Calling search_and_build_context...");
-    tracing::info!("[Route-3] Calling search_and_build_context...");
     let memory_context = search_and_build_context(&state.memory_state, &role_team_id, &request.task).await;
-    println!("[DEBUG-4] search_and_build_context returned, memory_context len: {}", memory_context.len());
-    tracing::info!("[Memory] role_id: {}, task: {}, memory_context length: {}", request.role_id, request.task, memory_context.len());
-    tracing::debug!("[Memory] memory_context content (first 500 chars): {}", memory_context.chars().take(500).collect::<String>());
+    tracing::info!("[Memory] role_id: {}, memory_context length: {}", request.role_id, memory_context.len());
 
     // 3. 创建增强的请求（包含记忆上下文）
     let enhanced_request = crate::models::team::ExecuteRoleTaskRequest {
@@ -517,15 +518,11 @@ async fn execute_role_task_with_context(
     };
 
     // 4. Execute task
-    println!("[DEBUG-5] About to call agent_team_service.execute_role_task... enhanced_request.role_id={}", enhanced_request.role_id);
-    tracing::info!("[Route-5] Calling agent_team_service.execute_role_task...");
     let response = state
         .teams_state
         .agent_team_service
         .execute_role_task(enhanced_request, stream_tx)
         .await?;
-    println!("[DEBUG-6] agent_team_service.execute_role_task returned");
-    tracing::info!("[Route-6] agent_team_service.execute_role_task returned");
 
     // 5. Store conversation to memory (async, non-blocking)
     let memory_state = state.memory_state.clone();

@@ -28,6 +28,8 @@ pub struct TemplateDefinition {
     pub category: String,
     pub stages: Vec<Stage>,
     pub agents: Vec<Agent>,
+    #[serde(default)]
+    pub variables: std::collections::HashMap<String, serde_json::Value>,
 }
 
 /// 阶段定义
@@ -70,6 +72,7 @@ pub struct TemplateResponse {
     pub category: String,
     pub stages: Vec<Stage>,
     pub agents: Vec<Agent>,
+    pub variables: std::collections::HashMap<String, serde_json::Value>,
 }
 
 /// 创建模板请求
@@ -186,6 +189,7 @@ pub async fn get_template(
             category: template.category,
             stages: template.stages,
             agents: template.agents,
+            variables: template.variables,
         }));
     }
 
@@ -199,6 +203,7 @@ pub async fn get_template(
                 category: template.category,
                 stages: template.stages,
                 agents: template.agents,
+                variables: template.variables,
             }));
         }
     }
@@ -231,6 +236,7 @@ pub async fn create_template(
         category: payload.category.clone(),
         stages: payload.stages.clone(),
         agents: payload.agents.clone(),
+        variables: std::collections::HashMap::new(),
     };
 
     // 序列化为 YAML
@@ -248,6 +254,7 @@ pub async fn create_template(
         category: payload.category,
         stages: payload.stages,
         agents: payload.agents,
+        variables: std::collections::HashMap::new(),
     }))
 }
 
@@ -260,35 +267,66 @@ pub async fn instantiate_template(
     let templates_path = get_templates_path();
     let template_path = templates_path.join(format!("{}.yaml", id));
 
-    // 从文件系统或内置模板获取定义
-    let template_def = if template_path.exists() {
-        let (_, def) = parse_template_file(&template_path)?;
-        def
+    // 优先检查 config/workflows/{id}.yaml（支持完整 stage_type/user_input 等特性）
+    let config_workflow_path = std::path::PathBuf::from(
+        std::env::var("NEXUS_BASE_DIR")
+            .unwrap_or_else(|_| "/Users/Zhuanz/Desktop/yp-nx-dashboard".to_string())
+    )
+    .join("config/workflows")
+    .join(format!("{}.yaml", id));
+
+    let (workflow_name, workflow_description, workflow_definition) = if config_workflow_path.exists() {
+        // 直接读取完整 YAML，用 serde_json::Value 保留所有字段（含 stage_type 等）
+        let yaml_content = fs::read_to_string(&config_workflow_path)
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut yaml_val: serde_json::Value = serde_yaml::from_str(&yaml_content)
+            .map_err(|e| AppError::Internal(format!("YAML 解析失败: {}", e)))?;
+
+        // 将用户传入变量注入 variables 字段（非空值覆盖 YAML 默认值）
+        if let Some(user_vars) = payload.variables.as_ref().and_then(|v| v.as_object()) {
+            let vars = yaml_val.get_mut("variables").and_then(|v| v.as_object_mut());
+            if let Some(vars_obj) = vars {
+                for (k, v) in user_vars {
+                    if let Some(s) = v.as_str() {
+                        if !s.is_empty() {
+                            vars_obj.insert(k.clone(), v.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        let name = yaml_val.get("name").and_then(|v| v.as_str()).unwrap_or(&id).to_string();
+        let desc = yaml_val.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
+        (name, desc, yaml_val)
     } else {
-        get_builtin_templates()
-            .into_iter()
-            .find(|(builtin_id, _)| builtin_id == &id)
-            .map(|(_, def)| def)
-            .ok_or_else(|| AppError::NotFound(format!("Template '{}' not found", id)))?
+        // 从模板文件系统或内置模板获取定义（简单模板，不含 user_input）
+        let template_def = if template_path.exists() {
+            let (_, def) = parse_template_file(&template_path)?;
+            def
+        } else {
+            get_builtin_templates()
+                .into_iter()
+                .find(|(builtin_id, _)| builtin_id == &id)
+                .map(|(_, def)| def)
+                .ok_or_else(|| AppError::NotFound(format!("Template '{}' not found", id)))?
+        };
+
+        let definition = serde_json::json!({
+            "stages": template_def.stages,
+            "agents": template_def.agents,
+            "variables": payload.variables.unwrap_or(serde_json::json!({})),
+        });
+        (template_def.name, Some(template_def.description), definition)
     };
-
-    // 创建工作流定义
-    let workflow_definition = serde_json::json!({
-        "stages": template_def.stages,
-        "agents": template_def.agents,
-        "variables": payload.variables.unwrap_or(serde_json::json!({})),
-    });
-
-    // 生成工作流 ID
-    let workflow_id = uuid::Uuid::new_v4().to_string();
 
     // 使用工作流服务创建工作流
     let workflow = state
         .workflow_service
         .create_workflow(
-            template_def.name.clone(),
+            workflow_name,
             Some("1.0.0".to_string()),
-            Some(template_def.description.clone()),
+            workflow_description,
             workflow_definition,
         )
         .map_err(AppError::from)?;
@@ -336,6 +374,47 @@ fn parse_template_file(path: &std::path::Path) -> Result<(String, TemplateDefini
 fn get_builtin_templates() -> Vec<(String, TemplateDefinition)> {
     vec![
         (
+            "review-cycle".to_string(),
+            TemplateDefinition {
+                name: "代码审查工作流".to_string(),
+                description: "预分析目标代码，暂停等待用户选择审查深度，然后执行对应深度的审查并生成报告".to_string(),
+                category: "development".to_string(),
+                stages: vec![
+                    Stage { name: "预分析".to_string(), agents: vec!["pre-analyzer".to_string()], parallel: false },
+                    Stage { name: "代码审查".to_string(), agents: vec!["reviewer".to_string()], parallel: false },
+                    Stage { name: "生成报告".to_string(), agents: vec!["reporter".to_string()], parallel: false },
+                ],
+                agents: vec![
+                    Agent {
+                        id: "pre-analyzer".to_string(),
+                        role: "预分析器".to_string(),
+                        model: "claude-haiku-4-5".to_string(),
+                        prompt: "你是代码预分析专家。请快速扫描目标代码或功能描述，识别语言、框架、代码规模、主要模块，输出简洁的预分析摘要（不超过200字）。目标：{{target}}".to_string(),
+                        depends_on: vec![],
+                    },
+                    Agent {
+                        id: "reviewer".to_string(),
+                        role: "代码审查员".to_string(),
+                        model: "claude-sonnet-4-6".to_string(),
+                        prompt: "你是经验丰富的代码审查员。审查模式：{{review_mode}}。目标：{{target}}。根据选择的审查模式执行对应深度的审查：快速扫描仅关注高危问题；标准审查全面检查代码质量；深度分析包含架构评估和安全审计。".to_string(),
+                        depends_on: vec!["pre-analyzer".to_string()],
+                    },
+                    Agent {
+                        id: "reporter".to_string(),
+                        role: "报告生成器".to_string(),
+                        model: "claude-haiku-4-5".to_string(),
+                        prompt: "整合预分析和代码审查结果，生成结构清晰的审查报告。报告需包含：执行摘要、问题列表（按严重程度排序）、改进建议、总体评分。".to_string(),
+                        depends_on: vec!["reviewer".to_string()],
+                    },
+                ],
+                variables: {
+                    let mut m = std::collections::HashMap::new();
+                    m.insert("target".to_string(), serde_json::Value::String(String::new()));
+                    m
+                },
+            },
+        ),
+        (
             "code-review".to_string(),
             TemplateDefinition {
                 name: "代码审查".to_string(),
@@ -369,6 +448,7 @@ fn get_builtin_templates() -> Vec<(String, TemplateDefinition)> {
                         depends_on: vec!["reviewer".to_string(), "security-checker".to_string()],
                     },
                 ],
+                variables: std::collections::HashMap::new(),
             },
         ),
         (
@@ -405,6 +485,7 @@ fn get_builtin_templates() -> Vec<(String, TemplateDefinition)> {
                         depends_on: vec!["solver".to_string()],
                     },
                 ],
+                variables: std::collections::HashMap::new(),
             },
         ),
         (
@@ -441,6 +522,7 @@ fn get_builtin_templates() -> Vec<(String, TemplateDefinition)> {
                         depends_on: vec!["analyst".to_string(), "architect".to_string()],
                     },
                 ],
+                variables: std::collections::HashMap::new(),
             },
         ),
         (
@@ -477,6 +559,7 @@ fn get_builtin_templates() -> Vec<(String, TemplateDefinition)> {
                         depends_on: vec!["developer".to_string()],
                     },
                 ],
+                variables: std::collections::HashMap::new(),
             },
         ),
         (
@@ -513,6 +596,7 @@ fn get_builtin_templates() -> Vec<(String, TemplateDefinition)> {
                         depends_on: vec!["analyst".to_string()],
                     },
                 ],
+                variables: std::collections::HashMap::new(),
             },
         ),
         (
@@ -549,6 +633,7 @@ fn get_builtin_templates() -> Vec<(String, TemplateDefinition)> {
                         depends_on: vec!["writer".to_string()],
                     },
                 ],
+                variables: std::collections::HashMap::new(),
             },
         ),
     ]

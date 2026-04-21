@@ -528,7 +528,9 @@ impl WorkflowEngine {
 
     /// 调用 Claude CLI
     async fn call_claude_cli(&self, prompt: &str) -> Result<String, WorkflowError> {
-        let mut cmd = Command::new("claude");
+        let claude_bin = std::env::var("CLAUDE_BIN")
+            .unwrap_or_else(|_| "/opt/homebrew/bin/claude".to_string());
+        let mut cmd = Command::new(&claude_bin);
         cmd.args(["-p", "--dangerously-skip-permissions", prompt]);
 
         // 如果设置了 working_directory，设置当前工作目录

@@ -14,6 +14,9 @@ interface MemberRowState {
   saving: boolean;
   saved: boolean;
   expanded: boolean;
+  fetching: boolean;
+  fetchError: string | null;
+  botUsername: string | null;
 }
 
 export function TelegramConfigPanel({ teamId, onClose }: TelegramConfigPanelProps) {
@@ -42,6 +45,9 @@ export function TelegramConfigPanel({ teamId, onClose }: TelegramConfigPanelProp
           saving: false,
           saved: false,
           expanded: false,
+          fetching: false,
+          fetchError: null,
+          botUsername: null,
         };
       }
       setRowStates(initial);
@@ -55,6 +61,45 @@ export function TelegramConfigPanel({ teamId, onClose }: TelegramConfigPanelProp
 
   const updateRow = (roleId: string, patch: Partial<MemberRowState>) => {
     setRowStates((prev) => ({ ...prev, [roleId]: { ...prev[roleId], ...patch } }));
+  };
+
+  const autoFetchChatId = async (roleId: string) => {
+    const token = rowStates[roleId]?.botToken.trim();
+    if (!token) return;
+    updateRow(roleId, { fetching: true, fetchError: null, botUsername: null, chatId: '' });
+    try {
+      // 1. Verify token and get bot username
+      const meRes = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+      const meData = await meRes.json();
+      if (!meData.ok) {
+        updateRow(roleId, { fetchError: 'Token 无效，请检查后重试' });
+        return;
+      }
+      const username = meData.result?.username ?? meData.result?.first_name ?? 'Bot';
+      updateRow(roleId, { botUsername: username });
+
+      // 2. Get latest chat_id from updates
+      const updRes = await fetch(`https://api.telegram.org/bot${token}/getUpdates?limit=10`);
+      const updData = await updRes.json();
+      if (updData.ok && updData.result?.length > 0) {
+        const lastUpdate = updData.result[updData.result.length - 1];
+        const chatId =
+          lastUpdate.message?.chat?.id ??
+          lastUpdate.callback_query?.message?.chat?.id ??
+          null;
+        if (chatId !== null) {
+          updateRow(roleId, { chatId: String(chatId), fetchError: null });
+        } else {
+          updateRow(roleId, { fetchError: '未找到 chat_id，请先给 Bot 发一条消息后重试' });
+        }
+      } else {
+        updateRow(roleId, { fetchError: '暂无消息记录，请先给 Bot 发一条消息后重试' });
+      }
+    } catch {
+      updateRow(roleId, { fetchError: '网络错误，请检查 Token 后重试' });
+    } finally {
+      updateRow(roleId, { fetching: false });
+    }
   };
 
   const handleSaveMember = async (roleId: string) => {
@@ -213,29 +258,48 @@ export function TelegramConfigPanel({ teamId, onClose }: TelegramConfigPanelProp
                         <label className="block text-xs font-medium text-muted-foreground mb-1.5">
                           Bot Token
                         </label>
-                        <input
-                          type="password"
-                          value={row.botToken}
-                          onChange={(e) => updateRow(member.role_id, { botToken: e.target.value })}
-                          placeholder="从 @BotFather 获取"
-                          className="input-field text-sm"
-                        />
+                        <div className="flex gap-2">
+                          <input
+                            type="password"
+                            value={row.botToken}
+                            onChange={(e) => updateRow(member.role_id, { botToken: e.target.value, botUsername: null, chatId: '', fetchError: null })}
+                            onBlur={() => row.botToken.trim() && autoFetchChatId(member.role_id)}
+                            placeholder="从 @BotFather 获取"
+                            className="input-field text-sm flex-1"
+                          />
+                          <button
+                            onClick={() => autoFetchChatId(member.role_id)}
+                            disabled={!row.botToken.trim() || row.fetching}
+                            className="px-3 py-1.5 text-xs rounded-lg border bg-background hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                            title="自动获取 Chat ID"
+                          >
+                            {row.fetching ? <Loader2 className="w-3 h-3 animate-spin" /> : '获取'}
+                          </button>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                          Chat ID
-                        </label>
-                        <input
-                          type="text"
-                          value={row.chatId}
-                          onChange={(e) => updateRow(member.role_id, { chatId: e.target.value })}
-                          placeholder="填写要接收消息的 Chat ID"
-                          className="input-field text-sm"
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          先给该 Bot 发一条消息，再访问 https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates 查看 chat.id
-                        </p>
-                      </div>
+
+                      {/* Auto-fetched info */}
+                      {row.botUsername && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                          <Bot className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                          <span className="text-xs text-blue-600 font-medium">@{row.botUsername}</span>
+                          {row.chatId && (
+                            <span className="text-xs text-muted-foreground ml-auto">Chat ID: {row.chatId}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {row.fetchError && (
+                        <div className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                          <p className="text-xs text-red-500">{row.fetchError}</p>
+                          {row.fetchError.includes('发一条消息') && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              给 Bot 发消息后，点击"获取"按钮重试
+                            </p>
+                          )}
+                        </div>
+                      )}
+
                       <div className="flex justify-end">
                         <button
                           onClick={() => handleSaveMember(member.role_id)}
@@ -269,7 +333,7 @@ export function TelegramConfigPanel({ teamId, onClose }: TelegramConfigPanelProp
         {/* Footer hint */}
         <div className="px-6 py-3 border-t border-border/50 bg-muted/30 flex-shrink-0">
           <p className="text-xs text-muted-foreground">
-            每个成员绑定独立 Bot Token，保存后可通过"全部启动"开启轮询接收消息
+            粘贴 Bot Token 后自动获取 Chat ID · 保存后可通过"全部启动"开启轮询接收消息
           </p>
         </div>
       </div>

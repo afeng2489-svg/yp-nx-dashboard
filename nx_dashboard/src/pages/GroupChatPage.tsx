@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   useGroupChatStore,
   GroupSession,
@@ -16,6 +16,7 @@ import {
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useTeamStore } from '@/stores/teamStore';
 import { useSkillStore, SkillSummary } from '@/stores/skillStore';
+import { WS_BASE_URL } from '@/api/constants';
 import {
   Plus,
   Trash2,
@@ -31,11 +32,139 @@ import {
   CheckCircle,
   X,
   Sparkles,
+  FastForward,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 import { useAgentExecution } from '@/hooks/useAgentExecution';
 import { AgentThinkingIndicator } from '@/components/team/AgentThinkingIndicator';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
+/** 并行轮次执行 — 单个 bot 的状态 */
+interface ParallelBotState {
+  role_id: string;
+  execution_id: string;
+  status: 'pending' | 'thinking' | 'done' | 'failed';
+  elapsed_secs: number;
+  role_name?: string;
+}
+
+/** 使用 parallel round hook — 管理多个并发执行 */
+function useParallelRound() {
+  const [bots, setBots] = useState<ParallelBotState[]>([]);
+  const [isRunning, setIsRunning] = useState(false);
+  const wsRefs = useRef<Map<string, WebSocket>>(new Map());
+
+  const executeRound = useCallback(
+    async (
+      sessionId: string,
+      roleIds: string[],
+      getRoleName: (id: string) => string,
+      onAllDone: () => void,
+    ) => {
+      if (roleIds.length === 0) return;
+
+      // Close any lingering sockets
+      wsRefs.current.forEach((ws) => ws.close());
+      wsRefs.current.clear();
+
+      setIsRunning(true);
+
+      const res = await fetch(
+        `${API_BASE}/api/v1/group-sessions/${sessionId}/execute-round`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role_ids: roleIds }),
+        },
+      );
+
+      if (!res.ok) {
+        setIsRunning(false);
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const executions: { role_id: string; execution_id: string }[] = await res.json();
+
+      // Initialise state for all bots
+      setBots(
+        executions.map(({ role_id, execution_id }) => ({
+          role_id,
+          execution_id,
+          status: 'pending',
+          elapsed_secs: 0,
+          role_name: getRoleName(role_id),
+        })),
+      );
+
+      let doneCount = 0;
+
+      for (const { role_id, execution_id } of executions) {
+        const ws = new WebSocket(`${WS_BASE_URL}/ws/agent-executions/${execution_id}`);
+        wsRefs.current.set(execution_id, ws);
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            setBots((prev) =>
+              prev.map((b) => {
+                if (b.execution_id !== execution_id) return b;
+                switch (data.type) {
+                  case 'started':
+                    return { ...b, status: 'pending' };
+                  case 'thinking':
+                    return { ...b, status: 'thinking', elapsed_secs: data.elapsed_secs ?? b.elapsed_secs };
+                  case 'completed':
+                    doneCount++;
+                    if (doneCount === executions.length) {
+                      setIsRunning(false);
+                      onAllDone();
+                    }
+                    return { ...b, status: 'done' };
+                  case 'failed':
+                  case 'cancelled':
+                    doneCount++;
+                    if (doneCount === executions.length) {
+                      setIsRunning(false);
+                      onAllDone();
+                    }
+                    return { ...b, status: 'failed' };
+                  default:
+                    return b;
+                }
+              }),
+            );
+          } catch {
+            // ignore parse errors
+          }
+        };
+
+        ws.onclose = () => wsRefs.current.delete(execution_id);
+        ws.onerror = () => {
+          setBots((prev) =>
+            prev.map((b) => (b.execution_id === execution_id ? { ...b, status: 'failed' } : b)),
+          );
+          doneCount++;
+          if (doneCount === executions.length) {
+            setIsRunning(false);
+            onAllDone();
+          }
+        };
+      }
+    },
+    [],
+  );
+
+  const reset = useCallback(() => {
+    wsRefs.current.forEach((ws) => ws.close());
+    wsRefs.current.clear();
+    setBots([]);
+    setIsRunning(false);
+  }, []);
+
+  return { bots, isRunning, executeRound, reset };
+}
 
 export function GroupChatPage() {
   const {
@@ -79,6 +208,10 @@ export function GroupChatPage() {
   // Async agent execution with WS progress
   const agentExec = useAgentExecution();
   const isAgentActive = agentExec.status === 'started' || agentExec.status === 'thinking';
+
+  // Parallel round execution
+  const parallelRound = useParallelRound();
+  const isRoundRunning = parallelRound.isRunning;
 
   // Skill hint popup state
   const [showSkillHint, setShowSkillHint] = useState(false);
@@ -243,6 +376,30 @@ export function GroupChatPage() {
     } catch (err) {
       console.error('Failed to execute role turn:', err);
       setExecutingRole(null);
+    }
+  };
+
+  /** 并行执行当前会话所有参与者的轮次 */
+  const handleExecuteRound = async () => {
+    if (!selectedSessionId || !currentSession) return;
+    const roleIds = currentSession.participants?.map((p) => p.role_id) ?? [];
+    if (roleIds.length === 0) return;
+
+    const getRoleName = (id: string) =>
+      currentSession.participants?.find((p) => p.role_id === id)?.role_name ?? id;
+
+    try {
+      await parallelRound.executeRound(selectedSessionId, roleIds, getRoleName, () => {
+        // All bots done — refresh messages and advance speaker
+        fetchMessages(selectedSessionId);
+        advanceSpeaker(selectedSessionId).then(() =>
+          getNextSpeaker(selectedSessionId).then(setNextSpeaker),
+        );
+        browseFiles();
+        setTimeout(() => parallelRound.reset(), 2000);
+      });
+    } catch (err) {
+      console.error('Failed to execute round:', err);
     }
   };
 
@@ -457,9 +614,19 @@ export function GroupChatPage() {
                         <button
                           onClick={() => setAutoMode(!autoMode)}
                           className={cn('btn', autoMode ? 'btn-primary' : 'btn-outline')}
+                          disabled={isRoundRunning}
                         >
                           <Zap className="w-4 h-4 mr-1" />
                           {autoMode ? '自动模式 ON' : '自动模式'}
+                        </button>
+                        <button
+                          onClick={handleExecuteRound}
+                          disabled={isRoundRunning || isAgentActive || !currentSession.participants?.length}
+                          className="btn btn-outline flex items-center gap-1"
+                          title="并行执行所有参与者的本轮发言（速度约提升 N 倍）"
+                        >
+                          <FastForward className="w-4 h-4" />
+                          全员并行
                         </button>
                         <button
                           onClick={() => setShowConclusionModal(true)}
@@ -507,6 +674,49 @@ export function GroupChatPage() {
                   </div>
                 )}
               </div>
+
+              {/* Parallel Round Progress */}
+              {parallelRound.bots.length > 0 && (
+                <div className="bg-card rounded-lg border p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-sm flex items-center gap-2">
+                      <FastForward className="w-4 h-4 text-primary" />
+                      全员并行执行中
+                    </h3>
+                    <span className="text-xs text-muted-foreground">
+                      {parallelRound.bots.filter((b) => b.status === 'done').length} /{' '}
+                      {parallelRound.bots.length} 完成
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {parallelRound.bots.map((bot) => (
+                      <div
+                        key={bot.execution_id}
+                        className={cn(
+                          'flex items-center gap-2 px-3 py-2 rounded-md text-sm border',
+                          bot.status === 'done' && 'bg-green-500/10 border-green-500/30',
+                          bot.status === 'thinking' && 'bg-primary/10 border-primary/30',
+                          bot.status === 'failed' && 'bg-destructive/10 border-destructive/30',
+                          bot.status === 'pending' && 'bg-secondary/50 border-border',
+                        )}
+                      >
+                        {bot.status === 'done' && <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />}
+                        {bot.status === 'thinking' && (
+                          <Loader2 className="w-3.5 h-3.5 text-primary animate-spin flex-shrink-0" />
+                        )}
+                        {bot.status === 'failed' && <AlertCircle className="w-3.5 h-3.5 text-destructive flex-shrink-0" />}
+                        {bot.status === 'pending' && <Clock className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />}
+                        <span className="truncate">{bot.role_name ?? bot.role_id}</span>
+                        {bot.status === 'thinking' && bot.elapsed_secs > 0 && (
+                          <span className="ml-auto text-xs text-muted-foreground flex-shrink-0">
+                            {bot.elapsed_secs}s
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Messages */}
               <div className="bg-card rounded-lg border">

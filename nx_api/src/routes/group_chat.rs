@@ -196,6 +196,112 @@ pub async fn conclude_discussion(
     Ok(Json(conclusion))
 }
 
+/// Execute all specified roles in parallel (async — returns execution_ids immediately)
+///
+/// All Claude CLI calls are spawned concurrently, so total wall-clock time ≈ max(individual times)
+/// instead of sum(individual times). Each execution can be monitored via
+/// `GET /ws/agent-executions/{execution_id}`.
+pub async fn execute_round(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(body): Json<ExecuteRoundRequest>,
+) -> Result<Json<Vec<RoundExecutionInfo>>, ApiError> {
+    if body.role_ids.is_empty() {
+        return Ok(Json(vec![]));
+    }
+
+    let mut executions = Vec::new();
+
+    for role_id in &body.role_ids {
+        let execution_id = uuid::Uuid::new_v4().to_string();
+        let cancel_token = tokio_util::sync::CancellationToken::new();
+        state
+            .agent_execution_manager
+            .register_cancel_token(&execution_id, cancel_token.clone());
+
+        let _ = state
+            .agent_execution_manager
+            .event_sender()
+            .send(crate::ws::agent_execution::AgentExecutionEvent::Started {
+                execution_id: execution_id.clone(),
+                agent_role: role_id.clone(),
+                task_summary: format!("Parallel round: {}", role_id),
+            });
+
+        let service = state.group_chat_service.clone();
+        let exec_id = execution_id.clone();
+        let role = role_id.clone();
+        let session_id = id.clone();
+        let tx = state.agent_execution_manager.event_sender();
+        let manager = state.agent_execution_manager.clone();
+
+        // Spawn each bot concurrently — all run at the same time
+        tokio::spawn(async move {
+            let start = std::time::Instant::now();
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+            interval.tick().await;
+
+            let task_future = service.execute_role_turn(&session_id, &role);
+            tokio::pin!(task_future);
+
+            let result = loop {
+                tokio::select! {
+                    res = &mut task_future => { break res; }
+                    _ = interval.tick() => {
+                        let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Thinking {
+                            execution_id: exec_id.clone(),
+                            elapsed_secs: start.elapsed().as_secs(),
+                        });
+                    }
+                    _ = cancel_token.cancelled() => {
+                        let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Cancelled {
+                            execution_id: exec_id.clone(),
+                        });
+                        manager.remove_execution(&exec_id);
+                        return;
+                    }
+                }
+            };
+
+            match result {
+                Ok(message) => {
+                    let result_str = serde_json::to_string(&message).unwrap_or_default();
+                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Completed {
+                        execution_id: exec_id.clone(),
+                        result: result_str,
+                        duration_ms: start.elapsed().as_millis() as u64,
+                    });
+                }
+                Err(e) => {
+                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Failed {
+                        execution_id: exec_id.clone(),
+                        error: e.to_string(),
+                    });
+                }
+            }
+            manager.remove_execution(&exec_id);
+        });
+
+        executions.push(RoundExecutionInfo {
+            role_id: role_id.clone(),
+            execution_id,
+        });
+    }
+
+    Ok(Json(executions))
+}
+
+#[derive(serde::Deserialize)]
+pub struct ExecuteRoundRequest {
+    pub role_ids: Vec<String>,
+}
+
+#[derive(serde::Serialize)]
+pub struct RoundExecutionInfo {
+    pub role_id: String,
+    pub execution_id: String,
+}
+
 /// Execute a role's turn (async — returns execution_id immediately)
 pub async fn execute_role_turn(
     State(state): State<Arc<AppState>>,

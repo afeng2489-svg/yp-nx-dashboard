@@ -86,8 +86,8 @@ export function AgentThinkingIndicator({
 
         {/* Partial output preview */}
         {partialOutput && (
-          <div className="bg-muted/50 rounded-xl px-3 py-2 text-xs text-muted-foreground max-h-24 overflow-y-auto">
-            <pre className="whitespace-pre-wrap font-mono">{partialOutput.slice(-200)}</pre>
+          <div className="bg-[#1a1a1a] rounded-xl px-3 py-2 text-xs text-green-400 max-h-48 overflow-y-auto border border-white/5">
+            <pre className="whitespace-pre-wrap font-mono leading-relaxed">{partialOutput.slice(-2000)}</pre>
           </div>
         )}
       </div>

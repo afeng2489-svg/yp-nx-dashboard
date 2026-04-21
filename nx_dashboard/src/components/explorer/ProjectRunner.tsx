@@ -21,6 +21,7 @@ const PROJECT_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   python: { label: 'Python', color: 'text-blue-500' },
   make: { label: 'Makefile', color: 'text-yellow-500' },
   go: { label: 'Go', color: 'text-cyan-500' },
+  fullstack: { label: '全栈项目', color: 'text-purple-500' },
   unknown: { label: '通用', color: 'text-muted-foreground' },
 };
 

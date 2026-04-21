@@ -52,7 +52,7 @@ pub async fn call_claude_cli_with_timeout(prompt: &str, timeout_secs: u64, worki
     let timeout = tokio::time::timeout(
         std::time::Duration::from_secs(timeout_secs),
         async {
-            let mut cmd = Command::new("claude");
+            let mut cmd = Command::new("/opt/homebrew/bin/claude");
             cmd.args(["-p", "--dangerously-skip-permissions", "--no-session-persistence", prompt]);
 
             // 如果提供了 working_directory，设置当前工作目录
@@ -86,7 +86,7 @@ pub async fn call_claude_cli_with_timeout(prompt: &str, timeout_secs: u64, worki
 /// 调用 Claude CLI，返回带工具调用的完整响应
 /// 适用于需要解析 Claude 的 tool_use 等结构的场景
 pub async fn call_claude_cli_with_tools(prompt: &str) -> ClaudeCliResult {
-    let output = Command::new("claude")
+    let output = Command::new("/opt/homebrew/bin/claude")
         .args(["-p", "--dangerously-skip-permissions", "--no-session-persistence", "--verbose", prompt])
         .output()
         .await
@@ -129,24 +129,49 @@ Assistant: {}"#,
         .map_err(|e| format!("JSON parse error: {} from: {}", e, json_str.chars().take(200).collect::<String>()))
 }
 
-/// 使用 Claude CLI 扩展搜索查询为关键词集合
+/// 扩展搜索查询为关键词集合（本地处理，无需 Claude CLI）
 ///
-/// 超时 10 秒，短查询（< 10 字符）直接返回
+/// 去除停用词后提取有意义的词项，避免额外的 Claude 冷启动开销。
 pub async fn expand_query_for_search(query: &str) -> Result<String, String> {
-    if query.len() < 10 {
-        return Ok(query.to_string());
+    Ok(extract_keywords_local(query))
+}
+
+/// 本地关键词提取：分词 + 停用词过滤 + 去重
+fn extract_keywords_local(query: &str) -> String {
+    // 常见中英文停用词
+    const STOP_WORDS: &[&str] = &[
+        // 中文
+        "的", "了", "是", "在", "我", "有", "和", "就", "不", "人", "都", "一", "一个",
+        "上", "也", "很", "到", "说", "要", "去", "你", "会", "着", "没有", "看", "好",
+        "自己", "这", "那", "什么", "为", "吗", "呢", "啊", "吧", "么", "呀", "哦",
+        "这个", "那个", "我们", "他们", "她们", "它们", "可以", "如何", "怎么", "哪些",
+        // 英文
+        "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+        "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
+        "have", "has", "had", "do", "does", "did", "will", "would", "could",
+        "should", "may", "might", "this", "that", "these", "those", "i", "you",
+        "he", "she", "it", "we", "they", "what", "which", "who", "how", "when",
+        "where", "why", "about", "as", "if", "so", "than", "then", "there",
+    ];
+
+    // 按空白和常见标点分词
+    let words: Vec<&str> = query
+        .split(|c: char| c.is_whitespace() || matches!(c, '，' | '。' | '！' | '？' | '、' | '：' | '；' | ',' | '.' | '!' | '?' | ':' | ';' | '(' | ')' | '（' | '）' | '[' | ']' | '"' | '"' | '\'' | '"'))
+        .filter(|w| !w.is_empty())
+        .collect();
+
+    let mut seen = std::collections::HashSet::new();
+    let mut result = String::from(query.trim());
+
+    for word in words {
+        let lower = word.to_lowercase();
+        if !STOP_WORDS.contains(&lower.as_str()) && word.chars().count() >= 2 && seen.insert(lower) {
+            result.push(' ');
+            result.push_str(word);
+        }
     }
 
-    let query_truncated: String = query.chars().take(300).collect();
-    let prompt = format!(
-        "Extract 5-8 search keywords from this query. Return ONLY the keywords separated by spaces, no explanation, no numbering.\nQuery: {}",
-        query_truncated
-    );
-
-    let expanded = call_claude_cli_with_timeout(&prompt, 10, None).await?;
-
-    // 合并原始 query 和扩展关键词
-    Ok(format!("{} {}", query, expanded.trim()))
+    result
 }
 
 /// 从可能包含 markdown fence 的响应中提取 JSON 对象

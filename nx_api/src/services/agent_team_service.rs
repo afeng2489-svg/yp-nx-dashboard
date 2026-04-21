@@ -61,7 +61,7 @@ async fn run_claude(
 ) -> Result<(Option<u32>, bool, String), String> {
     use tokio::io::AsyncBufReadExt;
 
-    let mut cmd = tokio::process::Command::new("claude");
+    let mut cmd = tokio::process::Command::new("/opt/homebrew/bin/claude");
     cmd.args(args);
     cmd.stdin(std::process::Stdio::null());
     cmd.stdout(std::process::Stdio::piped());
@@ -99,8 +99,22 @@ async fn run_claude(
     let mut stdout_lines = tokio::io::BufReader::new(stdout).lines();
     let mut full_output = String::new();
 
+    // Clone sender for stdout streaming (real-time output to frontend)
+    let stdout_sender = stream_tx.map(|(tx, id)| (tx.clone(), id.clone()));
+
     let timed_out = tokio::time::timeout(Duration::from_secs(timeout_secs), async {
         while let Ok(Some(line)) = stdout_lines.next_line().await {
+            // Stream to frontend in real-time
+            if let Some((ref tx, ref id)) = stdout_sender {
+                let clean = strip_ansi(&line);
+                let trimmed = clean.trim().to_string();
+                if !trimmed.is_empty() {
+                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Output {
+                        execution_id: id.clone(),
+                        partial_output: format!("{}\n", trimmed),
+                    });
+                }
+            }
             full_output.push_str(&line);
             full_output.push('\n');
         }
@@ -449,6 +463,12 @@ impl AgentTeamService {
         let team_context = Self::build_team_context(&team, &team_with_roles.roles);
 
         // Build the full prompt - Claude decides if any skill matches
+        let workspace_note = if let Some(ref dir) = self.current_workspace_path.read().clone() {
+            format!("\n\n## Current Workspace\nWorking directory: `{}`\nWhen generating documents, plans, or design files, ALWAYS save them as actual files in this directory (e.g., `{}/design.md`, `{}/architecture.md`). Use the Write tool or file creation to persist output.", dir, dir, dir)
+        } else {
+            String::new()
+        };
+
         let full_prompt = if memory_context.is_empty() {
             format!(
                 r#"You are the team dispatcher. Given the team context and user message, decide what to do.
@@ -457,7 +477,7 @@ impl AgentTeamService {
 {}
 
 ## User Message
-{}
+{}{}
 
 ## Your Decision
 Read the user's message and the available skills in the team context.
@@ -465,8 +485,9 @@ Read the user's message and the available skills in the team context.
 - If no skill matches → answer the user directly as a helpful AI assistant
 
 ## Output Format
-Return your response directly. If using a skill, invoke it according to its execution instructions."#,
-                team_context, request.task
+Return your response directly. If using a skill, invoke it according to its execution instructions.
+IMPORTANT: When asked to generate documents, reports, or design files, write them as real files to the current workspace directory — do not just print them as text."#,
+                team_context, request.task, workspace_note
             )
         } else {
             format!(
@@ -478,7 +499,7 @@ Return your response directly. If using a skill, invoke it according to its exec
 {}
 
 ## User Message
-{}
+{}{}
 
 ## Your Decision
 Read the user's message and the available skills in the team context.
@@ -486,8 +507,9 @@ Read the user's message and the available skills in the team context.
 - If no skill matches → answer the user directly as a helpful AI assistant
 
 ## Output Format
-Return your response directly. If using a skill, invoke it according to its execution instructions."#,
-                team_context, memory_context, request.task
+Return your response directly. If using a skill, invoke it according to its execution instructions.
+IMPORTANT: When asked to generate documents, reports, or design files, write them as real files to the current workspace directory — do not just print them as text."#,
+                team_context, memory_context, request.task, workspace_note
             )
         };
 
@@ -496,12 +518,11 @@ Return your response directly. If using a skill, invoke it according to its exec
 
         // Register process for monitoring
         let proc_exec_id = format!("team-{}", uuid::Uuid::new_v4());
-        let first_role_name = team_with_roles.roles.first().map(|r| r.role.name.clone()).unwrap_or_else(|| "dispatcher".to_string());
-        self.register_process(&proc_exec_id, &team.id, &first_role_name, &team.id, &request.task);
+        self.register_process(&proc_exec_id, &team.id, &team.name, &team.id, &request.task);
 
         // Single Claude CLI call — 600s timeout for long-running tasks
         let pty_result = run_claude(
-            &["-p", "--dangerously-skip-permissions", &full_prompt],
+            &["-p", "--dangerously-skip-permissions", "--no-session-persistence", &full_prompt],
             working_dir.as_deref(),
             stream_tx.as_ref(),
             1800, // 30 min — complex coding tasks can take 25+ min
@@ -586,17 +607,13 @@ Return your response directly. If using a skill, invoke it according to its exec
         request: ExecuteRoleTaskRequest,
         stream_tx: Option<(broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>, String)>,
     ) -> Result<ExecuteRoleTaskResponse, AgentTeamServiceError> {
-        println!("[AGENT-1] execute_role_task CALLED, role_id: {}", request.role_id);
-        tracing::info!("[AgentTeamService] execute_role_task 被调用，role_id: {}", request.role_id);
+        tracing::info!("[AgentTeamService] execute_role_task called, role_id: {}", request.role_id);
 
         // Load role with skills
-        println!("[AGENT-2] Getting role_with_skills...");
-        tracing::info!("[AgentTeamService-2] Getting role_with_skills...");
         let role_with_skills = self
             .team_service
             .get_role_with_skills(&request.role_id)
             .map_err(|e| AgentTeamServiceError::RoleNotFound(e.to_string()))?;
-        println!("[AGENT-3] Got role_with_skills, role: {}", role_with_skills.role.name);
 
         // Register process for monitoring
         let execution_id = role_with_skills.role.id.clone();
@@ -631,56 +648,37 @@ Return your response directly. If using a skill, invoke it according to its exec
             request.role_id, request.task, memory_context.len());
         tracing::debug!("[AgentTeam] memory_context: {}", memory_context);
 
+        // 获取当前工作区路径
+        let working_dir = self.current_workspace_path.read().clone();
+        tracing::info!("[AgentTeamService] Working dir: {:?}, spawning Claude CLI...", working_dir);
+
         // Build the full prompt
+        let workspace_note = if let Some(ref dir) = working_dir {
+            format!("\n\nIMPORTANT: Working directory is `{}`. When generating documents, plans, reports, or design files, ALWAYS save them as actual files in this directory. Use file creation tools to persist output — do not just print content as text.", dir)
+        } else {
+            String::new()
+        };
+
         let full_prompt = if memory_context.is_empty() {
             format!(
-                "{}\n\n<system>\n{}\n</system>\n\n<user>\n{}\n</user>",
-                auto_yes_prefix, prompt, request.task
+                "{}\n\n<system>\n{}{}\n</system>\n\n<user>\n{}\n</user>",
+                auto_yes_prefix, prompt, workspace_note, request.task
             )
         } else {
             format!(
-                "{}\n\n<system>\n{}\n\n{}\n</system>\n\n<user>\n{}\n</user>",
-                auto_yes_prefix, prompt, memory_context, request.task
+                "{}\n\n<system>\n{}\n\n{}{}\n</system>\n\n<user>\n{}\n</user>",
+                auto_yes_prefix, prompt, memory_context, workspace_note, request.task
             )
         };
 
         tracing::info!("[AgentTeam] Full prompt length: {}, memory_context included: {}", full_prompt.len(), !memory_context.is_empty());
 
-        // 获取当前工作区路径
-        let working_dir = self.current_workspace_path.read().clone();
-
-        println!("[AGENT-4] Working dir: {:?}", working_dir);
-        tracing::info!("[AgentTeamService-4] Working dir: {:?}", working_dir);
-
-        // 先检查 claude 命令是否存在
-        let claude_check = tokio::process::Command::new("which")
-            .arg("claude")
-            .output()
-            .await;
-        match &claude_check {
-            Ok(out) if out.status.success() => {
-                let path = String::from_utf8_lossy(&out.stdout);
-                println!("[AGENT-4b] claude found at: {}", path.trim());
-                tracing::info!("[AgentTeamService-4b] claude found at: {}", path.trim());
-            }
-            _ => {
-                println!("[AGENT-4b] WARNING: claude command not found in PATH!");
-                tracing::warn!("[AgentTeamService-4b] claude command not found!");
-            }
-        }
-
-        println!("[AGENT-5] Spawning Claude CLI...");
-        tracing::info!("[AgentTeamService-5] Spawning Claude CLI...");
-
         let pty_result = run_claude(
-            &["-p", "--dangerously-skip-permissions", &full_prompt],
+            &["-p", "--dangerously-skip-permissions", "--no-session-persistence", &full_prompt],
             working_dir.as_deref(),
             stream_tx.as_ref(),
             1800, // 30 min — complex coding tasks can take 25+ min
         ).await;
-
-        println!("[AGENT-6] Claude CLI completed");
-        tracing::info!("[AgentTeamService-6] Claude CLI completed");
 
         let (pid, success, response) = match pty_result {
             Err(e) => {
@@ -898,7 +896,7 @@ Return your response directly. If using a skill, invoke it according to its exec
         // (which Claude Switch updates when switching models)
         let working_dir = self.current_workspace_path.read().clone();
 
-        let mut cmd = tokio::process::Command::new("claude");
+        let mut cmd = tokio::process::Command::new("/opt/homebrew/bin/claude");
         cmd.args(["-p", "--dangerously-skip-permissions", &full_prompt]);
         if let Some(ref dir) = working_dir {
             cmd.current_dir(dir);

@@ -80,9 +80,7 @@ export function useCommandRunner(): UseCommandRunnerReturn {
   // Connect WebSocket
   useEffect(() => {
     const connect = () => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = WS_BASE_URL || window.location.host;
-      const wsUrl = `${protocol}//${host}/ws/run-command`;
+      const wsUrl = `${WS_BASE_URL}/ws/run-command`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 

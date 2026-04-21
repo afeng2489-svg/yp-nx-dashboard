@@ -114,8 +114,56 @@ impl ExecutionService {
         self.event_sender.subscribe()
     }
 
-    /// 广播事件
+    /// 广播事件，并将状态变更持久化到 Execution（供新 WS 连接 catch-up）
     pub fn broadcast(&self, event: ExecutionEvent) {
+        match &event {
+            ExecutionEvent::Output { execution_id, line } => {
+                let mut executions = self.executions.lock();
+                if let Some(ex) = executions.get_mut(execution_id.as_str()) {
+                    ex.output_log.push(line.clone());
+                    // 最多保留 500 行，超出时丢弃最旧的
+                    if ex.output_log.len() > 500 {
+                        let excess = ex.output_log.len() - 500;
+                        ex.output_log.drain(0..excess);
+                    }
+                }
+            }
+            ExecutionEvent::StageStarted { execution_id, stage_name } => {
+                let mut executions = self.executions.lock();
+                if let Some(ex) = executions.get_mut(execution_id.as_str()) {
+                    ex.current_stage = Some(stage_name.clone());
+                }
+            }
+            ExecutionEvent::Completed { execution_id } => {
+                let mut executions = self.executions.lock();
+                if let Some(ex) = executions.get_mut(execution_id.as_str()) {
+                    ex.current_stage = None;
+                }
+            }
+            ExecutionEvent::Failed { execution_id, .. } => {
+                let mut executions = self.executions.lock();
+                if let Some(ex) = executions.get_mut(execution_id.as_str()) {
+                    ex.current_stage = None;
+                }
+            }
+            ExecutionEvent::WorkflowPaused { execution_id, stage_name, question, options } => {
+                let mut executions = self.executions.lock();
+                if let Some(ex) = executions.get_mut(execution_id.as_str()) {
+                    ex.pending_pause = Some(PendingPause {
+                        stage_name: stage_name.clone(),
+                        question: question.clone(),
+                        options: options.clone(),
+                    });
+                }
+            }
+            ExecutionEvent::WorkflowResumed { execution_id, .. } => {
+                let mut executions = self.executions.lock();
+                if let Some(ex) = executions.get_mut(execution_id.as_str()) {
+                    ex.pending_pause = None;
+                }
+            }
+            _ => {}
+        }
         let _ = self.event_sender.send(event);
     }
 
@@ -330,18 +378,18 @@ impl ExecutionService {
                 AIModelManager::from_config(load_ai_config_from_env())
             });
 
-        // 3. 创建事件发射器（桥接到 ExecutionService）
-        let event_emitter = Arc::new(WorkflowEventBridge::new(self.clone()));
-
-        // 4. 创建 resume channel，支持 user_input 暂停/恢复
-        let (resume_tx, resume_rx) = tokio::sync::mpsc::channel::<String>(1);
-
-        // 5. 创建工作流引擎（使用 Claude CLI，附带 resume channel）
-        let engine = WorkflowEngine::with_resume_channel(event_emitter, working_directory, resume_rx);
-
-        // 6. 启动执行
+        // 3. 先启动执行，拿到 exec_id，再创建事件桥（桥需要 exec_id 来替换引擎内部 UUID）
         let execution = self.start_execution(workflow_id.clone(), variables);
         let exec_id = execution.id.clone();
+
+        // 4. 创建事件发射器（桥接到 ExecutionService，绑定 exec_id）
+        let event_emitter = Arc::new(WorkflowEventBridge::new(self.clone(), exec_id.clone()));
+
+        // 5. 创建 resume channel，支持 user_input 暂停/恢复
+        let (resume_tx, resume_rx) = tokio::sync::mpsc::channel::<String>(1);
+
+        // 6. 创建工作流引擎（使用 Claude CLI，附带 resume channel）
+        let engine = WorkflowEngine::with_resume_channel(event_emitter, working_directory, resume_rx);
 
         // 7. 注册 resume channel
         {
@@ -400,6 +448,14 @@ impl Default for ExecutionService {
     }
 }
 
+/// 持久化的 pause 状态（供快照 catch-up）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PendingPause {
+    pub stage_name: String,
+    pub question: String,
+    pub options: Vec<crate::services::events::WorkflowOption>,
+}
+
 /// 工作流执行
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Execution {
@@ -411,6 +467,18 @@ pub struct Execution {
     pub started_at: Option<DateTime<Utc>>,
     pub finished_at: Option<DateTime<Utc>>,
     pub error: Option<String>,
+    /// 实时输出日志缓存（最近 500 行），供新 WS 连接 catch-up 用
+    #[serde(default)]
+    pub output_log: Vec<String>,
+    /// 当前正在执行的阶段名
+    #[serde(default)]
+    pub current_stage: Option<String>,
+    /// 当前正在执行的 agent id 列表
+    #[serde(default)]
+    pub running_agents: Vec<String>,
+    /// 当前 pause 状态（user_input 阶段等待输入时）
+    #[serde(default)]
+    pub pending_pause: Option<PendingPause>,
 }
 
 impl Execution {
@@ -425,6 +493,10 @@ impl Execution {
             started_at: None,
             finished_at: None,
             error: None,
+            output_log: Vec::new(),
+            current_stage: None,
+            running_agents: Vec::new(),
+            pending_pause: None,
         }
     }
 

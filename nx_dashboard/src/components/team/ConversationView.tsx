@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
-import { X, Send, Bot, User, MessageCircle, Square, Terminal as TerminalIcon } from 'lucide-react';
+import { X, Send, Bot, User, MessageCircle, Square, Terminal as TerminalIcon, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTeamStore, Message } from '@/stores/teamStore';
 import { useClaudeStream } from '@/hooks/useClaudeStream';
 import { useAgentExecution } from '@/hooks/useAgentExecution';
-import { AgentThinkingIndicator } from './AgentThinkingIndicator';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -129,7 +128,10 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [showStream, setShowStream] = useState(false);
   const [streamInput, setStreamInput] = useState('');
+  const [lastCliOutput, setLastCliOutput] = useState<string>('');
+  const [showLastOutput, setShowLastOutput] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const execLogEndRef = useRef<HTMLDivElement>(null);
   const streamTerminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -158,6 +160,10 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
 
   useEffect(() => {
     if (agentExec.status === 'completed' || agentExec.status === 'failed') {
+      if (agentExec.partialOutput) {
+        setLastCliOutput(agentExec.partialOutput);
+        setShowLastOutput(true);
+      }
       fetchMessages(teamId);
       const timer = setTimeout(() => agentExec.reset(), 500);
       return () => clearTimeout(timer);
@@ -167,6 +173,27 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
   useEffect(() => {
     fetchMessages(teamId);
   }, [teamId]);
+
+  // 兜底轮询：isActive 期间每 3s 拉一次消息，防止 WS Completed 事件丢失导致消息不更新
+  useEffect(() => {
+    if (!isActive) return;
+    const poll = setInterval(() => fetchMessages(teamId), 3000);
+    return () => clearInterval(poll);
+  }, [isActive, teamId, fetchMessages]);
+
+  // 执行日志自动滚底
+  useEffect(() => {
+    execLogEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [agentExec.partialOutput]);
+
+  // 冻结保护：isActive 超过 5 分钟自动重置，防止 WS 丢失事件导致 UI 永久卡死
+  useEffect(() => {
+    if (!isActive) return;
+    const timeout = setTimeout(() => {
+      agentExec.reset();
+    }, 300_000);
+    return () => clearTimeout(timeout);
+  }, [isActive]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -272,13 +299,87 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
               <MessageBubble key={message.id} message={message} />
             ))
           )}
+          {showLastOutput && lastCliOutput && !isActive && (
+            <div className="flex gap-3 justify-start">
+              <div className="w-8 h-8 rounded-full bg-[#252526] flex items-center justify-center flex-shrink-0">
+                <TerminalIcon className="w-4 h-4 text-green-400" />
+              </div>
+              <div className="flex-1 max-w-[85%]">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-muted-foreground">执行过程</span>
+                  <button
+                    onClick={() => setShowLastOutput(false)}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    收起
+                  </button>
+                </div>
+                <div className="bg-[#1a1a1a] rounded-xl px-3 py-2 text-xs text-green-400 max-h-64 overflow-y-auto border border-white/5">
+                  <pre className="whitespace-pre-wrap font-mono leading-relaxed">{lastCliOutput}</pre>
+                </div>
+              </div>
+            </div>
+          )}
           {isActive && (
-            <AgentThinkingIndicator
-              agentRole={undefined}
-              elapsedSecs={agentExec.elapsedSecs}
-              onCancel={agentExec.cancel}
-              partialOutput={agentExec.partialOutput || undefined}
-            />
+            <div className="flex gap-3 justify-start">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center flex-shrink-0 animate-pulse">
+                <Bot className="w-4 h-4 text-white" />
+              </div>
+              <div className="flex-1 max-w-[85%] space-y-1.5">
+                {/* 状态头 */}
+                <div className="flex items-center gap-2">
+                  <Activity className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+                  <span className="text-sm text-muted-foreground">AI 正在处理...</span>
+                  <span className="text-xs text-muted-foreground/70">{agentExec.elapsedSecs}s</span>
+                  <button
+                    onClick={agentExec.cancel}
+                    className="p-0.5 rounded hover:bg-red-500/20 text-red-400 transition-colors"
+                    title="取消"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+                {/* 执行日志面板 */}
+                <div className="bg-[#1a1a1a] rounded-xl border border-white/5 overflow-hidden">
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-[#252526] border-b border-white/5">
+                    <span className="text-xs text-gray-400 flex items-center gap-1">
+                      <TerminalIcon className="w-3 h-3" />
+                      执行日志
+                    </span>
+                    <span className="text-xs text-emerald-500 animate-pulse flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      实时
+                    </span>
+                  </div>
+                  <div className="p-3 font-mono text-xs text-gray-300 max-h-[260px] overflow-y-auto space-y-0.5">
+                    {agentExec.partialOutput ? (
+                      agentExec.partialOutput.split('\n').filter(Boolean).slice(-200).map((line, i) => (
+                        <div key={i} className="whitespace-pre-wrap break-all leading-relaxed">
+                          {line}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-gray-600 flex items-center gap-2">
+                        <span className="inline-flex gap-0.5">
+                          {[0, 1, 2].map((i) => (
+                            <span
+                              key={i}
+                              className="w-1 h-1 rounded-full bg-gray-500 animate-bounce"
+                              style={{ animationDelay: `${i * 150}ms` }}
+                            />
+                          ))}
+                        </span>
+                        等待输出...
+                      </div>
+                    )}
+                    <div ref={execLogEndRef} />
+                  </div>
+                </div>
+                {agentExec.elapsedSecs >= 30 && (
+                  <p className="text-xs text-amber-500/80 px-2">任务耗时较长，请耐心等待...</p>
+                )}
+              </div>
+            </div>
           )}
           {agentExec.status === 'failed' && agentExec.error && (
             <div className="flex gap-3 justify-start">

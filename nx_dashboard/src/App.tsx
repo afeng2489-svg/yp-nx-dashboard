@@ -7,6 +7,8 @@ import { PageTransition } from '@/components/ui';
 import { useKeyboardHandler } from '@/lib/keyboard';
 import { CommandPalette } from '@/components/command';
 import { useVersionCheck } from '@/lib/versionCheck';
+import { useExecutionStore } from '@/stores/executionStore';
+import { WorkflowPauseModal } from '@/components/execution/WorkflowPauseModal';
 import './index.css';
 
 // Code splitting for heavy pages
@@ -40,6 +42,23 @@ function PageLoadingFallback() {
         <p className="text-muted-foreground text-sm">Loading...</p>
       </div>
     </div>
+  );
+}
+
+// Global floating pause card — shown whenever a workflow is waiting for user input
+function GlobalPauseCard() {
+  const pendingPause = useExecutionStore((s) => s.pendingPause);
+  const resumeExecution = useExecutionStore((s) => s.resumeExecution);
+  const dismissPause = useExecutionStore((s) => s.dismissPause);
+
+  if (!pendingPause) return null;
+
+  return (
+    <WorkflowPauseModal
+      pause={pendingPause}
+      onResume={(value) => resumeExecution(pendingPause.execution_id, value)}
+      onDismiss={dismissPause}
+    />
   );
 }
 
@@ -128,6 +147,9 @@ function App() {
 
       {/* Command Palette */}
       <CommandPalette />
+
+      {/* Global workflow pause card — bottom-right floating */}
+      <GlobalPauseCard />
     </QueryClientProvider>
   );
 }
