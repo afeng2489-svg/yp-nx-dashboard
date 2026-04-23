@@ -129,6 +129,9 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
   const storeMessages = useTeamStore((s) => s.messages);
   const teamMonitorMode = useTeamStore((s) => s.teamMonitorMode);
   const isMonitorMode = teamMonitorMode[teamId] ?? false;
+  const roles = useTeamStore((s) => s.roles[teamId] ?? []);
+  const fetchRoles = useTeamStore((s) => s.fetchRoles);
+  const terminalSessions = useTeamStore((s) => s.terminalSessions[teamId] ?? {});
   const [activeTab, setActiveTab] = useState<'chat' | 'terminal'>('chat');
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [showStream, setShowStream] = useState(false);
@@ -137,7 +140,6 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
   const [showLastOutput, setShowLastOutput] = useState(false);
   const [pendingConfirmTask, setPendingConfirmTask] = useState<string | null>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
-  const execLogScrollRef = useRef<HTMLDivElement>(null);
   const streamTerminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -178,6 +180,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
 
   useEffect(() => {
     fetchMessages(teamId);
+    fetchRoles(teamId);
   }, [teamId]);
 
   // 兜底轮询：isActive 期间每 3s 拉一次消息，防止 WS Completed 事件丢失导致消息不更新
@@ -187,11 +190,8 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
     return () => clearInterval(poll);
   }, [isActive, teamId, fetchMessages]);
 
-  // 执行日志自动滚底（直接操作容器 scrollTop，避免 scrollIntoView 带动外层消息列表跳动）
-  useEffect(() => {
-    const el = execLogScrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [agentExec.partialOutput]);
+  // 执行日志滚底 effect 已移除（执行日志面板已删除）
+
 
   // 冻结保护：isActive 超过 5 分钟自动重置，防止 WS 丢失事件导致 UI 永久卡死
   useEffect(() => {
@@ -265,12 +265,11 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
     setLocalMessages(prev => [...prev, userMessage]);
     agentExec.execute(teamId, text);
 
-    // 同步派发到团队的 PTY 终端（如有活跃会话）
-    const terminalSessionId = useTeamStore.getState().terminalSessions[teamId];
-    if (terminalSessionId) {
-      dispatchTaskToTerminal(teamId, terminalSessionId, text).catch(() => {/* 终端未就绪，忽略 */});
-    }
-  }, [teamId, isActive, agentExec, isMonitorMode]);
+    // 向所有已激活的角色 PTY session 并行派发任务
+    Object.entries(terminalSessions).forEach(([, sessionId]) => {
+      dispatchTaskToTerminal(teamId, sessionId, text).catch(() => {/* 终端未就绪，忽略 */});
+    });
+  }, [teamId, isActive, agentExec, isMonitorMode, terminalSessions]);
 
   const handleConfirmTask = useCallback(() => {
     if (!pendingConfirmTask) return;
@@ -348,7 +347,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
 
         {/* 终端 Tab（始终挂载，切换时用 hidden 隐藏，避免断连） */}
         <div className={cn('flex-1 overflow-hidden', activeTab !== 'terminal' && 'hidden')}>
-          <TerminalPanel teamId={teamId} visible={activeTab === 'terminal'} />
+          <TerminalPanel teamId={teamId} roles={roles} visible={activeTab === 'terminal'} />
         </div>
 
         {/* 对话 Tab */}
@@ -409,66 +408,6 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
                     拒绝
                   </button>
                 </div>
-              </div>
-            </div>
-          )}
-          {isActive && (
-            <div className="flex gap-3 justify-start">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center flex-shrink-0 animate-pulse">
-                <Bot className="w-4 h-4 text-white" />
-              </div>
-              <div className="flex-1 max-w-[85%] space-y-1.5">
-                {/* 状态头 */}
-                <div className="flex items-center gap-2">
-                  <Activity className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
-                  <span className="text-sm text-muted-foreground">AI 正在处理...</span>
-                  <span className="text-xs text-muted-foreground/70">{agentExec.elapsedSecs}s</span>
-                  <button
-                    onClick={agentExec.cancel}
-                    className="p-0.5 rounded hover:bg-red-500/20 text-red-400 transition-colors"
-                    title="取消"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-                {/* 执行日志面板 */}
-                <div className="bg-[#1a1a1a] rounded-xl border border-white/5 overflow-hidden">
-                  <div className="flex items-center justify-between px-3 py-1.5 bg-[#252526] border-b border-white/5">
-                    <span className="text-xs text-gray-400 flex items-center gap-1">
-                      <TerminalIcon className="w-3 h-3" />
-                      执行日志
-                    </span>
-                    <span className="text-xs text-emerald-500 animate-pulse flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      实时
-                    </span>
-                  </div>
-                  <div ref={execLogScrollRef} className="p-3 font-mono text-xs text-gray-300 max-h-[260px] overflow-y-auto space-y-0.5">
-                    {agentExec.partialOutput ? (
-                      agentExec.partialOutput.split('\n').filter(Boolean).slice(-200).map((line, i) => (
-                        <div key={i} className="whitespace-pre-wrap break-all leading-relaxed">
-                          {line}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-gray-600 flex items-center gap-2">
-                        <span className="inline-flex gap-0.5">
-                          {[0, 1, 2].map((i) => (
-                            <span
-                              key={i}
-                              className="w-1 h-1 rounded-full bg-gray-500 animate-bounce"
-                              style={{ animationDelay: `${i * 150}ms` }}
-                            />
-                          ))}
-                        </span>
-                        等待输出...
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {agentExec.elapsedSecs >= 30 && (
-                  <p className="text-xs text-amber-500/80 px-2">任务耗时较长，请耐心等待...</p>
-                )}
               </div>
             </div>
           )}

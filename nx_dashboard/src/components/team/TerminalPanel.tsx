@@ -3,27 +3,27 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { Play, Square, Plus, Loader2, Terminal as TerminalIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { usePtySession, createTerminalSession, closeTerminalSession } from '../../hooks/usePtySession';
 import { useTeamStore } from '../../stores/teamStore';
+import type { Role } from '../../stores/teamStore';
 
-interface TerminalPanelProps {
+// ── 单角色终端（管理一个 xterm + PTY session）────────────────────────────────
+interface RoleTerminalTabProps {
   teamId: string;
-  /** 当前工作区路径（用于显示） */
-  workspacePath?: string;
-  /** 当前是否可见（用于触发 fit） */
-  visible?: boolean;
+  roleId: string;
+  roleName: string;
+  visible: boolean;
 }
 
-export function TerminalPanel({ teamId, workspacePath, visible = true }: TerminalPanelProps) {
+function RoleTerminalTab({ teamId, roleId, visible }: RoleTerminalTabProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  // 标记 xterm.js 实例已就绪，触发 usePtySession 重新订阅
   const [terminalReady, setTerminalReady] = useState(false);
 
-  // 从 store 读/写 sessionId，跨 tab 切换持久化
-  const storedSessionId = useTeamStore((s) => s.terminalSessions[teamId] ?? null);
+  const storedSessionId = useTeamStore((s) => s.terminalSessions[teamId]?.[roleId] ?? null);
   const setTerminalSession = useTeamStore((s) => s.setTerminalSession);
   const [sessionId, setSessionId] = useState<string | null>(storedSessionId);
 
@@ -77,9 +77,8 @@ export function TerminalPanel({ teamId, workspacePath, visible = true }: Termina
     fitAddonRef.current = fitAddon;
     setTerminalReady(true);
 
-    // 欢迎信息
     term.write('\x1b[90m# Claude 终端准备就绪\x1b[0m\r\n');
-    term.write('\x1b[90m# 点击"新建会话"启动 claude 进程\x1b[0m\r\n\r\n');
+    term.write('\x1b[90m# 点击"启动"创建此角色的 claude 进程\x1b[0m\r\n\r\n');
 
     return () => {
       term.dispose();
@@ -89,26 +88,24 @@ export function TerminalPanel({ teamId, workspacePath, visible = true }: Termina
     };
   }, []);
 
-  // 切换到可见时重新 fit，确保尺寸正确
+  // 可见时 fit
   useEffect(() => {
     if (!visible) return;
     const id = requestAnimationFrame(() => {
-      const fitAddon = fitAddonRef.current;
       const term = terminalRef.current;
-      if (!fitAddon || !term) return;
-      fitAddon.fit();
+      if (!fitAddonRef.current || !term) return;
+      fitAddonRef.current.fit();
       resize(term.rows, term.cols);
     });
     return () => cancelAnimationFrame(id);
   }, [visible, resize]);
 
-  // 自动 fit（窗口大小变化），并同步 PTY 尺寸
+  // 窗口大小变化时 fit
   useEffect(() => {
     const obs = new ResizeObserver(() => {
-      const fitAddon = fitAddonRef.current;
       const term = terminalRef.current;
-      if (!fitAddon || !term) return;
-      fitAddon.fit();
+      if (!fitAddonRef.current || !term) return;
+      fitAddonRef.current.fit();
       resize(term.rows, term.cols);
     });
     if (containerRef.current) obs.observe(containerRef.current);
@@ -119,56 +116,47 @@ export function TerminalPanel({ teamId, workspacePath, visible = true }: Termina
     if (isCreating) return;
     setIsCreating(true);
     try {
-      // 先关闭旧会话
       if (sessionId) {
         await closeTerminalSession(teamId, sessionId);
         terminalRef.current?.clear();
         terminalRef.current?.write('\x1b[90m# 已关闭旧会话，正在创建新会话...\x1b[0m\r\n\r\n');
       }
 
-      // 确保 fit 后再读取尺寸
       fitAddonRef.current?.fit();
       const term = terminalRef.current;
       const cols = term?.cols ?? 80;
       const rows = term?.rows ?? 24;
 
-      const id = await createTerminalSession(teamId, undefined, cols, rows);
+      const id = await createTerminalSession(teamId, roleId, cols, rows);
       setSessionId(id);
-      setTerminalSession(teamId, id);
+      setTerminalSession(teamId, roleId, id);
       terminalRef.current?.write(`\x1b[90m# 会话 ${id.slice(0, 8)} 已创建，正在连接...\x1b[0m\r\n\r\n`);
     } catch (e) {
       terminalRef.current?.write(`\r\n\x1b[31m[错误] 无法创建会话: ${e}\x1b[0m\r\n`);
     } finally {
       setIsCreating(false);
     }
-  }, [teamId, sessionId, isCreating]);
+  }, [teamId, roleId, sessionId, isCreating, setTerminalSession]);
 
   const handleCloseSession = useCallback(async () => {
     if (!sessionId) return;
     await closeTerminalSession(teamId, sessionId);
     setSessionId(null);
-    setTerminalSession(teamId, null);
+    setTerminalSession(teamId, roleId, null);
     terminalRef.current?.write('\r\n\x1b[90m# 会话已关闭\x1b[0m\r\n');
-  }, [teamId, sessionId, setTerminalSession]);
+  }, [teamId, roleId, sessionId, setTerminalSession]);
 
   return (
     <div className="flex flex-col h-full bg-[#0d1117]">
       {/* 工具栏 */}
       <div className="flex items-center gap-2 px-3 py-2 bg-[#161b22] border-b border-white/10 flex-shrink-0">
-        <TerminalIcon className="w-4 h-4 text-green-400" />
-        <span className="text-xs text-white/60 font-mono flex-1">
-          {workspacePath ? workspacePath : 'Claude 终端'}
-        </span>
-
-        {/* 会话状态指示 */}
         {sessionId && (
           <div className="flex items-center gap-1.5">
             <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-400' : 'bg-yellow-400 animate-pulse'}`} />
             <span className="text-xs text-white/40 font-mono">{sessionId.slice(0, 8)}</span>
           </div>
         )}
-
-        {/* 关闭会话按钮 */}
+        <div className="flex-1" />
         {sessionId && (
           <button
             onClick={handleCloseSession}
@@ -179,8 +167,6 @@ export function TerminalPanel({ teamId, workspacePath, visible = true }: Termina
             停止
           </button>
         )}
-
-        {/* 新建会话按钮 */}
         <button
           onClick={handleNewSession}
           disabled={isCreating}
@@ -198,8 +184,77 @@ export function TerminalPanel({ teamId, workspacePath, visible = true }: Termina
         </button>
       </div>
 
-      {/* 终端区域 */}
       <div ref={containerRef} className="flex-1 overflow-hidden p-1" />
+    </div>
+  );
+}
+
+// ── 多角色终端面板 ─────────────────────────────────────────────────────────────
+interface TerminalPanelProps {
+  teamId: string;
+  roles: Role[];
+  workspacePath?: string;
+  visible?: boolean;
+}
+
+export function TerminalPanel({ teamId, roles, workspacePath, visible = true }: TerminalPanelProps) {
+  const [activeRoleId, setActiveRoleId] = useState<string | null>(null);
+
+  // 首次有角色时默认选中第一个
+  useEffect(() => {
+    if (!activeRoleId && roles.length > 0) {
+      setActiveRoleId(roles[0].id);
+    }
+  }, [roles, activeRoleId]);
+
+  if (roles.length === 0) {
+    return (
+      <div className="flex flex-col h-full bg-[#0d1117] items-center justify-center">
+        <TerminalIcon className="w-8 h-8 text-white/20 mb-2" />
+        <p className="text-xs text-white/40 font-mono">暂无角色，请先在团队中添加角色</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full bg-[#0d1117]">
+      {/* 角色 tab 栏 */}
+      <div className="flex items-center bg-[#161b22] border-b border-white/10 flex-shrink-0 overflow-x-auto">
+        {workspacePath && (
+          <span className="px-3 text-xs text-white/30 font-mono flex-shrink-0 border-r border-white/10 py-2">
+            {workspacePath}
+          </span>
+        )}
+        {roles.map((role) => (
+          <button
+            key={role.id}
+            onClick={() => setActiveRoleId(role.id)}
+            className={cn(
+              'px-3 py-2 text-xs font-mono whitespace-nowrap transition-colors border-r border-white/5',
+              activeRoleId === role.id
+                ? 'text-green-400 bg-[#0d1117] border-b-2 border-b-green-400'
+                : 'text-white/40 hover:text-white/70 hover:bg-white/5'
+            )}
+          >
+            {role.name}
+          </button>
+        ))}
+      </div>
+
+      {/* 终端实例（全部挂载，用 hidden 切换可见性，保持 PTY 连接） */}
+      {roles.map((role) => (
+        <div
+          key={role.id}
+          className={cn('flex-1 overflow-hidden', activeRoleId !== role.id && 'hidden')}
+        >
+          <RoleTerminalTab
+            teamId={teamId}
+            roleId={role.id}
+            roleName={role.name}
+            visible={visible && activeRoleId === role.id}
+          />
+        </div>
+      ))}
     </div>
   );
 }

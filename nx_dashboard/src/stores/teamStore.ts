@@ -155,8 +155,8 @@ interface TeamStore {
 
   // 监控模式：Record<teamId, enabled>，持久化到 localStorage
   teamMonitorMode: Record<string, boolean>;
-  // 终端会话：Record<teamId, sessionId>，持久化到 localStorage
-  terminalSessions: Record<string, string>;
+  // 终端会话：Record<teamId, Record<roleId, sessionId>>，持久化到 localStorage
+  terminalSessions: Record<string, Record<string, string>>;
   // 当前活跃的团队任务（监控模式下显示悬浮卡）
   activeTeamTask: {
     teamId: string;
@@ -200,7 +200,7 @@ interface TeamStore {
   clearActiveTeamTask: () => void;
 
   // Terminal session actions
-  setTerminalSession: (teamId: string, sessionId: string | null) => void;
+  setTerminalSession: (teamId: string, roleId: string, sessionId: string | null) => void;
 
   // Telegram actions
   configureTelegram: (teamId: string, config: Partial<TelegramConfig>) => Promise<void>;
@@ -229,11 +229,21 @@ function loadMonitorMode(): Record<string, boolean> {
   }
 }
 
-// 从 localStorage 恢复终端会话
-function loadTerminalSessions(): Record<string, string> {
+// 从 localStorage 恢复终端会话（兼容旧的 Record<teamId, sessionId> 格式）
+function loadTerminalSessions(): Record<string, Record<string, string>> {
   try {
     const raw = localStorage.getItem('team_terminal_sessions');
-    return raw ? JSON.parse(raw) : {};
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    const result: Record<string, Record<string, string>> = {};
+    for (const [teamId, val] of Object.entries(parsed)) {
+      if (typeof val === 'string') {
+        // 旧格式：直接是 sessionId — 废弃，跳过（session 已失效）
+      } else if (typeof val === 'object' && val !== null) {
+        result[teamId] = val as Record<string, string>;
+      }
+    }
+    return result;
   } catch {
     return {};
   }
@@ -795,11 +805,20 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
 
   clearActiveTeamTask: () => set({ activeTeamTask: null }),
 
-  setTerminalSession: (teamId, sessionId) => {
+  setTerminalSession: (teamId, roleId, sessionId) => {
     set((state) => {
-      const next = sessionId
-        ? { ...state.terminalSessions, [teamId]: sessionId }
-        : Object.fromEntries(Object.entries(state.terminalSessions).filter(([k]) => k !== teamId));
+      const teamSessions = { ...(state.terminalSessions[teamId] ?? {}) };
+      if (sessionId) {
+        teamSessions[roleId] = sessionId;
+      } else {
+        delete teamSessions[roleId];
+      }
+      const next = { ...state.terminalSessions };
+      if (Object.keys(teamSessions).length > 0) {
+        next[teamId] = teamSessions;
+      } else {
+        delete next[teamId];
+      }
       try { localStorage.setItem('team_terminal_sessions', JSON.stringify(next)); } catch { /* ignore */ }
       return { terminalSessions: next };
     });
