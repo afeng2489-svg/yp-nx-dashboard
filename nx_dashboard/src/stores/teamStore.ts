@@ -155,6 +155,8 @@ interface TeamStore {
 
   // 监控模式：Record<teamId, enabled>，持久化到 localStorage
   teamMonitorMode: Record<string, boolean>;
+  // 终端会话：Record<teamId, sessionId>，持久化到 localStorage
+  terminalSessions: Record<string, string>;
   // 当前活跃的团队任务（监控模式下显示悬浮卡）
   activeTeamTask: {
     teamId: string;
@@ -197,6 +199,9 @@ interface TeamStore {
   setActiveTeamTask: (task: TeamStore['activeTeamTask']) => void;
   clearActiveTeamTask: () => void;
 
+  // Terminal session actions
+  setTerminalSession: (teamId: string, sessionId: string | null) => void;
+
   // Telegram actions
   configureTelegram: (teamId: string, config: Partial<TelegramConfig>) => Promise<void>;
   getTelegramConfig: (teamId: string) => Promise<TelegramConfig | null>;
@@ -224,6 +229,16 @@ function loadMonitorMode(): Record<string, boolean> {
   }
 }
 
+// 从 localStorage 恢复终端会话
+function loadTerminalSessions(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem('team_terminal_sessions');
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
 export const useTeamStore = create<TeamStore>((set, get) => ({
   teams: [],
   currentTeam: null,
@@ -234,6 +249,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
   error: null,
   abortController: null,
   teamMonitorMode: loadMonitorMode(),
+  terminalSessions: loadTerminalSessions(),
   activeTeamTask: null,
 
   // Team actions
@@ -669,6 +685,8 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
     // 如果该团队开启了监控模式，显示悬浮卡
     const { teamMonitorMode, teams } = get();
     const isMonitor = teamMonitorMode[teamId] ?? false;
+    // auto_confirm: 监控模式 OFF = 自动确认，ON = 等待确认
+    const autoConfirm = !isMonitor;
     if (isMonitor) {
       const team = teams.find(t => t.id === teamId);
       set({
@@ -689,7 +707,8 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         body: JSON.stringify({
           team_id: teamId,
           task: task,
-          context: {}
+          context: {},
+          auto_confirm: autoConfirm,
         }),
         signal: controller.signal,
       });
@@ -775,6 +794,16 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
   setActiveTeamTask: (task) => set({ activeTeamTask: task }),
 
   clearActiveTeamTask: () => set({ activeTeamTask: null }),
+
+  setTerminalSession: (teamId, sessionId) => {
+    set((state) => {
+      const next = sessionId
+        ? { ...state.terminalSessions, [teamId]: sessionId }
+        : Object.fromEntries(Object.entries(state.terminalSessions).filter(([k]) => k !== teamId));
+      try { localStorage.setItem('team_terminal_sessions', JSON.stringify(next)); } catch { /* ignore */ }
+      return { terminalSessions: next };
+    });
+  },
 
   // Telegram actions
   configureTelegram: async (teamId, config) => {

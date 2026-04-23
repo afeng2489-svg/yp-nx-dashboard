@@ -381,6 +381,9 @@ pub struct ExecuteTeamTaskRequest {
     pub team_id: String,
     pub task: String,
     pub context: HashMap<String, String>,
+    /// If true, automatically confirm without waiting for user input
+    #[serde(default)]
+    pub auto_confirm: bool,
 }
 
 /// Team execution result

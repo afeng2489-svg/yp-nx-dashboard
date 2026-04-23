@@ -27,6 +27,7 @@ pub mod claude_cli;
 pub mod group_chat_repository;
 pub mod group_chat_service;
 pub mod issue_repository;
+pub mod claude_terminal;
 
 pub use workflow_repository::{SqliteWorkflowRepository, SharedWorkflowRepository, WorkflowRepository};
 pub use workflow_service::WorkflowService;
@@ -56,6 +57,7 @@ pub use project_service::{ProjectService, ProjectError};
 pub use group_chat_repository::{GroupChatRepository, GroupChatRepositoryError, SqliteGroupChatRepository};
 pub use group_chat_service::{GroupChatService, GroupChatServiceError, SharedGroupChatService};
 pub use issue_repository::SqliteIssueRepository;
+pub use claude_terminal::{ClaudeTerminalManager, TerminalSessionInfo};
 
 // Re-export PtyManager from nx_session
 pub use nx_session::pty::PtyManager;

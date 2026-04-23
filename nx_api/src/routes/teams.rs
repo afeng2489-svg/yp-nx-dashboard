@@ -374,6 +374,7 @@ pub async fn execute_team_task(
             }
             ctx
         },
+        auto_confirm: request.auto_confirm,
     };
 
     // 后台异步执行团队任务
@@ -383,13 +384,17 @@ pub async fn execute_team_task(
     let exec_id = execution_id.clone();
     let tx = event_tx.clone();
     let manager = state.agent_execution_manager.clone();
+    let auto_confirm = request.auto_confirm;
+
+    // 注册确认响应等待器
+    let confirm_rx = manager.register_confirmation(&exec_id);
 
     tokio::spawn(async move {
         let start = std::time::Instant::now();
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
         interval.tick().await;
 
-        let task_future = state_bg.teams_state.agent_team_service.execute_team_task(enhanced_request, Some((tx.clone(), exec_id.clone())));
+        let task_future = state_bg.teams_state.agent_team_service.execute_team_task(enhanced_request, Some((tx.clone(), exec_id.clone())), Some(confirm_rx), auto_confirm);
         tokio::pin!(task_future);
 
         let result = loop {

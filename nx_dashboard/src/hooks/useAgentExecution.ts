@@ -6,7 +6,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 /** Agent execution event from WebSocket */
 interface AgentExecutionEvent {
-  type: 'started' | 'thinking' | 'output' | 'completed' | 'failed' | 'cancelled';
+  type: 'started' | 'thinking' | 'output' | 'completed' | 'failed' | 'cancelled' | 'confirmation_required';
   execution_id: string;
   agent_role?: string;
   task_summary?: string;
@@ -15,12 +15,16 @@ interface AgentExecutionEvent {
   result?: string;
   duration_ms?: number;
   error?: string;
+  question?: string;
+  options?: string[];
+  needs_input?: boolean;
 }
 
 export type AgentExecutionStatus =
   | 'idle'
   | 'started'
   | 'thinking'
+  | 'confirmation'  // waiting for user confirmation
   | 'completed'
   | 'failed'
   | 'cancelled';
@@ -33,8 +37,11 @@ export interface UseAgentExecutionReturn {
   result: string | null;
   error: string | null;
   durationMs: number | null;
-  execute: (teamId: string, task: string) => Promise<string | null>;
+  confirmationQuestion: string | null;
+  confirmationOptions: string[];
+  execute: (teamId: string, task: string, autoConfirm?: boolean) => Promise<string | null>;
   executeRoleTurn: (sessionId: string, roleId: string) => Promise<string | null>;
+  sendConfirmation: (response: string) => void;
   cancel: () => void;
   reset: () => void;
 }
@@ -56,6 +63,8 @@ export function useAgentExecution(): UseAgentExecutionReturn {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [durationMs, setDurationMs] = useState<number | null>(null);
+  const [confirmationQuestion, setConfirmationQuestion] = useState<string | null>(null);
+  const [confirmationOptions, setConfirmationOptions] = useState<string[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const timerRef = useRef<number | null>(null);
@@ -202,6 +211,18 @@ export function useAgentExecution(): UseAgentExecutionReturn {
               });
             }
             break;
+          case 'confirmation_required':
+            setStatus('confirmation');
+            setConfirmationQuestion(data.question ?? null);
+            setConfirmationOptions(data.options ?? []);
+            if (monitorCtx) {
+              useTeamStore.getState().setActiveTeamTask({
+                ...monitorCtx,
+                status: 'waiting_confirmation',
+                partialOutput: `${data.question ?? '需要确认'}\n选项: ${(data.options ?? []).join(', ')}`,
+              });
+            }
+            break;
         }
       } catch {
         // ignore parse errors
@@ -232,7 +253,7 @@ export function useAgentExecution(): UseAgentExecutionReturn {
   }, [stopLocalTimer]);
 
   /** Execute a team task */
-  const execute = useCallback(async (teamId: string, task: string): Promise<string | null> => {
+  const execute = useCallback(async (teamId: string, task: string, autoConfirm?: boolean): Promise<string | null> => {
     // Reset state
     setStatus('started');
     setElapsedSecs(0);
@@ -246,6 +267,8 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     // 如果该团队开启了监控模式，更新全局悬浮卡
     const { teamMonitorMode, teams, setActiveTeamTask } = useTeamStore.getState();
     const isMonitor = teamMonitorMode[teamId] ?? false;
+    // autoConfirm: 如果未指定，根据监控模式决定（监控模式 ON = 等待确认，OFF = 自动确认）
+    const shouldAutoConfirm = autoConfirm !== undefined ? autoConfirm : !isMonitor;
     if (isMonitor) {
       const team = teams.find(t => t.id === teamId);
       setActiveTeamTask({
@@ -260,7 +283,7 @@ export function useAgentExecution(): UseAgentExecutionReturn {
       const response = await fetch(`${API_BASE}/api/v1/teams/${teamId}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ team_id: teamId, task, context: {} }),
+        body: JSON.stringify({ team_id: teamId, task, context: {}, auto_confirm: shouldAutoConfirm }),
       });
 
       if (!response.ok) {
@@ -382,6 +405,16 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     stopLocalTimer();
   }, [stopLocalTimer]);
 
+  /** Send confirmation response */
+  const sendConfirmation = useCallback((response: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'confirm', response }));
+    }
+    setStatus('thinking');
+    setConfirmationQuestion(null);
+    setConfirmationOptions([]);
+  }, []);
+
   /** Reset to idle */
   const reset = useCallback(() => {
     wsRef.current?.close();
@@ -403,6 +436,8 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     result,
     error,
     durationMs,
+    confirmationQuestion,
+    confirmationOptions,
     execute,
     executeRoleTurn,
     cancel,

@@ -3,16 +3,21 @@
 // In Tauri production, the API server runs on localhost:8080
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
-// WebSocket 必须使用绝对 URL（ws:// 或 wss://）
-// 如果未配置 VITE_WS_BASE_URL，则从当前页面地址推导
+// WebSocket URL 策略：
+// - 开发模式 (port 5173)：走 Vite proxy（同源），避免 WKWebView 跨端口限制
+// - 生产模式：直连后端 localhost:8080
 function buildWsBaseUrl(): string {
   const envUrl = import.meta.env.VITE_WS_BASE_URL as string | undefined;
   if (envUrl) return envUrl;
-  // 浏览器环境：从 window.location 推导
+
   if (typeof window !== 'undefined') {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${window.location.host}`;
+    const { hostname, port } = window.location;
+    if (port === '5173') {
+      // Vite dev server — 走 proxy，规避 WKWebView 跨端口 ws:// 限制
+      return `ws://${hostname}:5173`;
+    }
   }
+  // 生产环境（Tauri bundle）— 直连后端
   return 'ws://localhost:8080';
 }
 

@@ -138,9 +138,10 @@ impl ProjectService {
             team_id: project.team_id.clone(),
             task: req.task.clone(),
             context,
+            auto_confirm: false,
         };
 
-        let result = self.agent_team_service.execute_team_task(execute_req, None)
+        let result = self.agent_team_service.execute_team_task(execute_req, None, None, false)
             .await
             .map_err(|e| ProjectError::ExecutionError(e.to_string()))?;
 

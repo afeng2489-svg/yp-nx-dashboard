@@ -7,6 +7,8 @@ import { useAgentExecution } from '@/hooks/useAgentExecution';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
+import { TerminalPanel } from './TerminalPanel';
+import { dispatchTaskToTerminal } from '@/hooks/usePtySession';
 
 // ── 独立输入组件，隔离重渲染 ──────────────────────────────
 interface ChatInputProps {
@@ -125,11 +127,15 @@ interface ConversationViewProps {
 export function ConversationView({ teamId, onClose }: ConversationViewProps) {
   const fetchMessages = useTeamStore((s) => s.fetchMessages);
   const storeMessages = useTeamStore((s) => s.messages);
+  const teamMonitorMode = useTeamStore((s) => s.teamMonitorMode);
+  const isMonitorMode = teamMonitorMode[teamId] ?? false;
+  const [activeTab, setActiveTab] = useState<'chat' | 'terminal'>('chat');
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [showStream, setShowStream] = useState(false);
   const [streamInput, setStreamInput] = useState('');
   const [lastCliOutput, setLastCliOutput] = useState<string>('');
   const [showLastOutput, setShowLastOutput] = useState(false);
+  const [pendingConfirmTask, setPendingConfirmTask] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const execLogEndRef = useRef<HTMLDivElement>(null);
   const streamTerminalRef = useRef<HTMLDivElement>(null);
@@ -239,6 +245,12 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
   const handleSend = useCallback((text: string) => {
     if (!text || isActive) return;
 
+    // 监控模式 ON：先显示确认弹框，不直接执行
+    if (isMonitorMode) {
+      setPendingConfirmTask(text);
+      return;
+    }
+
     const userMessage: Message = {
       id: `temp-${Date.now()}`,
       team_id: teamId,
@@ -250,9 +262,35 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
 
     setLocalMessages(prev => [...prev, userMessage]);
     agentExec.execute(teamId, text);
-  }, [teamId, isActive, agentExec]);
+
+    // 同步派发到团队的 PTY 终端（如有活跃会话）
+    const terminalSessionId = useTeamStore.getState().terminalSessions[teamId];
+    if (terminalSessionId) {
+      dispatchTaskToTerminal(teamId, terminalSessionId, text).catch(() => {/* 终端未就绪，忽略 */});
+    }
+  }, [teamId, isActive, agentExec, isMonitorMode]);
+
+  const handleConfirmTask = useCallback(() => {
+    if (!pendingConfirmTask) return;
+    const userMessage: Message = {
+      id: `temp-${Date.now()}`,
+      team_id: teamId,
+      role: 'user',
+      message_type: 'User',
+      content: pendingConfirmTask,
+      created_at: new Date().toISOString(),
+    };
+    setLocalMessages(prev => [...prev, userMessage]);
+    agentExec.execute(teamId, pendingConfirmTask, true);
+    setPendingConfirmTask(null);
+  }, [teamId, pendingConfirmTask, agentExec]);
+
+  const handleCancelTask = useCallback(() => {
+    setPendingConfirmTask(null);
+  }, []);
 
   const handleCancel = useCallback(() => {
+    setPendingConfirmTask(null);
     agentExec.cancel();
   }, [agentExec]);
 
@@ -262,21 +300,41 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
       <div className="relative w-full max-w-lg bg-card rounded-l-2xl shadow-2xl border-l border-border/50 overflow-hidden flex flex-col animate-slide-in">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-gradient-to-r from-emerald-500/5 to-green-500/5">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <MessageCircle className="w-5 h-5 text-emerald-500" />
-            对话
-          </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <button
-              onClick={() => setShowStream(!showStream)}
+              onClick={() => setActiveTab('chat')}
               className={cn(
-                'p-2 rounded-lg transition-colors',
-                showStream ? 'bg-emerald-500/20 text-emerald-500' : 'hover:bg-accent'
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                activeTab === 'chat' ? 'bg-emerald-500/20 text-emerald-400' : 'text-muted-foreground hover:bg-accent'
               )}
-              title="CLI 流式输出"
             >
-              <TerminalIcon className="w-5 h-5" />
+              <MessageCircle className="w-4 h-4" />
+              对话
             </button>
+            <button
+              onClick={() => setActiveTab('terminal')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                activeTab === 'terminal' ? 'bg-green-500/20 text-green-400' : 'text-muted-foreground hover:bg-accent'
+              )}
+            >
+              <TerminalIcon className="w-4 h-4" />
+              终端
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            {activeTab === 'chat' && (
+              <button
+                onClick={() => setShowStream(!showStream)}
+                className={cn(
+                  'p-2 rounded-lg transition-colors',
+                  showStream ? 'bg-emerald-500/20 text-emerald-500' : 'hover:bg-accent'
+                )}
+                title="CLI 流式输出"
+              >
+                <Activity className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={onClose}
               className="p-2 rounded-lg hover:bg-accent transition-colors"
@@ -286,6 +344,13 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
           </div>
         </div>
 
+        {/* 终端 Tab（始终挂载，切换时用 hidden 隐藏，避免断连） */}
+        <div className={cn('flex-1 overflow-hidden', activeTab !== 'terminal' && 'hidden')}>
+          <TerminalPanel teamId={teamId} visible={activeTab === 'terminal'} />
+        </div>
+
+        {/* 对话 Tab */}
+        {activeTab === 'chat' && <>
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {localMessages.length === 0 ? (
@@ -316,6 +381,31 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
                 </div>
                 <div className="bg-[#1a1a1a] rounded-xl px-3 py-2 text-xs text-green-400 max-h-64 overflow-y-auto border border-white/5">
                   <pre className="whitespace-pre-wrap font-mono leading-relaxed">{lastCliOutput}</pre>
+                </div>
+              </div>
+            </div>
+          )}
+          {pendingConfirmTask && (
+            <div className="flex gap-3 justify-start">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center flex-shrink-0">
+                <Bot className="w-4 h-4 text-white" />
+              </div>
+              <div className="flex-1 max-w-[85%] bg-amber-500/10 rounded-2xl px-4 py-3 border border-amber-500/20">
+                <p className="text-sm text-amber-300 font-semibold mb-1">⚠ 监控模式 — 确认执行此任务？</p>
+                <p className="text-sm text-amber-100/80 mb-3 break-all">{pendingConfirmTask}</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleConfirmTask}
+                    className="px-4 py-1.5 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors font-medium"
+                  >
+                    允许
+                  </button>
+                  <button
+                    onClick={handleCancelTask}
+                    className="px-4 py-1.5 text-sm bg-[#252526] hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded transition-colors"
+                  >
+                    拒绝
+                  </button>
                 </div>
               </div>
             </div>
@@ -378,6 +468,29 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
                 {agentExec.elapsedSecs >= 30 && (
                   <p className="text-xs text-amber-500/80 px-2">任务耗时较长，请耐心等待...</p>
                 )}
+              </div>
+            </div>
+          )}
+          {agentExec.status === 'confirmation' && agentExec.confirmationQuestion && (
+            <div className="flex gap-3 justify-start">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center flex-shrink-0">
+                <Bot className="w-4 h-4 text-white" />
+              </div>
+              <div className="flex-1 max-w-[85%] bg-amber-500/10 rounded-2xl px-4 py-3 border border-amber-500/20">
+                <p className="text-sm text-amber-200 font-medium mb-3">
+                  {agentExec.confirmationQuestion}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {agentExec.confirmationOptions.map((option) => (
+                    <button
+                      key={option}
+                      onClick={() => agentExec.sendConfirmation(option)}
+                      className="px-3 py-1.5 text-sm bg-[#252526] hover:bg-amber-500/30 text-amber-200 border border-amber-500/30 rounded transition-colors"
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -457,6 +570,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
 
         {/* Input — 独立组件，打字不触发消息列表/终端重渲染 */}
         <ChatInput isActive={isActive} onSend={handleSend} onCancel={handleCancel} />
+        </>}
       </div>
     </div>
   );

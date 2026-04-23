@@ -5,6 +5,7 @@ pub mod terminal;
 pub mod claude_stream;
 pub mod agent_execution;
 pub mod run_command;
+pub mod pty_ws;
 
 pub use handler::WebSocketHandler;
 pub use terminal::TerminalWsHandler;

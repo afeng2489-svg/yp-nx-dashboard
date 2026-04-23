@@ -1288,6 +1288,7 @@ dependencies = [
  "nx_plugin",
  "nx_session",
  "parking_lot",
+ "portable-pty",
  "reqwest",
  "rusqlite",
  "serde",

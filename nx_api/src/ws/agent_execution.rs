@@ -47,6 +47,13 @@ pub enum AgentExecutionEvent {
     Cancelled {
         execution_id: String,
     },
+    /// 需要用户确认（CLI 遇到需要确认的情况）
+    ConfirmationRequired {
+        execution_id: String,
+        question: String,
+        options: Vec<String>,    // e.g. ["y", "n", "yes", "no"]
+        needs_input: bool,        // true 表示需要用户输入文本，false 表示选择选项
+    },
 }
 
 impl AgentExecutionEvent {
@@ -58,7 +65,8 @@ impl AgentExecutionEvent {
             | Self::Output { execution_id, .. }
             | Self::Completed { execution_id, .. }
             | Self::Failed { execution_id, .. }
-            | Self::Cancelled { execution_id, .. } => execution_id,
+            | Self::Cancelled { execution_id, .. }
+            | Self::ConfirmationRequired { execution_id, .. } => execution_id,
         }
     }
 }
@@ -69,6 +77,8 @@ impl AgentExecutionEvent {
 enum ClientMessage {
     /// 取消执行
     Cancel,
+    /// 确认响应
+    Confirm { response: String },
 }
 
 /// Agent 执行状态管理器
@@ -82,6 +92,8 @@ pub struct AgentExecutionManager {
     cancel_tokens: std::sync::Arc<parking_lot::RwLock<std::collections::HashMap<String, CancellationToken>>>,
     /// 已完成执行的最终事件缓存（供晚连接的 WS 客户端回放）
     terminal_events: std::sync::Arc<parking_lot::RwLock<std::collections::HashMap<String, AgentExecutionEvent>>>,
+    /// 确认响应等待器：execution_id -> channel to send confirmation response
+    confirmations: std::sync::Arc<parking_lot::RwLock<std::collections::HashMap<String, tokio::sync::oneshot::Sender<String>>>>,
 }
 
 impl AgentExecutionManager {
@@ -92,6 +104,7 @@ impl AgentExecutionManager {
             event_tx,
             cancel_tokens: std::sync::Arc::new(parking_lot::RwLock::new(std::collections::HashMap::new())),
             terminal_events: std::sync::Arc::new(parking_lot::RwLock::new(std::collections::HashMap::new())),
+            confirmations: std::sync::Arc::new(parking_lot::RwLock::new(std::collections::HashMap::new())),
         }
     }
 
@@ -135,6 +148,25 @@ impl AgentExecutionManager {
     pub fn get_terminal_event(&self, execution_id: &str) -> Option<AgentExecutionEvent> {
         self.terminal_events.read().get(execution_id).cloned()
     }
+
+    /// 注册确认响应等待器，返回 channel 接收端
+    /// 调用方通过 receiver 等待用户确认响应
+    pub fn register_confirmation(&self, execution_id: &str) -> tokio::sync::oneshot::Receiver<String> {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        self.confirmations.write().insert(execution_id.to_string(), tx);
+        rx
+    }
+
+    /// 发送确认响应给等待者
+    /// 如果没有等待者，返回 None
+    pub fn send_confirmation_response(&self, execution_id: &str, response: String) -> bool {
+        if let Some(tx) = self.confirmations.write().remove(execution_id) {
+            let _ = tx.send(response);
+            true
+        } else {
+            false
+        }
+    }
 }
 
 impl Default for AgentExecutionManager {
@@ -165,7 +197,7 @@ pub async fn handle_agent_execution_ws(
 
     loop {
         tokio::select! {
-            // 处理客户端消息（取消请求）
+            // 处理客户端消息（取消请求或确认响应）
             msg = receiver.next() => {
                 match msg {
                     Some(Ok(AxumMessage::Text(text))) => {
@@ -181,6 +213,12 @@ pub async fn handle_agent_execution_ws(
                                     }
                                 }
                                 break;
+                            }
+                            Ok(ClientMessage::Confirm { response }) => {
+                                tracing::info!("[AgentExecWS] 收到确认响应: {} -> {}", execution_id, response);
+                                if manager.send_confirmation_response(&execution_id, response) {
+                                    // 响应已发送，继续等待后续事件
+                                }
                             }
                             Err(e) => {
                                 tracing::debug!("[AgentExecWS] 无法解析客户端消息: {}", e);

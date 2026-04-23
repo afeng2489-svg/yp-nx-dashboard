@@ -3,6 +3,7 @@
 use axum::{
     extract::{Path, State},
     routing::{get, post, put, delete},
+    Json,
     Router,
 };
 use tower_http::cors::{CorsLayer, Any};
@@ -12,7 +13,7 @@ use std::path::PathBuf;
 use parking_lot::RwLock;
 
 use crate::config::ApiConfig;
-use crate::services::{WorkflowService, ExecutionService, SessionService, SqliteSessionRepository, SqliteWorkflowRepository, SqliteWorkspaceRepository, WorkspaceService, TestGenerator, PluginService, WisdomService, SharedWisdomService, SkillService, TelegramService, SqliteTeamRepository, SqliteApiKeyRepository, ProjectService, SqliteProjectRepository, AgentTeamService, SqliteProviderRepository, ProviderService, GroupChatService, SqliteGroupChatRepository, SqliteIssueRepository};
+use crate::services::{WorkflowService, ExecutionService, SessionService, SqliteSessionRepository, SqliteWorkflowRepository, SqliteWorkspaceRepository, WorkspaceService, TestGenerator, PluginService, WisdomService, SharedWisdomService, SkillService, TelegramService, SqliteTeamRepository, SqliteApiKeyRepository, ProjectService, SqliteProjectRepository, AgentTeamService, SqliteProviderRepository, ProviderService, GroupChatService, SqliteGroupChatRepository, SqliteIssueRepository, ClaudeTerminalManager};
 use crate::middleware::auth::ApiKeyAuth;
 use crate::ws::TerminalWsHandler;
 use crate::ws::ClaudeStreamWsHandler;
@@ -338,6 +339,8 @@ pub struct AppState {
     pub memory_state: Arc<MemoryState>,
     /// Agent 执行管理器（WebSocket 事件推送 + 取消支持）
     pub agent_execution_manager: AgentExecutionManager,
+    /// Claude 终端管理器（PTY 会话，每个团队角色一个终端）
+    pub claude_terminal_manager: ClaudeTerminalManager,
     /// 当前工作区路径，用于 Claude CLI --project 参数
     pub current_workspace_path: Arc<RwLock<Option<String>>>,
     /// API 密钥（用于认证中间件）
@@ -495,6 +498,9 @@ impl AppState {
         // 创建 Agent 执行管理器
         let agent_execution_manager = AgentExecutionManager::new();
 
+        // 创建 Claude 终端管理器
+        let claude_terminal_manager = ClaudeTerminalManager::new();
+
         // 创建 Issue 仓储
         let issue_repository = Arc::new(
             SqliteIssueRepository::new(config.db_path.as_ref())
@@ -520,6 +526,7 @@ impl AppState {
             group_chat_service,
             memory_state,
             agent_execution_manager,
+            claude_terminal_manager,
             current_workspace_path,
             api_key_config,
             issue_repository,
@@ -737,6 +744,11 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/ws/claude-stream", get(claude_stream_ws_handler))
         .route("/ws/run-command", get(run_command_ws_handler))
         .route("/ws/agent-executions/:execution_id", get(agent_execution_ws_handler))
+        .route("/ws/teams/:team_id/terminal/:session_id", get(claude_terminal_ws_handler))
+        // 创建终端会话 REST 端点
+        .route("/api/v1/teams/:team_id/terminal", post(create_terminal_session_handler))
+        .route("/api/v1/teams/:team_id/terminal/:session_id/task", post(dispatch_terminal_task_handler))
+        .route("/api/v1/teams/:team_id/terminal/:session_id", delete(close_terminal_session_handler))
         // 应用认证中间件到所有 API 和 WebSocket 路由
         .route_layer(axum::middleware::from_fn_with_state(
             app_state_for_router.clone(),
@@ -807,4 +819,63 @@ async fn agent_execution_ws_handler(
     ws.on_upgrade(async move |socket| {
         crate::ws::agent_execution::handle_agent_execution_ws(socket, execution_id, manager).await;
     })
+}
+
+/// Claude 终端 WebSocket 处理函数
+async fn claude_terminal_ws_handler(
+    ws: axum::extract::ws::WebSocketUpgrade,
+    State(state): State<Arc<AppState>>,
+    Path((_team_id, session_id)): Path<(String, String)>,
+) -> impl axum::response::IntoResponse {
+    let manager = state.claude_terminal_manager.clone();
+
+    ws.on_upgrade(async move |socket| {
+        crate::ws::pty_ws::handle_pty_ws(socket, session_id, manager).await;
+    })
+}
+
+/// 创建终端会话
+async fn create_terminal_session_handler(
+    State(state): State<Arc<AppState>>,
+    Path(team_id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> impl axum::response::IntoResponse {
+    let role_id = body.get("role_id").and_then(|v| v.as_str());
+    let working_dir = state.current_workspace_path.read().clone();
+    let cols = body.get("cols").and_then(|v| v.as_u64()).unwrap_or(220) as u16;
+    let rows = body.get("rows").and_then(|v| v.as_u64()).unwrap_or(50) as u16;
+
+    let session_id = state.claude_terminal_manager.create_session(
+        &team_id,
+        role_id,
+        working_dir.as_deref(),
+        cols,
+        rows,
+    );
+
+    axum::Json(serde_json::json!({ "session_id": session_id }))
+}
+
+/// 向终端会话派发任务（后端构建完整 prompt 后丢给终端）
+async fn dispatch_terminal_task_handler(
+    State(state): State<Arc<AppState>>,
+    Path((_team_id, session_id)): Path<(String, String)>,
+    Json(body): Json<serde_json::Value>,
+) -> impl axum::response::IntoResponse {
+    let task = body.get("task").and_then(|v| v.as_str()).unwrap_or("");
+
+    if state.claude_terminal_manager.dispatch_task(&session_id, task) {
+        axum::Json(serde_json::json!({ "ok": true }))
+    } else {
+        axum::Json(serde_json::json!({ "ok": false, "error": "session not found" }))
+    }
+}
+
+/// 关闭终端会话
+async fn close_terminal_session_handler(
+    State(state): State<Arc<AppState>>,
+    Path((_team_id, session_id)): Path<(String, String)>,
+) -> impl axum::response::IntoResponse {
+    state.claude_terminal_manager.close_session(&session_id);
+    axum::Json(serde_json::json!({ "ok": true }))
 }

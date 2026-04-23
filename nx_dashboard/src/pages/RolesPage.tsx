@@ -52,22 +52,33 @@ export function RolesPage() {
 
   // Fetch all roles from API
   useEffect(() => {
+    let cancelled = false;
     const loadAllRoles = async () => {
       setLoading(true);
       try {
         const response = await fetch(`${API_BASE}/api/v1/roles`);
+        if (cancelled) return;
         if (response.ok) {
           const roles: RoleWithTeam[] = await response.json();
+          // Deduplicate by id
+          const seen = new Set<string>();
+          const uniqueRoles = roles.filter(r => {
+            if (seen.has(r.id)) return false;
+            seen.add(r.id);
+            return true;
+          });
           // Roles are global now - no team association in the response
-          setAllRoles(roles);
+          setAllRoles(uniqueRoles);
         }
       } catch (error) {
+        if (cancelled) return;
         console.error('Failed to fetch roles:', error);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     loadAllRoles();
+    return () => { cancelled = true; };
   }, [teams]);
 
   const filteredRoles = allRoles.filter(role => {

@@ -50,22 +50,25 @@ fn strip_ansi(s: &str) -> String {
     out
 }
 
-/// Run Claude CLI, streaming stderr lines as Output events (real-time progress).
-/// stdout is collected as the final result returned to the caller.
-/// Both pipes are drained concurrently so neither can deadlock.
-async fn run_claude(
+/// Run Claude CLI interactively, streaming output and supporting user confirmations.
+/// When CLI needs confirmation, sends ConfirmationRequired event and waits for user response.
+/// If auto_confirm is true, automatically sends 'y' without waiting.
+/// Returns (pid, success, full_output).
+async fn run_claude_interactive(
     args: &[&str],
     working_dir: Option<&str>,
-    stream_tx: Option<&(broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>, String)>,
+    stream_tx: &Option<(broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>, String)>,
+    confirm_rx: Option<tokio::sync::oneshot::Receiver<String>>,
+    auto_confirm: bool,
     timeout_secs: u64,
 ) -> Result<(Option<u32>, bool, String), String> {
-    use tokio::io::AsyncBufReadExt;
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
     let mut cmd = tokio::process::Command::new("/opt/homebrew/bin/claude");
     cmd.args(args);
-    cmd.stdin(std::process::Stdio::null());
+    cmd.stdin(std::process::Stdio::piped());
     cmd.stdout(std::process::Stdio::piped());
-    cmd.stderr(std::process::Stdio::piped()); // piped — drained by a concurrent task, no deadlock
+    cmd.stderr(std::process::Stdio::piped());
     if let Some(dir) = working_dir {
         cmd.current_dir(dir);
     }
@@ -75,11 +78,13 @@ async fn run_claude(
 
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
+    let stdin = child.stdin.take().unwrap();
 
-    // Clone sender so the stderr task can own it
-    let stderr_sender = stream_tx.map(|(tx, id)| (tx.clone(), id.clone()));
+    // Clone senders
+    let stderr_sender = stream_tx.as_ref().map(|(tx, id)| (tx.clone(), id.clone()));
+    let stdout_sender = stream_tx.as_ref().map(|(tx, id)| (tx.clone(), id.clone()));
 
-    // Drain stderr concurrently: prevents buffer deadlock AND streams progress to the card
+    // Drain stderr concurrently
     let stderr_handle = tokio::spawn(async move {
         let mut stderr_lines = tokio::io::BufReader::new(stderr).lines();
         while let Ok(Some(line)) = stderr_lines.next_line().await {
@@ -96,11 +101,30 @@ async fn run_claude(
         }
     });
 
+    // Clone stdin for the confirmation handler
+    let mut stdin_clone = stdin;
+    let mut confirm_rx_opt = confirm_rx.map(|rx| rx);
+
     let mut stdout_lines = tokio::io::BufReader::new(stdout).lines();
     let mut full_output = String::new();
 
-    // Clone sender for stdout streaming (real-time output to frontend)
-    let stdout_sender = stream_tx.map(|(tx, id)| (tx.clone(), id.clone()));
+    // Confirmation detection patterns
+    let confirm_patterns = [
+        "y/n",
+        "yes/no",
+        "proceed?",
+        "continue?",
+        "confirm?",
+        "press enter to continue",
+        "press enter to proceed",
+        "override?",
+        "skip?",
+        "abort?",
+        "[y/n]",
+        "[yes/no]",
+    ];
+
+    let exec_id = stream_tx.as_ref().map(|(_, id)| id.clone()).unwrap_or_default();
 
     let timed_out = tokio::time::timeout(Duration::from_secs(timeout_secs), async {
         while let Ok(Some(line)) = stdout_lines.next_line().await {
@@ -115,12 +139,64 @@ async fn run_claude(
                     });
                 }
             }
+
+            // Check for confirmation patterns (case-insensitive)
+            let line_lower = line.to_lowercase();
+            let needs_confirmation = confirm_patterns.iter().any(|p| line_lower.contains(p));
+
+            if needs_confirmation && confirm_rx_opt.is_some() {
+                // Auto-confirm mode: skip waiting, just send 'y'
+                if auto_confirm {
+                    let _ = stdin_clone.write_all(b"y\n").await;
+                    let _ = stdin_clone.flush().await;
+                    tracing::info!("[run_claude] Auto-confirm: sent 'y'");
+                    full_output.push_str(&line);
+                    full_output.push('\n');
+                    continue;
+                }
+
+                // Send confirmation required event
+                if let Some((ref tx, ref id)) = stdout_sender {
+                    let question = strip_ansi(&line).trim().to_string();
+                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::ConfirmationRequired {
+                        execution_id: id.clone(),
+                        question: question.clone(),
+                        options: vec!["y".to_string(), "n".to_string()],
+                        needs_input: false,
+                    });
+                }
+
+                // Wait for user confirmation response (only once)
+                if let Some(mut confirm_rx) = confirm_rx_opt.take() {
+                    match tokio::time::timeout(Duration::from_secs(300), &mut confirm_rx).await {
+                        Ok(Ok(response)) => {
+                            // Write response to stdin
+                            let response_line = format!("{}\n", response.trim());
+                            if let Err(e) = stdin_clone.write_all(response_line.as_bytes()).await {
+                                tracing::error!("[run_claude] Failed to write to stdin: {}", e);
+                            }
+                            let _ = stdin_clone.flush().await;
+                            tracing::info!("[run_claude] Sent confirmation response: {}", response);
+                        }
+                        Ok(Err(_)) => {
+                            tracing::info!("[run_claude] Confirmation channel closed, aborting");
+                            break;
+                        }
+                        Err(_) => {
+                            tracing::warn!("[run_claude] Confirmation timeout (5min), sending 'y'");
+                            let _ = stdin_clone.write_all(b"y\n").await;
+                            let _ = stdin_clone.flush().await;
+                        }
+                    }
+                }
+            }
+
             full_output.push_str(&line);
             full_output.push('\n');
         }
     }).await.is_err();
 
-    // Kill BEFORE wait — Node.js ignores broken-pipe so child.wait() would block forever
+    // Kill BEFORE wait
     if timed_out {
         stderr_handle.abort();
         let _ = child.kill().await;
@@ -425,10 +501,14 @@ impl AgentTeamService {
     /// - If no skill matches → return normal AI response
     ///
     /// `stream_tx`: if Some, streams stdout lines as AgentExecutionEvent::Output events
+    /// `confirm_rx`: if Some, waits for user confirmation when CLI needs input
+    /// `auto_confirm`: if true, automatically confirms without waiting for user response
     pub async fn execute_team_task(
         &self,
         request: ExecuteTeamTaskRequest,
         stream_tx: Option<(broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>, String)>,
+        confirm_rx: Option<tokio::sync::oneshot::Receiver<String>>,
+        auto_confirm: bool,
     ) -> Result<ExecuteTeamTaskResponse, AgentTeamServiceError> {
         // Load team
         let team = self
@@ -520,11 +600,18 @@ IMPORTANT: When asked to generate documents, reports, or design files, write the
         let proc_exec_id = format!("team-{}", uuid::Uuid::new_v4());
         self.register_process(&proc_exec_id, &team.id, &team.name, &team.id, &request.task);
 
-        // Single Claude CLI call — 600s timeout for long-running tasks
-        let pty_result = run_claude(
-            &["-p", "--dangerously-skip-permissions", "--no-session-persistence", &full_prompt],
+// Single Claude CLI call — 600s timeout for long-running tasks
+        let args = if auto_confirm {
+            vec!["-p", "--dangerously-skip-permissions", "--no-session-persistence", &full_prompt]
+        } else {
+            vec!["-p", "--no-session-persistence", &full_prompt]
+        };
+        let pty_result = run_claude_interactive(
+            &args,
             working_dir.as_deref(),
-            stream_tx.as_ref(),
+            &stream_tx,
+            confirm_rx,
+            auto_confirm,
             1800, // 30 min — complex coding tasks can take 25+ min
         ).await;
         let (pid, success, response) = match pty_result {
@@ -673,10 +760,12 @@ IMPORTANT: When asked to generate documents, reports, or design files, write the
 
         tracing::info!("[AgentTeam] Full prompt length: {}, memory_context included: {}", full_prompt.len(), !memory_context.is_empty());
 
-        let pty_result = run_claude(
+        let pty_result = run_claude_interactive(
             &["-p", "--dangerously-skip-permissions", "--no-session-persistence", &full_prompt],
             working_dir.as_deref(),
-            stream_tx.as_ref(),
+            &stream_tx,
+            None, // execute_role_task doesn't support confirmations yet
+            false, // auto_confirm
             1800, // 30 min — complex coding tasks can take 25+ min
         ).await;
 
