@@ -566,6 +566,7 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/workspaces/:id/diff/*file_path", get(workspaces::get_file_diff))
         .route("/api/v1/workspaces/:id/git/status", get(workspaces::get_git_status))
         .route("/api/v1/workspaces/:id/scripts", get(workspaces::detect_scripts))
+        .route("/api/v1/workspaces/:id/detect-services", get(workspaces::detect_services))
         .route("/api/v1/workspaces/:id/file", get(workspaces::read_file).put(workspaces::write_file).delete(workspaces::delete_file))
         // 测试生成路由
         .route("/api/v1/test-gen", post(test_gen::generate_tests))

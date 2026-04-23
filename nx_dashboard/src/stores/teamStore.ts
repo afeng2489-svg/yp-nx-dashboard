@@ -543,13 +543,17 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       }
       const backendRole = await response.json();
       const newRole = mapBackendRole(backendRole);
-      // Add to the target team's roles
-      set((state) => ({
-        roles: {
-          ...state.roles,
-          [teamId]: [...(state.roles[teamId] || []), newRole],
-        },
-      }));
+      // Add to the target team's roles (dedup by id to prevent duplicates)
+      set((state) => {
+        const existing = state.roles[teamId] || [];
+        const already = existing.some(r => r.id === newRole.id);
+        return {
+          roles: {
+            ...state.roles,
+            [teamId]: already ? existing : [...existing, newRole],
+          },
+        };
+      });
       return newRole;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';

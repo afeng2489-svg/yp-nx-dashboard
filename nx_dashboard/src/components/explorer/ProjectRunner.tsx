@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Square, Trash2, Terminal, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { Play, Square, Trash2, Terminal, ChevronDown, ChevronRight, Loader2, Server, Settings, CheckCircle, XCircle, AlertCircle, Edit2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useCommandRunner, OutputLine } from '@/hooks/useCommandRunner';
+import { useServiceRunner } from '@/hooks/useServiceRunner';
+import { useSettingsStore, ServiceEntry } from '@/stores/settingsStore';
 import { API_BASE_URL } from '@/api/constants';
 
 interface ScriptEntry {
@@ -37,6 +39,14 @@ const COMMON_COMMANDS: ScriptEntry[] = [
 export function ProjectRunner() {
   const { currentWorkspace } = useWorkspaceStore();
   const runner = useCommandRunner();
+  const { services, updateService } = useSettingsStore();
+
+  // One service runner per configured service (max 4 for simplicity — hooks must be called unconditionally)
+  const svc0 = useServiceRunner();
+  const svc1 = useServiceRunner();
+  const svc2 = useServiceRunner();
+  const svc3 = useServiceRunner();
+  const svcRunners = [svc0, svc1, svc2, svc3];
 
   const [scripts, setScripts] = useState<ScriptEntry[]>([]);
   const [projectType, setProjectType] = useState('unknown');
@@ -44,6 +54,9 @@ export function ProjectRunner() {
   const [customCommand, setCustomCommand] = useState('');
   const [showScripts, setShowScripts] = useState(true);
   const [showCommon, setShowCommon] = useState(true);
+  const [showServices, setShowServices] = useState(true);
+  const [editingService, setEditingService] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<{ command: string; cwd: string }>({ command: '', cwd: '' });
 
   const outputEndRef = useRef<HTMLDivElement>(null);
 
@@ -51,6 +64,29 @@ export function ProjectRunner() {
   useEffect(() => {
     outputEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [runner.output]);
+
+  // Auto-detect services when workspace changes
+  useEffect(() => {
+    if (!currentWorkspace?.id) return;
+
+    const detect = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/v1/workspaces/${currentWorkspace.id}/detect-services`);
+        if (!res.ok) return;
+        const data: { services: { id: string; name: string; command: string; cwd: string }[] } = await res.json();
+        data.services.forEach((detected) => {
+          const existing = services.find(s => s.id === detected.id);
+          if (existing && !existing.cwd) {
+            updateService(detected.id, { command: detected.command, cwd: detected.cwd });
+          }
+        });
+      } catch {
+        // ignore
+      }
+    };
+
+    detect();
+  }, [currentWorkspace?.id]);
 
   // Fetch scripts when workspace changes
   useEffect(() => {
@@ -207,6 +243,140 @@ export function ProjectRunner() {
                 {cmd.name}
               </button>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Service Manager */}
+      <div className="border-b">
+        <button
+          onClick={() => setShowServices(!showServices)}
+          className="w-full flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {showServices ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+          <Server className="w-3 h-3" />
+          服务管理
+        </button>
+        {showServices && (
+          <div className="px-3 pb-3 space-y-2">
+            {services.slice(0, 4).map((svc, idx) => {
+              const runner2 = svcRunners[idx];
+              const isRunning = runner2.status === 'running' || runner2.status === 'starting';
+              const isEditing = editingService === svc.id;
+
+              return (
+                <div key={svc.id} className="rounded-lg border border-border/60 bg-background/50 p-2 space-y-1.5">
+                  {/* Header row */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {/* Status dot */}
+                      {runner2.status === 'running' && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />}
+                      {runner2.status === 'starting' && <Loader2 className="w-3 h-3 text-yellow-500 animate-spin shrink-0" />}
+                      {runner2.status === 'stopping' && <Loader2 className="w-3 h-3 text-orange-500 animate-spin shrink-0" />}
+                      {runner2.status === 'idle' && <span className="w-2 h-2 rounded-full bg-muted-foreground/40 shrink-0" />}
+                      {runner2.status === 'error' && <AlertCircle className="w-3 h-3 text-red-500 shrink-0" />}
+                      <span className="text-xs font-medium truncate">{svc.name}</span>
+                      {runner2.pid && (
+                        <span className="text-[10px] text-muted-foreground">PID:{runner2.pid}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => {
+                          if (isEditing) {
+                            setEditingService(null);
+                          } else {
+                            setEditValues({ command: svc.command, cwd: svc.cwd || currentWorkspace.root_path || '' });
+                            setEditingService(svc.id);
+                          }
+                        }}
+                        className="p-1 rounded hover:bg-accent transition-colors"
+                        title="配置"
+                      >
+                        <Settings className="w-3 h-3 text-muted-foreground" />
+                      </button>
+                      {isRunning ? (
+                        <button
+                          onClick={() => runner2.stop()}
+                          className="flex items-center gap-0.5 px-2 py-0.5 text-[11px] rounded bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors font-medium"
+                        >
+                          <Square className="w-2.5 h-2.5" />
+                          关闭
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => runner2.start(svc.command, svc.cwd || currentWorkspace.root_path!)}
+                          disabled={!svc.command}
+                          className={cn(
+                            'flex items-center gap-0.5 px-2 py-0.5 text-[11px] rounded font-medium transition-colors',
+                            svc.command
+                              ? 'bg-green-500/10 text-green-600 hover:bg-green-500/20'
+                              : 'opacity-40 cursor-not-allowed bg-muted text-muted-foreground'
+                          )}
+                          title={svc.cwd ? svc.cwd : `使用当前工作区: ${currentWorkspace.root_path}`}
+                        >
+                          <Play className="w-2.5 h-2.5" />
+                          启动
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Last output line */}
+                  {runner2.lastLine && !isEditing && (
+                    <p className="text-[10px] text-muted-foreground font-mono truncate px-0.5">
+                      {runner2.lastLine}
+                    </p>
+                  )}
+
+                  {/* Edit config */}
+                  {isEditing && (
+                    <div className="space-y-1 pt-1">
+                      <input
+                        type="text"
+                        value={editValues.command}
+                        onChange={(e) => setEditValues(v => ({ ...v, command: e.target.value }))}
+                        placeholder="命令 (如: npm run dev)"
+                        className="w-full px-2 py-1 text-[11px] rounded border bg-background outline-none focus:ring-1 focus:ring-primary font-mono"
+                      />
+                      <input
+                        type="text"
+                        value={editValues.cwd}
+                        onChange={(e) => setEditValues(v => ({ ...v, cwd: e.target.value }))}
+                        placeholder="工作目录 (如: /path/to/project)"
+                        className="w-full px-2 py-1 text-[11px] rounded border bg-background outline-none focus:ring-1 focus:ring-primary font-mono"
+                      />
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => {
+                            updateService(svc.id, { command: editValues.command, cwd: editValues.cwd });
+                            setEditingService(null);
+                          }}
+                          className="px-2 py-0.5 text-[11px] rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                        >
+                          保存
+                        </button>
+                        {currentWorkspace?.root_path && (
+                          <button
+                            onClick={() => setEditValues(v => ({ ...v, cwd: currentWorkspace.root_path! }))}
+                            className="px-2 py-0.5 text-[11px] rounded border hover:bg-accent transition-colors text-muted-foreground"
+                            title="使用当前工作区路径"
+                          >
+                            用当前路径
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setEditingService(null)}
+                          className="px-2 py-0.5 text-[11px] rounded border hover:bg-accent transition-colors text-muted-foreground"
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

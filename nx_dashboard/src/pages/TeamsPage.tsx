@@ -345,25 +345,6 @@ export function TeamsPage() {
         />
       )}
 
-      {/* Create Role Modal (New Role) */}
-      {showRoleEditor && selectedTeam && !editingRole && (
-        <RoleEditor
-          role={null}
-          teamId={selectedTeam.id}
-          onClose={() => {
-            setShowRoleEditor(false);
-            setEditingRole(null);
-          }}
-          onSave={() => {
-            setShowRoleEditor(false);
-            setEditingRole(null);
-            if (selectedTeam) {
-              fetchRoles(selectedTeam.id);
-            }
-          }}
-        />
-      )}
-
       {/* Conversation View */}
       {showConversation && selectedTeam && (
         <ConversationView
@@ -399,7 +380,7 @@ export function TeamsPage() {
 // Create Team Modal Component
 interface CreateTeamModalProps {
   onClose: () => void;
-  onCreate: (team: { name: string; description?: string }) => void;
+  onCreate: (team: { name: string; description?: string }) => Promise<void> | void;
 }
 
 function CreateTeamModal({ onClose, onCreate }: CreateTeamModalProps) {

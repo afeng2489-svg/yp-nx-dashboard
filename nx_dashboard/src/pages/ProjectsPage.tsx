@@ -37,6 +37,7 @@ export function ProjectsPage() {
   }, []);
 
   // Combine projects and workspaces into a unified list
+  const executionProjectNames = new Set(projects.map(p => p.name));
   const displayProjects: DisplayProject[] = [
     // Execution projects
     ...projects.map(p => ({
@@ -49,9 +50,9 @@ export function ProjectsPage() {
       created_at: p.created_at,
       updated_at: p.updated_at,
     })),
-    // Local projects (workspaces with root_path)
+    // Local projects (workspaces with root_path), excluding those with same name as an execution project
     ...workspaces
-      .filter(w => w.root_path)  // Only workspaces with actual folders
+      .filter(w => w.root_path && !executionProjectNames.has(w.name))
       .map(w => ({
         id: w.id,
         name: w.name,

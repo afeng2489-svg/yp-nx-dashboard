@@ -167,14 +167,7 @@ impl TeamService {
     }
 
     pub fn list_all_roles(&self) -> Result<Vec<TeamRole>, TeamServiceError> {
-        let teams = self.list_teams()?;
-        let mut all_roles = Vec::new();
-        for team in teams {
-            if let Ok(roles) = self.repository.find_roles_by_team(&team.id) {
-                all_roles.extend(roles);
-            }
-        }
-        Ok(all_roles)
+        self.repository.find_all_roles().map_err(Into::into)
     }
 
     pub fn update_role(

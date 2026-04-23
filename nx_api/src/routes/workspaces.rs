@@ -298,7 +298,131 @@ pub async fn detect_scripts(
     Ok(Json(ProjectScriptsResponse { project_type, scripts }))
 }
 
-/// 读取文件内容
+/// 自动检测工作区中的可运行服务（前端/后端）
+pub async fn detect_services(
+    State(state): State<Arc<AppState>>,
+    Path(workspace_id): Path<String>,
+) -> Result<Json<DetectServicesResponse>, (StatusCode, String)> {
+    let workspace = state
+        .workspace_service
+        .get_workspace(&workspace_id)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Workspace not found".to_string()))?;
+
+    let root_path = workspace
+        .root_path
+        .as_deref()
+        .ok_or_else(|| (StatusCode::BAD_REQUEST, "Workspace has no root_path".to_string()))?;
+
+    let root = std::path::Path::new(root_path);
+    if !root.exists() {
+        return Err((StatusCode::BAD_REQUEST, format!("Path does not exist: {}", root_path)));
+    }
+
+    let mut services: Vec<DetectedServiceEntry> = Vec::new();
+
+    // 扫描根目录 + 一级子目录
+    let mut scan_dirs: Vec<(std::path::PathBuf, String)> = vec![(root.to_path_buf(), String::new())];
+    if let Ok(entries) = std::fs::read_dir(root) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if !name.starts_with('.') && name != "node_modules" && name != "target" && name != "dist" {
+                    scan_dirs.push((path, name));
+                }
+            }
+        }
+    }
+
+    for (dir, _prefix) in &scan_dirs {
+        let dir_path = dir.to_string_lossy().to_string();
+
+        // Node.js 前端：有 package.json 且包含 dev 脚本
+        let pkg_json = dir.join("package.json");
+        if pkg_json.exists() {
+            if let Ok(content) = std::fs::read_to_string(&pkg_json) {
+                if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
+                    let scripts = pkg.get("scripts").and_then(|s| s.as_object());
+                    if let Some(pkg_scripts) = scripts {
+                        // 优先用 dev，其次 start
+                        let cmd = if pkg_scripts.contains_key("dev") {
+                            Some("npm run dev")
+                        } else if pkg_scripts.contains_key("start") {
+                            Some("npm start")
+                        } else {
+                            None
+                        };
+                        if let Some(cmd) = cmd {
+                            // 避免重复添加同路径
+                            if !services.iter().any(|s| s.id == "frontend" && s.cwd == dir_path) {
+                                services.push(DetectedServiceEntry {
+                                    id: "frontend".to_string(),
+                                    name: "前端".to_string(),
+                                    command: cmd.to_string(),
+                                    cwd: dir_path.clone(),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Rust 后端：有 Cargo.toml
+        let cargo_toml = dir.join("Cargo.toml");
+        if cargo_toml.exists() {
+            // 读取 Cargo.toml 确认是否有 workspace 或 package
+            let is_workspace = std::fs::read_to_string(&cargo_toml)
+                .map(|c| c.contains("[workspace]"))
+                .unwrap_or(false);
+
+            // 如果是 workspace，尝试找 bin package 名称
+            let cmd = if is_workspace {
+                // 检查是否有 nx_api 等常见名称的 package
+                let cmd_guess = "cargo run";
+                cmd_guess
+            } else {
+                "cargo run"
+            };
+
+            if !services.iter().any(|s| s.id == "backend" && s.cwd == dir_path) {
+                services.push(DetectedServiceEntry {
+                    id: "backend".to_string(),
+                    name: "后端".to_string(),
+                    command: cmd.to_string(),
+                    cwd: dir_path.clone(),
+                });
+            }
+        }
+
+        // Python 后端：有 main.py 或 manage.py
+        if dir.join("main.py").exists() || dir.join("manage.py").exists() {
+            let cmd = if dir.join("manage.py").exists() {
+                "python manage.py runserver"
+            } else {
+                "python main.py"
+            };
+            if !services.iter().any(|s| s.id == "backend") {
+                services.push(DetectedServiceEntry {
+                    id: "backend".to_string(),
+                    name: "后端".to_string(),
+                    command: cmd.to_string(),
+                    cwd: dir_path.clone(),
+                });
+            }
+        }
+    }
+
+    // 如果根目录本身没检测到前端/后端，但检测到了，优先使用根目录的
+    // 去重：每个 id 只保留第一个（根目录优先于子目录）
+    let mut seen_ids = std::collections::HashSet::new();
+    services.retain(|s| seen_ids.insert(s.id.clone()));
+
+    Ok(Json(DetectServicesResponse { services }))
+}
+
+
 pub async fn read_file(
     State(state): State<Arc<AppState>>,
     Path(workspace_id): Path<String>,
@@ -440,6 +564,19 @@ pub struct ProjectScriptsResponse {
 pub struct ScriptEntry {
     pub name: String,
     pub command: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DetectedServiceEntry {
+    pub id: String,
+    pub name: String,
+    pub command: String,
+    pub cwd: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DetectServicesResponse {
+    pub services: Vec<DetectedServiceEntry>,
 }
 
 #[derive(Debug, Deserialize)]

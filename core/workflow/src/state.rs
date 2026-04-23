@@ -63,19 +63,36 @@ impl WorkflowState {
     }
 
     /// 使用当前变量解析模板字符串
+    ///
+    /// 支持两类占位符：
+    /// - `{{var_name}}`        → variables HashMap 中的值
+    /// - `{{agent_id_output}}` → agent_states[agent_id].last_message（agent 完整输出）
     pub fn resolve_template(&self, template: &str) -> String {
         let mut result = template.to_string();
+
+        // 1. 先替换 variables（extract_vars 提取的值优先级高）
         for (key, value) in &self.variables {
             let value_str = match value {
                 serde_json::Value::String(s) => s.clone(),
                 other => other.to_string(),
             };
-            // 匹配 {{key}} 和 {{ key }} 两种格式
             let placeholder1 = format!("{{{{{}}}}}", key);
             let placeholder2 = format!("{{{{ {} }}}}", key);
             result = result.replace(&placeholder1, &value_str);
             result = result.replace(&placeholder2, &value_str);
         }
+
+        // 2. 替换 {{agent_id_output}} → agent 的完整输出（last_message）
+        for (agent_id, agent_state) in &self.agent_states {
+            if let Some(ref output) = agent_state.last_message {
+                let key = format!("{}_output", agent_id);
+                let placeholder1 = format!("{{{{{}}}}}", key);
+                let placeholder2 = format!("{{{{ {} }}}}", key);
+                result = result.replace(&placeholder1, output);
+                result = result.replace(&placeholder2, output);
+            }
+        }
+
         result
     }
 
