@@ -136,8 +136,8 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
   const [lastCliOutput, setLastCliOutput] = useState<string>('');
   const [showLastOutput, setShowLastOutput] = useState(false);
   const [pendingConfirmTask, setPendingConfirmTask] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const execLogEndRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const execLogScrollRef = useRef<HTMLDivElement>(null);
   const streamTerminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -187,9 +187,10 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
     return () => clearInterval(poll);
   }, [isActive, teamId, fetchMessages]);
 
-  // 执行日志自动滚底
+  // 执行日志自动滚底（直接操作容器 scrollTop，避免 scrollIntoView 带动外层消息列表跳动）
   useEffect(() => {
-    execLogEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = execLogScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [agentExec.partialOutput]);
 
   // 冻结保护：isActive 超过 5 分钟自动重置，防止 WS 丢失事件导致 UI 永久卡死
@@ -202,7 +203,8 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
   }, [isActive]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = messagesScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [localMessages]);
 
   useEffect(() => {
@@ -352,7 +354,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
         {/* 对话 Tab */}
         {activeTab === 'chat' && <>
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div ref={messagesScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
           {localMessages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
               <Bot className="w-12 h-12 mb-4 opacity-50" />
@@ -441,7 +443,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
                       实时
                     </span>
                   </div>
-                  <div className="p-3 font-mono text-xs text-gray-300 max-h-[260px] overflow-y-auto space-y-0.5">
+                  <div ref={execLogScrollRef} className="p-3 font-mono text-xs text-gray-300 max-h-[260px] overflow-y-auto space-y-0.5">
                     {agentExec.partialOutput ? (
                       agentExec.partialOutput.split('\n').filter(Boolean).slice(-200).map((line, i) => (
                         <div key={i} className="whitespace-pre-wrap break-all leading-relaxed">
@@ -462,7 +464,6 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
                         等待输出...
                       </div>
                     )}
-                    <div ref={execLogEndRef} />
                   </div>
                 </div>
                 {agentExec.elapsedSecs >= 30 && (
@@ -504,7 +505,6 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
               </div>
             </div>
           )}
-          <div ref={messagesEndRef} />
         </div>
 
         {/* Streaming Terminal Panel */}
