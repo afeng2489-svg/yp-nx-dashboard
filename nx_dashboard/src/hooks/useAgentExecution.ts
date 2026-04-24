@@ -18,6 +18,8 @@ interface AgentExecutionEvent {
   question?: string;
   options?: string[];
   needs_input?: boolean;
+  role_id?: string;
+  session_id?: string;
 }
 
 export type AgentExecutionStatus =
@@ -39,6 +41,8 @@ export interface UseAgentExecutionReturn {
   durationMs: number | null;
   confirmationQuestion: string | null;
   confirmationOptions: string[];
+  activeRoleId: string | null;
+  activeSessionId: string | null;
   execute: (teamId: string, task: string, autoConfirm?: boolean) => Promise<string | null>;
   executeRoleTurn: (sessionId: string, roleId: string) => Promise<string | null>;
   sendConfirmation: (response: string) => void;
@@ -65,6 +69,8 @@ export function useAgentExecution(): UseAgentExecutionReturn {
   const [durationMs, setDurationMs] = useState<number | null>(null);
   const [confirmationQuestion, setConfirmationQuestion] = useState<string | null>(null);
   const [confirmationOptions, setConfirmationOptions] = useState<string[]>([]);
+  const [activeRoleId, setActiveRoleId] = useState<string | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const timerRef = useRef<number | null>(null);
@@ -162,6 +168,12 @@ export function useAgentExecution(): UseAgentExecutionReturn {
         switch (data.type) {
           case 'started':
             setStatus('started');
+            if (data.role_id) {
+              setActiveRoleId(data.role_id);
+            }
+            if (data.session_id) {
+              setActiveSessionId(data.session_id);
+            }
             break;
           case 'thinking':
             setStatus('thinking');
@@ -284,7 +296,8 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     setResult(null);
     setError(null);
     setDurationMs(null);
-    startLocalTimer();
+    setActiveRoleId(null);
+    setActiveSessionId(null);    startLocalTimer();
     isRunningRef.current = true;
     reconnectCountRef.current = 0;
 
@@ -391,7 +404,8 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     setResult(null);
     setError(null);
     setDurationMs(null);
-    startLocalTimer();
+    setActiveRoleId(null);
+    setActiveSessionId(null);    startLocalTimer();
 
     try {
       const response = await fetch(
@@ -455,6 +469,8 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     setResult(null);
     setError(null);
     setDurationMs(null);
+    setActiveRoleId(null);
+    setActiveSessionId(null);
   }, [stopLocalTimer]);
 
   return {
@@ -467,6 +483,8 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     durationMs,
     confirmationQuestion,
     confirmationOptions,
+    activeRoleId,
+    activeSessionId,
     execute,
     executeRoleTurn,
     sendConfirmation,

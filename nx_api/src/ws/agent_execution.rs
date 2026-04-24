@@ -21,6 +21,10 @@ pub enum AgentExecutionEvent {
         execution_id: String,
         agent_role: String,
         task_summary: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        role_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        session_id: Option<String>,
     },
     /// Agent 思考中（心跳）
     Thinking {

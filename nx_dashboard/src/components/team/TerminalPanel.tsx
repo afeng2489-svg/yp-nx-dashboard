@@ -201,9 +201,11 @@ interface TerminalPanelProps {
   roles: Role[];
   workspacePath?: string;
   visible?: boolean;
+  /** 外部控制：切换到指定角色的终端 tab */
+  activeRoleId?: string | null;
 }
 
-export function TerminalPanel({ teamId, roles, workspacePath, visible = true }: TerminalPanelProps) {
+export function TerminalPanel({ teamId, roles, workspacePath, visible = true, activeRoleId: externalActiveRoleId }: TerminalPanelProps) {
   const [activeRoleId, setActiveRoleId] = useState<string | null>(null);
 
   // 首次有角色时默认选中第一个
@@ -212,6 +214,13 @@ export function TerminalPanel({ teamId, roles, workspacePath, visible = true }: 
       setActiveRoleId(roles[0].id);
     }
   }, [roles, activeRoleId]);
+
+  // 外部传入 activeRoleId 时切换到对应角色
+  useEffect(() => {
+    if (externalActiveRoleId && externalActiveRoleId !== activeRoleId) {
+      setActiveRoleId(externalActiveRoleId);
+    }
+  }, [externalActiveRoleId, activeRoleId]);
 
   if (roles.length === 0) {
     return (

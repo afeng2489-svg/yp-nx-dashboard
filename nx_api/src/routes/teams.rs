@@ -267,101 +267,72 @@ pub async fn execute_team_task(
     let cancel_token = tokio_util::sync::CancellationToken::new();
     state.agent_execution_manager.register_cancel_token(&execution_id, cancel_token.clone());
 
-    // 发送 Started 事件
+    // ── PTY-first dispatch: resolve target role_id ──────────────────────
+    let matched_role_id = find_role_by_trigger(&state, &team_id, &request.task).await;
+    let target_role_id = {
+        let sessions = state.claude_terminal_manager.list_sessions_for_team(&team_id);
+        // Prefer a role that already has a PTY session
+        sessions.first()
+            .and_then(|s| s.info.role_id.clone())
+            .or(matched_role_id)
+    };
+
+    // task_summary 提前计算
     let task_summary = if request.task.len() > 80 {
         format!("{}...", &request.task[..80])
     } else {
         request.task.clone()
     };
+
+    if let Some(ref role_id) = target_role_id {
+        let working_dir = state.current_workspace_path.read().clone();
+
+        match try_pty_dispatch(
+            &state,
+            &team_id,
+            role_id,
+            &request.task,
+            &execution_id,
+            working_dir.as_deref(),
+            event_tx.clone(),
+            cancel_token.clone(),
+        ) {
+            Ok(session_id) => {
+                tracing::info!("[Route] PTY dispatch 成功, role: {}, session: {}, execution_id: {}", role_id, session_id, execution_id);
+                // 发送 Started 事件（包含 role_id + session_id）
+                let _ = event_tx.send(crate::ws::agent_execution::AgentExecutionEvent::Started {
+                    execution_id: execution_id.clone(),
+                    agent_role: "team".to_string(),
+                    task_summary,
+                    role_id: Some(role_id.clone()),
+                    session_id: Some(session_id),
+                });
+                return Ok(Json(crate::models::team::ExecuteTeamTaskResponse {
+                    success: true,
+                    team_id: team_id.clone(),
+                    messages: vec![],
+                    final_output: format!("{{\"execution_id\":\"{}\",\"status\":\"processing\"}}", execution_id),
+                    error: None,
+                }));
+            }
+            Err(e) => {
+                tracing::warn!("[Route] PTY dispatch 失败, fallback 到原有路径: {}", e);
+                // Continue to fallback below
+            }
+        }
+    }
+
+    // Fallback Started 事件（无 PTY session）
     let _ = event_tx.send(crate::ws::agent_execution::AgentExecutionEvent::Started {
         execution_id: execution_id.clone(),
         agent_role: "team".to_string(),
         task_summary,
+        role_id: target_role_id.clone(),
+        session_id: None,
     });
 
-    // 1. 尝试匹配角色触发关键词（快速操作，不需要异步化）
-    if let Some(matched_role_id) = find_role_by_trigger(&state, &team_id, &request.task).await {
-        tracing::info!("[Route] 匹配到角色: {}，后台异步执行", matched_role_id);
-
-        let role_task_request = crate::models::team::ExecuteRoleTaskRequest {
-            role_id: matched_role_id.clone(),
-            task: request.task.clone(),
-            context: request.context.clone(),
-        };
-
-        // 后台异步执行角色任务
-        let state_bg = state.clone();
-        let team_id_bg = team_id.clone();
-        let exec_id = execution_id.clone();
-        let tx = event_tx.clone();
-        let manager = state.agent_execution_manager.clone();
-
-        tokio::spawn(async move {
-            let start = std::time::Instant::now();
-            let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
-            interval.tick().await; // 跳过第一次立即触发
-
-            let task_future = execute_role_task_with_context(
-                State(state_bg.clone()),
-                Json(role_task_request),
-                Some((tx.clone(), exec_id.clone())),
-            );
-            tokio::pin!(task_future);
-
-            let result = loop {
-                tokio::select! {
-                    res = &mut task_future => { break res; }
-                    _ = interval.tick() => {
-                        let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Thinking {
-                            execution_id: exec_id.clone(),
-                            elapsed_secs: start.elapsed().as_secs(),
-                        });
-                    }
-                    _ = cancel_token.cancelled() => {
-                        let event = crate::ws::agent_execution::AgentExecutionEvent::Cancelled {
-                            execution_id: exec_id.clone(),
-                        };
-                        manager.cache_terminal_event(event.clone());
-                        let _ = tx.send(event);
-                        manager.remove_execution(&exec_id);
-                        return;
-                    }
-                }
-            };
-
-            match result {
-                Ok(Json(role_response)) => {
-                    let event = crate::ws::agent_execution::AgentExecutionEvent::Completed {
-                        execution_id: exec_id.clone(),
-                        result: role_response.response.clone(),
-                        duration_ms: start.elapsed().as_millis() as u64,
-                    };
-                    manager.cache_terminal_event(event.clone());
-                    let _ = tx.send(event);
-                }
-                Err(e) => {
-                    let event = crate::ws::agent_execution::AgentExecutionEvent::Failed {
-                        execution_id: exec_id.clone(),
-                        error: e.message.clone(),
-                    };
-                    manager.cache_terminal_event(event.clone());
-                    let _ = tx.send(event);
-                }
-            }
-            manager.remove_execution(&exec_id);
-        });
-
-        // 立即返回 execution_id
-        return Ok(Json(crate::models::team::ExecuteTeamTaskResponse {
-            success: true,
-            team_id: team_id.clone(),
-            messages: vec![],
-            final_output: format!("{{\"execution_id\":\"{}\",\"status\":\"processing\"}}", execution_id),
-            error: None,
-        }));
-    }
-
-    // 2. 没有匹配到角色，执行原有的团队任务逻辑（异步后台执行）
+    // ── Fallback: 原有执行路径 ───────────────────────────────────────────
+    // 没有匹配到 PTY session 或 PTY dispatch 失败，使用原有异步执行逻辑
     let memory_context = search_and_build_context(&state.memory_state, &team_id, &request.task).await;
 
     let enhanced_request = ExecuteTeamTaskRequest {
@@ -464,6 +435,71 @@ pub async fn execute_team_task(
         final_output: format!("{{\"execution_id\":\"{}\",\"status\":\"processing\"}}", execution_id),
         error: None,
     }))
+}
+
+/// Try to dispatch a task to an existing or auto-created PTY session.
+/// Returns Ok(session_id) if dispatch succeeded, Err with reason if fallback needed.
+fn try_pty_dispatch(
+    state: &Arc<AppState>,
+    team_id: &str,
+    role_id: &str,
+    task: &str,
+    execution_id: &str,
+    working_dir: Option<&str>,
+    event_tx: tokio::sync::broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>,
+    cancel_token: tokio_util::sync::CancellationToken,
+) -> Result<String, String> {
+    // Get or create a PTY session for this role
+    let session = state.claude_terminal_manager.get_or_create_session(
+        team_id,
+        role_id,
+        working_dir,
+        80,
+        24,
+    );
+    let session_id = session.info.session_id.clone();
+
+    // Build the full prompt using the shared function
+    let team_context = {
+        // Build minimal team context from available roles
+        let teams_state = &state.teams_state;
+        match teams_state.team_service.get_team_with_roles(team_id) {
+            Ok(twr) => crate::services::agent_team_service::AgentTeamService::build_team_context_pub(&twr.team, &twr.roles),
+            Err(_) => String::new(),
+        }
+    };
+
+    let memory_context = tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(
+            search_and_build_context(&state.memory_state, team_id, task)
+        )
+    });
+    let full_prompt = crate::services::agent_team_service::build_team_prompt(
+        &team_context,
+        &memory_context,
+        task,
+        working_dir,
+    );
+
+    // Dispatch the task to the PTY session
+    session.dispatch_task(&full_prompt);
+
+    // Start the PTY task watcher in a background task
+    let session_clone = session.clone();
+    let exec_id = execution_id.to_string();
+    let manager = state.agent_execution_manager.clone();
+
+    tokio::spawn(async move {
+        crate::services::pty_task_watcher::watch_pty_task(
+            exec_id,
+            session_clone,
+            event_tx,
+            cancel_token,
+            manager,
+        ).await;
+    });
+
+    Ok(session_id)
 }
 
 /// 根据触发关键词查找匹配的角色

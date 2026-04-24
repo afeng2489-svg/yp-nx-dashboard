@@ -226,6 +226,8 @@ pub async fn execute_round(
                 execution_id: execution_id.clone(),
                 agent_role: role_id.clone(),
                 task_summary: format!("Parallel round: {}", role_id),
+                role_id: Some(role_id.clone()),
+                session_id: None,
             });
 
         let service = state.group_chat_service.clone();
@@ -317,6 +319,8 @@ pub async fn execute_role_turn(
         execution_id: execution_id.clone(),
         agent_role: role_id.clone(),
         task_summary: format!("Role turn: {}", role_id),
+        role_id: Some(role_id.clone()),
+        session_id: None,
     });
 
     let service = state.group_chat_service.clone();

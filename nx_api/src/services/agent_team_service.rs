@@ -23,7 +23,7 @@ use crate::services::team_service::TeamService;
 use crate::services::ai_provider_service::ProviderService;
 
 /// Strip ANSI escape codes from a string (for clean card display).
-fn strip_ansi(s: &str) -> String {
+pub fn strip_ansi(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut iter = s.chars().peekable();
     while let Some(c) = iter.next() {
@@ -649,6 +649,13 @@ IMPORTANT: When asked to generate documents, reports, or design files, write the
     }
 
     /// Build team context string for Claude
+    pub fn build_team_context_pub(
+        team: &crate::models::team::Team,
+        roles: &[crate::services::team_service::RoleWithSkills],
+    ) -> String {
+        Self::build_team_context(team, roles)
+    }
+
     fn build_team_context(
         team: &crate::models::team::Team,
         roles: &[crate::services::team_service::RoleWithSkills],
@@ -675,6 +682,68 @@ IMPORTANT: When asked to generate documents, reports, or design files, write the
 
         context
     }
+}
+
+/// Build the full team dispatcher prompt (shared between PTY dispatch and fallback path).
+/// This function is public so the routes layer can use it for PTY-first dispatch.
+pub fn build_team_prompt(
+    team_context: &str,
+    memory_context: &str,
+    user_task: &str,
+    workspace_dir: Option<&str>,
+) -> String {
+    let workspace_note = if let Some(dir) = workspace_dir {
+        format!("\n\n## Current Workspace\nWorking directory: `{}`\nWhen generating documents, plans, or design files, ALWAYS save them as actual files in this directory (e.g., `{}/design.md`, `{}/architecture.md`). Use the Write tool or file creation to persist output.", dir, dir, dir)
+    } else {
+        String::new()
+    };
+
+    if memory_context.is_empty() {
+        format!(
+            r#"You are the team dispatcher. Given the team context and user message, decide what to do.
+
+## Team Context
+{}
+
+## User Message
+{}{}
+
+## Your Decision
+Read the user's message and the available skills in the team context.
+- If a skill's trigger keywords match the user's message → use that skill
+- If no skill matches → answer the user directly as a helpful AI assistant
+
+## Output Format
+Return your response directly. If using a skill, invoke it according to its execution instructions.
+IMPORTANT: When asked to generate documents, reports, or design files, write them as real files to the current workspace directory — do not just print them as text."#,
+            team_context, user_task, workspace_note
+        )
+    } else {
+        format!(
+            r#"You are the team dispatcher. Given the team context and user message, decide what to do.
+
+## Team Context
+{}
+
+{}
+
+## User Message
+{}{}
+
+## Your Decision
+Read the user's message and the available skills in the team context.
+- If a skill's trigger keywords match the user's message → use that skill
+- If no skill matches → answer the user directly as a helpful AI assistant
+
+## Output Format
+Return your response directly. If using a skill, invoke it according to its execution instructions.
+IMPORTANT: When asked to generate documents, reports, or design files, write them as real files to the current workspace directory — do not just print them as text."#,
+            team_context, memory_context, user_task, workspace_note
+        )
+    }
+}
+
+impl AgentTeamService {
 
     /// Build skill contexts for a role (static version for background tasks)
     async fn build_skill_contexts_for_role_static(skills: &[RoleSkill]) -> Vec<String> {

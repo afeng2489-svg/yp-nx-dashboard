@@ -195,12 +195,15 @@ fn run_pty_session(
 #[derive(Clone)]
 pub struct ClaudeTerminalManager {
     sessions: Arc<RwLock<HashMap<String, Arc<ClaudeTerminalSession>>>>,
+    /// Secondary index: (team_id, role_id) → session_id
+    sessions_by_role: Arc<RwLock<HashMap<(String, String), String>>>,
 }
 
 impl ClaudeTerminalManager {
     pub fn new() -> Self {
         Self {
             sessions: Arc::new(RwLock::new(HashMap::new())),
+            sessions_by_role: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -222,6 +225,15 @@ impl ClaudeTerminalManager {
         };
         let session = Arc::new(ClaudeTerminalSession::new(info, cols, rows));
         self.sessions.write().insert(session_id.clone(), session);
+
+        // Maintain secondary index by (team_id, role_id)
+        if let Some(rid) = role_id {
+            self.sessions_by_role.write().insert(
+                (team_id.to_string(), rid.to_string()),
+                session_id.clone(),
+            );
+        }
+
         tracing::info!("[ClaudeTerminal] 创建会话: {}, team: {}, size: {}x{}", session_id, team_id, cols, rows);
         session_id
     }
@@ -261,9 +273,50 @@ impl ClaudeTerminalManager {
     /// 关闭并移除会话
     pub fn close_session(&self, session_id: &str) {
         if let Some(session) = self.sessions.write().remove(session_id) {
+            // Clean up secondary index
+            let key = (
+                session.info.team_id.clone(),
+                session.info.role_id.clone().unwrap_or_default(),
+            );
+            self.sessions_by_role.write().remove(&key);
             session.close();
             tracing::info!("[ClaudeTerminal] 关闭会话: {}", session_id);
         }
+    }
+
+    /// 通过 (team_id, role_id) 查找会话
+    pub fn get_session_by_role(&self, team_id: &str, role_id: &str) -> Option<Arc<ClaudeTerminalSession>> {
+        let sessions_by_role = self.sessions_by_role.read();
+        let session_id = sessions_by_role.get(&(team_id.to_string(), role_id.to_string()))?;
+        self.sessions.read().get(session_id).cloned()
+    }
+
+    /// 获取或创建角色对应的 PTY 会话
+    pub fn get_or_create_session(
+        &self,
+        team_id: &str,
+        role_id: &str,
+        working_dir: Option<&str>,
+        cols: u16,
+        rows: u16,
+    ) -> Arc<ClaudeTerminalSession> {
+        // Try to find existing session
+        if let Some(session) = self.get_session_by_role(team_id, role_id) {
+            return session;
+        }
+        // Create new one
+        let session_id = self.create_session(team_id, Some(role_id), working_dir, cols, rows);
+        self.sessions.read().get(&session_id).cloned().expect("session just created")
+    }
+
+    /// 列出团队所有会话
+    pub fn list_sessions_for_team(&self, team_id: &str) -> Vec<Arc<ClaudeTerminalSession>> {
+        self.sessions
+            .read()
+            .values()
+            .filter(|s| s.info.team_id == team_id)
+            .cloned()
+            .collect()
     }
 
     /// 列出所有会话信息

@@ -1,14 +1,10 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
-import { X, Send, Bot, User, MessageCircle, Square, Terminal as TerminalIcon, Activity } from 'lucide-react';
+import { X, Send, Bot, User, MessageCircle, Square, Terminal as TerminalIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTeamStore, Message } from '@/stores/teamStore';
-import { useClaudeStream } from '@/hooks/useClaudeStream';
 import { useAgentExecution } from '@/hooks/useAgentExecution';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import '@xterm/xterm/css/xterm.css';
 import { TerminalPanel } from './TerminalPanel';
-import { dispatchTaskToTerminal } from '@/hooks/usePtySession';
+import { EmbeddedTerminalPreview } from './EmbeddedTerminalPreview';
 
 // ── 独立输入组件，隔离重渲染 ──────────────────────────────
 interface ChatInputProps {
@@ -131,36 +127,25 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
   const isMonitorMode = teamMonitorMode[teamId] ?? false;
   const roles = useTeamStore((s) => s.roles[teamId] ?? []);
   const fetchRoles = useTeamStore((s) => s.fetchRoles);
-  const terminalSessions = useTeamStore((s) => s.terminalSessions[teamId] ?? {});
   const [activeTab, setActiveTab] = useState<'chat' | 'terminal'>('chat');
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
-  const [showStream, setShowStream] = useState(false);
-  const [streamInput, setStreamInput] = useState('');
   const [lastCliOutput, setLastCliOutput] = useState<string>('');
   const [showLastOutput, setShowLastOutput] = useState(false);
   const [pendingConfirmTask, setPendingConfirmTask] = useState<string | null>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
-  const streamTerminalRef = useRef<HTMLDivElement>(null);
-  const xtermRef = useRef<Terminal | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
 
   // Async agent execution with WS progress tracking
   const agentExec = useAgentExecution();
   const isActive = agentExec.status === 'started' || agentExec.status === 'thinking';
 
-  // Claude Stream hook for real-time output
-  const { isConnected, isExecuting, execute, cancel } = useClaudeStream({
-    onOutput: (line, isError) => {
-      xtermRef.current?.write(
-        isError
-          ? `\x1b[31m${line}\r\n\x1b[0m`
-          : `${line}\r\n`
-      );
-    },
-    onComplete: (exitCode) => {
-      xtermRef.current?.writeln(`\r\n\x1b[33m[进程退出，代码: ${exitCode}]\x1b[0m`);
-    },
-  });
+  // 后端 PTY dispatch 返回 session_id 时，同步到 terminalSessions store
+  // 这样 RoleTerminalTab 切换到该角色时能自动连上已有 session
+  const setTerminalSession = useTeamStore((s) => s.setTerminalSession);
+  useEffect(() => {
+    if (agentExec.activeRoleId && agentExec.activeSessionId) {
+      setTerminalSession(teamId, agentExec.activeRoleId, agentExec.activeSessionId);
+    }
+  }, [teamId, agentExec.activeRoleId, agentExec.activeSessionId, setTerminalSession]);
 
   useEffect(() => {
     setLocalMessages(storeMessages.filter(m => m.team_id === teamId));
@@ -202,9 +187,6 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
     return () => { aborted = true; clearTimeout(timer); abortController.abort(); };
   }, [isActive, teamId, fetchMessages]);
 
-  // 执行日志滚底 effect 已移除（执行日志面板已删除）
-
-
   // 冻结保护：isActive 超过 5 分钟自动重置，防止 WS 丢失事件导致 UI 永久卡死
   useEffect(() => {
     if (!isActive) return;
@@ -218,43 +200,6 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
     const el = messagesScrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [localMessages]);
-
-  useEffect(() => {
-    if (!streamTerminalRef.current) return;
-
-    const terminal = new Terminal({
-      cursorBlink: true,
-      fontSize: 12,
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-      theme: {
-        background: '#1e1e1e',
-        foreground: '#d4d4d4',
-        cursor: '#ffffff',
-      },
-      convertEol: true,
-    });
-
-    const fitAddon = new FitAddon();
-    terminal.loadAddon(fitAddon);
-    terminal.open(streamTerminalRef.current);
-    requestAnimationFrame(() => fitAddon.fit());
-
-    xtermRef.current = terminal;
-    fitAddonRef.current = fitAddon;
-
-    terminal.writeln('\x1b[36m[Claude CLI Stream]\x1b[0m 连接中...');
-    terminal.writeln('');
-
-    const resizeObserver = new ResizeObserver(() => {
-      try { fitAddonRef.current?.fit(); } catch { /* ignore */ }
-    });
-    resizeObserver.observe(streamTerminalRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-      terminal.dispose();
-    };
-  }, []);
 
   const handleSend = useCallback((text: string) => {
     if (!text || isActive) return;
@@ -276,15 +221,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
 
     setLocalMessages(prev => [...prev, userMessage]);
     agentExec.execute(teamId, text);
-
-    // 向所有已激活的角色 PTY session 并行派发任务（节流：错开 200ms 避免瞬间请求风暴）
-    const sessionIds = Object.values(terminalSessions);
-    sessionIds.forEach((sessionId, i) => {
-      setTimeout(() => {
-        dispatchTaskToTerminal(teamId, sessionId, text).catch(() => {/* 终端未就绪，忽略 */});
-      }, i * 200);
-    });
-  }, [teamId, isActive, agentExec, isMonitorMode, terminalSessions]);
+  }, [teamId, isActive, agentExec, isMonitorMode]);
 
   const handleConfirmTask = useCallback(() => {
     if (!pendingConfirmTask) return;
@@ -339,18 +276,6 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
             </button>
           </div>
           <div className="flex items-center gap-2">
-            {activeTab === 'chat' && (
-              <button
-                onClick={() => setShowStream(!showStream)}
-                className={cn(
-                  'p-2 rounded-lg transition-colors',
-                  showStream ? 'bg-emerald-500/20 text-emerald-500' : 'hover:bg-accent'
-                )}
-                title="CLI 流式输出"
-              >
-                <Activity className="w-4 h-4" />
-              </button>
-            )}
             <button
               onClick={onClose}
               className="p-2 rounded-lg hover:bg-accent transition-colors"
@@ -362,7 +287,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
 
         {/* 终端 Tab（始终挂载，切换时用 hidden 隐藏，避免断连） */}
         <div className={cn('flex-1 overflow-hidden', activeTab !== 'terminal' && 'hidden')}>
-          <TerminalPanel teamId={teamId} roles={roles} visible={activeTab === 'terminal'} />
+          <TerminalPanel teamId={teamId} roles={roles} visible={activeTab === 'terminal'} activeRoleId={agentExec.activeRoleId} />
         </div>
 
         {/* 对话 Tab */}
@@ -461,64 +386,14 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
           )}
         </div>
 
-        {/* Streaming Terminal Panel */}
-        {showStream && (
-          <div className="border-t border-border/50 bg-[#1e1e1e]">
-            <div className="flex items-center justify-between px-3 py-1.5 bg-[#252526]">
-              <span className="text-xs text-gray-400 flex items-center gap-1">
-                <TerminalIcon className="w-3 h-3" />
-                CLI 流式输出
-              </span>
-              <div className="flex items-center gap-2">
-                <span className={cn(
-                  'w-2 h-2 rounded-full',
-                  isConnected ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'
-                )} />
-                <span className="text-xs text-gray-500">
-                  {isExecuting ? '执行中...' : isConnected ? '就绪' : '连接中'}
-                </span>
-                {isExecuting && (
-                  <button
-                    onClick={cancel}
-                    className="p-0.5 rounded hover:bg-red-500/20 text-red-400"
-                  >
-                    <Square className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            </div>
-            <div ref={streamTerminalRef} className="h-[200px] px-2 py-1" />
-            <div className="flex gap-2 p-2 bg-[#252526] border-t border-[#3c3c3c]">
-              <input
-                type="text"
-                value={streamInput}
-                onChange={(e) => setStreamInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (isConnected && streamInput.trim()) {
-                      execute(streamInput.trim());
-                      setStreamInput('');
-                    }
-                  }
-                }}
-                placeholder="输入命令，按 Enter 执行..."
-                className="flex-1 px-3 py-1.5 text-sm bg-[#1e1e1e] border border-[#3c3c3c] rounded text-gray-300 focus:outline-none focus:border-[#007acc]"
-                disabled={!isConnected || isExecuting}
-              />
-              <button
-                onClick={() => {
-                  if (streamInput.trim()) {
-                    execute(streamInput.trim());
-                    setStreamInput('');
-                  }
-                }}
-                disabled={!streamInput.trim() || !isConnected || isExecuting}
-                className="px-3 py-1.5 text-sm bg-[#007acc] hover:bg-[#007acc]/80 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </div>
+        {/* 执行中：内嵌终端预览 */}
+        {isActive && (
+          <div className="px-4 pb-2">
+            <EmbeddedTerminalPreview
+              output={agentExec.partialOutput || ''}
+              elapsedSecs={agentExec.elapsedSecs || 0}
+              onViewTerminal={() => setActiveTab('terminal')}
+            />
           </div>
         )}
 
