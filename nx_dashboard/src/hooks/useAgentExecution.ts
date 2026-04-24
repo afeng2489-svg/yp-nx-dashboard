@@ -301,40 +301,45 @@ export function useAgentExecution(): UseAgentExecutionReturn {
 
       const data = await response.json();
 
-      // Parse execution_id from response
+      // Backend returns immediately with execution_id embedded in final_output.
+      // Actual result comes via WebSocket events (Completed/Failed).
       let execId: string | null = null;
       if (data.final_output) {
         try {
           const parsed = JSON.parse(data.final_output);
           execId = parsed.execution_id ?? null;
         } catch {
-          // final_output is not JSON — this means synchronous response (shouldn't happen now)
+          // final_output is plain text — synchronous response
           execId = null;
         }
+      }
+      // Also check top-level execution_id (some routes return it directly)
+      if (!execId) {
+        execId = data.execution_id ?? null;
       }
 
       if (execId) {
         setExecutionId(execId);
         connectWs(execId, isMonitor ? { teamId, teamName: teams.find(t => t.id === teamId)?.name ?? '团队', task } : null);
         return execId;
-      } else {
-        // Fallback: treat as synchronous completion
-        setStatus('completed');
-        isRunningRef.current = false;
-        const finalOutput = data.final_output ?? '';
-        setResult(finalOutput);
-        stopLocalTimer();
-        if (isMonitor) {
-          useTeamStore.getState().setActiveTeamTask({
-            teamId,
-            teamName: teams.find(t => t.id === teamId)?.name ?? '团队',
-            task,
-            status: 'done',
-            result: finalOutput,
-          });
-        }
-        return null;
       }
+
+      // No execution_id — treat as synchronous completion
+      setStatus('completed');
+      isRunningRef.current = false;
+      const finalOutput = data.final_output ?? '';
+      setResult(finalOutput);
+      stopLocalTimer();
+      if (isMonitor) {
+        useTeamStore.getState().setActiveTeamTask({
+          teamId,
+          teamName: teams.find(t => t.id === teamId)?.name ?? '团队',
+          task,
+          status: 'done',
+          result: finalOutput,
+        });
+      }
+      return null;
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
       setStatus('failed');

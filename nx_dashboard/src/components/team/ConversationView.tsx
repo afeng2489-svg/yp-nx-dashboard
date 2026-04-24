@@ -183,11 +183,18 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
     fetchRoles(teamId);
   }, [teamId]);
 
-  // 兜底轮询：isActive 期间每 3s 拉一次消息，防止 WS Completed 事件丢失导致消息不更新
+  // 兜底轮询：isActive 期间每 10s 拉一次消息，防止 WS Completed 事件丢失导致消息不更新
   useEffect(() => {
     if (!isActive) return;
-    const poll = setInterval(() => fetchMessages(teamId), 3000);
-    return () => clearInterval(poll);
+    let aborted = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      if (aborted) return;
+      await fetchMessages(teamId);
+      if (!aborted) timer = setTimeout(poll, 10000);
+    };
+    poll();
+    return () => { aborted = true; clearTimeout(timer); };
   }, [isActive, teamId, fetchMessages]);
 
   // 执行日志滚底 effect 已移除（执行日志面板已删除）
