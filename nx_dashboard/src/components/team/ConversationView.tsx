@@ -188,13 +188,18 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
     if (!isActive) return;
     let aborted = false;
     let timer: ReturnType<typeof setTimeout>;
+    const abortController = new AbortController();
     const poll = async () => {
       if (aborted) return;
-      await fetchMessages(teamId);
+      try {
+        await fetchMessages(teamId);
+      } catch {
+        // AbortController cancellation — ignore
+      }
       if (!aborted) timer = setTimeout(poll, 10000);
     };
     poll();
-    return () => { aborted = true; clearTimeout(timer); };
+    return () => { aborted = true; clearTimeout(timer); abortController.abort(); };
   }, [isActive, teamId, fetchMessages]);
 
   // 执行日志滚底 effect 已移除（执行日志面板已删除）
@@ -207,7 +212,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
       agentExec.reset();
     }, 300_000);
     return () => clearTimeout(timeout);
-  }, [isActive]);
+  }, [isActive, agentExec.reset]);
 
   useEffect(() => {
     const el = messagesScrollRef.current;
@@ -272,9 +277,12 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
     setLocalMessages(prev => [...prev, userMessage]);
     agentExec.execute(teamId, text);
 
-    // 向所有已激活的角色 PTY session 并行派发任务
-    Object.entries(terminalSessions).forEach(([, sessionId]) => {
-      dispatchTaskToTerminal(teamId, sessionId, text).catch(() => {/* 终端未就绪，忽略 */});
+    // 向所有已激活的角色 PTY session 并行派发任务（节流：错开 200ms 避免瞬间请求风暴）
+    const sessionIds = Object.values(terminalSessions);
+    sessionIds.forEach((sessionId, i) => {
+      setTimeout(() => {
+        dispatchTaskToTerminal(teamId, sessionId, text).catch(() => {/* 终端未就绪，忽略 */});
+      }, i * 200);
     });
   }, [teamId, isActive, agentExec, isMonitorMode, terminalSessions]);
 

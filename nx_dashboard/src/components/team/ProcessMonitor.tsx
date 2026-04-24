@@ -50,11 +50,17 @@ export function ProcessMonitor() {
     }
   };
 
-  // Auto-refresh every 5 seconds
+  // Auto-refresh with serial setTimeout to prevent request stacking
   useEffect(() => {
-    fetchProcesses();
-    const interval = setInterval(fetchProcesses, 5000);
-    return () => clearInterval(interval);
+    let aborted = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      if (aborted) return;
+      await fetchProcesses();
+      if (!aborted) timer = setTimeout(poll, 8000);
+    };
+    poll();
+    return () => { aborted = true; clearTimeout(timer); };
   }, []);
 
   const getStatusIcon = (status: string) => {

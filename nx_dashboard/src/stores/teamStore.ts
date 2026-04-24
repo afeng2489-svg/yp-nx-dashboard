@@ -266,7 +266,12 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
   fetchTeams: async () => {
     set({ loading: true, error: null });
     try {
-      const response = await fetchWithTimeout(`${API_BASE}/api/v1/teams`, {}, 15000);
+      const controller = new AbortController();
+      const response = await fetchWithTimeout(
+        `${API_BASE}/api/v1/teams`,
+        { signal: controller.signal },
+        15000
+      );
 
       if (!response.ok) {
         throw new ApiError(
@@ -396,8 +401,11 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
   // Role actions
   fetchRoles: async (teamId) => {
     try {
+      const controller = new AbortController();
       const response = await fetchWithTimeout(
-        `${API_BASE}/api/v1/teams/${teamId}/roles`, {}, 10000
+        `${API_BASE}/api/v1/teams/${teamId}/roles`,
+        { signal: controller.signal },
+        10000
       );
 
       if (!response.ok) {
@@ -659,8 +667,11 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
   // Message actions
   fetchMessages: async (teamId) => {
     try {
+      const controller = new AbortController();
       const response = await fetchWithTimeout(
-        `${API_BASE}/api/v1/teams/${teamId}/messages`, {}, 10000
+        `${API_BASE}/api/v1/teams/${teamId}/messages`,
+        { signal: controller.signal },
+        10000
       );
 
       if (!response.ok) {

@@ -87,6 +87,13 @@ export function useClaudeStream(options: UseClaudeStreamOptions = {}): UseClaude
 
   const wsRef = useRef<WebSocket | null>(null);
   const outputRef = useRef<string[]>([]);
+  // Stable refs for callbacks — prevents WS re-creation on every render
+  const onOutputRef = useRef(onOutput);
+  onOutputRef.current = onOutput;
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   // 清除输出
   const clear = useCallback(() => {
@@ -161,24 +168,24 @@ export function useClaudeStream(options: UseClaudeStreamOptions = {}): UseClaude
           case 'output':
             outputRef.current = [...outputRef.current, msg.line];
             setOutput([...outputRef.current]);
-            onOutput?.(msg.line, false);
+            onOutputRef.current?.(msg.line, false);
             break;
 
           case 'error':
             outputRef.current = [...outputRef.current, `[stderr] ${msg.line}`];
             setOutput([...outputRef.current]);
-            onOutput?.(msg.line, true);
+            onOutputRef.current?.(msg.line, true);
             break;
 
           case 'completed':
             setIsExecuting(false);
-            onComplete?.(msg.exit_code);
+            onCompleteRef.current?.(msg.exit_code);
             break;
 
           case 'failed':
             setIsExecuting(false);
             setError(msg.error);
-            onError?.(msg.error);
+            onErrorRef.current?.(msg.error);
             break;
         }
       } catch {
@@ -189,7 +196,7 @@ export function useClaudeStream(options: UseClaudeStreamOptions = {}): UseClaude
     return () => {
       ws.close();
     };
-  }, [onOutput, onComplete, onError]);
+  }, []); // Empty deps — callbacks accessed via stable refs
 
   return {
     isConnected,

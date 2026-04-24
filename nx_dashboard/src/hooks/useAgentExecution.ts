@@ -73,6 +73,8 @@ export function useAgentExecution(): UseAgentExecutionReturn {
   const isRunningRef = useRef(false);
   // For reconnect: remember the last execId and monitorCtx
   const reconnectTimerRef = useRef<number | null>(null);
+  const reconnectCountRef = useRef(0);
+  const MAX_RECONNECT = 5;
   const lastExecIdRef = useRef<string | null>(null);
   const lastMonitorCtxRef = useRef<{ teamId: string; teamName: string; task: string } | null>(null);
 
@@ -116,10 +118,27 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
     let accOutput = ''; // 累积 partial output（仅用于监控卡）
+    let hasReceivedMessage = false; // distinguish initial vs runtime errors
 
     const scheduleReconnect = () => {
       if (!isRunningRef.current) return; // task finished — no reconnect needed
       if (reconnectTimerRef.current !== null) return; // already scheduled
+      if (reconnectCountRef.current >= MAX_RECONNECT) {
+        // Max retries exceeded — mark as failed
+        setStatus('failed');
+        setError(`连接丢失，已重试 ${MAX_RECONNECT} 次`);
+        stopLocalTimer();
+        isRunningRef.current = false;
+        if (monitorCtx) {
+          useTeamStore.getState().setActiveTeamTask({
+            ...monitorCtx,
+            status: 'error',
+            error: `连接丢失，已重试 ${MAX_RECONNECT} 次`,
+          });
+        }
+        return;
+      }
+      reconnectCountRef.current += 1;
       if (monitorCtx) {
         useTeamStore.getState().setActiveTeamTask({
           ...monitorCtx,
@@ -136,6 +155,8 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     };
 
     ws.onmessage = (event) => {
+      hasReceivedMessage = true;
+      reconnectCountRef.current = 0; // reset on successful message
       try {
         const data: AgentExecutionEvent = JSON.parse(event.data);
         switch (data.type) {
@@ -230,15 +251,17 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     };
 
     ws.onerror = () => {
-      // WS connection error — if the task is still running, try to reconnect.
-      // Don't mark the card as failed: the backend task continues regardless of WS state.
       if (!isRunningRef.current) {
         setStatus((prev) =>
           prev === 'completed' || prev === 'failed' || prev === 'cancelled' ? prev : 'failed'
         );
         setError('WebSocket connection error');
         stopLocalTimer();
+      } else if (hasReceivedMessage) {
+        // Runtime error after successful connection — try reconnect
+        scheduleReconnect();
       } else {
+        // Initial connection error — retry with backoff
         scheduleReconnect();
       }
     };
@@ -263,6 +286,7 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     setDurationMs(null);
     startLocalTimer();
     isRunningRef.current = true;
+    reconnectCountRef.current = 0;
 
     // 如果该团队开启了监控模式，更新全局悬浮卡
     const { teamMonitorMode, teams, setActiveTeamTask } = useTeamStore.getState();
