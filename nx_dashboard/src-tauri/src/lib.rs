@@ -1,7 +1,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -183,12 +183,13 @@ pub fn run() {
 // ── nx_api Subprocess ───────────────────────────────────────────────────────
 
 fn start_nx_api() -> Result<(), Box<dyn std::error::Error>> {
+    let _ = std::fs::write("/tmp/nx_start_called.txt", "start_nx_api called");
     let nx_api_path = if cfg!(debug_assertions) {
         PathBuf::from("/Users/Zhuanz/Desktop/yp-nx-dashboard/target/release/nx_api")
     } else {
         let exe_path = std::env::current_exe()?;
-        let app_bundle = exe_path.parent().unwrap().parent().unwrap().parent().unwrap();
-        app_bundle.join("Resources/nx_api")
+        let contents = exe_path.parent().unwrap().parent().unwrap();
+        contents.join("Resources/nx_api")
     };
 
     if !nx_api_path.exists() {
@@ -199,52 +200,52 @@ fn start_nx_api() -> Result<(), Box<dyn std::error::Error>> {
         PathBuf::from("/Users/Zhuanz/Desktop/yp-nx-dashboard/.claude/agents")
     } else {
         let exe_path = std::env::current_exe()?;
-        let app_bundle = exe_path.parent().unwrap().parent().unwrap().parent().unwrap();
-        app_bundle.join("Resources/skills")
+        let contents = exe_path.parent().unwrap().parent().unwrap();
+        contents.join("Resources/skills")
     };
 
-    let data_dir = PathBuf::from("/Users/Zhuanz/Desktop/yp-nx-dashboard");
+    let data_dir = if cfg!(debug_assertions) {
+        PathBuf::from("/Users/Zhuanz/Desktop/yp-nx-dashboard")
+    } else {
+        let exe = std::env::current_exe()?;
+        exe.parent().unwrap().parent().unwrap()
+           .join("Resources")
+    };
     std::fs::create_dir_all(&data_dir)?;
 
-    let mut cmd = Command::new(&nx_api_path);
-    cmd.env("AGENTS_DIR", &skills_path)
+    let log_path = PathBuf::from("/tmp/nx_api.log");
+    let log_file = std::fs::OpenOptions::new()
+        .create(true).write(true).truncate(true)
+        .open(&log_path)
+        .map_err(|e| format!("Failed to open log file: {}", e))?;
+    let log_file2 = log_file.try_clone()?;
+
+    let mut child = Command::new(&nx_api_path)
+        .env("AGENTS_DIR", &skills_path)
         .env("NEXUS_DB_PATH", data_dir.join("nx_dashboard/nexus.db"))
+        .env("NEXUS_ALLOWED_ORIGINS", "tauri://localhost,http://localhost:5173,http://localhost:3000")
         .env("RUST_LOG", "info")
-        .current_dir(&data_dir)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    println!("[NX Dashboard] Starting nx_api from {:?}", nx_api_path);
-
-    let mut child = cmd
+        .stdout(log_file)
+        .stderr(log_file2)
         .spawn()
         .map_err(|e| format!("Failed to spawn nx_api: {}", e))?;
-
-    use std::io::{BufRead, BufReader};
-    let _stdout = child.stdout.take().map(BufReader::new);
-    let stderr = child.stderr.take().map(BufReader::new);
 
     thread::sleep(std::time::Duration::from_secs(2));
 
     match child.try_wait() {
         Ok(Some(status)) => {
-            return Err(format!("nx_api exited immediately with status: {}", status).into());
+            let log = std::fs::read_to_string(&log_path).unwrap_or_default();
+            return Err(format!("nx_api exited (status: {})\nlog: {}", status, log).into());
         }
         Ok(None) => {
-            println!("[NX Dashboard] nx_api started (PID: {:?})", child.id());
+            println!("[NX Dashboard] nx_api started (PID: {:?}), log: {:?}", child.id(), log_path);
         }
         Err(e) => {
             return Err(format!("Failed to check nx_api status: {}", e).into());
         }
     }
 
-    if let Some(stderr) = stderr {
-        for line in stderr.lines().take(5) {
-            if let Ok(line) = line {
-                println!("[NX Dashboard] nx_api: {}", line);
-            }
-        }
-    }
-
+    // Keep child alive (and wait forever so nx_api is not orphaned on crash)
+    let _ = child.wait();
     Ok(())
 }

@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NX Dashboard 操作手册 v0.1.0 · 2026-04-24</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    line-height: 1.6;
+    font-size: 14px;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px; }
+
+  /* Header */
+  .header {
+    text-align: center;
+    padding: 48px 0 40px;
+    border-bottom: 1px solid #1e2736;
+    margin-bottom: 48px;
+  }
+  .header h1 { font-size: 32px; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
+  .header .sub { color: #64748b; margin-top: 8px; font-size: 13px; }
+  .badge {
+    display: inline-block;
+    background: #1a2535;
+    border: 1px solid #2d3f55;
+    color: #7dd3fc;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    margin: 12px 4px 0;
+  }
+
+  /* Nav */
+  .nav {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 40px;
+    padding: 16px;
+    background: #141922;
+    border-radius: 10px;
+    border: 1px solid #1e2736;
+  }
+  .nav a {
+    color: #94a3b8;
+    text-decoration: none;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    transition: all 0.15s;
+  }
+  .nav a:hover { background: #1e2736; color: #e2e8f0; }
+
+  /* Section */
+  .section { margin-bottom: 56px; }
+  h2 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #1e2736;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h2 .icon { font-size: 18px; }
+  h3 { font-size: 15px; color: #cbd5e1; margin: 20px 0 10px; font-weight: 600; }
+
+  /* Steps */
+  .steps { display: flex; flex-direction: column; gap: 16px; }
+  .step {
+    display: flex;
+    gap: 16px;
+    background: #141922;
+    border: 1px solid #1e2736;
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .step-num {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    background: #1e3a5f;
+    color: #7dd3fc;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .step-body { flex: 1; }
+  .step-title { font-weight: 600; color: #e2e8f0; margin-bottom: 6px; }
+  .step-desc { color: #94a3b8; font-size: 13px; }
+
+  /* Code */
+  pre, code {
+    font-family: 'SF Mono', 'Fira Code', Menlo, monospace;
+    font-size: 12px;
+  }
+  pre {
+    background: #0a0e16;
+    border: 1px solid #1e2736;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 10px 0;
+    overflow-x: auto;
+    line-height: 1.7;
+    color: #a8d8a8;
+  }
+  code {
+    background: #1a2535;
+    color: #7dd3fc;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+
+  /* Feature Table */
+  .feature-table { width: 100%; border-collapse: collapse; }
+  .feature-table th {
+    background: #141922;
+    color: #64748b;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid #1e2736;
+  }
+  .feature-table td {
+    padding: 11px 14px;
+    border-bottom: 1px solid #141922;
+    vertical-align: top;
+    font-size: 13px;
+  }
+  .feature-table tr:hover td { background: #141922; }
+
+  /* Status badges */
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .status.ok { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+  .status.partial { background: #1c1a07; color: #facc15; border: 1px solid #713f12; }
+  .status.need-setup { background: #1a1025; color: #c084fc; border: 1px solid #6b21a8; }
+  .status.no { background: #1c0a0a; color: #f87171; border: 1px solid #7f1d1d; }
+  .status::before { font-size: 8px; }
+  .status.ok::before { content: '●'; }
+  .status.partial::before { content: '◐'; }
+  .status.need-setup::before { content: '◆'; }
+  .status.no::before { content: '○'; }
+
+  /* Info cards */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .card {
+    background: #141922;
+    border: 1px solid #1e2736;
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .card-title { font-weight: 600; color: #e2e8f0; margin-bottom: 6px; font-size: 13px; }
+  .card-desc { color: #64748b; font-size: 12px; line-height: 1.5; }
+
+  /* Alert */
+  .alert {
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 12px 0;
+    font-size: 13px;
+    display: flex;
+    gap: 10px;
+  }
+  .alert.warn { background: #1c1507; border: 1px solid #713f12; color: #fbbf24; }
+  .alert.info { background: #071626; border: 1px solid #1e3a5f; color: #7dd3fc; }
+  .alert.success { background: #052e16; border: 1px solid #166534; color: #4ade80; }
+  .alert-icon { font-size: 15px; flex-shrink: 0; }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    font-size: 12px;
+    color: #64748b;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+
+  /* Path */
+  .path { color: #f97316; }
+
+  /* Footer */
+  .footer {
+    margin-top: 64px;
+    padding-top: 24px;
+    border-top: 1px solid #1e2736;
+    text-align: center;
+    color: #334155;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>NX Dashboard</h1>
+    <div class="sub">操作手册 · 功能状态报告</div>
+    <div>
+      <span class="badge">v0.1.0</span>
+      <span class="badge">aarch64 (Apple Silicon)</span>
+      <span class="badge">2026-04-24</span>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <div class="nav">
+    <a href="#install">安装指南</a>
+    <a href="#upgrade">旧版升级</a>
+    <a href="#prereq">前置要求</a>
+    <a href="#features">功能状态</a>
+    <a href="#arch">系统架构</a>
+    <a href="#troubleshoot">常见问题</a>
+  </div>
+
+  <!-- 安装指南 -->
+  <div class="section" id="install">
+    <h2><span class="icon">📦</span> 全新安装指南</h2>
+    <div class="alert info">
+      <span class="alert-icon">ℹ</span>
+      仅支持 Apple Silicon Mac（M1/M2/M3/M4）。Intel Mac 暂不支持。
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">安装前置依赖</div>
+          <div class="step-desc">必须先安装 Homebrew 和 Claude Code CLI，否则 AI 执行功能无法使用。</div>
+          <pre># 安装 Homebrew（已有可跳过）
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# 安装 Claude Code CLI（必须装在此路径）
+brew install claude
+
+# 验证路径
+ls /opt/homebrew/bin/claude && echo "✓ 路径正确"
+
+# 登录 Claude
+claude login</pre>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">清除 DMG 隔离属性</div>
+          <div class="step-desc">macOS 对下载文件有隔离限制，必须手动清除，否则显示"磁盘已损坏"。</div>
+          <pre>xattr -cr ~/Downloads/"NX Dashboard_0.1.0_aarch64.dmg"</pre>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">安装 App</div>
+          <div class="step-desc">双击打开 DMG，将 NX Dashboard.app 拖入 Applications 文件夹。</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">清除 App 隔离属性</div>
+          <div class="step-desc">安装到 Applications 后，必须再次清除 App 本身的隔离属性，否则后端服务无法启动。</div>
+          <pre>xattr -cr "/Applications/NX Dashboard.app"</pre>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-title">启动 App</div>
+          <div class="step-desc">双击启动即可，后端服务（nx_api）会自动在后台启动，监听 127.0.0.1:8080。</div>
+          <pre># 验证后端是否正常（等 5 秒再执行）
+curl http://127.0.0.1:8080/health
+
+# 期望输出：{"service":"nexusflow-api","status":"ok",...}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 旧版升级 -->
+  <div class="section" id="upgrade">
+    <h2><span class="icon">🔄</span> 旧版本升级步骤</h2>
+    <div class="alert warn">
+      <span class="alert-icon">⚠</span>
+      必须完全删除旧版本，直接覆盖可能导致旧版残留运行，新版无法正常工作。
+    </div>
+    <pre># 1. 退出所有相关进程
+pkill "NX Dashboard" 2>/dev/null
+pkill nx_api 2>/dev/null
+sleep 2
+
+# 2. 删除旧 App
+rm -rf "/Applications/NX Dashboard.app"
+
+# 3. 确认删除成功
+ls "/Applications/NX Dashboard.app" 2>/dev/null && echo "⚠ 未删除" || echo "✓ 删除成功"
+
+# 4. 按【全新安装指南】步骤 2~5 重新安装</pre>
+  </div>
+
+  <!-- 前置要求 -->
+  <div class="section" id="prereq">
+    <h2><span class="icon">⚙️</span> 运行前置要求</h2>
+    <div class="cards">
+      <div class="card">
+        <div class="card-title">Claude Code CLI</div>
+        <div class="card-desc">
+          必须安装在 <code>/opt/homebrew/bin/claude</code><br>
+          通过 <code>brew install claude</code> 安装<br>
+          需要执行 <code>claude login</code> 登录<br><br>
+          <span style="color:#f87171">路径硬编码，不可更改（Intel Mac不支持）</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Anthropic API Key</div>
+        <div class="card-desc">
+          在 App 内 AI 设置页配置，或通过环境变量 <code>ANTHROPIC_API_KEY</code> 设置<br><br>
+          没有 API Key 则 AI 执行类功能全部不可用
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">网络要求</div>
+        <div class="card-desc">
+          AI 执行功能需要访问 Anthropic API（需科学上网）<br>
+          App 本身（界面、数据库）完全本地运行，无需网络
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">端口占用</div>
+        <div class="card-desc">
+          后端服务占用 <code>127.0.0.1:8080</code><br>
+          如该端口被其他程序占用，后端将无法启动<br><br>
+          检查：<code>lsof -i :8080</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 功能状态 -->
+  <div class="section" id="features">
+    <h2><span class="icon">📋</span> 功能状态总览</h2>
+    <div class="legend">
+      <div class="legend-item"><span class="status ok">已跑通</span> 前后端均正常，已验证</div>
+      <div class="legend-item"><span class="status partial">基本可用</span> 核心功能通，部分细节未深度验证</div>
+      <div class="legend-item"><span class="status need-setup">需配置</span> 需要额外环境/API Key 才可使用</div>
+      <div class="legend-item"><span class="status no">未验证</span> 界面存在，后端路由存在，但未测试</div>
+    </div>
+
+    <table class="feature-table">
+      <thead>
+        <tr>
+          <th>页面/功能</th>
+          <th>状态</th>
+          <th>说明</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- 基础设施 -->
+        <tr>
+          <td colspan="3" style="background:#0a0e16; color:#334155; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; padding:8px 14px;">基础设施</td>
+        </tr>
+        <tr>
+          <td><strong>App 安装启动</strong></td>
+          <td><span class="status ok">已跑通</span></td>
+          <td>App 正常安装运行，后端 nx_api 自动启动，监听 127.0.0.1:8080</td>
+        </tr>
+        <tr>
+          <td><strong>数据库连接</strong></td>
+          <td><span class="status ok">已跑通</span></td>
+          <td>SQLite 数据库路径正确，读写正常。路径：App Bundle/Contents/Resources/nx_dashboard/nexus.db</td>
+        </tr>
+        <tr>
+          <td><strong>健康检查 /health</strong></td>
+          <td><span class="status ok">已跑通</span></td>
+          <td>后端响应正常，可用于确认服务状态</td>
+        </tr>
+        <tr>
+          <td><strong>前端 → 后端通信</strong></td>
+          <td><span class="status ok">已跑通</span></td>
+          <td>Tauri WebView 与本地 API 通信正常，CORS 配置正确</td>
+        </tr>
+
+        <!-- 团队与角色 -->
+        <tr>
+          <td colspan="3" style="background:#0a0e16; color:#334155; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; padding:8px 14px;">团队与角色</td>
+        </tr>
+        <tr>
+          <td><strong>团队管理</strong><br><small style="color:#64748b">/teams</small></td>
+          <td><span class="status ok">已跑通</span></td>
+          <td>创建/编辑/删除团队，角色分配，均正常</td>
+        </tr>
+        <tr>
+          <td><strong>角色管理</strong><br><small style="color:#64748b">/roles</small></td>
+          <td><span class="status ok">已跑通</span></td>
+          <td>角色 CRUD、技能分配、团队关联正常</td>
+        </tr>
+        <tr>
+          <td><strong>嵌入式终端 (PTY)</strong><br><small style="color:#64748b">/teams → Terminal</small></td>
+          <td><span class="status ok">已跑通</span></td>
+          <td>团队详情页内嵌 xterm.js 终端，通过 WebSocket 与后端 PTY 双向通信，本次重点开发功能</td>
+        </tr>
+        <tr>
+          <td><strong>多角色对话视图</strong><br><small style="color:#64748b">/teams → Conversation</small></td>
+          <td><span class="status ok">已跑通</span></td>
+          <td>多 Agent 角色消息流展示正常</td>
+        </tr>
+        <tr>
+          <td><strong>团队执行任务</strong><br><small style="color:#64748b">POST /teams/:id/execute</small></td>
+          <td><span class="status need-setup">需配置</span></td>
+          <td>需要 Claude CLI 登录 + API Key，依赖 /opt/homebrew/bin/claude 路径</td>
+        </tr>
+        <tr>
+          <td><strong>Telegram 集成</strong><br><small style="color:#64748b">/teams → Telegram</small></td>
+          <td><span class="status need-setup">需配置</span></td>
+          <td>需要配置 Telegram Bot Token，未测试</td>
+        </tr>
+
+        <!-- 工作流 -->
+        <tr>
+          <td colspan="3" style="background:#0a0e16; color:#334155; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; padding:8px 14px;">工作流</td>
+        </tr>
+        <tr>
+          <td><strong>工作流列表/CRUD</strong><br><small style="color:#64748b">/workflows</small></td>
+          <td><span class="status partial">基本可用</span></td>
+          <td>增删改查路由均已实现。注意：WorkflowSeeder 扫描目录硬编码为开发机路径，其他机器不会自动预填模板数据</td>
+        </tr>
+        <tr>
+          <td><strong>可视化编辑器</strong><br><small style="color:#64748b">/editor</small></td>
+          <td><span class="status partial">基本可用</span></td>
+          <td>画布/节点/属性面板界面完整，后端保存接口已通</td>
+        </tr>
+        <tr>
+          <td><strong>工作流模板库</strong><br><small style="color:#64748b">/templates</small></td>
+          <td><span class="status partial">基本可用</span></td>
+          <td>模板 CRUD 和实例化接口已通，但预置模板数据依赖开发机路径，其他机器默认为空</td>
+        </tr>
+        <tr>
+          <td><strong>工作流执行</strong><br><small style="color:#64748b">/executions</small></td>
+          <td><span class="status need-setup">需配置</span></td>
+          <td>执行接口存在，WebSocket 实时状态推送已通，但实际 AI 执行依赖 Claude CLI</td>
+        </tr>
+
+        <!-- 技能 -->
+        <tr>
+          <td colspan="3" style="background:#0a0e16; color:#334155; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; padding:8px 14px;">技能管理</td>
+        </tr>
+        <tr>
+          <td><strong>技能列表/管理</strong><br><small style="color:#64748b">/skills</small></td>
+          <td><span class="status ok">已跑通</span></td>
+          <td>Skills 目录已打包进 App Bundle，列表/搜索/分类均正常</td>
+        </tr>
+        <tr>
+          <td><strong>技能执行</strong><br><small style="color:#64748b">POST /skills/:id/execute</small></td>
+          <td><span class="status need-setup">需配置</span></td>
+          <td>依赖 Claude CLI</td>
+        </tr>
+
+        <!-- AI 设置 -->
+        <tr>
+          <td colspan="3" style="background:#0a0e16; color:#334155; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; padding:8px 14px;">AI 配置</td>
+        </tr>
+        <tr>
+          <td><strong>AI Provider 配置</strong><br><small style="color:#64748b">/ai-settings</small></td>
+          <td><span class="status partial">基本可用</span></td>
+          <td>Provider 增删改查、模型映射、API Key 管理界面完整，接口已通</td>
+        </tr>
+        <tr>
+          <td><strong>当前工作区设置</strong><br><small style="color:#64748b">/settings</small></td>
+          <td><span class="status ok">已跑通</span></td>
+          <td>工作区路径读写正常</td>
+        </tr>
+
+        <!-- 数据类 -->
+        <tr>
+          <td colspan="3" style="background:#0a0e16; color:#334155; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; padding:8px 14px;">数据管理</td>
+        </tr>
+        <tr>
+          <td><strong>知识库 Wisdom</strong><br><small style="color:#64748b">/wisdom</small></td>
+          <td><span class="status partial">基本可用</span></td>
+          <td>CRUD 接口已通，分类/搜索已通</td>
+        </tr>
+        <tr>
+          <td><strong>全文搜索</strong><br><small style="color:#64748b">/search</small></td>
+          <td><span class="status partial">基本可用</span></td>
+          <td>搜索接口已通，索引重建已通，语义搜索依赖 AI 服务</td>
+        </tr>
+        <tr>
+          <td><strong>任务调度</strong><br><small style="color:#64748b">/tasks</small></td>
+          <td><span class="status partial">基本可用</span></td>
+          <td>任务 CRUD 和调度器已通，实际执行依赖 Claude CLI</td>
+        </tr>
+        <tr>
+          <td><strong>会话管理</strong><br><small style="color:#64748b">/sessions</small></td>
+          <td><span class="status partial">基本可用</span></td>
+          <td>会话暂停/恢复/同步接口已通</td>
+        </tr>
+        <tr>
+          <td><strong>项目管理</strong><br><small style="color:#64748b">/projects</small></td>
+          <td><span class="status partial">基本可用</span></td>
+          <td>项目 CRUD 已通，项目执行依赖 Claude CLI</td>
+        </tr>
+
+        <!-- 终端 -->
+        <tr>
+          <td colspan="3" style="background:#0a0e16; color:#334155; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; padding:8px 14px;">终端与进程</td>
+        </tr>
+        <tr>
+          <td><strong>系统终端</strong><br><small style="color:#64748b">/terminal</small></td>
+          <td><span class="status ok">已跑通</span></td>
+          <td>PTY 终端完全正常，WebSocket 双向通信，xterm.js 渲染</td>
+        </tr>
+        <tr>
+          <td><strong>进程监控</strong><br><small style="color:#64748b">/processes</small></td>
+          <td><span class="status partial">基本可用</span></td>
+          <td>进程列表和 kill 接口已通</td>
+        </tr>
+
+        <!-- 高级功能 -->
+        <tr>
+          <td colspan="3" style="background:#0a0e16; color:#334155; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; padding:8px 14px;">高级功能（未深度验证）</td>
+        </tr>
+        <tr>
+          <td><strong>群聊讨论</strong><br><small style="color:#64748b">/group-chat</small></td>
+          <td><span class="status no">未验证</span></td>
+          <td>多 Agent 群聊框架已实现，前后端接口均存在，未完整测试</td>
+        </tr>
+        <tr>
+          <td><strong>内置浏览器</strong><br><small style="color:#64748b">/browser</small></td>
+          <td><span class="status no">未验证</span></td>
+          <td>页面存在，功能未测试</td>
+        </tr>
+        <tr>
+          <td><strong>A2UI 交互面板</strong><br><small style="color:#64748b">/ui-design</small></td>
+          <td><span class="status no">未验证</span></td>
+          <td>Agent-to-UI 双向交互，WebSocket 接口已实现，未测试</td>
+        </tr>
+        <tr>
+          <td><strong>测试生成</strong><br><small style="color:#64748b">POST /test-gen</small></td>
+          <td><span class="status no">未验证</span></td>
+          <td>依赖 Claude CLI，未测试</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 系统架构 -->
+  <div class="section" id="arch">
+    <h2><span class="icon">🏗</span> 系统架构</h2>
+    <div class="cards">
+      <div class="card">
+        <div class="card-title">前端</div>
+        <div class="card-desc">
+          React + TypeScript + Vite<br>
+          Tauri WebView (WKWebView on macOS)<br>
+          Zustand 状态管理<br>
+          xterm.js 终端渲染<br>
+          原生 fetch + WebSocket 通信
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">后端 (nx_api)</div>
+        <div class="card-desc">
+          Rust + Axum 框架<br>
+          SQLite (nexus.db) 数据存储<br>
+          WebSocket PTY 终端服务<br>
+          监听 127.0.0.1:8080<br>
+          随 App 启动自动运行
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">AI 执行层</div>
+        <div class="card-desc">
+          调用 <code>/opt/homebrew/bin/claude</code><br>
+          需要 Claude Code 登录状态<br>
+          需要 Anthropic API Key<br>
+          所有 AI 功能通过此路径调用
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">数据存储位置</div>
+        <div class="card-desc">
+          数据库：<br>
+          <code style="font-size:10px">NX Dashboard.app/Contents/Resources/nx_dashboard/nexus.db</code><br><br>
+          技能文件：<br>
+          <code style="font-size:10px">NX Dashboard.app/Contents/Resources/skills/</code><br><br>
+          后端日志：<code>/tmp/nx_api.log</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 常见问题 -->
+  <div class="section" id="troubleshoot">
+    <h2><span class="icon">🔧</span> 常见问题排查</h2>
+
+    <h3>App 无法打开 / 显示"磁盘已损坏"</h3>
+    <pre>xattr -cr ~/Downloads/"NX Dashboard_0.1.0_aarch64.dmg"
+xattr -cr "/Applications/NX Dashboard.app"</pre>
+
+    <h3>功能访问不到 / 接口报错</h3>
+    <pre># 1. 检查后端是否在运行
+pgrep -la nx_api
+
+# 2. 测试后端响应
+curl http://127.0.0.1:8080/health
+
+# 3. 如果没在运行，查看错误日志
+cat /tmp/nx_api.log
+
+# 4. 重启后端（完全退出 App 再重开）
+pkill nx_api
+# 然后重新打开 NX Dashboard</pre>
+
+    <h3>端口 8080 被占用</h3>
+    <pre># 查看占用进程
+lsof -i :8080
+
+# 终止占用进程（替换 PID）
+kill -9 &lt;PID&gt;</pre>
+
+    <h3>AI 功能不工作</h3>
+    <pre># 检查 Claude CLI 路径
+ls /opt/homebrew/bin/claude
+
+# 检查登录状态
+/opt/homebrew/bin/claude --version
+
+# 重新登录
+claude login</pre>
+
+    <h3>查看完整后端日志</h3>
+    <pre>tail -f /tmp/nx_api.log</pre>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    NX Dashboard v0.1.0 · 操作手册生成于 2026-04-24 · 仅供内部使用
+  </div>
+
+</div>
+</body>
+</html>

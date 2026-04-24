@@ -69,6 +69,7 @@ async fn run_claude_interactive(
     cmd.stdin(std::process::Stdio::piped());
     cmd.stdout(std::process::Stdio::piped());
     cmd.stderr(std::process::Stdio::piped());
+    cmd.kill_on_drop(true); // ensure child is killed when this future is dropped (e.g. on cancellation)
     if let Some(dir) = working_dir {
         cmd.current_dir(dir);
     }
@@ -987,6 +988,7 @@ IMPORTANT: When asked to generate documents, reports, or design files, write the
 
         let mut cmd = tokio::process::Command::new("/opt/homebrew/bin/claude");
         cmd.args(["-p", "--dangerously-skip-permissions", &full_prompt]);
+        cmd.kill_on_drop(true);
         if let Some(ref dir) = working_dir {
             cmd.current_dir(dir);
             tracing::info!("[AgentTeam] execute_role_ai 执行 Claude CLI，当前目录: {}", dir);

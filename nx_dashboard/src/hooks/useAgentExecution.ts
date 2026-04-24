@@ -440,6 +440,7 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     confirmationOptions,
     execute,
     executeRoleTurn,
+    sendConfirmation,
     cancel,
     reset,
   };

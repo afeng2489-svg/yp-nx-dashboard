@@ -47,6 +47,7 @@ reqwest.workspace = true
 
 # Concurrency
 parking_lot.workspace = true
+once_cell = "1.19"
 portable-pty.workspace = true
 
 # Async traits

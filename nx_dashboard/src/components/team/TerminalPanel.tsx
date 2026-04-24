@@ -27,10 +27,16 @@ function RoleTerminalTab({ teamId, roleId, visible }: RoleTerminalTabProps) {
   const setTerminalSession = useTeamStore((s) => s.setTerminalSession);
   const [sessionId, setSessionId] = useState<string | null>(storedSessionId);
 
+  const handleSessionLost = useCallback(() => {
+    setSessionId(null);
+    setTerminalSession(teamId, roleId, null);
+  }, [teamId, roleId, setTerminalSession]);
+
   const { isConnected, resize } = usePtySession({
     teamId,
     sessionId,
     terminal: terminalReady ? terminalRef.current : null,
+    onSessionLost: handleSessionLost,
   });
 
   // 初始化 xterm.js

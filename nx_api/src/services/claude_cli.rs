@@ -3,10 +3,74 @@
 //! 通过本地 Claude Code CLI 调用 AI 模型，
 //! Claude Switch 切换模型后会自动使用新模型。
 
-use tokio::process::Command;
+use std::process::Command;
+use tokio::process::Command as AsyncCommand;
 
 /// Claude CLI 调用结果
 pub type ClaudeCliResult = Result<String, String>;
+
+/// Claude CLI 路径缓存
+static CLAUDE_CLI_PATH: once_cell::sync::Lazy<Option<String>> = once_cell::sync::Lazy::new(find_claude_cli);
+
+/// 自动检索本地 Claude Code CLI 路径
+fn find_claude_cli() -> Option<String> {
+    // 1. 先尝试 which claude
+    if let Ok(path) = std::process::Command::new("which")
+        .arg("claude")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+    {
+        if !path.is_empty() && std::path::Path::new(&path).exists() {
+            tracing::debug!("[Claude CLI] 发现于: {}", path);
+            return Some(path);
+        }
+    }
+
+    // 2. 尝试 command -v claude
+    if let Ok(path) = std::process::Command::new("command")
+        .args(["-v", "claude"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+    {
+        if !path.is_empty() && std::path::Path::new(&path).exists() {
+            tracing::debug!("[Claude CLI] 发现于: {}", path);
+            return Some(path);
+        }
+    }
+
+    // 3. 常见 macOS 路径
+    let common_paths = [
+        "/opt/homebrew/bin/claude",
+        "/usr/local/bin/claude",
+        "/usr/bin/claude",
+    ];
+    for p in &common_paths {
+        if std::path::Path::new(p).exists() {
+            tracing::debug!("[Claude CLI] 发现于: {}", p);
+            return Some(p.to_string());
+        }
+    }
+
+    // 4. 尝试从 PATH 环境变量查找
+    if let Ok(path) = std::process::Command::new("zsh")
+        .args(["-c", "whence -p claude"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+    {
+        if !path.is_empty() && std::path::Path::new(&path).exists() {
+            tracing::debug!("[Claude CLI] 发现于: {}", path);
+            return Some(path);
+        }
+    }
+
+    tracing::warn!("[Claude CLI] 未找到 Claude Code CLI");
+    None
+}
+
+/// 获取 Claude CLI 路径
+pub fn get_claude_cli_path() -> Option<String> {
+    (*CLAUDE_CLI_PATH).clone()
+}
 
 /// 将 ChatMessage 列表转换为 prompt 字符串
 pub fn messages_to_prompt(messages: &[nexus_ai::ChatMessage]) -> String {
@@ -49,18 +113,20 @@ pub async fn call_claude_cli(prompt: &str, working_directory: Option<&str>) -> C
 
 /// 调用 Claude CLI 执行 prompt，带超时
 pub async fn call_claude_cli_with_timeout(prompt: &str, timeout_secs: u64, working_directory: Option<&str>) -> ClaudeCliResult {
+    let cli_path = get_claude_cli_path().ok_or("Claude CLI not found")?;
+
     let timeout = tokio::time::timeout(
         std::time::Duration::from_secs(timeout_secs),
         async {
-            let mut cmd = Command::new("/opt/homebrew/bin/claude");
+            let mut cmd = AsyncCommand::new(&cli_path);
             cmd.args(["-p", "--dangerously-skip-permissions", "--no-session-persistence", prompt]);
 
             // 如果提供了 working_directory，设置当前工作目录
             if let Some(dir) = working_directory {
                 cmd.current_dir(dir);
-                tracing::info!("[Claude CLI] 执行命令: cd {} && claude -p --dangerously-skip-permissions <prompt>", dir);
+                tracing::info!("[Claude CLI] 执行命令: cd {} && {} -p --dangerously-skip-permissions <prompt>", dir, cli_path);
             } else {
-                tracing::info!("[Claude CLI] 执行命令: claude -p --dangerously-skip-permissions <prompt>");
+                tracing::info!("[Claude CLI] 执行命令: {} -p --dangerously-skip-permissions <prompt>", cli_path);
             }
 
             let output = cmd
@@ -86,7 +152,9 @@ pub async fn call_claude_cli_with_timeout(prompt: &str, timeout_secs: u64, worki
 /// 调用 Claude CLI，返回带工具调用的完整响应
 /// 适用于需要解析 Claude 的 tool_use 等结构的场景
 pub async fn call_claude_cli_with_tools(prompt: &str) -> ClaudeCliResult {
-    let output = Command::new("/opt/homebrew/bin/claude")
+    let cli_path = get_claude_cli_path().ok_or("Claude CLI not found")?;
+
+    let output = AsyncCommand::new(&cli_path)
         .args(["-p", "--dangerously-skip-permissions", "--no-session-persistence", "--verbose", prompt])
         .output()
         .await

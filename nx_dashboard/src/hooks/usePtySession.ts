@@ -11,6 +11,8 @@ interface PtySessionOptions {
   teamId: string;
   sessionId: string | null;
   terminal: Terminal | null;
+  /** 连接失败或 session 不存在时回调，用于上层清除 stale session */
+  onSessionLost?: () => void;
 }
 
 interface UsePtySessionReturn {
@@ -20,12 +22,14 @@ interface UsePtySessionReturn {
   resize: (rows: number, cols: number) => void;
 }
 
-export function usePtySession({ teamId, sessionId, terminal }: PtySessionOptions): UsePtySessionReturn {
+export function usePtySession({ teamId, sessionId, terminal, onSessionLost }: PtySessionOptions): UsePtySessionReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   // Keep current sessionId accessible inside stable callbacks
   const sessionIdRef = useRef<string | null>(null);
   sessionIdRef.current = sessionId;
+  const onSessionLostRef = useRef(onSessionLost);
+  onSessionLostRef.current = onSessionLost;
 
   // ── Connect / disconnect ───────────────────────────────────────────────────
   useEffect(() => {
@@ -68,6 +72,8 @@ export function usePtySession({ teamId, sessionId, terminal }: PtySessionOptions
         } catch (e) {
           if (active) {
             terminal.write(`\r\n\x1b[31m[IPC连接失败] ${e}\x1b[0m\r\n`);
+            // 连接失败说明 session 已不存在，通知上层清除 stale session
+            onSessionLostRef.current?.();
           }
         }
       })();
@@ -85,8 +91,6 @@ export function usePtySession({ teamId, sessionId, terminal }: PtySessionOptions
       const ws = new WebSocket(url);
       ws.binaryType = 'arraybuffer';
       wsRef.current = ws;
-
-      ws.onopen = () => setIsConnected(true);
 
       ws.onmessage = (evt) => {
         if (evt.data instanceof ArrayBuffer) {
@@ -106,7 +110,13 @@ export function usePtySession({ teamId, sessionId, terminal }: PtySessionOptions
         }
       };
 
-      ws.onclose = () => setIsConnected(false);
+      let connected = false;
+      ws.onopen = () => { connected = true; setIsConnected(true); };
+      ws.onclose = () => {
+        setIsConnected(false);
+        // 从未成功建立连接 → session 已不存在，清除 stale 记录
+        if (!connected) onSessionLostRef.current?.();
+      };
       ws.onerror = () => {
         terminal.write('\r\n\x1b[31m[WebSocket 连接失败]\x1b[0m\r\n');
         setIsConnected(false);

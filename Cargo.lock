@@ -1287,6 +1287,7 @@ dependencies = [
  "nx_memory",
  "nx_plugin",
  "nx_session",
+ "once_cell",
  "parking_lot",
  "portable-pty",
  "reqwest",

@@ -162,7 +162,7 @@ interface TeamStore {
     teamId: string;
     teamName: string;
     task: string;
-    status: 'running' | 'done' | 'error';
+    status: 'running' | 'done' | 'error' | 'waiting_confirmation';
     partialOutput?: string;
     result?: string;
     error?: string;

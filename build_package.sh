@@ -18,6 +18,26 @@ mkdir -p packaging
 # 复制 app bundle（保留扩展属性）
 cp -pR "nx_dashboard/src-tauri/target/release/bundle/macos/NX Dashboard.app" packaging/
 
+# 复制数据库（如果有的话）
+if [ -f "nx_dashboard/nexus.db" ]; then
+    mkdir -p "packaging/NX Dashboard.app/Contents/Resources/nx_dashboard"
+    cp -p "nx_dashboard/nexus.db" "packaging/NX Dashboard.app/Contents/Resources/nx_dashboard/nexus.db"
+    echo "已复制数据库"
+fi
+
+# 复制 skills（如果有的话）
+if [ -d ".claude/agents" ]; then
+    cp -pR ".claude/agents" "packaging/NX Dashboard.app/Contents/Resources/skills"
+    echo "已复制 skills"
+fi
+
+# 复制工作流模板（如果有的话）
+if [ -d "config/workflows" ]; then
+    mkdir -p "packaging/NX Dashboard.app/Contents/Resources/config"
+    cp -pR "config" "packaging/NX Dashboard.app/Contents/Resources/config"
+    echo "已复制工作流模板"
+fi
+
 # 复制分发说明文档
 cp DISTRIBUTION_README.md packaging/README.md
 

@@ -135,8 +135,7 @@ export function TemplateGallery({ isOpen, onClose, onUseTemplate }: TemplateGall
                   <TemplateCard
                     key={template.id}
                     template={template}
-                    onPreview={handlePreview}
-                    onUse={handleUseTemplate}
+                    onLaunch={() => handlePreview(template)}
                   />
                 ))}
               </div>
