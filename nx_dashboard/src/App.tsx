@@ -131,6 +131,9 @@ function App() {
             </Route>
           </Routes>
         </Suspense>
+
+        {/* Command Palette — inside BrowserRouter for useNavigate */}
+        <CommandPalette />
       </BrowserRouter>
 
       {/* Toast notifications */}
@@ -144,9 +147,6 @@ function App() {
           },
         }}
       />
-
-      {/* Command Palette */}
-      <CommandPalette />
 
       {/* Global workflow pause card — bottom-right floating */}
       <GlobalPauseCard />

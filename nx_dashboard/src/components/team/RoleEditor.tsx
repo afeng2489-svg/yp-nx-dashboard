@@ -4,6 +4,7 @@ import { Role } from '@/stores/teamStore';
 import { useTeamStore } from '@/stores/teamStore';
 import { useAIConfigStore } from '@/stores/aiConfigStore';
 import { useSkillStore } from '@/stores/skillStore';
+import { showError } from '@/lib/toast';
 import { SkillAssigner } from './SkillAssigner';
 
 interface RoleEditorProps {
@@ -67,6 +68,7 @@ export function RoleEditor({ role, teamId, onClose, onSave }: RoleEditorProps) {
       onSave();
     } catch (error) {
       console.error('Failed to save role:', error);
+      showError('操作失败', '保存角色失败');
     } finally {
       setSaving(false);
     }

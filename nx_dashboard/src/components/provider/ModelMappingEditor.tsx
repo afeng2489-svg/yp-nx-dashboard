@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, Trash2, Loader2, Brain, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AIProvider, ModelMapping, MappingType, AddModelMappingRequest } from '@/api/client';
+import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 
 interface ModelMappingEditorProps {
   provider: AIProvider;
@@ -34,6 +35,7 @@ export function ModelMappingEditor({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { confirmState, showConfirm, hideConfirm } = useConfirmModal();
 
   const handleAdd = async () => {
     console.log('[ModelMappingEditor] handleAdd clicked', { providerId: provider.id, newMapping });
@@ -54,9 +56,12 @@ export function ModelMappingEditor({
     }
   };
 
-  const handleRemove = async (mappingId: string) => {
-    if (!confirm('确定要删除这个模型映射吗？')) return;
-    await onRemoveMapping(provider.id, mappingId);
+  const handleRemove = (mappingId: string) => {
+    showConfirm(
+      '删除模型映射',
+      '确定要删除这个模型映射吗？',
+      () => onRemoveMapping(provider.id, mappingId)
+    );
   };
 
   const mappingsByType = mappings.reduce((acc, m) => {
@@ -66,6 +71,7 @@ export function ModelMappingEditor({
   }, {} as Record<MappingType, ModelMapping[]>);
 
   return (
+    <>
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h4 className="font-medium">模型映射</h4>
@@ -198,5 +204,13 @@ export function ModelMappingEditor({
         </div>
       )}
     </div>
+    <ConfirmModal
+      isOpen={confirmState.isOpen}
+      title={confirmState.title}
+      message={confirmState.message}
+      onConfirm={confirmState.onConfirm}
+      onCancel={hideConfirm}
+    />
+    </>
   );
 }

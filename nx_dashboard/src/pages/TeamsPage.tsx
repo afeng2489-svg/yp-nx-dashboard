@@ -11,6 +11,7 @@ import { ConversationView } from '@/components/team/ConversationView';
 import { TelegramConfigPanel } from '@/components/team/TelegramConfigPanel';
 import { AddExistingRoleModal } from '@/components/team/AddExistingRoleModal';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
+import { showError } from '@/lib/toast';
 
 export function TeamsPage() {
   const { getTeam, deleteTeam, setCurrentTeam, currentTeam, roles, fetchRoles, teamMonitorMode, setTeamMonitorMode } = useTeamStore();
@@ -42,6 +43,7 @@ export function TeamsPage() {
       setShowCreateModal(false);
     } catch (error) {
       console.error('Failed to create team:', error);
+      showError('操作失败', '创建团队失败');
     }
   };
 
@@ -289,7 +291,15 @@ export function TeamsPage() {
           onClose={() => setSelectedTeam(null)}
           onEditRole={handleEditRole}
           onCreateRole={() => handleCreateRole()}
-          onDeleteRole={(roleId) => useTeamStore.getState().unassignRoleFromTeam(roleId, selectedTeam.id)}
+          onDeleteRole={(roleId) => {
+            const role = roles[selectedTeam.id]?.find(r => r.id === roleId);
+            showConfirm(
+              '移除角色',
+              `确定要从团队中移除角色「${role?.name ?? roleId}」吗？`,
+              () => useTeamStore.getState().unassignRoleFromTeam(roleId, selectedTeam.id),
+              'warning'
+            );
+          }}
           onOpenConversation={() => setShowConversation(true)}
           onOpenTelegramConfig={() => setShowTelegramConfig(true)}
           onAddExistingRole={() => setShowAddExistingRole(true)}

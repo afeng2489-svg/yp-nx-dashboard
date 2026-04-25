@@ -4,6 +4,7 @@ import { onWorkspaceChange } from '@/stores/workspaceStore';
 import { useSessionsQuery } from '@/hooks/useReactQuery';
 import { Clock, AlertCircle, Loader2, X, ChevronRight, Activity, Pause, Play, Copy, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 
 const STATUS_CONFIG = {
   pending: {
@@ -160,6 +161,7 @@ function SessionDetailPanel({
   onClose: () => void;
 }) {
   const { setCurrentSession, terminateSession, activateSession } = useSessionStore();
+  const { confirmState, showConfirm, hideConfirm } = useConfirmModal();
   const status = session.status as keyof typeof STATUS_CONFIG;
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
   const Icon = config.icon;
@@ -168,9 +170,15 @@ function SessionDetailPanel({
     setCurrentSession(session);
   };
 
-  const handleTerminate = async () => {
-    await terminateSession(session.id);
-    onClose();
+  const handleTerminate = () => {
+    showConfirm(
+      '终止会话',
+      '确定要终止此会话吗？正在运行的任务将被中断，此操作不可撤销。',
+      async () => {
+        await terminateSession(session.id);
+        onClose();
+      }
+    );
   };
 
   const handleActivate = async () => {
@@ -178,6 +186,15 @@ function SessionDetailPanel({
   };
 
   return (
+    <>
+    <ConfirmModal
+      isOpen={confirmState.isOpen}
+      title={confirmState.title}
+      message={confirmState.message}
+      onConfirm={confirmState.onConfirm}
+      onCancel={hideConfirm}
+      variant="danger"
+    />
     <div className="fixed inset-y-0 right-0 w-96 bg-card border-l border-border shadow-xl z-50 flex flex-col animate-in slide-in-from-right">
       <div className="flex items-center justify-between p-4 border-b border-border">
         <h2 className="text-lg font-semibold">会话详情</h2>
@@ -231,6 +248,7 @@ function SessionDetailPanel({
         </div>
       </div>
     </div>
+    </>
   );
 }
 

@@ -6,7 +6,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 /** Agent execution event from WebSocket */
 interface AgentExecutionEvent {
-  type: 'started' | 'thinking' | 'output' | 'completed' | 'failed' | 'cancelled' | 'confirmation_required';
+  type: 'started' | 'thinking' | 'output' | 'progress' | 'completed' | 'failed' | 'cancelled' | 'confirmation_required';
   execution_id: string;
   agent_role?: string;
   task_summary?: string;
@@ -20,6 +20,14 @@ interface AgentExecutionEvent {
   needs_input?: boolean;
   role_id?: string;
   session_id?: string;
+  action?: string;
+  detail?: string;
+}
+
+export interface ProgressItem {
+  action: string;
+  detail: string;
+  timestamp: number;
 }
 
 export type AgentExecutionStatus =
@@ -43,6 +51,7 @@ export interface UseAgentExecutionReturn {
   confirmationOptions: string[];
   activeRoleId: string | null;
   activeSessionId: string | null;
+  progress: ProgressItem[];
   execute: (teamId: string, task: string, autoConfirm?: boolean) => Promise<string | null>;
   executeRoleTurn: (sessionId: string, roleId: string) => Promise<string | null>;
   sendConfirmation: (response: string) => void;
@@ -71,6 +80,7 @@ export function useAgentExecution(): UseAgentExecutionReturn {
   const [confirmationOptions, setConfirmationOptions] = useState<string[]>([]);
   const [activeRoleId, setActiveRoleId] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ProgressItem[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const timerRef = useRef<number | null>(null);
@@ -201,6 +211,15 @@ export function useAgentExecution(): UseAgentExecutionReturn {
               }
             }
             break;
+          case 'progress':
+            if (data.action) {
+              setProgress((prev) => [...prev, {
+                action: data.action!,
+                detail: data.detail ?? '',
+                timestamp: Date.now(),
+              }]);
+            }
+            break;
           case 'completed':
             setStatus('completed');
             setResult(data.result ?? null);
@@ -297,7 +316,8 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     setError(null);
     setDurationMs(null);
     setActiveRoleId(null);
-    setActiveSessionId(null);    startLocalTimer();
+    setActiveSessionId(null);
+    setProgress([]);    startLocalTimer();
     isRunningRef.current = true;
     reconnectCountRef.current = 0;
 
@@ -405,7 +425,8 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     setError(null);
     setDurationMs(null);
     setActiveRoleId(null);
-    setActiveSessionId(null);    startLocalTimer();
+    setActiveSessionId(null);
+    setProgress([]);    startLocalTimer();
 
     try {
       const response = await fetch(
@@ -471,6 +492,7 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     setDurationMs(null);
     setActiveRoleId(null);
     setActiveSessionId(null);
+    setProgress([]);
   }, [stopLocalTimer]);
 
   return {
@@ -485,6 +507,7 @@ export function useAgentExecution(): UseAgentExecutionReturn {
     confirmationOptions,
     activeRoleId,
     activeSessionId,
+    progress,
     execute,
     executeRoleTurn,
     sendConfirmation,

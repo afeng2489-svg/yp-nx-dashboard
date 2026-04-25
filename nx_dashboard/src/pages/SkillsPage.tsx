@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSkillStore, type SkillSummary, type CreateSkillRequest, type UpdateSkillRequest } from '@/stores/skillStore';
 import { useSkillsQuery, useSkillDetailQuery, useSkillCategoriesQuery } from '@/hooks/useReactQuery';
 import { showSuccess, showError } from '@/lib/toast';
+import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 import { Pencil, Trash2, Plus, X, Download, Link, FileText, ClipboardPaste } from 'lucide-react';
 
 export default function SkillsPage() {
@@ -33,6 +34,7 @@ export default function SkillsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
   const [executionResult, setExecutionResult] = useState<string | null>(null);
+  const { confirmState, showConfirm, hideConfirm } = useConfirmModal();
 
   // Import dialog state
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -192,20 +194,24 @@ export default function SkillsPage() {
     fetchStats();
   };
 
-  const handleDeleteSkill = async () => {
+  const handleDeleteSkill = () => {
     if (!currentSkill) return;
-    if (!confirm(`确定要删除技能 "${currentSkill.name}" 吗？`)) return;
-
-    const success = await deleteSkill(currentSkill.id);
-    if (success) {
-      showSuccess('删除成功', `技能 "${currentSkill.name}" 已删除`);
-      clearCurrentSkill();
-      setSelectedSkill(null);
-      refetchSkills();
-      fetchStats();
-    } else {
-      showError('删除失败', useSkillStore.getState().error || '未知错误');
-    }
+    showConfirm(
+      '删除技能',
+      `确定要删除技能「${currentSkill.name}」吗？此操作不可撤销。`,
+      async () => {
+        const success = await deleteSkill(currentSkill.id);
+        if (success) {
+          showSuccess('删除成功', `技能 "${currentSkill.name}" 已删除`);
+          clearCurrentSkill();
+          setSelectedSkill(null);
+          refetchSkills();
+          fetchStats();
+        } else {
+          showError('删除失败', '请稍后重试');
+        }
+      }
+    );
   };
 
   // === 导入功能 ===
@@ -364,6 +370,7 @@ export default function SkillsPage() {
       : skills;
 
   return (
+    <>
     <div className="flex h-full">
       {/* 左侧列表 */}
       <div className="w-80 border-r border-gray-200 flex flex-col bg-white">
@@ -995,5 +1002,13 @@ export default function SkillsPage() {
         </div>
       )}
     </div>
+    <ConfirmModal
+      isOpen={confirmState.isOpen}
+      title={confirmState.title}
+      message={confirmState.message}
+      onConfirm={confirmState.onConfirm}
+      onCancel={hideConfirm}
+    />
+    </>
   );
 }

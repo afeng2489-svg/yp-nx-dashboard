@@ -22,6 +22,8 @@ const QUIET_THRESHOLD_SECS: u64 = 5;
 const MIN_EXECUTION_SECS: u64 = 10;
 /// Maximum accumulated output to keep (1 MB clean text)
 const MAX_ACCUMULATED_BYTES: usize = 1024 * 1024;
+/// Minimum interval between sending Progress events (avoid flooding)
+const PROGRESS_DEBOUNCE_MILLIS: u64 = 800;
 
 /// Watch a PTY session after dispatching a task, bridging output to AgentExecutionEvent.
 ///
@@ -42,6 +44,7 @@ pub async fn watch_pty_task(
     let mut accumulated = String::new();
     let mut last_output_time = Instant::now();
     let mut has_received_output = false;
+    let mut last_progress_time = Instant::now() - Duration::from_millis(PROGRESS_DEBOUNCE_MILLIS);
     let exec_id_for_log = execution_id.clone();
 
     tracing::info!("[PtyWatcher] 开始监听 PTY 输出, execution_id: {}", exec_id_for_log);
@@ -62,6 +65,12 @@ pub async fn watch_pty_task(
                         let text = String::from_utf8_lossy(&raw_bytes);
                         let clean = strip_ansi(&text);
 
+                        // Debug: log first 200 chars of each output chunk to understand claude CLI format
+                        if !clean.trim().is_empty() {
+                            let preview: String = clean.chars().take(200).collect();
+                            tracing::info!("[PtyWatcher] OUTPUT chunk: {:?}", preview);
+                        }
+
                         // Update tracking
                         last_output_time = Instant::now();
                         has_received_output = true;
@@ -78,11 +87,35 @@ pub async fn watch_pty_task(
                             accumulated.push_str(&clean);
                         }
 
+                        // Detect structured progress from claude output (before clean is moved)
+                        let progress_event = {
+                            let now = Instant::now();
+                            if now.duration_since(last_progress_time).as_millis() as u64 >= PROGRESS_DEBOUNCE_MILLIS {
+                                if let Some((action, detail)) = detect_claude_action(&clean) {
+                                    last_progress_time = now;
+                                    Some(AgentExecutionEvent::Progress {
+                                        execution_id: execution_id.clone(),
+                                        action,
+                                        detail,
+                                    })
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        };
+
                         // Forward as AgentExecutionEvent::Output
                         let _ = event_tx.send(AgentExecutionEvent::Output {
                             execution_id: execution_id.clone(),
                             partial_output: clean,
                         });
+
+                        // Send progress event if detected
+                        if let Some(evt) = progress_event {
+                            let _ = event_tx.send(evt);
+                        }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         tracing::warn!("[PtyWatcher] 落后 {} 帧, execution_id: {}", n, exec_id_for_log);
@@ -202,4 +235,77 @@ fn extract_response(accumulated: &str) -> String {
     } else {
         result
     }
+}
+
+/// Detect structured actions from claude CLI output.
+/// Returns (action, detail) if a recognizable pattern is found.
+///
+/// Claude CLI output patterns:
+/// - "Reading: path/to/file" or "Reading file: ..."
+/// - "Editing: path/to/file" or "Editing file: ..."
+/// - "Writing: path/to/file" or "Writing file: ..."
+/// - "Running: command" or "$ command"
+/// - "Searching: ..." or "Searching for: ..."
+/// - "Thinking..." or "Let me think"
+fn detect_claude_action(output: &str) -> Option<(String, String)> {
+    // Only scan the last few lines (most recent output)
+    let last_lines: Vec<&str> = output.lines().rev().take(3).collect();
+
+    for line in last_lines {
+        let trimmed = line.trim();
+        if trimmed.is_empty() { continue; }
+
+        // Pattern: "Reading: /path/to/file" or "Reading file: ..."
+        if let Some(rest) = try_strip_prefix(trimmed, &["Reading:", "Reading file:", "Reading "]) {
+            return Some(("reading".into(), rest.trim().into()));
+        }
+
+        // Pattern: "Editing: /path/to/file" or "Editing file: ..."
+        if let Some(rest) = try_strip_prefix(trimmed, &["Editing:", "Editing file:", "Editing "]) {
+            return Some(("editing".into(), rest.trim().into()));
+        }
+
+        // Pattern: "Writing: /path/to/file" or "Writing file: ..."
+        if let Some(rest) = try_strip_prefix(trimmed, &["Writing:", "Writing file:", "Writing "]) {
+            return Some(("writing".into(), rest.trim().into()));
+        }
+
+        // Pattern: "Running: command" or "$ command"
+        if let Some(rest) = try_strip_prefix(trimmed, &["Running:", "Running "]) {
+            return Some(("running".into(), rest.trim().into()));
+        }
+        if trimmed.starts_with("$ ") {
+            return Some(("running".into(), trimmed[2..].into()));
+        }
+
+        // Pattern: "Searching: ..." or "Searching for: ..."
+        if let Some(rest) = try_strip_prefix(trimmed, &["Searching:", "Searching for:", "Searching "]) {
+            return Some(("searching".into(), rest.trim().into()));
+        }
+
+        // Pattern: "Thinking..." or "Let me think"
+        if trimmed.contains("Thinking") || trimmed.contains("Let me think") {
+            return Some(("thinking".into(), String::new()));
+        }
+
+        // Pattern: claude tool use indicators
+        // "tool_use" or "Using tool:" patterns
+        if let Some(rest) = try_strip_prefix(trimmed, &["Using tool:", "Tool:", "Calling "]) {
+            return Some(("tool_use".into(), rest.trim().into()));
+        }
+    }
+
+    None
+}
+
+/// Try to strip one of several prefixes from a string (case-insensitive).
+fn try_strip_prefix<'a>(s: &'a str, prefixes: &[&str]) -> Option<&'a str> {
+    let lower = s.to_lowercase();
+    for prefix in prefixes {
+        let prefix_lower = prefix.to_lowercase();
+        if lower.starts_with(&prefix_lower) {
+            return Some(&s[prefix.len()..]);
+        }
+    }
+    None
 }

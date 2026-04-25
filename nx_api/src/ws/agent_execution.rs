@@ -36,6 +36,12 @@ pub enum AgentExecutionEvent {
         execution_id: String,
         partial_output: String,
     },
+    /// 结构化进度事件（claude 动作检测）
+    Progress {
+        execution_id: String,
+        action: String,          // reading / editing / writing / running / thinking / searching
+        detail: String,          // 具体描述，如文件路径、命令名
+    },
     /// 任务完成
     Completed {
         execution_id: String,
@@ -67,6 +73,7 @@ impl AgentExecutionEvent {
             Self::Started { execution_id, .. }
             | Self::Thinking { execution_id, .. }
             | Self::Output { execution_id, .. }
+            | Self::Progress { execution_id, .. }
             | Self::Completed { execution_id, .. }
             | Self::Failed { execution_id, .. }
             | Self::Cancelled { execution_id, .. }

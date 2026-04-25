@@ -5,6 +5,7 @@ import { useWorkspaceStore, Workspace } from '@/stores/workspaceStore';
 import { Plus, Trash2, Play, X, Loader2, FolderOpen, Clock, CheckCircle, XCircle, AlertCircle, Folder, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
+import { showError } from '@/lib/toast';
 import { ClaudeStreamPanel } from '@/components/terminal/ClaudeStreamPanel';
 
 // Extended project type that includes local path projects (workspaces)
@@ -73,6 +74,7 @@ export function ProjectsPage() {
       setShowCreateModal(false);
     } catch (e) {
       console.error('Failed to create project:', e);
+      showError('操作失败', '创建项目失败');
     }
   };
 
@@ -93,6 +95,7 @@ export function ProjectsPage() {
       setExecuteTask('');
     } catch (e) {
       console.error('Failed to execute project:', e);
+      showError('操作失败', '执行项目失败');
     }
   };
 

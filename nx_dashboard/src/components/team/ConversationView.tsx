@@ -148,11 +148,46 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
   }, [teamId, agentExec.activeRoleId, agentExec.activeSessionId, setTerminalSession]);
 
   useEffect(() => {
-    setLocalMessages(storeMessages.filter(m => m.team_id === teamId));
+    const serverMessages = storeMessages.filter(m => m.team_id === teamId);
+    setLocalMessages(prev => {
+      const tempMessages = prev.filter(m => m.id.startsWith('temp-'));
+      if (tempMessages.length === 0) return serverMessages;
+      // 去重：如果服务端消息中已包含相同内容的消息，移除对应临时消息
+      const serverUserContents = new Set(serverMessages.filter(m => m.role === 'user').map(m => m.content));
+      const serverAssistantContents = new Set(serverMessages.filter(m => m.role === 'assistant').map(m => m.content));
+      const keptTemp = tempMessages.filter(m => {
+        if (m.role === 'assistant') return !serverAssistantContents.has(m.content);
+        if (m.role === 'user') return !serverUserContents.has(m.content);
+        return true;
+      });
+      return [...serverMessages, ...keptTemp];
+    });
   }, [storeMessages, teamId]);
 
   useEffect(() => {
-    if (agentExec.status === 'completed' || agentExec.status === 'failed') {
+    if (agentExec.status === 'completed') {
+      // 立即用 result 渲染临时 AI 回复气泡，不等 fetchMessages
+      if (agentExec.result) {
+        const tempAssistantMsg: Message = {
+          id: `temp-assistant-${Date.now()}`,
+          team_id: teamId,
+          role: 'assistant',
+          message_type: 'Assistant',
+          content: agentExec.result,
+          created_at: new Date().toISOString(),
+        };
+        setLocalMessages(prev => [...prev, tempAssistantMsg]);
+      }
+      if (agentExec.partialOutput) {
+        setLastCliOutput(agentExec.partialOutput);
+        setShowLastOutput(true);
+      }
+      // fetchMessages 回来后会覆盖 localMessages，临时气泡自然被真实消息替换
+      fetchMessages(teamId);
+      const timer = setTimeout(() => agentExec.reset(), 500);
+      return () => clearTimeout(timer);
+    }
+    if (agentExec.status === 'failed') {
       if (agentExec.partialOutput) {
         setLastCliOutput(agentExec.partialOutput);
         setShowLastOutput(true);
@@ -392,6 +427,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
             <EmbeddedTerminalPreview
               output={agentExec.partialOutput || ''}
               elapsedSecs={agentExec.elapsedSecs || 0}
+              progress={agentExec.progress}
               onViewTerminal={() => setActiveTab('terminal')}
             />
           </div>

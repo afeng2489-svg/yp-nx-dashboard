@@ -3,6 +3,7 @@ import { useTeamStore, Role, Team } from '@/stores/teamStore';
 import { Plus, Trash2, Edit, Search, Filter, Bot, Users, Loader2, X, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal } from '@/lib/ConfirmModal';
+import { showError } from '@/lib/toast';
 import { SkillAssigner } from '@/components/team/SkillAssigner';
 import { API_BASE_URL } from '@/api/constants';
 
@@ -119,6 +120,7 @@ export function RolesPage() {
       }
     } catch (error) {
       console.error('Failed to update role:', error);
+      showError('操作失败', '更新角色失败');
     }
   };
 
@@ -134,6 +136,7 @@ export function RolesPage() {
       }
     } catch (error) {
       console.error('Failed to delete role:', error);
+      showError('操作失败', '删除角色失败');
     }
   };
 
@@ -170,6 +173,7 @@ export function RolesPage() {
       }
     } catch (error) {
       console.error('Failed to create role:', error);
+      showError('操作失败', '创建角色失败');
     }
   };
 

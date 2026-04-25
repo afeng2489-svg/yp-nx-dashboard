@@ -1,5 +1,29 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, Terminal, Plus, Play, Pause, ChevronRight, Clock, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
+// Navigation commands
+const NAV_COMMANDS = [
+  { command: 'go:dashboard', description: '仪表盘', path: '/' },
+  { command: 'go:workflows', description: '工作流', path: '/workflows' },
+  { command: 'go:templates', description: '模板', path: '/templates' },
+  { command: 'go:executions', description: '执行', path: '/executions' },
+  { command: 'go:terminal', description: '终端', path: '/terminal' },
+  { command: 'go:sessions', description: '会话', path: '/sessions' },
+  { command: 'go:tasks', description: '任务', path: '/tasks' },
+  { command: 'go:ui-design', description: 'UI 设计', path: '/ui-design' },
+  { command: 'go:wisdom', description: '知识库', path: '/wisdom' },
+  { command: 'go:search', description: '搜索', path: '/search' },
+  { command: 'go:skills', description: '技能', path: '/skills' },
+  { command: 'go:teams', description: '团队', path: '/teams' },
+  { command: 'go:roles', description: '角色', path: '/roles' },
+  { command: 'go:projects', description: '项目', path: '/projects' },
+  { command: 'go:group-chat', description: '群组讨论', path: '/group-chat' },
+  { command: 'go:processes', description: '进程监测', path: '/processes' },
+  { command: 'go:browser', description: '浏览器', path: '/browser' },
+  { command: 'go:ai-settings', description: 'AI 设置', path: '/ai-settings' },
+  { command: 'go:settings', description: '设置', path: '/settings' },
+];
 
 // Command types matching the Rust backend
 export interface CommandArgument {
@@ -120,6 +144,7 @@ const RECENT_COMMANDS_KEY = 'nexusflow_recent_commands';
 const MAX_RECENT_COMMANDS = 10;
 
 export function CommandPalette() {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -159,13 +184,17 @@ export function CommandPalette() {
     }
     const query = input.slice(1).toLowerCase();
     if (!query) {
-      return AVAILABLE_COMMANDS;
+      return [...NAV_COMMANDS.map(n => ({ command: n.command, description: n.description, arguments: [] })), ...AVAILABLE_COMMANDS];
     }
-    return AVAILABLE_COMMANDS.filter(
+    const navFiltered = NAV_COMMANDS
+      .filter(n => n.command.toLowerCase().includes(query) || n.description.toLowerCase().includes(query))
+      .map(n => ({ command: n.command, description: n.description, arguments: [] }));
+    const cmdFiltered = AVAILABLE_COMMANDS.filter(
       cmd =>
         cmd.command.toLowerCase().includes(query) ||
         cmd.description.toLowerCase().includes(query)
     );
+    return [...navFiltered, ...cmdFiltered];
   }, [input]);
 
   const filteredCommands = getFilteredCommands();
@@ -262,8 +291,16 @@ export function CommandPalette() {
     setInput('');
     setShowRecent(false);
 
-    // In a real implementation, this would call the backend API
-    // For now, we just log the command
+    // Navigation commands
+    if (command.startsWith('go:')) {
+      const navCmd = NAV_COMMANDS.find(n => n.command === command);
+      if (navCmd) {
+        navigate(navCmd.path);
+        return;
+      }
+    }
+
+    // Backend commands — dispatch custom event for now
     const event = new CustomEvent('nexusflow:command', { detail: { command } });
     window.dispatchEvent(event);
   };
@@ -279,6 +316,9 @@ export function CommandPalette() {
 
   // Get icon for command category
   const getCommandIcon = (command: string) => {
+    if (command.startsWith('go:')) {
+      return <ChevronRight className="w-4 h-4 text-indigo-400" />;
+    }
     if (command.startsWith('issue:')) {
       return <Plus className="w-4 h-4 text-blue-400" />;
     }
@@ -391,10 +431,13 @@ export function CommandPalette() {
                   {getCommandIcon(cmd.command)}
                   <div className="flex-1">
                     <div className="text-gray-200">
-                      <span className="font-mono text-blue-400">/{cmd.command}</span>
+                      <span className={`font-mono ${cmd.command.startsWith('go:') ? 'text-indigo-400' : 'text-blue-400'}`}>/{cmd.command}</span>
                     </div>
                     <div className="text-sm text-gray-500">{cmd.description}</div>
                   </div>
+                  {cmd.command.startsWith('go:') && (
+                    <span className="text-xs text-gray-600">Navigate</span>
+                  )}
                   <ChevronRight className="w-4 h-4 text-gray-600" />
                 </button>
               ))}

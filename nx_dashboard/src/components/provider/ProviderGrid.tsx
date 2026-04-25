@@ -6,6 +6,7 @@ import { ProviderCard } from './ProviderCard';
 import { ProviderForm } from './ProviderForm';
 import { ProviderPresetSelector } from './ProviderPresetSelector';
 import { ModelMappingEditor } from './ModelMappingEditor';
+import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 
 interface ProviderGridProps {
   providers: AIProvider[];
@@ -51,6 +52,7 @@ export function ProviderGrid({
   selectedModel,
 }: ProviderGridProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const { confirmState, showConfirm, hideConfirm } = useConfirmModal();
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingProvider, setEditingProvider] = useState<AIProvider | null>(null);
@@ -86,9 +88,12 @@ export function ProviderGrid({
     }
   };
 
-  const handleDeleteProvider = async (id: string) => {
-    if (!confirm('确定要删除这个提供商吗？')) return;
-    await onDeleteProvider(id);
+  const handleDeleteProvider = (id: string) => {
+    showConfirm(
+      '删除提供商',
+      '确定要删除这个提供商吗？此操作不可撤销。',
+      () => onDeleteProvider(id)
+    );
   };
 
   const handleProviderSelect = (provider: AIProvider) => {
@@ -134,6 +139,7 @@ export function ProviderGrid({
   };
 
   return (
+    <>
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-4">
@@ -389,5 +395,13 @@ export function ProviderGrid({
         />
       )}
     </div>
+    <ConfirmModal
+      isOpen={confirmState.isOpen}
+      title={confirmState.title}
+      message={confirmState.message}
+      onConfirm={confirmState.onConfirm}
+      onCancel={hideConfirm}
+    />
+    </>
   );
 }

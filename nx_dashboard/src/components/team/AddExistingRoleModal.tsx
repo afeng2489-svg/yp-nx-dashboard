@@ -25,6 +25,7 @@ export function AddExistingRoleModal({ teamId, onClose, onAdded }: AddExistingRo
         setAllRoles(roles);
       } catch (error) {
         console.error('Failed to fetch roles:', error);
+        showError('操作失败', '获取角色列表失败');
       } finally {
         setLoading(false);
       }
