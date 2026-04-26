@@ -361,10 +361,15 @@ export function useAgentExecution(): UseAgentExecutionReturn {
       // Backend returns immediately with execution_id embedded in final_output.
       // Actual result comes via WebSocket events (Completed/Failed).
       let execId: string | null = null;
+      let parallelSessions: Array<{ role_id: string; session_id: string; execution_id: string }> = [];
       if (data.final_output) {
         try {
           const parsed = JSON.parse(data.final_output);
           execId = parsed.execution_id ?? null;
+          // 并行派发时，后端返回 sessions 映射
+          if (Array.isArray(parsed.sessions)) {
+            parallelSessions = parsed.sessions;
+          }
         } catch {
           // final_output is plain text — synchronous response
           execId = null;
@@ -373,6 +378,14 @@ export function useAgentExecution(): UseAgentExecutionReturn {
       // Also check top-level execution_id (some routes return it directly)
       if (!execId) {
         execId = data.execution_id ?? null;
+      }
+
+      // 同步所有并行 session 到 terminalSessions store（终端 Tab 自动发现）
+      if (parallelSessions.length > 0) {
+        const { setTerminalSession } = useTeamStore.getState();
+        for (const s of parallelSessions) {
+          setTerminalSession(teamId, s.role_id, s.session_id);
+        }
       }
 
       if (execId) {

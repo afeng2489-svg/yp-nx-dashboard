@@ -267,14 +267,28 @@ pub async fn execute_team_task(
     let cancel_token = tokio_util::sync::CancellationToken::new();
     state.agent_execution_manager.register_cancel_token(&execution_id, cancel_token.clone());
 
-    // ── PTY-first dispatch: resolve target role_id ──────────────────────
-    let matched_role_id = find_role_by_trigger(&state, &team_id, &request.task).await;
-    let target_role_id = {
+    // ── PTY-first dispatch: resolve target role_id(s) ──────────────────────
+    let matched_role_ids = find_roles_by_trigger(&state, &team_id, &request.task).await;
+    let target_role_ids = {
         let sessions = state.claude_terminal_manager.list_sessions_for_team(&team_id);
-        // Prefer a role that already has a PTY session
-        sessions.first()
-            .and_then(|s| s.info.role_id.clone())
-            .or(matched_role_id)
+        let mut ids = matched_role_ids;
+        // Also include roles that already have a PTY session
+        for s in &sessions {
+            if let Some(ref rid) = s.info.role_id {
+                if !ids.contains(rid) {
+                    ids.push(rid.clone());
+                }
+            }
+        }
+        // If nothing matched, use the first existing session's role (or empty)
+        if ids.is_empty() {
+            sessions.first()
+                .and_then(|s| s.info.role_id.clone())
+                .map(|rid| vec![rid])
+                .unwrap_or_default()
+        } else {
+            ids
+        }
     };
 
     // task_summary 提前计算
@@ -284,50 +298,133 @@ pub async fn execute_team_task(
         request.task.clone()
     };
 
-    if let Some(ref role_id) = target_role_id {
-        let working_dir = state.current_workspace_path.read().clone();
+    // ── 保存用户消息到 team_messages（持久化，切页面不丢失）──
+    let user_msg = TeamMessage::user_message(team_id.clone(), request.task.clone());
+    if let Err(e) = state.teams_state.team_service.add_message(user_msg) {
+        tracing::warn!("[Route] 保存用户消息失败: {}", e);
+    }
 
-        match try_pty_dispatch_pub(
-            &state,
-            &team_id,
-            role_id,
-            &request.task,
-            &execution_id,
-            working_dir.as_deref(),
-            event_tx.clone(),
-            cancel_token.clone(),
-        ) {
-            Ok(session_id) => {
-                tracing::info!("[Route] PTY dispatch 成功, role: {}, session: {}, execution_id: {}", role_id, session_id, execution_id);
-                // 发送 Started 事件（包含 role_id + session_id）
-                let _ = event_tx.send(crate::ws::agent_execution::AgentExecutionEvent::Started {
-                    execution_id: execution_id.clone(),
-                    agent_role: "team".to_string(),
-                    task_summary,
-                    role_id: Some(role_id.clone()),
-                    session_id: Some(session_id),
+    // ── 并行派发到所有匹配角色 ──
+    if !target_role_ids.is_empty() {
+        let working_dir = state.current_workspace_path.read().clone();
+        let mut primary_execution_id = execution_id.clone();
+        let mut all_execution_ids = Vec::new();
+
+        for (idx, role_id) in target_role_ids.iter().enumerate() {
+            let exec_id = if idx == 0 {
+                execution_id.clone()
+            } else {
+                uuid::Uuid::new_v4().to_string()
+            };
+
+            let ct = if idx == 0 {
+                cancel_token.clone()
+            } else {
+                let ct = tokio_util::sync::CancellationToken::new();
+                state.agent_execution_manager.register_cancel_token(&exec_id, ct.clone());
+                ct
+            };
+
+            match try_pty_dispatch_pub(
+                &state,
+                &team_id,
+                role_id,
+                &request.task,
+                &exec_id,
+                working_dir.as_deref(),
+                event_tx.clone(),
+                ct,
+            ) {
+                Ok(session_id) => {
+                    tracing::info!("[Route] PTY dispatch 成功, role: {}, session: {}, execution_id: {}", role_id, session_id, exec_id);
+                    let _ = event_tx.send(crate::ws::agent_execution::AgentExecutionEvent::Started {
+                        execution_id: exec_id.clone(),
+                        agent_role: "team".to_string(),
+                        task_summary: task_summary.clone(),
+                        role_id: Some(role_id.clone()),
+                        session_id: Some(session_id),
+                    });
+                    all_execution_ids.push(exec_id);
+                }
+                Err(e) => {
+                    tracing::warn!("[Route] PTY dispatch 失败 for role {}: {}, fallback 到原有路径", role_id, e);
+                }
+            }
+        }
+
+        if !all_execution_ids.is_empty() {
+            primary_execution_id = all_execution_ids[0].clone();
+
+            // ── 后台监听所有 PTY 执行完成，保存 AI 回复到 team_messages ──
+            for (role_idx, exec_id) in all_execution_ids.iter().enumerate() {
+                let team_svc = state.teams_state.team_service.clone();
+                let tid = team_id.clone();
+                let rid = target_role_ids[role_idx].clone();
+                let eid = exec_id.clone();
+                let mut rx = event_tx.subscribe();
+                tokio::spawn(async move {
+                    let deadline = tokio::time::sleep(std::time::Duration::from_secs(1800));
+                    tokio::pin!(deadline);
+                    loop {
+                        tokio::select! {
+                            _ = &mut deadline => break,
+                            evt = rx.recv() => {
+                                match evt {
+                                    Ok(crate::ws::agent_execution::AgentExecutionEvent::Completed { execution_id, result, .. })
+                                        if execution_id == eid && !result.is_empty() =>
+                                    {
+                                        let msg = TeamMessage::assistant_message(tid, rid, result);
+                                        if let Err(e) = team_svc.add_message(msg) {
+                                            tracing::warn!("[Route] PTY完成保存AI回复失败: {}", e);
+                                        }
+                                        break;
+                                    }
+                                    Ok(crate::ws::agent_execution::AgentExecutionEvent::Failed { execution_id, .. })
+                                        if execution_id == eid => break,
+                                    Ok(crate::ws::agent_execution::AgentExecutionEvent::Cancelled { execution_id })
+                                        if execution_id == eid => break,
+                                    Err(_) => break,
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
                 });
-                return Ok(Json(crate::models::team::ExecuteTeamTaskResponse {
-                    success: true,
-                    team_id: team_id.clone(),
-                    messages: vec![],
-                    final_output: format!("{{\"execution_id\":\"{}\",\"status\":\"processing\"}}", execution_id),
-                    error: None,
-                }));
             }
-            Err(e) => {
-                tracing::warn!("[Route] PTY dispatch 失败, fallback 到原有路径: {}", e);
-                // Continue to fallback below
-            }
+
+            // 构建 sessions 映射，让前端同步所有并行 PTY session 到 terminalSessions store
+            let sessions_map: Vec<serde_json::Value> = all_execution_ids.iter().enumerate()
+                .filter_map(|(i, eid)| {
+                    let rid = target_role_ids.get(i)?;
+                    let sid = state.claude_terminal_manager.list_sessions_for_team(&team_id)
+                        .into_iter()
+                        .find(|s| s.info.role_id.as_deref() == Some(rid))?;
+                    Some(serde_json::json!({"role_id": rid, "session_id": sid.info.session_id, "execution_id": eid}))
+                })
+                .collect();
+
+            return Ok(Json(crate::models::team::ExecuteTeamTaskResponse {
+                success: true,
+                team_id: team_id.clone(),
+                messages: vec![],
+                final_output: serde_json::json!({
+                    "execution_id": primary_execution_id,
+                    "status": "processing",
+                    "parallel_count": all_execution_ids.len(),
+                    "sessions": sessions_map,
+                }).to_string(),
+                error: None,
+            }));
         }
     }
 
     // Fallback Started 事件（无 PTY session）
+    let fallback_role_id = target_role_ids.first().cloned();
     let _ = event_tx.send(crate::ws::agent_execution::AgentExecutionEvent::Started {
         execution_id: execution_id.clone(),
         agent_role: "team".to_string(),
         task_summary,
-        role_id: target_role_id.clone(),
+        role_id: fallback_role_id.clone(),
         session_id: None,
     });
 
@@ -351,6 +448,7 @@ pub async fn execute_team_task(
     // 后台异步执行团队任务
     let state_bg = state.clone();
     let team_id_bg = team_id.clone();
+    let target_role_id_bg = fallback_role_id.clone();
     let user_message = request.task.clone();
     let exec_id = execution_id.clone();
     let tx = event_tx.clone();
@@ -392,20 +490,36 @@ pub async fn execute_team_task(
                 // Store conversation to memory
                 let memory_state = state_bg.memory_state.clone();
                 let assistant_reply = response.final_output.clone();
+                let team_id_for_memory = team_id_bg.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = store_raw_transcript(&memory_state, &team_id_bg, "user", &user_message).await {
+                    if let Err(e) = store_raw_transcript(&memory_state, &team_id_for_memory, "user", &user_message).await {
                         tracing::warn!("[Memory] Failed to store user transcript: {}", e);
                     }
                     if !assistant_reply.is_empty() {
-                        if let Err(e) = store_raw_transcript(&memory_state, &team_id_bg, "assistant", &assistant_reply).await {
+                        if let Err(e) = store_raw_transcript(&memory_state, &team_id_for_memory, "assistant", &assistant_reply).await {
                             tracing::warn!("[Memory] Failed to store assistant transcript: {}", e);
                         }
-                        if let Err(e) = store_structured_memory(&memory_state, &team_id_bg, &user_message, &assistant_reply).await {
+                        if let Err(e) = store_structured_memory(&memory_state, &team_id_for_memory, &user_message, &assistant_reply).await {
                             tracing::warn!("[Memory] Structured storage failed: {}", e);
-                            let _ = store_to_memory(&memory_state, &team_id_bg, "assistant", &assistant_reply).await;
+                            let _ = store_to_memory(&memory_state, &team_id_for_memory, "assistant", &assistant_reply).await;
                         }
                     }
                 });
+
+                // 保存 AI 回复到 team_messages（持久化，切页面不丢失）
+                if !response.final_output.is_empty() {
+                    if let Some(ref rid) = target_role_id_bg {
+                        let assistant_msg = TeamMessage::assistant_message(team_id_bg.clone(), rid.clone(), response.final_output.clone());
+                        if let Err(e) = state_bg.teams_state.team_service.add_message(assistant_msg) {
+                            tracing::warn!("[Route] 保存AI回复消息失败: {}", e);
+                        }
+                    } else {
+                        let assistant_msg = TeamMessage::new(team_id_bg.clone(), None, response.final_output.clone(), crate::models::team::MessageType::Assistant);
+                        if let Err(e) = state_bg.teams_state.team_service.add_message(assistant_msg) {
+                            tracing::warn!("[Route] 保存AI回复消息失败: {}", e);
+                        }
+                    }
+                }
 
                 let event = crate::ws::agent_execution::AgentExecutionEvent::Completed {
                     execution_id: exec_id.clone(),
@@ -503,28 +617,32 @@ pub fn try_pty_dispatch_pub(
     Ok(session_id)
 }
 
-/// 根据触发关键词查找匹配的角色
-async fn find_role_by_trigger(
+/// 根据触发关键词查找所有匹配的角色
+async fn find_roles_by_trigger(
     state: &Arc<AppState>,
     team_id: &str,
     task: &str,
-) -> Option<String> {
-    // 获取团队的所有角色
-    let roles = state.teams_state.team_service.list_roles(team_id).ok()?;
+) -> Vec<String> {
+    let Ok(roles) = state.teams_state.team_service.list_roles(team_id) else {
+        return vec![];
+    };
 
-    // 任务文本转小写用于匹配
     let task_lower = task.to_lowercase();
+    let mut matched = Vec::new();
 
     for role in roles {
         for keyword in &role.trigger_keywords {
             if task_lower.contains(&keyword.to_lowercase()) {
                 tracing::info!("[Route] 角色 '{}' 匹配关键词 '{}'", role.name, keyword);
-                return Some(role.id);
+                if !matched.contains(&role.id) {
+                    matched.push(role.id);
+                }
+                break;
             }
         }
     }
 
-    None
+    matched
 }
 
 /// execute_role_task 的内部版本，支持传入已构建的请求和可选的流式发送器

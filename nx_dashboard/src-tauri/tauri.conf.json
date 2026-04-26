@@ -40,7 +40,7 @@
     "resources": {
       "../../target/release/nx_api": "nx_api",
       "../../.claude/agents": "skills",
-      "../../nx_dashboard/nexus.db": "nx_dashboard/nexus.db"
+      "../../nx_dashboard/nexus.db": "nexus_template.db"
     }
   }
 }

@@ -7,6 +7,7 @@ use std::thread;
 
 use futures_util::{SinkExt, StreamExt};
 use tauri::Emitter;
+use tauri::Manager;
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
@@ -167,9 +168,13 @@ pub fn run() {
                 )?;
             }
 
+            // Resolve resource directory via Tauri API (works cross-platform)
+            let resource_dir = app.path().resource_dir()
+                .expect("failed to resolve resource directory");
+
             // Start nx_api in background
             thread::spawn(move || {
-                if let Err(e) = start_nx_api() {
+                if let Err(e) = start_nx_api(&resource_dir) {
                     eprintln!("[ERROR] Failed to start nx_api: {}", e);
                 }
             });
@@ -182,38 +187,61 @@ pub fn run() {
 
 // ── nx_api Subprocess ───────────────────────────────────────────────────────
 
-fn start_nx_api() -> Result<(), Box<dyn std::error::Error>> {
-    let _ = std::fs::write("/tmp/nx_start_called.txt", "start_nx_api called");
-    let nx_api_path = if cfg!(debug_assertions) {
-        PathBuf::from("/Users/Zhuanz/Desktop/yp-nx-dashboard/target/release/nx_api")
+fn start_nx_api(resource_dir: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    let _ = std::fs::write(std::env::temp_dir().join("nx_start_called.txt"), "start_nx_api called");
+
+    let (nx_api_path, skills_path, resources_dir) = if cfg!(debug_assertions) {
+        let root = PathBuf::from("/Users/Zhuanz/Desktop/yp-nx-dashboard");
+        let nx_api = root.join("target/release/nx_api");
+        let skills = root.join(".claude/agents");
+        let resources = root.join("nx_dashboard");
+        (nx_api, skills, resources)
     } else {
-        let exe_path = std::env::current_exe()?;
-        let contents = exe_path.parent().unwrap().parent().unwrap();
-        contents.join("Resources/nx_api")
+        // Release: use Tauri-resolved resource directory (cross-platform)
+        let nx_api = if cfg!(target_os = "windows") {
+            resource_dir.join("nx_api.exe")
+        } else {
+            resource_dir.join("nx_api")
+        };
+        let skills = resource_dir.join("skills");
+        (nx_api, skills, resource_dir.to_path_buf())
     };
 
     if !nx_api_path.exists() {
         return Err(format!("nx_api not found at {:?}", nx_api_path).into());
     }
 
-    let skills_path = if cfg!(debug_assertions) {
-        PathBuf::from("/Users/Zhuanz/Desktop/yp-nx-dashboard/.claude/agents")
+    let (_data_dir, db_path) = if cfg!(debug_assertions) {
+        let dir = PathBuf::from("/Users/Zhuanz/Desktop/yp-nx-dashboard");
+        let db = dir.join("nx_dashboard/nexus.db");
+        (dir, db)
     } else {
-        let exe_path = std::env::current_exe()?;
-        let contents = exe_path.parent().unwrap().parent().unwrap();
-        contents.join("Resources/skills")
+        // 用户数据目录
+        let app_data = dirs::data_dir()
+            .unwrap_or_else(|| std::env::temp_dir())
+            .join("com.nx.dashboard");
+        std::fs::create_dir_all(&app_data)?;
+
+        let db = app_data.join("nexus.db");
+
+        // 首次启动：从 app bundle 内的模板复制数据库
+        if !db.exists() {
+            let template = resources_dir.join("nexus_template.db");
+
+            if template.exists() {
+                std::fs::copy(&template, &db)?;
+                println!("[NX Dashboard] Copied template DB to {:?}", db);
+            } else {
+                eprintln!("[NX Dashboard] WARNING: template DB not found at {:?}, nx_api will create empty DB", template);
+            }
+        }
+
+        (app_data.clone(), db)
     };
 
-    let data_dir = if cfg!(debug_assertions) {
-        PathBuf::from("/Users/Zhuanz/Desktop/yp-nx-dashboard")
-    } else {
-        let exe = std::env::current_exe()?;
-        exe.parent().unwrap().parent().unwrap()
-           .join("Resources")
-    };
-    std::fs::create_dir_all(&data_dir)?;
-
-    let log_path = PathBuf::from("/tmp/nx_api.log");
+    let log_dir = std::env::temp_dir();
+    std::fs::create_dir_all(&log_dir)?;
+    let log_path = log_dir.join("nx_api.log");
     let log_file = std::fs::OpenOptions::new()
         .create(true).write(true).truncate(true)
         .open(&log_path)
@@ -222,7 +250,7 @@ fn start_nx_api() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut child = Command::new(&nx_api_path)
         .env("AGENTS_DIR", &skills_path)
-        .env("NEXUS_DB_PATH", data_dir.join("nx_dashboard/nexus.db"))
+        .env("NEXUS_DB_PATH", &db_path)
         .env("NEXUS_ALLOWED_ORIGINS", "tauri://localhost,http://localhost:5173,http://localhost:3000")
         .env("RUST_LOG", "info")
         .stdout(log_file)

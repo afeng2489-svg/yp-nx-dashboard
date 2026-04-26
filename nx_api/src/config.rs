@@ -76,13 +76,7 @@ impl ApiConfig {
 fn resolve_db_path() -> String {
     if let Ok(env_path) = std::env::var("NEXUS_DB_PATH") {
         let p = std::path::Path::new(&env_path);
-        // 验证：必须是绝对路径，且父目录名为 nx_dashboard
-        let parent_ok = p.parent()
-            .and_then(|parent| parent.file_name())
-            .map(|name| name == "nx_dashboard")
-            .unwrap_or(false);
-
-        if p.is_absolute() && parent_ok {
+        if p.is_absolute() {
             // 确保父目录存在
             if let Some(parent) = p.parent() {
                 let _ = std::fs::create_dir_all(parent);
@@ -91,7 +85,7 @@ fn resolve_db_path() -> String {
             return env_path;
         }
         eprintln!(
-            "[DB] WARNING: NEXUS_DB_PATH='{}' 无效（必须是绝对路径且在 nx_dashboard/ 目录下），忽略并自动解析",
+            "[DB] WARNING: NEXUS_DB_PATH='{}' 无效（必须是绝对路径），忽略并自动解析",
             env_path
         );
     } else {
