@@ -268,26 +268,23 @@ pub async fn execute_team_task(
     state.agent_execution_manager.register_cancel_token(&execution_id, cancel_token.clone());
 
     // ── PTY-first dispatch: resolve target role_id(s) ──────────────────────
+    // trigger 匹配到多个角色 → 并行派发（如"前后端一起开发"）
+    // trigger 未匹配 → 单个兜底角色（如"你好"不应所有角色都回复）
     let matched_role_ids = find_roles_by_trigger(&state, &team_id, &request.task).await;
-    let target_role_ids = {
+    let target_role_ids = if !matched_role_ids.is_empty() {
+        matched_role_ids
+    } else {
+        // 先尝试已有 PTY session 的角色，否则取团队第一个角色
         let sessions = state.claude_terminal_manager.list_sessions_for_team(&team_id);
-        let mut ids = matched_role_ids;
-        // Also include roles that already have a PTY session
-        for s in &sessions {
-            if let Some(ref rid) = s.info.role_id {
-                if !ids.contains(rid) {
-                    ids.push(rid.clone());
-                }
-            }
-        }
-        // If nothing matched, use the first existing session's role (or empty)
-        if ids.is_empty() {
-            sessions.first()
-                .and_then(|s| s.info.role_id.clone())
-                .map(|rid| vec![rid])
-                .unwrap_or_default()
+        let from_session = sessions.first().and_then(|s| s.info.role_id.clone());
+        if let Some(rid) = from_session {
+            vec![rid]
         } else {
-            ids
+            // 无已有 session — 使用团队第一个角色，try_pty_dispatch_pub 会自动创建 session
+            match state.teams_state.team_service.get_team_with_roles(&team_id) {
+                Ok(twr) => twr.roles.first().map(|r| vec![r.role.id.clone()]).unwrap_or_default(),
+                Err(_) => vec![],
+            }
         }
     };
 
@@ -298,14 +295,13 @@ pub async fn execute_team_task(
         request.task.clone()
     };
 
-    // ── 保存用户消息到 team_messages（持久化，切页面不丢失）──
-    let user_msg = TeamMessage::user_message(team_id.clone(), request.task.clone());
-    if let Err(e) = state.teams_state.team_service.add_message(user_msg) {
-        tracing::warn!("[Route] 保存用户消息失败: {}", e);
-    }
-
     // ── 并行派发到所有匹配角色 ──
+    // PTY 路径不经过 execute_team_task，需要在此保存用户消息
     if !target_role_ids.is_empty() {
+        let user_msg = TeamMessage::user_message(team_id.clone(), request.task.clone());
+        if let Err(e) = state.teams_state.team_service.add_message(user_msg) {
+            tracing::warn!("[Route] 保存用户消息失败: {}", e);
+        }
         let working_dir = state.current_workspace_path.read().clone();
         let mut primary_execution_id = execution_id.clone();
         let mut all_execution_ids = Vec::new();
@@ -506,20 +502,7 @@ pub async fn execute_team_task(
                     }
                 });
 
-                // 保存 AI 回复到 team_messages（持久化，切页面不丢失）
-                if !response.final_output.is_empty() {
-                    if let Some(ref rid) = target_role_id_bg {
-                        let assistant_msg = TeamMessage::assistant_message(team_id_bg.clone(), rid.clone(), response.final_output.clone());
-                        if let Err(e) = state_bg.teams_state.team_service.add_message(assistant_msg) {
-                            tracing::warn!("[Route] 保存AI回复消息失败: {}", e);
-                        }
-                    } else {
-                        let assistant_msg = TeamMessage::new(team_id_bg.clone(), None, response.final_output.clone(), crate::models::team::MessageType::Assistant);
-                        if let Err(e) = state_bg.teams_state.team_service.add_message(assistant_msg) {
-                            tracing::warn!("[Route] 保存AI回复消息失败: {}", e);
-                        }
-                    }
-                }
+                // AI 回复由 execute_team_task 内部保存，此处不重复保存
 
                 let event = crate::ws::agent_execution::AgentExecutionEvent::Completed {
                     execution_id: exec_id.clone(),

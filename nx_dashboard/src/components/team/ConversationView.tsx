@@ -133,6 +133,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
   const [showLastOutput, setShowLastOutput] = useState(false);
   const [pendingConfirmTask, setPendingConfirmTask] = useState<string | null>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const executingRef = useRef(false);
 
   // Async agent execution with WS progress tracking
   const agentExec = useAgentExecution();
@@ -184,6 +185,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
       }
       // fetchMessages 回来后会覆盖 localMessages，临时气泡自然被真实消息替换
       fetchMessages(teamId);
+      executingRef.current = false;
       const timer = setTimeout(() => agentExec.reset(), 500);
       return () => clearTimeout(timer);
     }
@@ -193,6 +195,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
         setShowLastOutput(true);
       }
       fetchMessages(teamId);
+      executingRef.current = false;
       const timer = setTimeout(() => agentExec.reset(), 500);
       return () => clearTimeout(timer);
     }
@@ -237,13 +240,15 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
   }, [localMessages]);
 
   const handleSend = useCallback((text: string) => {
-    if (!text || isActive) return;
+    if (!text || isActive || executingRef.current) return;
 
     // 监控模式 ON：先显示确认弹框，不直接执行
     if (isMonitorMode) {
       setPendingConfirmTask(text);
       return;
     }
+
+    executingRef.current = true;
 
     const userMessage: Message = {
       id: `temp-${Date.now()}`,
@@ -255,11 +260,14 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
     };
 
     setLocalMessages(prev => [...prev, userMessage]);
-    agentExec.execute(teamId, text);
+    agentExec.execute(teamId, text).finally(() => {
+      executingRef.current = false;
+    });
   }, [teamId, isActive, agentExec, isMonitorMode]);
 
   const handleConfirmTask = useCallback(() => {
-    if (!pendingConfirmTask) return;
+    if (!pendingConfirmTask || executingRef.current) return;
+    executingRef.current = true;
     const userMessage: Message = {
       id: `temp-${Date.now()}`,
       team_id: teamId,
@@ -269,7 +277,9 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
       created_at: new Date().toISOString(),
     };
     setLocalMessages(prev => [...prev, userMessage]);
-    agentExec.execute(teamId, pendingConfirmTask, true);
+    agentExec.execute(teamId, pendingConfirmTask, true).finally(() => {
+      executingRef.current = false;
+    });
     setPendingConfirmTask(null);
   }, [teamId, pendingConfirmTask, agentExec]);
 
