@@ -29,6 +29,7 @@ pub mod group_chat_service;
 pub mod issue_repository;
 pub mod claude_terminal;
 pub mod pty_task_watcher;
+pub mod team_evolution;
 
 pub use workflow_repository::{SqliteWorkflowRepository, SharedWorkflowRepository, WorkflowRepository};
 pub use workflow_service::WorkflowService;

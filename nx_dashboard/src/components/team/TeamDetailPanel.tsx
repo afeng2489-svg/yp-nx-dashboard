@@ -1,8 +1,12 @@
 import { useState } from 'react';
-import { X, Edit, Trash2, Plus, Bot, MessageCircle, Zap, Clock, Users, UserPlus } from 'lucide-react';
+import { X, Edit, Trash2, Plus, Bot, MessageCircle, Zap, Clock, Users, UserPlus, GitBranch, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Team, Role } from '@/stores/teamStore';
 import { RoleCard } from './RoleCard';
+import PipelineView from './PipelineView';
+import FeatureFlagPanel from './FeatureFlagPanel';
+
+type TabKey = 'roles' | 'pipeline' | 'settings';
 
 interface TeamDetailPanelProps {
   team: Team;
@@ -15,6 +19,7 @@ interface TeamDetailPanelProps {
   onOpenTelegramConfig: () => void;
   onAddExistingRole: () => void;
   onTeamUpdated?: () => void;
+  projectId?: string;
 }
 
 export function TeamDetailPanel({
@@ -28,10 +33,12 @@ export function TeamDetailPanel({
   onOpenTelegramConfig,
   onAddExistingRole,
   onTeamUpdated,
+  projectId,
 }: TeamDetailPanelProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(team.name);
   const [editDescription, setEditDescription] = useState(team.description || '');
+  const [activeTab, setActiveTab] = useState<TabKey>('roles');
 
   const handleSave = async () => {
     await useTeamStore.getState().updateTeam(team.id, {
@@ -66,8 +73,32 @@ export function TeamDetailPanel({
           </button>
         </div>
 
+        {/* Tabs */}
+        <div className="flex border-b border-border/50">
+          {([
+            { key: 'roles' as TabKey, label: '角色', icon: Bot },
+            { key: 'pipeline' as TabKey, label: 'Pipeline', icon: GitBranch },
+            { key: 'settings' as TabKey, label: '设置', icon: Settings },
+          ]).map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors',
+                activeTab === key
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {activeTab === 'roles' && (<>
           {/* Name & Description */}
           <div className="space-y-2">
             {isEditing ? (
@@ -213,6 +244,21 @@ export function TeamDetailPanel({
               <span>更新: {team.updated_at ? new Date(team.updated_at).toLocaleString('zh-CN') : '未知'}</span>
             </div>
           </div>
+          </>)}
+
+          {activeTab === 'pipeline' && (
+            projectId ? (
+              <PipelineView projectId={projectId} />
+            ) : (
+              <div className="text-sm text-muted-foreground text-center py-8">
+                请先打开一个项目工作区以查看 Pipeline
+              </div>
+            )
+          )}
+
+          {activeTab === 'settings' && (
+            <FeatureFlagPanel />
+          )}
         </div>
       </div>
     </div>

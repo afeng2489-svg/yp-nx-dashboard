@@ -33,11 +33,15 @@ import {
   X,
   Sparkles,
   FastForward,
+  GitBranch,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 import { useAgentExecution } from '@/hooks/useAgentExecution';
 import { AgentThinkingIndicator } from '@/components/team/AgentThinkingIndicator';
+import ProjectProgressDashboard from '@/components/team/ProjectProgressDashboard';
+import CrashRecoveryDialog from '@/components/team/CrashRecoveryDialog';
+import ProcessResourceBar from '@/components/team/ProcessResourceBar';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -199,6 +203,7 @@ export function GroupChatPage() {
   const [showStartModal, setShowStartModal] = useState(false);
   const [showSendMessageModal, setShowSendMessageModal] = useState(false);
   const [showConclusionModal, setShowConclusionModal] = useState(false);
+  const [conclusionResult, setConclusionResult] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [turnInfo, setTurnInfo] = useState<DiscussionTurnInfo | null>(null);
   const [nextSpeaker, setNextSpeaker] = useState<{ role_id: string; role_name: string } | null>(null);
@@ -332,7 +337,7 @@ export function GroupChatPage() {
         max_turns: 10,
       });
     } catch (err) {
-      console.error('Failed to create session:', err);
+      // Failed to create session
     }
   };
 
@@ -344,13 +349,12 @@ export function GroupChatPage() {
       setShowStartModal(false);
       fetchSession(selectedSessionId);
     } catch (err) {
-      console.error('Failed to start discussion:', err);
+      // Failed to start discussion
     }
   };
 
   const handleSendMessage = async () => {
     if (!selectedSessionId || !newMessage.trim()) return;
-    console.log('[handleSendMessage] currentWorkspace:', currentWorkspace);
     try {
       const request: SendMessageRequest = {
         role_id: currentSession?.moderator_role_id || '',
@@ -360,10 +364,9 @@ export function GroupChatPage() {
       setNewMessage('');
       fetchMessages(selectedSessionId);
       // 刷新文件列表，以便显示 Claude CLI 创建的文件
-      console.log('[handleSendMessage] calling browseFiles');
-      browseFiles().catch(err => console.error('[handleSendMessage] browseFiles failed:', err));
+      browseFiles().catch(() => {});
     } catch (err) {
-      console.error('Failed to send message:', err);
+      // Failed to send message
     }
   };
 
@@ -373,8 +376,7 @@ export function GroupChatPage() {
     try {
       await agentExec.executeRoleTurn(selectedSessionId, roleId);
       // The hook status will change to 'completed' via WS — effect below handles refresh
-    } catch (err) {
-      console.error('Failed to execute role turn:', err);
+    } catch {
       setExecutingRole(null);
     }
   };
@@ -398,8 +400,8 @@ export function GroupChatPage() {
         browseFiles();
         setTimeout(() => parallelRound.reset(), 2000);
       });
-    } catch (err) {
-      console.error('Failed to execute round:', err);
+    } catch {
+      // Round execution failed
     }
   };
 
@@ -413,8 +415,8 @@ export function GroupChatPage() {
           setNextSpeaker(speaker);
           fetchMessages(selectedSessionId);
           browseFiles();
-        } catch (err) {
-          console.error('Post-execution refresh failed:', err);
+        } catch {
+          // Post-execution refresh failed
         } finally {
           setExecutingRole(null);
           agentExec.reset();
@@ -431,10 +433,10 @@ export function GroupChatPage() {
     try {
       const conclusion = await concludeDiscussion(selectedSessionId, { force });
       setShowConclusionModal(false);
-      alert(`讨论已结束！\n结论：${conclusion.content}`);
+      setConclusionResult(conclusion.content);
       fetchSession(selectedSessionId);
-    } catch (err) {
-      console.error('Failed to conclude discussion:', err);
+    } catch {
+      // Failed to conclude discussion
     }
   };
 
@@ -717,6 +719,9 @@ export function GroupChatPage() {
                   </div>
                 </div>
               )}
+
+              {/* Team Evolution Dashboard — collapsible */}
+              <TeamEvolutionSection projectId={currentWorkspace?.id} />
 
               {/* Messages */}
               <div className="bg-card rounded-lg border">
@@ -1129,6 +1134,34 @@ export function GroupChatPage() {
           onCancel={hideConfirm}
           variant={confirmState.variant || 'danger'}
         />
+      )}
+    </div>
+  );
+}
+
+/** Collapsible Team Evolution section: progress + resources + crash recovery */
+function TeamEvolutionSection({ projectId }: { projectId?: string }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="bg-card rounded-lg border overflow-hidden">
+      {/* Header bar — always visible */}
+      <button
+        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-accent/50 transition-colors text-left"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <GitBranch className="w-4 h-4 text-indigo-500" />
+        <span className="text-sm font-medium flex-1">团队进化面板</span>
+        <ProcessResourceBar />
+        <span className="text-xs text-muted-foreground">{expanded ? '收起 ▲' : '展开 ▼'}</span>
+      </button>
+
+      {/* Expanded content */}
+      {expanded && (
+        <div className="border-t p-4 space-y-4 max-h-[400px] overflow-y-auto">
+          <ProjectProgressDashboard projectId={projectId} />
+          <CrashRecoveryDialog projectId={projectId} />
+        </div>
       )}
     </div>
   );

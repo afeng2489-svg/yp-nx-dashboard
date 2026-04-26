@@ -308,10 +308,10 @@ export function TeamsPage() {
             getTeam(selectedTeam.id).then((updated) => {
               if (updated) {
                 setSelectedTeam(updated);
-                setSelectedTeam(updated);
               }
             });
           }}
+          projectId={currentWorkspace?.id}
         />
       )}
 

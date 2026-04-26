@@ -287,7 +287,7 @@ pub async fn execute_team_task(
     if let Some(ref role_id) = target_role_id {
         let working_dir = state.current_workspace_path.read().clone();
 
-        match try_pty_dispatch(
+        match try_pty_dispatch_pub(
             &state,
             &team_id,
             role_id,
@@ -439,7 +439,8 @@ pub async fn execute_team_task(
 
 /// Try to dispatch a task to an existing or auto-created PTY session.
 /// Returns Ok(session_id) if dispatch succeeded, Err with reason if fallback needed.
-fn try_pty_dispatch(
+/// Public wrapper used by pipeline dispatch and other modules.
+pub fn try_pty_dispatch_pub(
     state: &Arc<AppState>,
     team_id: &str,
     role_id: &str,

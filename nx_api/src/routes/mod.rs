@@ -42,6 +42,32 @@ pub mod group_chat;
 pub mod memory;
 pub mod processes;
 pub mod issues;
+pub mod feature_flags;
+pub mod pipelines;
+pub mod snapshots;
+pub mod process_lifecycle;
+pub mod resume;
+pub mod file_watch;
+
+/// Resolve a project ID from a path parameter that might be either a project_id or workspace_id.
+/// Frontend often passes workspace.id where project.id is expected.
+/// This tries: 1) direct project lookup, 2) project linked to workspace, 3) fallback as-is.
+pub fn resolve_project_id(state: &AppState, id: &str) -> String {
+    // Try as project_id first
+    if let Ok(Some(_)) = state.project_service.get_project(id) {
+        return id.to_string();
+    }
+    // Try as workspace_id — find project linked to this workspace
+    if let Ok(projects) = state.project_service.list_projects() {
+        for p in &projects {
+            if p.workspace_id.as_deref() == Some(id) {
+                return p.id.clone();
+            }
+        }
+    }
+    // Fallback: use as-is (workspace_id becomes the de-facto project_id)
+    id.to_string()
+}
 
 /// 查找 config/workflows 目录（YAML 种子文件）
 fn resolve_workflows_dir() -> Option<PathBuf> {
@@ -347,6 +373,24 @@ pub struct AppState {
     pub api_key_config: Option<String>,
     /// Issue 仓储
     pub issue_repository: Arc<SqliteIssueRepository>,
+    /// Feature Flag 服务 (team_evolution)
+    pub feature_flag_service: Option<Arc<crate::services::team_evolution::FeatureFlagService>>,
+    /// Pipeline 服务 (team_evolution)
+    pub pipeline_service: Option<Arc<crate::services::team_evolution::PipelineService>>,
+    /// Snapshot 服务 (team_evolution)
+    pub snapshot_service: Option<Arc<crate::services::team_evolution::SnapshotService>>,
+    /// Process 生命周期管理器 (team_evolution)
+    pub process_lifecycle: Option<Arc<crate::services::team_evolution::ProcessLifecycleManager>>,
+    /// Resume 服务 (team_evolution P4)
+    pub resume_service: Option<Arc<crate::services::team_evolution::ResumeService>>,
+    /// Crash 检测器 (team_evolution P4)
+    pub crash_detector: Option<Arc<crate::services::team_evolution::CrashDetector>>,
+    /// Temp 清理器 (team_evolution P4)
+    pub temp_cleaner: Option<Arc<crate::services::team_evolution::TempCleaner>>,
+    /// Integration event handler (team_evolution)
+    pub team_evolution_handler: Option<Arc<crate::services::team_evolution::TeamEvolutionEventHandler>>,
+    /// File watcher (team_evolution P5)
+    pub file_watcher: Option<Arc<crate::services::team_evolution::FileWatcher>>,
 }
 
 impl AppState {
@@ -507,6 +551,104 @@ impl AppState {
                 .expect("Failed to create issue repository")
         );
 
+        // 创建 Team Evolution 服务（Feature Flag + Pipeline）
+        let (feature_flag_service, pipeline_service, snapshot_service, process_lifecycle, resume_service, crash_detector, temp_cleaner, file_watcher) = {
+            use crate::services::team_evolution::feature_flag_repository::SqliteFeatureFlagRepository;
+            use crate::services::team_evolution::feature_flag_service::FeatureFlagService;
+            use crate::services::team_evolution::pipeline_repository::SqlitePipelineRepository;
+            use crate::services::team_evolution::pipeline_service::PipelineService;
+            use crate::services::team_evolution::snapshot_repository::SqliteSnapshotRepository;
+            use crate::services::team_evolution::snapshot_service::SnapshotService;
+
+            let db_conn = Arc::new(parking_lot::Mutex::new(
+                rusqlite::Connection::open(&config.db_path)
+                    .expect("Failed to open DB for team_evolution")
+            ));
+
+            match SqliteFeatureFlagRepository::new(db_conn.clone()) {
+                Ok(ff_repo) => {
+                    let ff_repo = Arc::new(ff_repo);
+                    let ff_service = Arc::new(FeatureFlagService::new(ff_repo));
+                    if let Err(e) = ff_service.initialize_defaults() {
+                        tracing::warn!("[TeamEvolution] Failed to init feature flags: {e}");
+                    }
+
+                    let pipeline_service = match SqlitePipelineRepository::new(db_conn.clone()) {
+                        Ok(p_repo) => {
+                            let p_repo = Arc::new(p_repo);
+                            Some(Arc::new(PipelineService::new(p_repo, ff_service.clone())))
+                        }
+                        Err(e) => {
+                            tracing::warn!("[TeamEvolution] Failed to init pipeline repo: {e}");
+                            None
+                        }
+                    };
+
+                    let snapshot_service = match SqliteSnapshotRepository::new(db_conn.clone()) {
+                        Ok(s_repo) => {
+                            let s_repo = Arc::new(s_repo);
+                            Some(Arc::new(SnapshotService::new(s_repo, ff_service.clone())))
+                        }
+                        Err(e) => {
+                            tracing::warn!("[TeamEvolution] Failed to init snapshot repo: {e}");
+                            None
+                        }
+                    };
+
+                    // Keep db_conn for TempCleaner's snapshot_history cleanup
+                    let snapshot_db_conn = db_conn;
+
+                    let process_lifecycle = Some(Arc::new(
+                        crate::services::team_evolution::ProcessLifecycleManager::new(
+                            crate::services::team_evolution::LifecycleConfig::default(),
+                            ff_service.clone(),
+                        )
+                    ));
+
+                    // P4: Resume + CrashDetector + TempCleaner (shared DB conn for checkpoints)
+                    let resume_db_conn = Arc::new(parking_lot::Mutex::new(
+                        rusqlite::Connection::open(&config.db_path)
+                            .expect("Failed to open DB for resume_service")
+                    ));
+                    let (resume_service, crash_detector, temp_cleaner) = {
+                        use crate::services::team_evolution::resume_service::ResumeService;
+                        use crate::services::team_evolution::crash_detector::CrashDetector;
+                        use crate::services::team_evolution::temp_cleaner::TempCleaner;
+
+                        match ResumeService::new(resume_db_conn.clone(), ff_service.clone()) {
+                            Ok(svc) => {
+                                let svc = Arc::new(svc);
+                                // CrashDetector will be initialized after event_sender is available
+                                let cleaner = Arc::new(
+                                    TempCleaner::new(resume_db_conn)
+                                        .with_snapshot_conn(snapshot_db_conn)
+                                );
+                                (Some(svc), None as Option<Arc<CrashDetector>>, Some(cleaner))
+                            }
+                            Err(e) => {
+                                tracing::warn!("[TeamEvolution] Failed to init resume service: {e}");
+                                (None, None, None)
+                            }
+                        }
+                    };
+
+                    // P5: File watcher
+                    let file_watcher = Some(Arc::new(
+                        crate::services::team_evolution::FileWatcher::new(
+                            crate::services::team_evolution::file_watcher::FileWatchConfig::default(),
+                            ff_service.clone(),
+                        )
+                    ));
+
+                    (Some(ff_service), pipeline_service, snapshot_service, process_lifecycle, resume_service, crash_detector, temp_cleaner, file_watcher)
+                }
+                Err(e) => {
+                    tracing::warn!("[TeamEvolution] Failed to init feature flag repo: {e}");
+                    (None, None, None, None, None, None, None, None)
+                }
+            }
+        };
+
         Self {
             workflow_service,
             execution_service,
@@ -530,14 +672,73 @@ impl AppState {
             current_workspace_path,
             api_key_config,
             issue_repository,
+            feature_flag_service,
+            pipeline_service,
+            snapshot_service,
+            process_lifecycle,
+            resume_service,
+            crash_detector,
+            temp_cleaner,
+            team_evolution_handler: None,
+            file_watcher,
         }
     }
 }
 
 /// 创建 API 路由器
 pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
-    let app_state = Arc::new(AppState::new(&config));
+    let mut app_state = Arc::new(AppState::new(&config));
     let app_state_for_router = Arc::clone(&app_state);
+
+    // ── Team Evolution: spawn event listener + periodic tasks ──
+    {
+        let handler = {
+            let ps = app_state.pipeline_service.clone();
+            let ss = app_state.snapshot_service.clone();
+            let rs = app_state.resume_service.clone();
+            let lc = app_state.process_lifecycle.clone();
+            let tx = app_state.agent_execution_manager.event_sender();
+
+            match (ps, ss, rs, lc) {
+                (Some(ps), Some(ss), Some(rs), Some(lc)) => {
+                    let handler = Arc::new(
+                        crate::services::team_evolution::TeamEvolutionEventHandler::new(
+                            ps, ss, rs, lc, tx,
+                        )
+                    );
+                    handler.spawn_event_listener();
+                    Some(handler)
+                }
+                _ => None,
+            }
+        };
+
+        if let Some(ref h) = handler {
+            if let (Some(ps), Some(lc), Some(tc)) = (
+                app_state.pipeline_service.clone(),
+                app_state.process_lifecycle.clone(),
+                app_state.temp_cleaner.clone(),
+            ) {
+                crate::services::team_evolution::TeamEvolutionEventHandler::spawn_periodic_tasks(
+                    ps, lc, tc, app_state.agent_execution_manager.event_sender(),
+                );
+            }
+        }
+
+        if let Some(state_mut) = Arc::get_mut(&mut app_state) {
+            state_mut.team_evolution_handler = handler;
+
+            // Initialize CrashDetector now that event_sender is available
+            if let (Some(rs), None) = (&state_mut.resume_service, &state_mut.crash_detector) {
+                let event_tx = state_mut.agent_execution_manager.event_sender();
+                state_mut.crash_detector = Some(Arc::new(
+                    crate::services::team_evolution::crash_detector::CrashDetector::new(
+                        rs.clone(), event_tx,
+                    )
+                ));
+            }
+        }
+    }
 
     // 需要认证的 API 路由
     let api_routes = Router::new()
@@ -737,6 +938,40 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/issues/:id", get(issues::get_issue))
         .route("/api/v1/issues/:id", put(issues::update_issue))
         .route("/api/v1/issues/:id", delete(issues::delete_issue))
+        // Feature Flag 路由 (team_evolution)
+        .route("/api/v1/feature-flags", get(feature_flags::list_feature_flags))
+        .route("/api/v1/feature-flags/:key", get(feature_flags::get_feature_flag))
+        .route("/api/v1/feature-flags/:key", put(feature_flags::update_feature_flag))
+        .route("/api/v1/feature-flags/:key/reset", post(feature_flags::reset_feature_flag))
+        // Pipeline 路由 (team_evolution)
+        .route("/api/v1/projects/:id/pipeline", post(pipelines::create_pipeline).get(pipelines::get_project_pipeline))
+        .route("/api/v1/pipelines/:id/start", post(pipelines::start_pipeline))
+        .route("/api/v1/pipelines/:id/pause", post(pipelines::pause_pipeline))
+        .route("/api/v1/pipelines/:id/resume", post(pipelines::resume_pipeline))
+        .route("/api/v1/pipelines/:id/steps", get(pipelines::get_pipeline_steps))
+        .route("/api/v1/pipelines/:id/dispatch", post(pipelines::dispatch_pipeline_steps))
+        .route("/api/v1/pipelines/:pipeline_id/steps/:step_id/retry", post(pipelines::retry_step))
+        // Snapshot 路由 (team_evolution)
+        .route("/api/v1/projects/:id/progress", get(snapshots::get_project_progress))
+        .route("/api/v1/projects/:id/role-snapshots", get(snapshots::get_role_snapshots))
+        .route("/api/v1/projects/:id/role-snapshots/:role_id", get(snapshots::get_role_snapshot))
+        .route("/api/v1/projects/:id/role-snapshots/:role_id/history", get(snapshots::get_role_snapshot_history))
+        .route("/api/v1/projects/:id/snapshot-all", post(snapshots::snapshot_all_active))
+        // Process lifecycle 路由 (team_evolution)
+        .route("/api/v1/processes/stats", get(process_lifecycle::get_process_stats))
+        .route("/api/v1/projects/:id/processes/cleanup", post(process_lifecycle::cleanup_project_processes))
+        .route("/api/v1/processes/:execution_id/hibernate", post(process_lifecycle::hibernate_process))
+        .route("/api/v1/processes/:execution_id/wake", post(process_lifecycle::wake_process))
+        // Resume + Crash recovery 路由 (team_evolution P4)
+        .route("/api/v1/executions/interrupted", get(resume::get_interrupted_executions))
+        .route("/api/v1/executions/:id/resume", post(resume::resume_execution))
+        .route("/api/v1/executions/:id/checkpoint", delete(resume::abandon_checkpoint))
+        .route("/api/v1/crash-detect", post(resume::trigger_crash_detection))
+        .route("/api/v1/temp-cleanup", post(resume::trigger_temp_cleanup))
+        // File Watch 路由 (team_evolution P5)
+        .route("/api/v1/projects/:id/file-changes", get(file_watch::get_file_changes))
+        .route("/api/v1/projects/:id/file-watch/start", post(file_watch::start_file_watch))
+        .route("/api/v1/projects/:id/file-watch/stop", post(file_watch::stop_file_watch))
         // WebSocket 路由
         .route("/ws/executions/:id", get(executions::execution_ws))
         .route("/ws/sessions/:id", get(sessions::session_ws))

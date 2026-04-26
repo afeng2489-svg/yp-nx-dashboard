@@ -64,6 +64,23 @@ pub enum AgentExecutionEvent {
         options: Vec<String>,    // e.g. ["y", "n", "yes", "no"]
         needs_input: bool,        // true 表示需要用户输入文本，false 表示选择选项
     },
+    /// 进程因闲置进入休眠 (team_evolution)
+    Hibernated {
+        execution_id: String,
+        idle_secs: u64,
+    },
+    /// 资源限制达到 (team_evolution)
+    ResourceLimitReached {
+        current_processes: usize,
+        max_processes: usize,
+        current_memory_mb: u64,
+        max_memory_mb: u64,
+    },
+    /// 崩溃恢复检测 (team_evolution)
+    CrashRecovery {
+        execution_id: String,
+        last_output: String,
+    },
 }
 
 impl AgentExecutionEvent {
@@ -77,7 +94,10 @@ impl AgentExecutionEvent {
             | Self::Completed { execution_id, .. }
             | Self::Failed { execution_id, .. }
             | Self::Cancelled { execution_id, .. }
-            | Self::ConfirmationRequired { execution_id, .. } => execution_id,
+            | Self::ConfirmationRequired { execution_id, .. }
+            | Self::Hibernated { execution_id, .. }
+            | Self::CrashRecovery { execution_id, .. } => execution_id,
+            Self::ResourceLimitReached { .. } => "",
         }
     }
 }
