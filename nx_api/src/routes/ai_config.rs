@@ -1957,16 +1957,28 @@ pub async fn get_claude_cli_model() -> Json<ClaudeCliModelResponse> {
     let (sonnet, haiku, opus, base_url) = if settings_path.exists() {
         match std::fs::read_to_string(&settings_path) {
             Ok(content) => {
-                let json: serde_json::Value = serde_json::from_str(&content).unwrap_or(serde_json::json!({}));
+                let json: serde_json::Value =
+                    serde_json::from_str(&content).unwrap_or(serde_json::json!({}));
                 let env = json.get("env").cloned().unwrap_or(serde_json::json!({}));
-                let sonnet = env.get("ANTHROPIC_DEFAULT_SONNET_MODEL")
-                    .and_then(|v| v.as_str()).unwrap_or("claude-sonnet-4-5").to_string();
-                let haiku = env.get("ANTHROPIC_DEFAULT_HAIKU_MODEL")
-                    .and_then(|v| v.as_str()).unwrap_or("claude-haiku-4-5").to_string();
-                let opus = env.get("ANTHROPIC_DEFAULT_OPUS_MODEL")
-                    .and_then(|v| v.as_str()).unwrap_or("claude-opus-4-5").to_string();
-                let base_url = env.get("ANTHROPIC_BASE_URL")
-                    .and_then(|v| v.as_str()).map(|s| s.to_string());
+                let sonnet = env
+                    .get("ANTHROPIC_DEFAULT_SONNET_MODEL")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("claude-sonnet-4-5")
+                    .to_string();
+                let haiku = env
+                    .get("ANTHROPIC_DEFAULT_HAIKU_MODEL")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("claude-haiku-4-5")
+                    .to_string();
+                let opus = env
+                    .get("ANTHROPIC_DEFAULT_OPUS_MODEL")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("claude-opus-4-5")
+                    .to_string();
+                let base_url = env
+                    .get("ANTHROPIC_BASE_URL")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
                 (sonnet, haiku, opus, base_url)
             }
             Err(_) => (
