@@ -141,7 +141,7 @@ impl SandboxExecutor {
         // 设置环境变量
         let env = std::env::vars()
             .filter(|(k, _)| !k.starts_with("LD_"))
-            .chain(request.env_vars.clone().into_iter())
+            .chain(request.env_vars.clone())
             .collect::<HashMap<_, _>>();
         cmd.envs(&env);
 

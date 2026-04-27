@@ -416,7 +416,7 @@ impl SyscallAllowList {
         // 检查是否在允许列表中
         for (i, syscall) in syscalls.iter().enumerate() {
             let jt = if i < count - 1 { 1 } else { 0 };
-            let jf = if i == count - 1 { 0 } else { 0 };
+            let jf = 0;
             filters.push(sock_filter {
                 code: (BPF_JMP | BPF_JEQ | BPF_K) as u16,
                 jt,
@@ -430,7 +430,7 @@ impl SyscallAllowList {
             code: (BPF_RET | BPF_K) as u16,
             jt: 0,
             jf: 0,
-            k: SECCOMP_RET_KILL as u32,
+            k: SECCOMP_RET_KILL,
         });
 
         // 默认：允许
@@ -438,7 +438,7 @@ impl SyscallAllowList {
             code: (BPF_RET | BPF_K) as u16,
             jt: 0,
             jf: 0,
-            k: SECCOMP_RET_ALLOW as u32,
+            k: SECCOMP_RET_ALLOW,
         });
 
         filters
