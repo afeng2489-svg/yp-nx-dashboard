@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Play, Loader2 } from 'lucide-react';
 import { useExecutionStore } from '@/stores/executionStore';
 import { useNavigate } from 'react-router-dom';
@@ -71,7 +72,7 @@ export function WorkflowLaunchModal({ workflow, onClose }: WorkflowLaunchModalPr
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-card rounded-2xl shadow-2xl border border-border/50 overflow-hidden">
@@ -135,6 +136,7 @@ export function WorkflowLaunchModal({ workflow, onClose }: WorkflowLaunchModalPr
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
