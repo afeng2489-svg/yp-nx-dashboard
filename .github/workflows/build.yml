@@ -82,6 +82,7 @@ jobs:
 
       - name: Build Tauri app
         working-directory: nx_dashboard
+        shell: bash
         run: |
           if [ "${{ matrix.platform }}" == "windows" ]; then
             npm run tauri build -- --target ${{ matrix.target }}
