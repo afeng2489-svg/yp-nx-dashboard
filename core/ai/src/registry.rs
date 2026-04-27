@@ -198,6 +198,7 @@ impl Default for RegistryBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::TokenUsage;
 
     struct MockProvider {
         name: String,

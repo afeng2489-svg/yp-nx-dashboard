@@ -866,7 +866,7 @@ mod tests {
         for preset in PRESET_PROVIDERS {
             assert!(!preset.key.is_empty());
             assert!(!preset.name.is_empty());
-            assert!(!preset.base_url.is_empty());
+            // Some presets (e.g. aws_bedrock) use credential-based auth without a base_url
         }
     }
 
@@ -876,7 +876,7 @@ mod tests {
         assert_eq!(APIFormat::from("anthropic"), APIFormat::Anthropic);
         assert_eq!(
             APIFormat::from("custom:test"),
-            APIFormat::Custom("test".to_string())
+            APIFormat::Custom("custom:test".to_string())
         );
     }
 

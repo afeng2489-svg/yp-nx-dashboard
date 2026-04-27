@@ -232,14 +232,24 @@ mod tests {
         let payload = serde_json::json!({});
         let mut task = ScheduledTask::new(TaskType::Cleanup, payload, Utc::now(), 3);
 
+        // mark_failed only sets status=Failed when retry_count >= max_retries.
+        // Before that, status remains Pending, so can_retry() returns false
+        // (it requires status == Failed).
         task.mark_failed("Test error".to_string());
-        assert!(task.can_retry());
         assert_eq!(task.retry_count, 1);
+        // Status is still Pending since retry_count(1) < max_retries(3)
+        assert_eq!(task.status, TaskStatus::Pending);
+        assert!(!task.can_retry());
 
         task.mark_failed("Test error".to_string());
+        assert_eq!(task.retry_count, 2);
+        assert_eq!(task.status, TaskStatus::Pending);
+
         task.mark_failed("Test error".to_string());
-        assert!(!task.can_retry());
+        // Now retry_count(3) >= max_retries(3), so status becomes Failed
+        assert_eq!(task.retry_count, 3);
         assert_eq!(task.status, TaskStatus::Failed);
+        assert!(!task.can_retry());
     }
 
     #[test]

@@ -535,11 +535,11 @@ mod tests {
         let presets = ProviderService::get_presets();
         assert!(!presets.is_empty());
 
-        // Check some expected presets
+        // Check some expected presets that actually exist in PRESET_PROVIDERS
         let preset_keys: Vec<&str> = presets.iter().map(|p| p.key).collect();
         assert!(preset_keys.contains(&"deepseek"));
-        assert!(preset_keys.contains(&"openai"));
-        assert!(preset_keys.contains(&"anthropic"));
+        assert!(preset_keys.contains(&"openrouter"));
+        assert!(preset_keys.contains(&"minimax"));
     }
 
     #[test]

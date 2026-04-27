@@ -394,6 +394,7 @@ mod tests {
     use async_trait::async_trait;
 
     /// 测试用的小技能
+    #[allow(dead_code)]
     struct TestSkill {
         name: String,
         description: String,

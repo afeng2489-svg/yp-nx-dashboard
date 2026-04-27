@@ -716,7 +716,10 @@ mod tests {
 
         assert_eq!(execution.workflow_id, "workflow-1");
         assert_eq!(execution.status, ExecutionStatus::Completed);
-        assert_eq!(execution.stage_results.len(), 4); // 初始化, 规划, 执行, 完成
+        // simulate_execution broadcasts StageCompleted events but does not
+        // populate stage_results (that requires add_stage_output).
+        // It does add output lines via the Output broadcast handler.
+        assert_eq!(execution.output_log.len(), 4); // one line per stage
     }
 
     #[test]

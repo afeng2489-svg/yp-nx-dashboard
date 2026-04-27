@@ -407,12 +407,11 @@ impl SkillRepository for SqliteSkillRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
 
     fn create_test_repo() -> SqliteSkillRepository {
-        let dir = tempdir().unwrap();
-        let db_path = dir.path().join("test.db");
-        SqliteSkillRepository::new(db_path.to_str().unwrap()).unwrap()
+        // Use in-memory SQLite to avoid "readonly database" errors caused by
+        // TempDir being dropped before the test finishes.
+        SqliteSkillRepository::new(":memory:").unwrap()
     }
 
     #[test]
