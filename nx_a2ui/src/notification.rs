@@ -305,7 +305,7 @@ impl NotificationHandler for InMemoryNotificationStore {
         }
 
         // 按时间倒序
-        result.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        result.sort_by_key(|b| std::cmp::Reverse(b.timestamp));
 
         Ok(result)
     }

@@ -64,7 +64,7 @@ test.describe('Terminal Multi-Window', () => {
     }
   })
 
-  test('should synchronize terminal content across pages', async ({ page, secondPage }) => {
+  test('should synchronize terminal content across pages', async () => {
     // In a real multi-window scenario, content would sync via WebSocket
     // This test checks if both pages can display terminal content
 
