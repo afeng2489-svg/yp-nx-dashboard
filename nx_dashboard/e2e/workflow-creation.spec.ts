@@ -26,7 +26,7 @@ test.describe('Workflow Creation', () => {
     const hasWorkflowNav = await page.getByText(/workflow/i).isVisible().catch(() => false)
     if (!hasWorkflowNav) {
       // If no workflow nav, at least the page should load
-      await expect(page).toHaveTitle(/NexusFlow|Dashboard|Workflow/i)
+      await expect(page).toHaveTitle(/YpNextFlow|NexusFlow|Dashboard|Workflow/i)
     }
   })
 
