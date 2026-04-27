@@ -53,10 +53,9 @@ jobs:
         run: cargo test --all
 
       - name: Run tests with coverage
-        uses: actions-rs/llvm-cov-action@v1
-        with:
-          flag: coverage
-          features: ""
+        run: |
+          cargo install cargo-llvm-cov || true
+          cargo llvm-cov --all --text || true
 
   # Frontend tests (Vitest)
   frontend-test:

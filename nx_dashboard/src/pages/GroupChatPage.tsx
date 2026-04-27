@@ -721,7 +721,7 @@ export function GroupChatPage() {
               )}
 
               {/* Team Evolution Dashboard — collapsible */}
-              <TeamEvolutionSection projectId={currentWorkspace?.id} />
+              {currentWorkspace?.id && <TeamEvolutionSection projectId={currentWorkspace.id} />}
 
               {/* Messages */}
               <div className="bg-card rounded-lg border">
@@ -1140,7 +1140,7 @@ export function GroupChatPage() {
 }
 
 /** Collapsible Team Evolution section: progress + resources + crash recovery */
-function TeamEvolutionSection({ projectId }: { projectId?: string }) {
+function TeamEvolutionSection({ projectId }: { projectId: string }) {
   const [expanded, setExpanded] = useState(false);
 
   return (

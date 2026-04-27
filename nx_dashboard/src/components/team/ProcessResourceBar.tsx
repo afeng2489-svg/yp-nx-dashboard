@@ -35,7 +35,7 @@ export default function ProcessResourceBar() {
     return () => clearInterval(interval);
   }, [fetchStats]);
 
-  if (error && !stats) return null;
+  if (!stats) return null;
 
   const memMB = Math.round(stats.total_memory_bytes / 1024 / 1024);
   const maxMemMB = Math.round(stats.max_memory_bytes / 1024 / 1024);
