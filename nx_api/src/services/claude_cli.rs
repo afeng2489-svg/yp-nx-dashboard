@@ -15,36 +15,25 @@ static CLAUDE_CLI_PATH: once_cell::sync::Lazy<Option<String>> =
 
 /// 自动检索本地 Claude Code CLI 路径
 fn find_claude_cli() -> Option<String> {
-    // 1. 先尝试 which claude
-    if let Ok(path) = std::process::Command::new("which")
-        .arg("claude")
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-    {
-        if !path.is_empty() && std::path::Path::new(&path).exists() {
-            tracing::debug!("[Claude CLI] 发现于: {}", path);
-            return Some(path);
+    // 0. 从用户 shell 环境获取完整 PATH（GUI 应用不继承 shell PATH）
+    let shell_paths = get_shell_path();
+
+    // 1. 在完整 PATH 中搜索 claude
+    let cli_name = if cfg!(target_os = "windows") {
+        "claude.exe"
+    } else {
+        "claude"
+    };
+    for dir in &shell_paths {
+        let candidate = std::path::Path::new(dir).join(cli_name);
+        if candidate.exists() {
+            tracing::debug!("[Claude CLI] 发现于: {}", candidate.display());
+            return Some(candidate.to_string_lossy().to_string());
         }
     }
 
-    // 2. 尝试 command -v claude
-    if let Ok(path) = std::process::Command::new("command")
-        .args(["-v", "claude"])
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-    {
-        if !path.is_empty() && std::path::Path::new(&path).exists() {
-            tracing::debug!("[Claude CLI] 发现于: {}", path);
-            return Some(path);
-        }
-    }
-
-    // 3. 常见 macOS 路径
-    let common_paths = [
-        "/opt/homebrew/bin/claude",
-        "/usr/local/bin/claude",
-        "/usr/bin/claude",
-    ];
+    // 2. 常见路径兜底
+    let common_paths = get_common_paths();
     for p in &common_paths {
         if std::path::Path::new(p).exists() {
             tracing::debug!("[Claude CLI] 发现于: {}", p);
@@ -52,20 +41,91 @@ fn find_claude_cli() -> Option<String> {
         }
     }
 
-    // 4. 尝试从 PATH 环境变量查找
-    if let Ok(path) = std::process::Command::new("zsh")
-        .args(["-c", "whence -p claude"])
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-    {
-        if !path.is_empty() && std::path::Path::new(&path).exists() {
-            tracing::debug!("[Claude CLI] 发现于: {}", path);
-            return Some(path);
+    tracing::warn!("[Claude CLI] 未找到 Claude Code CLI");
+    None
+}
+
+/// 从用户 shell 环境获取 PATH 列表
+fn get_shell_path() -> Vec<String> {
+    let separator = if cfg!(target_os = "windows") { ';' } else { ':' };
+
+    if cfg!(target_os = "windows") {
+        // Windows: 通过 PowerShell 获取用户完整 PATH
+        let output = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", "$env:PATH"])
+            .output();
+        if let Ok(out) = output {
+            if out.status.success() {
+                let path_str = String::from_utf8_lossy(&out.stdout);
+                return path_str
+                    .trim()
+                    .split(separator)
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string())
+                    .collect();
+            }
+        }
+    } else {
+        // macOS / Linux: 通过登录 shell 获取完整 PATH
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+        let output = std::process::Command::new(&shell)
+            .args(["-l", "-c", "echo $PATH"])
+            .output();
+        if let Ok(out) = output {
+            if out.status.success() {
+                let path_str = String::from_utf8_lossy(&out.stdout);
+                return path_str
+                    .trim()
+                    .split(separator)
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string())
+                    .collect();
+            }
         }
     }
 
-    tracing::warn!("[Claude CLI] 未找到 Claude Code CLI");
-    None
+    // 回退到当前进程 PATH
+    std::env::var("PATH")
+        .unwrap_or_default()
+        .split(separator)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect()
+}
+
+/// 获取常见 Claude CLI 安装路径
+fn get_common_paths() -> Vec<String> {
+    let mut paths = Vec::new();
+
+    if cfg!(target_os = "windows") {
+        // Windows: npm global, user profile
+        if let Ok(userprofile) = std::env::var("USERPROFILE") {
+            paths.push(format!(r"{}\AppData\Roaming\npm\claude.exe", userprofile));
+            paths.push(format!(r"{}\AppData\Local\Programs\claude\claude.exe", userprofile));
+        }
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            paths.push(format!(r"{}\npm\claude.exe", appdata));
+        }
+        paths.push(r"C:\Program Files\claude\claude.exe".to_string());
+    } else if cfg!(target_os = "macos") {
+        paths.push("/opt/homebrew/bin/claude".to_string());
+        paths.push("/usr/local/bin/claude".to_string());
+        paths.push("/usr/bin/claude".to_string());
+        // npm global
+        if let Ok(home) = std::env::var("HOME") {
+            paths.push(format!("{}/.npm-global/bin/claude", home));
+        }
+    } else {
+        paths.push("/usr/local/bin/claude".to_string());
+        paths.push("/usr/bin/claude".to_string());
+        paths.push("/snap/bin/claude".to_string());
+        if let Ok(home) = std::env::var("HOME") {
+            paths.push(format!("{}/.npm-global/bin/claude", home));
+            paths.push(format!("{}/.local/bin/claude", home));
+        }
+    }
+
+    paths
 }
 
 /// 获取 Claude CLI 路径
