@@ -4,6 +4,7 @@ dist/
 *.local
 .DS_Store
 *.db
+!nx_dashboard/nexus.db
 .vscode/
 .idea/
 .playwright-mcp/
