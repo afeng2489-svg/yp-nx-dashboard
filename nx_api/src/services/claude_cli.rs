@@ -324,6 +324,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_claude_cli_basic() {
+        if CLAUDE_CLI_PATH.is_none() {
+            eprintln!("Skipping: Claude CLI not installed");
+            return;
+        }
         let result = call_claude_cli("Say 'hello'", None).await;
         assert!(result.is_ok());
         let response = result.unwrap();
