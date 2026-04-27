@@ -579,7 +579,9 @@ pub fn try_pty_dispatch_pub(
         working_dir,
     );
 
-    // Dispatch the task to the PTY session
+    // 先发 Enter 确认可能存在的 workspace trust dialog，等 Claude 就绪后再发任务
+    session.send_enter();
+    std::thread::sleep(std::time::Duration::from_secs(3));
     session.dispatch_task(&full_prompt);
 
     // Start the PTY task watcher in a background task

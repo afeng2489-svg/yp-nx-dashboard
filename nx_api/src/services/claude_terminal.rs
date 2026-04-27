@@ -63,6 +63,11 @@ impl ClaudeTerminalSession {
         let _ = self.input_tx.send(PtyInput::Data(data));
     }
 
+    /// 发送一个 Enter 键（用于确认 workspace trust dialog 等）
+    pub fn send_enter(&self) {
+        let _ = self.input_tx.send(PtyInput::Data(vec![b'\n']));
+    }
+
     /// 向 PTY 发送一行任务文本（追加换行）
     pub fn dispatch_task(&self, task: &str) {
         let mut data = task.as_bytes().to_vec();
