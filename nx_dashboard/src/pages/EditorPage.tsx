@@ -60,8 +60,10 @@ export function EditorPage() {
       name,
       version: '1.0',
       description: '',
-      stages,
-      agents,
+      definition: {
+        stages,
+        agents,
+      },
     };
   };
 
