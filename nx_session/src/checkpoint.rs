@@ -108,7 +108,7 @@ impl CheckpointManager {
         let mut checkpoints = self.checkpoints.write().await;
 
         // 按时间倒序排列
-        checkpoints.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        checkpoints.sort_by_key(|b| std::cmp::Reverse(b.created_at));
 
         // 保留最新的 keep_count 个
         let to_keep: Vec<_> = checkpoints
