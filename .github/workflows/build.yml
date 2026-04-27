@@ -84,9 +84,10 @@ jobs:
         run: |
           mkdir -p target/release
           src="target/${{ matrix.target }}/release/nx_api"
-          # Windows appends .exe — keep the extension on Windows
           if [ "$RUNNER_OS" = "Windows" ]; then
             cp "${src}.exe" target/release/nx_api.exe
+            # Also copy as nx_api (without .exe) for Tauri resource bundling
+            cp "${src}.exe" target/release/nx_api
           else
             cp "$src" target/release/nx_api
           fi
