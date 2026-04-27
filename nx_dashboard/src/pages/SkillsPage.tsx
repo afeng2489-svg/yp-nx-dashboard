@@ -359,9 +359,7 @@ export default function SkillsPage() {
       if (result.success) {
         showSuccess('技能执行成功', `耗时: ${result.duration_ms}ms`);
         setExecutionResult(
-          result.output !== null
-            ? JSON.stringify(result.output, null, 2)
-            : '执行完成，无输出',
+          result.output !== null ? JSON.stringify(result.output, null, 2) : '执行完成，无输出',
         );
       } else {
         showError('技能执行失败', result.error || '未知错误');
@@ -672,10 +670,7 @@ export default function SkillsPage() {
                     <p className="text-sm text-muted-foreground mt-1">ID: {editForm.id}</p>
                   )}
                 </div>
-                <button
-                  onClick={handleCloseEditDialog}
-                  className="p-1 hover:bg-accent rounded"
-                >
+                <button onClick={handleCloseEditDialog} className="p-1 hover:bg-accent rounded">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -713,9 +708,7 @@ export default function SkillsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
-                    描述
-                  </label>
+                  <label className="block text-sm font-medium text-foreground mb-1">描述</label>
                   <textarea
                     value={editForm.description}
                     onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
@@ -726,9 +719,7 @@ export default function SkillsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
-                    类别
-                  </label>
+                  <label className="block text-sm font-medium text-foreground mb-1">类别</label>
                   <select
                     value={editForm.category}
                     onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
@@ -784,10 +775,7 @@ export default function SkillsPage() {
               </div>
 
               <div className="p-6 border-t border-border flex justify-end gap-3">
-                <button
-                  onClick={handleCloseEditDialog}
-                  className="btn-secondary"
-                >
+                <button onClick={handleCloseEditDialog} className="btn-secondary">
                   取消
                 </button>
                 <button
@@ -855,10 +843,7 @@ export default function SkillsPage() {
               </div>
 
               <div className="p-6 border-t border-border flex justify-end gap-3">
-                <button
-                  onClick={handleCloseExecuteDialog}
-                  className="btn-secondary"
-                >
+                <button onClick={handleCloseExecuteDialog} className="btn-secondary">
                   关闭
                 </button>
                 <button
@@ -1057,10 +1042,7 @@ export default function SkillsPage() {
               </div>
 
               <div className="p-6 border-t border-border flex justify-end gap-3">
-                <button
-                  onClick={() => setShowImportDialog(false)}
-                  className="btn-secondary"
-                >
+                <button onClick={() => setShowImportDialog(false)} className="btn-secondary">
                   取消
                 </button>
                 <button
