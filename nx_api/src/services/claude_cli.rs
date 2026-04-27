@@ -47,7 +47,11 @@ fn find_claude_cli() -> Option<String> {
 
 /// 从用户 shell 环境获取 PATH 列表
 fn get_shell_path() -> Vec<String> {
-    let separator = if cfg!(target_os = "windows") { ';' } else { ':' };
+    let separator = if cfg!(target_os = "windows") {
+        ';'
+    } else {
+        ':'
+    };
 
     if cfg!(target_os = "windows") {
         // Windows: 通过 PowerShell 获取用户完整 PATH
@@ -101,7 +105,10 @@ fn get_common_paths() -> Vec<String> {
         // Windows: npm global, user profile
         if let Ok(userprofile) = std::env::var("USERPROFILE") {
             paths.push(format!(r"{}\AppData\Roaming\npm\claude.exe", userprofile));
-            paths.push(format!(r"{}\AppData\Local\Programs\claude\claude.exe", userprofile));
+            paths.push(format!(
+                r"{}\AppData\Local\Programs\claude\claude.exe",
+                userprofile
+            ));
         }
         if let Ok(appdata) = std::env::var("APPDATA") {
             paths.push(format!(r"{}\npm\claude.exe", appdata));
