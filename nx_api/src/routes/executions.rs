@@ -7,20 +7,19 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use std::sync::Arc;
 
+use super::AppState;
 use crate::services::execution_service::ExecutionEvent;
 use crate::services::workflow_service::WorkflowServiceError;
-use super::AppState;
 
 /// 列出执行记录
-pub async fn list_executions(
-    State(state): State<Arc<AppState>>,
-) -> Json<Vec<ExecutionSummary>> {
+pub async fn list_executions(State(state): State<Arc<AppState>>) -> Json<Vec<ExecutionSummary>> {
     let executions = state.execution_service.get_all_executions();
     let summaries: Vec<ExecutionSummary> = executions
         .into_iter()
         .map(|e| {
             let workflow_id = e.workflow_id.clone();
-            let workflow_name = state.workflow_service
+            let workflow_name = state
+                .workflow_service
                 .get_workflow(&workflow_id)
                 .ok()
                 .flatten()
@@ -105,10 +104,13 @@ pub async fn start_execution(
     let variables = req.variables.clone();
 
     // 1. 获取工作流定义
-    let workflow = state.workflow_service
+    let workflow = state
+        .workflow_service
         .get_workflow(&req.workflow_id)
         .map_err(|e| match e {
-            WorkflowServiceError::NotFound(id) => ExecutionAppError::NotFound(format!("工作流 {} 不存在", id)),
+            WorkflowServiceError::NotFound(id) => {
+                ExecutionAppError::NotFound(format!("工作流 {} 不存在", id))
+            }
             _ => ExecutionAppError::Internal(e.to_string()),
         })?
         .ok_or_else(|| ExecutionAppError::NotFound(format!("工作流 {} 不存在", req.workflow_id)))?;
@@ -141,7 +143,8 @@ pub async fn start_execution(
     let current_workspace = state.current_workspace_path.read().clone();
 
     // 5. 启动真实执行（异步，不等待完成）
-    let execution_id = state.execution_service
+    let execution_id = state
+        .execution_service
         .execute_workflow(
             workflow.id.clone(),
             &workflow_yaml,
@@ -184,13 +187,17 @@ pub async fn execution_ws(
 
         // 立即发送当前执行状态快照（catch-up）
         if let Some(execution) = state.execution_service.get_execution(&id) {
-            let stage_results: Vec<serde_json::Value> = execution.stage_results.iter().map(|sr| {
-                serde_json::json!({
-                    "stage_name": sr.stage_name,
-                    "outputs": sr.outputs,
-                    "completed_at": sr.completed_at.map(|dt| dt.to_rfc3339()),
+            let stage_results: Vec<serde_json::Value> = execution
+                .stage_results
+                .iter()
+                .map(|sr| {
+                    serde_json::json!({
+                        "stage_name": sr.stage_name,
+                        "outputs": sr.outputs,
+                        "completed_at": sr.completed_at.map(|dt| dt.to_rfc3339()),
+                    })
                 })
-            }).collect();
+                .collect();
 
             let status_json = serde_json::to_value(&execution.status)
                 .ok()
@@ -225,7 +232,9 @@ pub async fn execution_ws(
                     tracing::debug!("收到客户端消息: {}", text);
                     if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
                         // Support both legacy `action` field and new `type` field
-                        let action = json.get("action").and_then(|v| v.as_str())
+                        let action = json
+                            .get("action")
+                            .and_then(|v| v.as_str())
                             .or_else(|| json.get("type").and_then(|v| v.as_str()))
                             .unwrap_or("");
                         let normalized = match action {
@@ -235,13 +244,18 @@ pub async fn execution_ws(
                         };
                         match normalized {
                             "cancel" => {
-                                if let Some(exec_id) = json.get("execution_id").and_then(|v| v.as_str()) {
+                                if let Some(exec_id) =
+                                    json.get("execution_id").and_then(|v| v.as_str())
+                                {
                                     exec_service.cancel_execution(exec_id);
                                 }
                             }
                             "resume" => {
-                                if let Some(exec_id) = json.get("execution_id").and_then(|v| v.as_str()) {
-                                    if let Some(value) = json.get("value").and_then(|v| v.as_str()) {
+                                if let Some(exec_id) =
+                                    json.get("execution_id").and_then(|v| v.as_str())
+                                {
+                                    if let Some(value) = json.get("value").and_then(|v| v.as_str())
+                                    {
                                         exec_service.resume_execution(exec_id, value.to_string());
                                     }
                                 }
@@ -260,14 +274,24 @@ pub async fn execution_ws(
                     Ok(event) => {
                         let event_id = match &event {
                             ExecutionEvent::Started { execution_id, .. } => execution_id.clone(),
-                            ExecutionEvent::StatusChanged { execution_id, .. } => execution_id.clone(),
-                            ExecutionEvent::StageStarted { execution_id, .. } => execution_id.clone(),
-                            ExecutionEvent::StageCompleted { execution_id, .. } => execution_id.clone(),
+                            ExecutionEvent::StatusChanged { execution_id, .. } => {
+                                execution_id.clone()
+                            }
+                            ExecutionEvent::StageStarted { execution_id, .. } => {
+                                execution_id.clone()
+                            }
+                            ExecutionEvent::StageCompleted { execution_id, .. } => {
+                                execution_id.clone()
+                            }
                             ExecutionEvent::Output { execution_id, .. } => execution_id.clone(),
                             ExecutionEvent::Completed { execution_id } => execution_id.clone(),
                             ExecutionEvent::Failed { execution_id, .. } => execution_id.clone(),
-                            ExecutionEvent::WorkflowPaused { execution_id, .. } => execution_id.clone(),
-                            ExecutionEvent::WorkflowResumed { execution_id, .. } => execution_id.clone(),
+                            ExecutionEvent::WorkflowPaused { execution_id, .. } => {
+                                execution_id.clone()
+                            }
+                            ExecutionEvent::WorkflowResumed { execution_id, .. } => {
+                                execution_id.clone()
+                            }
                         };
 
                         if event_id == target_id {
@@ -368,7 +392,10 @@ impl IntoResponse for ExecutionAppError {
             ExecutionAppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             ExecutionAppError::Internal(msg) => {
                 tracing::error!("内部错误: {}", msg);
-                (StatusCode::INTERNAL_SERVER_ERROR, "内部服务器错误".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "内部服务器错误".to_string(),
+                )
             }
         };
 

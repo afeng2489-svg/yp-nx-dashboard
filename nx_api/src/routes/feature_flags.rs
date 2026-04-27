@@ -8,8 +8,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::routes::AppState;
 use crate::models::feature_flag::{FeatureFlag, FeatureFlagState};
+use crate::routes::AppState;
 use crate::services::team_evolution::error::TeamEvolutionError;
 
 #[derive(Serialize)]
@@ -53,11 +53,17 @@ fn map_tev_error(err: TeamEvolutionError) -> (StatusCode, Json<serde_json::Value
 pub async fn list_feature_flags(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<FeatureFlagResponse>>, (StatusCode, Json<serde_json::Value>)> {
-    let service = state.feature_flag_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Feature flag service not available" }))))?;
+    let service = state.feature_flag_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Feature flag service not available" })),
+        )
+    })?;
 
     let flags = service.list_all().map_err(map_tev_error)?;
-    Ok(Json(flags.into_iter().map(FeatureFlagResponse::from).collect()))
+    Ok(Json(
+        flags.into_iter().map(FeatureFlagResponse::from).collect(),
+    ))
 }
 
 /// GET /api/v1/feature-flags/:key
@@ -65,8 +71,12 @@ pub async fn get_feature_flag(
     State(state): State<Arc<AppState>>,
     Path(key): Path<String>,
 ) -> Result<Json<FeatureFlagResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let service = state.feature_flag_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Feature flag service not available" }))))?;
+    let service = state.feature_flag_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Feature flag service not available" })),
+        )
+    })?;
 
     let flag = service.get(&key).map_err(map_tev_error)?;
     Ok(Json(FeatureFlagResponse::from(flag)))
@@ -78,8 +88,12 @@ pub async fn update_feature_flag(
     Path(key): Path<String>,
     Json(body): Json<UpdateFlagRequest>,
 ) -> Result<Json<FeatureFlagResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let service = state.feature_flag_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Feature flag service not available" }))))?;
+    let service = state.feature_flag_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Feature flag service not available" })),
+        )
+    })?;
 
     let new_state = FeatureFlagState::from_str(&body.state)
         .ok_or_else(|| (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": format!("Invalid state: {}. Expected: on, readonly, off", body.state) }))))?;
@@ -93,8 +107,12 @@ pub async fn reset_feature_flag(
     State(state): State<Arc<AppState>>,
     Path(key): Path<String>,
 ) -> Result<Json<FeatureFlagResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let service = state.feature_flag_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Feature flag service not available" }))))?;
+    let service = state.feature_flag_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Feature flag service not available" })),
+        )
+    })?;
 
     let flag = service.reset(&key).map_err(map_tev_error)?;
     Ok(Json(FeatureFlagResponse::from(flag)))

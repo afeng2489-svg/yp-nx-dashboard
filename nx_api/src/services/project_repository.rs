@@ -46,7 +46,8 @@ impl SqliteProjectRepository {
         let conn = Connection::open(db_path)?;
 
         // Migration: add workspace_id column if it doesn't exist (for existing databases)
-        let _: Result<usize, _> = conn.execute("ALTER TABLE projects ADD COLUMN workspace_id TEXT", []);
+        let _: Result<usize, _> =
+            conn.execute("ALTER TABLE projects ADD COLUMN workspace_id TEXT", []);
         // Ignore error - column might already exist
 
         conn.execute_batch(
@@ -137,8 +138,8 @@ impl SqliteProjectRepository {
 impl ProjectRepository for SqliteProjectRepository {
     fn create(&self, project: &Project) -> Result<(), RepositoryError> {
         let conn = self.conn.lock();
-        let variables_json =
-            serde_json::to_string(&project.variables).map_err(|e| RepositoryError::Serialization(e.to_string()))?;
+        let variables_json = serde_json::to_string(&project.variables)
+            .map_err(|e| RepositoryError::Serialization(e.to_string()))?;
 
         conn.execute(
             "INSERT INTO projects (id, name, description, team_id, workspace_id, workflow_id, variables, status, created_at, updated_at)
@@ -182,20 +183,29 @@ impl ProjectRepository for SqliteProjectRepository {
         });
 
         match result {
-            Ok((id, name, description, team_id, workspace_id, workflow_id, variables, status, created_at, updated_at)) => {
-                Ok(Some(Self::deserialize_row(
-                    id,
-                    name,
-                    description,
-                    team_id,
-                    workspace_id,
-                    workflow_id,
-                    variables,
-                    status,
-                    created_at,
-                    updated_at,
-                )?))
-            }
+            Ok((
+                id,
+                name,
+                description,
+                team_id,
+                workspace_id,
+                workflow_id,
+                variables,
+                status,
+                created_at,
+                updated_at,
+            )) => Ok(Some(Self::deserialize_row(
+                id,
+                name,
+                description,
+                team_id,
+                workspace_id,
+                workflow_id,
+                variables,
+                status,
+                created_at,
+                updated_at,
+            )?)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e.into()),
         }
@@ -225,7 +235,18 @@ impl ProjectRepository for SqliteProjectRepository {
 
         let mut projects = Vec::new();
         for row in rows {
-            let (id, name, description, team_id, workspace_id, workflow_id, variables, status, created_at, updated_at) = row?;
+            let (
+                id,
+                name,
+                description,
+                team_id,
+                workspace_id,
+                workflow_id,
+                variables,
+                status,
+                created_at,
+                updated_at,
+            ) = row?;
             projects.push(Self::deserialize_row(
                 id,
                 name,
@@ -266,7 +287,18 @@ impl ProjectRepository for SqliteProjectRepository {
 
         let mut projects = Vec::new();
         for row in rows {
-            let (id, name, description, team_id, workspace_id, workflow_id, variables, status, created_at, updated_at) = row?;
+            let (
+                id,
+                name,
+                description,
+                team_id,
+                workspace_id,
+                workflow_id,
+                variables,
+                status,
+                created_at,
+                updated_at,
+            ) = row?;
             projects.push(Self::deserialize_row(
                 id,
                 name,
@@ -285,8 +317,8 @@ impl ProjectRepository for SqliteProjectRepository {
 
     fn update(&self, project: &Project) -> Result<(), RepositoryError> {
         let conn = self.conn.lock();
-        let variables_json =
-            serde_json::to_string(&project.variables).map_err(|e| RepositoryError::Serialization(e.to_string()))?;
+        let variables_json = serde_json::to_string(&project.variables)
+            .map_err(|e| RepositoryError::Serialization(e.to_string()))?;
 
         let affected = conn.execute(
             "UPDATE projects SET name = ?1, description = ?2, team_id = ?3, workspace_id = ?4, workflow_id = ?5, variables = ?6, status = ?7, updated_at = ?8
@@ -344,9 +376,27 @@ mod tests {
     fn test_find_by_team() {
         let repo = SqliteProjectRepository::in_memory().unwrap();
 
-        let project1 = Project::new("Project 1".to_string(), "".to_string(), "team-1".to_string(), None, None);
-        let project2 = Project::new("Project 2".to_string(), "".to_string(), "team-1".to_string(), None, None);
-        let project3 = Project::new("Project 3".to_string(), "".to_string(), "team-2".to_string(), None, None);
+        let project1 = Project::new(
+            "Project 1".to_string(),
+            "".to_string(),
+            "team-1".to_string(),
+            None,
+            None,
+        );
+        let project2 = Project::new(
+            "Project 2".to_string(),
+            "".to_string(),
+            "team-1".to_string(),
+            None,
+            None,
+        );
+        let project3 = Project::new(
+            "Project 3".to_string(),
+            "".to_string(),
+            "team-2".to_string(),
+            None,
+            None,
+        );
 
         repo.create(&project1).unwrap();
         repo.create(&project2).unwrap();

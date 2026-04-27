@@ -4,7 +4,7 @@
 
 use axum::{
     extract::{Path, Query, State},
-    routing::{get, post, put, delete},
+    routing::{delete, get, post, put},
     Json,
 };
 use serde::Deserialize;
@@ -12,9 +12,9 @@ use std::sync::Arc;
 
 use crate::error::ApiError;
 use crate::models::group_chat::{
-    ConcludeDiscussionRequest, CreateGroupSessionRequest, GetMessagesRequest,
-    GroupConclusion, GroupMessage, GroupSession, GroupSessionDetail, DiscussionTurnInfo,
-    NextSpeakerInfo, SendMessageRequest, StartDiscussionRequest, UpdateGroupSessionRequest,
+    ConcludeDiscussionRequest, CreateGroupSessionRequest, DiscussionTurnInfo, GetMessagesRequest,
+    GroupConclusion, GroupMessage, GroupSession, GroupSessionDetail, NextSpeakerInfo,
+    SendMessageRequest, StartDiscussionRequest, UpdateGroupSessionRequest,
 };
 use crate::routes::AppState;
 use crate::services::group_chat_service::GroupChatServiceError;
@@ -93,10 +93,7 @@ pub async fn delete_session(
 ) -> Result<Json<()>, ApiError> {
     let service = &state.group_chat_service;
 
-    service
-        .delete_session(&id)
-        .await
-        .map_err(ApiError::from)?;
+    service.delete_session(&id).await.map_err(ApiError::from)?;
 
     Ok(Json(()))
 }
@@ -162,7 +159,10 @@ pub async fn get_next_speaker(
         .await
         .map_err(ApiError::from)?;
 
-    Ok(Json(next.map(|(role_id, role_name)| NextSpeakerInfo { role_id, role_name })))
+    Ok(Json(next.map(|(role_id, role_name)| NextSpeakerInfo {
+        role_id,
+        role_name,
+    })))
 }
 
 /// Advance to next speaker
@@ -172,10 +172,7 @@ pub async fn advance_speaker(
 ) -> Result<Json<()>, ApiError> {
     let service = &state.group_chat_service;
 
-    service
-        .advance_speaker(&id)
-        .await
-        .map_err(ApiError::from)?;
+    service.advance_speaker(&id).await.map_err(ApiError::from)?;
 
     Ok(Json(()))
 }
@@ -219,16 +216,15 @@ pub async fn execute_round(
             .agent_execution_manager
             .register_cancel_token(&execution_id, cancel_token.clone());
 
-        let _ = state
-            .agent_execution_manager
-            .event_sender()
-            .send(crate::ws::agent_execution::AgentExecutionEvent::Started {
+        let _ = state.agent_execution_manager.event_sender().send(
+            crate::ws::agent_execution::AgentExecutionEvent::Started {
                 execution_id: execution_id.clone(),
                 agent_role: role_id.clone(),
                 task_summary: format!("Parallel round: {}", role_id),
                 role_id: Some(role_id.clone()),
                 session_id: None,
-            });
+            },
+        );
 
         let service = state.group_chat_service.clone();
         let exec_id = execution_id.clone();
@@ -312,7 +308,9 @@ pub async fn execute_role_turn(
     let execution_id = uuid::Uuid::new_v4().to_string();
     let event_tx = state.agent_execution_manager.event_sender();
     let cancel_token = tokio_util::sync::CancellationToken::new();
-    state.agent_execution_manager.register_cancel_token(&execution_id, cancel_token.clone());
+    state
+        .agent_execution_manager
+        .register_cancel_token(&execution_id, cancel_token.clone());
 
     // 发送 Started 事件
     let _ = event_tx.send(crate::ws::agent_execution::AgentExecutionEvent::Started {

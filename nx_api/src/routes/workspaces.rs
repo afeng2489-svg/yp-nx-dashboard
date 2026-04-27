@@ -8,8 +8,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::services::Workspace;
 use super::AppState;
+use crate::services::Workspace;
 
 /// 列出所有工作区
 pub async fn list_workspaces(
@@ -42,7 +42,10 @@ pub async fn get_workspace(
 ) -> Result<Json<Workspace>, (StatusCode, String)> {
     match state.workspace_service.get_workspace(&id) {
         Ok(Some(workspace)) => Ok(Json(workspace)),
-        Ok(None) => Err((StatusCode::NOT_FOUND, format!("Workspace not found: {}", id))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            format!("Workspace not found: {}", id),
+        )),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
 }
@@ -52,10 +55,12 @@ pub async fn create_workspace(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateWorkspaceRequest>,
 ) -> Result<(StatusCode, Json<Workspace>), (StatusCode, String)> {
-    match state
-        .workspace_service
-        .create_workspace(payload.name, payload.owner_id, payload.description, payload.root_path)
-    {
+    match state.workspace_service.create_workspace(
+        payload.name,
+        payload.owner_id,
+        payload.description,
+        payload.root_path,
+    ) {
         Ok(workspace) => Ok((StatusCode::CREATED, Json(workspace))),
         Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
     }
@@ -67,10 +72,13 @@ pub async fn update_workspace(
     Path(id): Path<String>,
     Json(payload): Json<UpdateWorkspaceRequest>,
 ) -> Result<Json<Workspace>, (StatusCode, String)> {
-    match state
-        .workspace_service
-        .update_workspace(&id, payload.name, payload.description, payload.root_path, payload.settings)
-    {
+    match state.workspace_service.update_workspace(
+        &id,
+        payload.name,
+        payload.description,
+        payload.root_path,
+        payload.settings,
+    ) {
         Ok(workspace) => Ok(Json(workspace)),
         Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
     }
@@ -83,7 +91,10 @@ pub async fn delete_workspace(
 ) -> Result<StatusCode, (StatusCode, String)> {
     match state.workspace_service.delete_workspace(&id) {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
-        Ok(false) => Err((StatusCode::NOT_FOUND, format!("Workspace not found: {}", id))),
+        Ok(false) => Err((
+            StatusCode::NOT_FOUND,
+            format!("Workspace not found: {}", id),
+        )),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
 }
@@ -144,7 +155,10 @@ pub async fn get_file_diff(
     State(state): State<Arc<AppState>>,
     Path((workspace_id, file_path)): Path<(String, String)>,
 ) -> Result<Json<FileDiffResponse>, (StatusCode, String)> {
-    match state.workspace_service.get_file_diff(&workspace_id, &file_path) {
+    match state
+        .workspace_service
+        .get_file_diff(&workspace_id, &file_path)
+    {
         Ok(diff) => Ok(Json(FileDiffResponse { content: diff })),
         Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
     }
@@ -177,14 +191,19 @@ pub async fn detect_scripts(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Workspace not found".to_string()))?;
 
-    let root_path = workspace
-        .root_path
-        .as_deref()
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "Workspace has no root_path".to_string()))?;
+    let root_path = workspace.root_path.as_deref().ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            "Workspace has no root_path".to_string(),
+        )
+    })?;
 
     let root = std::path::Path::new(root_path);
     if !root.exists() {
-        return Err((StatusCode::BAD_REQUEST, format!("Path does not exist: {}", root_path)));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("Path does not exist: {}", root_path),
+        ));
     }
 
     let mut scripts = Vec::new();
@@ -195,13 +214,18 @@ pub async fn detect_scripts(
     let mut backend_dir: Option<String> = None;
 
     // Collect dirs to scan: root + 1-level subdirs
-    let mut scan_dirs: Vec<(std::path::PathBuf, String)> = vec![(root.to_path_buf(), String::new())];
+    let mut scan_dirs: Vec<(std::path::PathBuf, String)> =
+        vec![(root.to_path_buf(), String::new())];
     if let Ok(entries) = std::fs::read_dir(root) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
                 let name = entry.file_name().to_string_lossy().to_string();
-                if !name.starts_with('.') && name != "node_modules" && name != "target" && name != "dist" {
+                if !name.starts_with('.')
+                    && name != "node_modules"
+                    && name != "target"
+                    && name != "dist"
+                {
                     scan_dirs.push((path, name));
                 }
             }
@@ -209,12 +233,18 @@ pub async fn detect_scripts(
     }
 
     for (dir, prefix) in &scan_dirs {
-        let cd_prefix = if prefix.is_empty() { String::new() } else { format!("cd {} && ", prefix) };
+        let cd_prefix = if prefix.is_empty() {
+            String::new()
+        } else {
+            format!("cd {} && ", prefix)
+        };
 
         // Node.js: package.json
         let pkg_json = dir.join("package.json");
         if pkg_json.exists() {
-            if project_type == "unknown" { project_type = "node".to_string(); }
+            if project_type == "unknown" {
+                project_type = "node".to_string();
+            }
             if !prefix.is_empty() && frontend_dir.is_none() {
                 frontend_dir = Some(prefix.clone());
             }
@@ -222,9 +252,20 @@ pub async fn detect_scripts(
                 if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
                     if let Some(pkg_scripts) = pkg.get("scripts").and_then(|s| s.as_object()) {
                         for (name, _) in pkg_scripts {
-                            let npm_cmd = if name == "test" { "npm test".to_string() } else { format!("npm run {}", name) };
-                            let label = if prefix.is_empty() { name.clone() } else { format!("[{}] {}", prefix, name) };
-                            scripts.push(ScriptEntry { name: label, command: format!("{}{}", cd_prefix, npm_cmd) });
+                            let npm_cmd = if name == "test" {
+                                "npm test".to_string()
+                            } else {
+                                format!("npm run {}", name)
+                            };
+                            let label = if prefix.is_empty() {
+                                name.clone()
+                            } else {
+                                format!("[{}] {}", prefix, name)
+                            };
+                            scripts.push(ScriptEntry {
+                                name: label,
+                                command: format!("{}{}", cd_prefix, npm_cmd),
+                            });
                         }
                     }
                 }
@@ -234,15 +275,35 @@ pub async fn detect_scripts(
         // Rust: Cargo.toml
         let cargo_toml = dir.join("Cargo.toml");
         if cargo_toml.exists() {
-            if project_type == "unknown" { project_type = "rust".to_string(); }
+            if project_type == "unknown" {
+                project_type = "rust".to_string();
+            }
             if !prefix.is_empty() && backend_dir.is_none() {
                 backend_dir = Some(prefix.clone());
             }
-            let label = |s: &str| if prefix.is_empty() { s.to_string() } else { format!("[{}] {}", prefix, s) };
-            scripts.push(ScriptEntry { name: label("run"), command: format!("{}cargo run", cd_prefix) });
-            scripts.push(ScriptEntry { name: label("build"), command: format!("{}cargo build", cd_prefix) });
-            scripts.push(ScriptEntry { name: label("test"), command: format!("{}cargo test", cd_prefix) });
-            scripts.push(ScriptEntry { name: label("check"), command: format!("{}cargo check", cd_prefix) });
+            let label = |s: &str| {
+                if prefix.is_empty() {
+                    s.to_string()
+                } else {
+                    format!("[{}] {}", prefix, s)
+                }
+            };
+            scripts.push(ScriptEntry {
+                name: label("run"),
+                command: format!("{}cargo run", cd_prefix),
+            });
+            scripts.push(ScriptEntry {
+                name: label("build"),
+                command: format!("{}cargo build", cd_prefix),
+            });
+            scripts.push(ScriptEntry {
+                name: label("test"),
+                command: format!("{}cargo test", cd_prefix),
+            });
+            scripts.push(ScriptEntry {
+                name: label("check"),
+                command: format!("{}cargo check", cd_prefix),
+            });
         }
 
         // Python
@@ -250,33 +311,69 @@ pub async fn detect_scripts(
         let requirements = dir.join("requirements.txt");
         let manage_py = dir.join("manage.py");
         if pyproject.exists() || requirements.exists() {
-            if project_type == "unknown" { project_type = "python".to_string(); }
-            let label = |s: &str| if prefix.is_empty() { s.to_string() } else { format!("[{}] {}", prefix, s) };
-            if manage_py.exists() {
-                scripts.push(ScriptEntry { name: label("runserver"), command: format!("{}python manage.py runserver", cd_prefix) });
+            if project_type == "unknown" {
+                project_type = "python".to_string();
             }
-            scripts.push(ScriptEntry { name: label("python"), command: format!("{}python main.py", cd_prefix) });
+            let label = |s: &str| {
+                if prefix.is_empty() {
+                    s.to_string()
+                } else {
+                    format!("[{}] {}", prefix, s)
+                }
+            };
+            if manage_py.exists() {
+                scripts.push(ScriptEntry {
+                    name: label("runserver"),
+                    command: format!("{}python manage.py runserver", cd_prefix),
+                });
+            }
+            scripts.push(ScriptEntry {
+                name: label("python"),
+                command: format!("{}python main.py", cd_prefix),
+            });
             if requirements.exists() {
-                scripts.push(ScriptEntry { name: label("install"), command: format!("{}pip install -r requirements.txt", cd_prefix) });
+                scripts.push(ScriptEntry {
+                    name: label("install"),
+                    command: format!("{}pip install -r requirements.txt", cd_prefix),
+                });
             }
         }
 
         // Makefile
         let makefile = dir.join("Makefile");
         if makefile.exists() {
-            if project_type == "unknown" { project_type = "make".to_string(); }
+            if project_type == "unknown" {
+                project_type = "make".to_string();
+            }
             if let Ok(content) = std::fs::read_to_string(&makefile) {
                 for line in content.lines() {
                     if let Some(target) = line.strip_suffix(':').or_else(|| {
-                        line.split(':').next().filter(|t| !t.contains('\t') && !t.starts_with('#') && !t.starts_with('.') && !t.contains(' '))
+                        line.split(':').next().filter(|t| {
+                            !t.contains('\t')
+                                && !t.starts_with('#')
+                                && !t.starts_with('.')
+                                && !t.contains(' ')
+                        })
                     }) {
                         let target = target.trim();
-                        if !target.is_empty() && !target.starts_with('#') && !target.starts_with('.') {
-                            let label = if prefix.is_empty() { target.to_string() } else { format!("[{}] {}", prefix, target) };
-                            scripts.push(ScriptEntry { name: label, command: format!("{}make {}", cd_prefix, target) });
+                        if !target.is_empty()
+                            && !target.starts_with('#')
+                            && !target.starts_with('.')
+                        {
+                            let label = if prefix.is_empty() {
+                                target.to_string()
+                            } else {
+                                format!("[{}] {}", prefix, target)
+                            };
+                            scripts.push(ScriptEntry {
+                                name: label,
+                                command: format!("{}make {}", cd_prefix, target),
+                            });
                         }
                     }
-                    if scripts.len() > 40 { break; }
+                    if scripts.len() > 40 {
+                        break;
+                    }
                 }
             }
         }
@@ -288,14 +385,20 @@ pub async fn detect_scripts(
             "osascript -e 'tell app \"Terminal\" to do script \"cd {} && cd {} && npm run dev\"' && cd {} && cargo run",
             root_path, fe, be
         );
-        scripts.insert(0, ScriptEntry {
-            name: "🚀 启动全部 (前端+后端)".to_string(),
-            command: start_all,
-        });
+        scripts.insert(
+            0,
+            ScriptEntry {
+                name: "🚀 启动全部 (前端+后端)".to_string(),
+                command: start_all,
+            },
+        );
         project_type = "fullstack".to_string();
     }
 
-    Ok(Json(ProjectScriptsResponse { project_type, scripts }))
+    Ok(Json(ProjectScriptsResponse {
+        project_type,
+        scripts,
+    }))
 }
 
 /// 自动检测工作区中的可运行服务（前端/后端）
@@ -309,26 +412,36 @@ pub async fn detect_services(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Workspace not found".to_string()))?;
 
-    let root_path = workspace
-        .root_path
-        .as_deref()
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "Workspace has no root_path".to_string()))?;
+    let root_path = workspace.root_path.as_deref().ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            "Workspace has no root_path".to_string(),
+        )
+    })?;
 
     let root = std::path::Path::new(root_path);
     if !root.exists() {
-        return Err((StatusCode::BAD_REQUEST, format!("Path does not exist: {}", root_path)));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("Path does not exist: {}", root_path),
+        ));
     }
 
     let mut services: Vec<DetectedServiceEntry> = Vec::new();
 
     // 扫描根目录 + 一级子目录
-    let mut scan_dirs: Vec<(std::path::PathBuf, String)> = vec![(root.to_path_buf(), String::new())];
+    let mut scan_dirs: Vec<(std::path::PathBuf, String)> =
+        vec![(root.to_path_buf(), String::new())];
     if let Ok(entries) = std::fs::read_dir(root) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
                 let name = entry.file_name().to_string_lossy().to_string();
-                if !name.starts_with('.') && name != "node_modules" && name != "target" && name != "dist" {
+                if !name.starts_with('.')
+                    && name != "node_modules"
+                    && name != "target"
+                    && name != "dist"
+                {
                     scan_dirs.push((path, name));
                 }
             }
@@ -355,7 +468,10 @@ pub async fn detect_services(
                         };
                         if let Some(cmd) = cmd {
                             // 避免重复添加同路径
-                            if !services.iter().any(|s| s.id == "frontend" && s.cwd == dir_path) {
+                            if !services
+                                .iter()
+                                .any(|s| s.id == "frontend" && s.cwd == dir_path)
+                            {
                                 services.push(DetectedServiceEntry {
                                     id: "frontend".to_string(),
                                     name: "前端".to_string(),
@@ -386,7 +502,10 @@ pub async fn detect_services(
                 "cargo run"
             };
 
-            if !services.iter().any(|s| s.id == "backend" && s.cwd == dir_path) {
+            if !services
+                .iter()
+                .any(|s| s.id == "backend" && s.cwd == dir_path)
+            {
                 services.push(DetectedServiceEntry {
                     id: "backend".to_string(),
                     name: "后端".to_string(),
@@ -422,17 +541,22 @@ pub async fn detect_services(
     Ok(Json(DetectServicesResponse { services }))
 }
 
-
 pub async fn read_file(
     State(state): State<Arc<AppState>>,
     Path(workspace_id): Path<String>,
     Query(params): Query<FileQuery>,
 ) -> Result<Json<FileContentResponse>, (StatusCode, String)> {
     let file_path = params.path.ok_or_else(|| {
-        (StatusCode::BAD_REQUEST, "Missing 'path' query parameter".to_string())
+        (
+            StatusCode::BAD_REQUEST,
+            "Missing 'path' query parameter".to_string(),
+        )
     })?;
 
-    match state.workspace_service.read_file_content(&workspace_id, &file_path) {
+    match state
+        .workspace_service
+        .read_file_content(&workspace_id, &file_path)
+    {
         Ok(content) => Ok(Json(FileContentResponse {
             path: content.path,
             content: content.content,
@@ -442,7 +566,9 @@ pub async fn read_file(
         })),
         Err(e) => {
             let status = match &e {
-                crate::services::workspace_service::WorkspaceServiceError::NotFound(_) => StatusCode::NOT_FOUND,
+                crate::services::workspace_service::WorkspaceServiceError::NotFound(_) => {
+                    StatusCode::NOT_FOUND
+                }
                 _ => StatusCode::BAD_REQUEST,
             };
             Err((status, e.to_string()))
@@ -458,10 +584,16 @@ pub async fn write_file(
     Json(payload): Json<WriteFileRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let file_path = params.path.ok_or_else(|| {
-        (StatusCode::BAD_REQUEST, "Missing 'path' query parameter".to_string())
+        (
+            StatusCode::BAD_REQUEST,
+            "Missing 'path' query parameter".to_string(),
+        )
     })?;
 
-    match state.workspace_service.write_file_content(&workspace_id, &file_path, &payload.content) {
+    match state
+        .workspace_service
+        .write_file_content(&workspace_id, &file_path, &payload.content)
+    {
         Ok(()) => Ok(StatusCode::OK),
         Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
     }
@@ -474,10 +606,16 @@ pub async fn delete_file(
     Query(params): Query<FileQuery>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let file_path = params.path.ok_or_else(|| {
-        (StatusCode::BAD_REQUEST, "Missing 'path' query parameter".to_string())
+        (
+            StatusCode::BAD_REQUEST,
+            "Missing 'path' query parameter".to_string(),
+        )
     })?;
 
-    match state.workspace_service.delete_file(&workspace_id, &file_path) {
+    match state
+        .workspace_service
+        .delete_file(&workspace_id, &file_path)
+    {
         Ok(()) => Ok(StatusCode::NO_CONTENT),
         Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
     }

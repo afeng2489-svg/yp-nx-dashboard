@@ -8,8 +8,8 @@
 // pub mod provider_adapter;
 
 use async_trait::async_trait;
-use std::pin::Pin;
 use std::future::Future;
+use std::pin::Pin;
 
 /// Embedding 结果
 #[derive(Debug, Clone)]
@@ -28,10 +28,16 @@ pub trait EmbeddingProvider: Send + Sync {
     fn name(&self) -> &str;
 
     /// 生成单个文本的 embedding
-    fn embed(&self, text: &str) -> Pin<Box<dyn Future<Output = Result<EmbeddingResult, EmbedError>> + Send + '_>>;
+    fn embed(
+        &self,
+        text: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<EmbeddingResult, EmbedError>> + Send + '_>>;
 
     /// 批量生成 embedding
-    fn embed_batch(&self, texts: &[String]) -> Pin<Box<dyn Future<Output = Result<Vec<EmbeddingResult>, EmbedError>> + Send + '_>>;
+    fn embed_batch(
+        &self,
+        texts: &[String],
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<EmbeddingResult>, EmbedError>> + Send + '_>>;
 
     /// 获取向量维度
     fn dimension(&self) -> usize;
@@ -105,7 +111,10 @@ impl EmbeddingProvider for ClaudeEmbeddingProvider {
         self.dimension
     }
 
-    fn embed(&self, text: &str) -> Pin<Box<dyn Future<Output = Result<EmbeddingResult, EmbedError>> + Send + '_>> {
+    fn embed(
+        &self,
+        text: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<EmbeddingResult, EmbedError>> + Send + '_>> {
         let text = text.to_string();
         let api_key = self.api_key.clone();
         let model = self.model.clone();
@@ -150,9 +159,15 @@ impl EmbeddingProvider for ClaudeEmbeddingProvider {
                 input_tokens: usize,
             }
 
-            let resp: Response = response.json().await.map_err(|e| EmbedError::Parse(e.to_string()))?;
+            let resp: Response = response
+                .json()
+                .await
+                .map_err(|e| EmbedError::Parse(e.to_string()))?;
 
-            let embedding = resp.data.into_iter().next()
+            let embedding = resp
+                .data
+                .into_iter()
+                .next()
                 .ok_or_else(|| EmbedError::Parse("响应中缺少 embedding 数据".to_string()))?;
 
             let vector = embedding.embedding;
@@ -165,7 +180,10 @@ impl EmbeddingProvider for ClaudeEmbeddingProvider {
         })
     }
 
-    fn embed_batch(&self, texts: &[String]) -> Pin<Box<dyn Future<Output = Result<Vec<EmbeddingResult>, EmbedError>> + Send + '_>> {
+    fn embed_batch(
+        &self,
+        texts: &[String],
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<EmbeddingResult>, EmbedError>> + Send + '_>> {
         let texts = texts.to_vec();
         let api_key = self.api_key.clone();
         let model = self.model.clone();
@@ -210,12 +228,21 @@ impl EmbeddingProvider for ClaudeEmbeddingProvider {
                 input_tokens: usize,
             }
 
-            let resp: Response = response.json().await.map_err(|e| EmbedError::Parse(e.to_string()))?;
+            let resp: Response = response
+                .json()
+                .await
+                .map_err(|e| EmbedError::Parse(e.to_string()))?;
 
             let total_tokens = resp.usage.input_tokens;
-            let per_text_tokens = if texts.is_empty() { 0 } else { total_tokens / texts.len() };
+            let per_text_tokens = if texts.is_empty() {
+                0
+            } else {
+                total_tokens / texts.len()
+            };
 
-            let results = resp.data.into_iter()
+            let results = resp
+                .data
+                .into_iter()
                 .map(|item| EmbeddingResult {
                     vector: item.embedding,
                     model: model.clone(),
@@ -269,7 +296,10 @@ impl EmbeddingProvider for OpenAIEmbeddingProvider {
         self.dimension
     }
 
-    fn embed(&self, text: &str) -> Pin<Box<dyn Future<Output = Result<EmbeddingResult, EmbedError>> + Send + '_>> {
+    fn embed(
+        &self,
+        text: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<EmbeddingResult, EmbedError>> + Send + '_>> {
         let text = text.to_string();
         let api_key = self.api_key.clone();
         let model = self.model.clone();
@@ -308,9 +338,15 @@ impl EmbeddingProvider for OpenAIEmbeddingProvider {
                 .await
                 .map_err(|e| EmbedError::Network(e.to_string()))?;
 
-            let resp: Response = response.json().await.map_err(|e| EmbedError::Parse(e.to_string()))?;
+            let resp: Response = response
+                .json()
+                .await
+                .map_err(|e| EmbedError::Parse(e.to_string()))?;
 
-            let embedding = resp.data.into_iter().next()
+            let embedding = resp
+                .data
+                .into_iter()
+                .next()
                 .ok_or_else(|| EmbedError::Parse("响应中缺少 embedding 数据".to_string()))?;
 
             Ok(EmbeddingResult {
@@ -321,7 +357,10 @@ impl EmbeddingProvider for OpenAIEmbeddingProvider {
         })
     }
 
-    fn embed_batch(&self, texts: &[String]) -> Pin<Box<dyn Future<Output = Result<Vec<EmbeddingResult>, EmbedError>> + Send + '_>> {
+    fn embed_batch(
+        &self,
+        texts: &[String],
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<EmbeddingResult>, EmbedError>> + Send + '_>> {
         let texts = texts.to_vec();
         let api_key = self.api_key.clone();
         let model = self.model.clone();
@@ -360,11 +399,20 @@ impl EmbeddingProvider for OpenAIEmbeddingProvider {
                 .await
                 .map_err(|e| EmbedError::Network(e.to_string()))?;
 
-            let resp: Response = response.json().await.map_err(|e| EmbedError::Parse(e.to_string()))?;
+            let resp: Response = response
+                .json()
+                .await
+                .map_err(|e| EmbedError::Parse(e.to_string()))?;
 
-            let per_text_tokens = if texts.is_empty() { 0 } else { resp.usage.total_tokens / texts.len() };
+            let per_text_tokens = if texts.is_empty() {
+                0
+            } else {
+                resp.usage.total_tokens / texts.len()
+            };
 
-            let results = resp.data.into_iter()
+            let results = resp
+                .data
+                .into_iter()
                 .map(|item| EmbeddingResult {
                     vector: item.embedding,
                     model: model.clone(),
@@ -413,7 +461,10 @@ impl EmbeddingProvider for OllamaEmbeddingProvider {
         self.dimension
     }
 
-    fn embed(&self, text: &str) -> Pin<Box<dyn Future<Output = Result<EmbeddingResult, EmbedError>> + Send + '_>> {
+    fn embed(
+        &self,
+        text: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<EmbeddingResult, EmbedError>> + Send + '_>> {
         let text = text.to_string();
         let base_url = self.base_url.clone();
         let model = self.model.clone();
@@ -440,9 +491,15 @@ impl EmbeddingProvider for OllamaEmbeddingProvider {
                 .await
                 .map_err(|e| EmbedError::Network(e.to_string()))?;
 
-            let resp: Response = response.json().await.map_err(|e| EmbedError::Parse(e.to_string()))?;
+            let resp: Response = response
+                .json()
+                .await
+                .map_err(|e| EmbedError::Parse(e.to_string()))?;
 
-            let vector = resp.embeddings.into_iter().next()
+            let vector = resp
+                .embeddings
+                .into_iter()
+                .next()
                 .ok_or_else(|| EmbedError::Parse("响应中缺少 embedding 数据".to_string()))?;
 
             Ok(EmbeddingResult {
@@ -453,7 +510,10 @@ impl EmbeddingProvider for OllamaEmbeddingProvider {
         })
     }
 
-    fn embed_batch(&self, texts: &[String]) -> Pin<Box<dyn Future<Output = Result<Vec<EmbeddingResult>, EmbedError>> + Send + '_>> {
+    fn embed_batch(
+        &self,
+        texts: &[String],
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<EmbeddingResult>, EmbedError>> + Send + '_>> {
         let texts = texts.to_vec();
         let base_url = self.base_url.clone();
         let model = self.model.clone();
@@ -480,9 +540,14 @@ impl EmbeddingProvider for OllamaEmbeddingProvider {
                 .await
                 .map_err(|e| EmbedError::Network(e.to_string()))?;
 
-            let resp: Response = response.json().await.map_err(|e| EmbedError::Parse(e.to_string()))?;
+            let resp: Response = response
+                .json()
+                .await
+                .map_err(|e| EmbedError::Parse(e.to_string()))?;
 
-            let results = resp.embeddings.into_iter()
+            let results = resp
+                .embeddings
+                .into_iter()
                 .map(|vector| EmbeddingResult {
                     vector,
                     model: model.clone(),
@@ -525,13 +590,11 @@ pub fn create_provider_from_config(
                 dimension.unwrap_or(1536),
             )))
         }
-        "ollama" | "local" => {
-            Ok(Box::new(OllamaEmbeddingProvider::new(
-                "http://localhost:11434",
-                model.unwrap_or("nomic-embed-text"),
-                dimension.unwrap_or(768),
-            )))
-        }
+        "ollama" | "local" => Ok(Box::new(OllamaEmbeddingProvider::new(
+            "http://localhost:11434",
+            model.unwrap_or("nomic-embed-text"),
+            dimension.unwrap_or(768),
+        ))),
         _ => Err(EmbedError::Unsupported(format!(
             "不支持的 Provider: {}",
             provider_type
@@ -545,7 +608,8 @@ mod tests {
 
     #[test]
     fn test_create_provider() {
-        let result = create_provider_from_config("ollama", None, Some("nomic-embed-text"), Some(768));
+        let result =
+            create_provider_from_config("ollama", None, Some("nomic-embed-text"), Some(768));
         assert!(result.is_ok());
     }
 }

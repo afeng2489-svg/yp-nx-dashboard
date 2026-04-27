@@ -1,9 +1,9 @@
 //! Task queue implementation
 
 use crate::scheduler::task::{ScheduledTask, TaskStatus};
+use parking_lot::RwLock;
 use std::collections::VecDeque;
 use std::sync::Arc;
-use parking_lot::RwLock;
 
 /// Thread-safe task queue
 pub struct TaskQueue {
@@ -49,7 +49,9 @@ impl TaskQueue {
         let now = chrono::Utc::now();
 
         let mut pending = self.pending.write();
-        let index = pending.iter().position(|t| t.execute_at <= now && t.status == TaskStatus::Pending)?;
+        let index = pending
+            .iter()
+            .position(|t| t.execute_at <= now && t.status == TaskStatus::Pending)?;
 
         let task = pending.remove(index)?;
 
@@ -129,7 +131,13 @@ impl TaskQueue {
             }
         }
 
-        (pending_count, running_count, completed_count, failed_count, cancelled_count)
+        (
+            pending_count,
+            running_count,
+            completed_count,
+            failed_count,
+            cancelled_count,
+        )
     }
 
     /// Update a task's status
@@ -247,12 +255,7 @@ mod tests {
     #[test]
     fn test_get_task() {
         let queue = TaskQueue::new();
-        let task = ScheduledTask::new(
-            TaskType::CodeReview,
-            serde_json::json!({}),
-            Utc::now(),
-            3,
-        );
+        let task = ScheduledTask::new(TaskType::CodeReview, serde_json::json!({}), Utc::now(), 3);
         let id = task.id.clone();
 
         queue.enqueue(task);
@@ -265,12 +268,7 @@ mod tests {
     #[test]
     fn test_cancel_task() {
         let queue = TaskQueue::new();
-        let task = ScheduledTask::new(
-            TaskType::Cleanup,
-            serde_json::json!({}),
-            Utc::now(),
-            3,
-        );
+        let task = ScheduledTask::new(TaskType::Cleanup, serde_json::json!({}), Utc::now(), 3);
         let id = task.id.clone();
 
         queue.enqueue(task);

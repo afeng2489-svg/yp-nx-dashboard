@@ -10,7 +10,8 @@ use tokio::process::Command as AsyncCommand;
 pub type ClaudeCliResult = Result<String, String>;
 
 /// Claude CLI 路径缓存
-static CLAUDE_CLI_PATH: once_cell::sync::Lazy<Option<String>> = once_cell::sync::Lazy::new(find_claude_cli);
+static CLAUDE_CLI_PATH: once_cell::sync::Lazy<Option<String>> =
+    once_cell::sync::Lazy::new(find_claude_cli);
 
 /// 自动检索本地 Claude Code CLI 路径
 fn find_claude_cli() -> Option<String> {
@@ -112,40 +113,54 @@ pub async fn call_claude_cli(prompt: &str, working_directory: Option<&str>) -> C
 }
 
 /// 调用 Claude CLI 执行 prompt，带超时
-pub async fn call_claude_cli_with_timeout(prompt: &str, timeout_secs: u64, working_directory: Option<&str>) -> ClaudeCliResult {
+pub async fn call_claude_cli_with_timeout(
+    prompt: &str,
+    timeout_secs: u64,
+    working_directory: Option<&str>,
+) -> ClaudeCliResult {
     let cli_path = get_claude_cli_path().ok_or("Claude CLI not found")?;
 
-    let timeout = tokio::time::timeout(
-        std::time::Duration::from_secs(timeout_secs),
-        async {
-            let mut cmd = AsyncCommand::new(&cli_path);
-            cmd.args(["-p", "--dangerously-skip-permissions", "--no-session-persistence", prompt]);
+    let timeout = tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), async {
+        let mut cmd = AsyncCommand::new(&cli_path);
+        cmd.args([
+            "-p",
+            "--dangerously-skip-permissions",
+            "--no-session-persistence",
+            prompt,
+        ]);
 
-            // 如果提供了 working_directory，设置当前工作目录
-            if let Some(dir) = working_directory {
-                cmd.current_dir(dir);
-                tracing::info!("[Claude CLI] 执行命令: cd {} && {} -p --dangerously-skip-permissions <prompt>", dir, cli_path);
-            } else {
-                tracing::info!("[Claude CLI] 执行命令: {} -p --dangerously-skip-permissions <prompt>", cli_path);
-            }
-
-            let output = cmd
-                .output()
-                .await
-                .map_err(|e| format!("Failed to execute Claude CLI: {}", e))?;
-
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                return Err(format!("Claude CLI error ({}): {}", output.status, stderr));
-            }
-
-            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        // 如果提供了 working_directory，设置当前工作目录
+        if let Some(dir) = working_directory {
+            cmd.current_dir(dir);
+            tracing::info!(
+                "[Claude CLI] 执行命令: cd {} && {} -p --dangerously-skip-permissions <prompt>",
+                dir,
+                cli_path
+            );
+        } else {
+            tracing::info!(
+                "[Claude CLI] 执行命令: {} -p --dangerously-skip-permissions <prompt>",
+                cli_path
+            );
         }
-    ).await;
+
+        let output = cmd
+            .output()
+            .await
+            .map_err(|e| format!("Failed to execute Claude CLI: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Claude CLI error ({}): {}", output.status, stderr));
+        }
+
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    })
+    .await;
 
     match timeout {
         Ok(result) => result,
-        Err(_) => Err("Claude CLI timed out".to_string())
+        Err(_) => Err("Claude CLI timed out".to_string()),
     }
 }
 
@@ -155,7 +170,13 @@ pub async fn call_claude_cli_with_tools(prompt: &str) -> ClaudeCliResult {
     let cli_path = get_claude_cli_path().ok_or("Claude CLI not found")?;
 
     let output = AsyncCommand::new(&cli_path)
-        .args(["-p", "--dangerously-skip-permissions", "--no-session-persistence", "--verbose", prompt])
+        .args([
+            "-p",
+            "--dangerously-skip-permissions",
+            "--no-session-persistence",
+            "--verbose",
+            prompt,
+        ])
         .output()
         .await
         .map_err(|e| format!("Failed to execute Claude CLI: {}", e))?;
@@ -193,8 +214,13 @@ Assistant: {}"#,
     let raw = call_claude_cli_with_timeout(&prompt, 15, None).await?;
     let json_str = extract_json_from_response(&raw)?;
 
-    serde_json::from_str::<nx_memory::StructuredMemory>(&json_str)
-        .map_err(|e| format!("JSON parse error: {} from: {}", e, json_str.chars().take(200).collect::<String>()))
+    serde_json::from_str::<nx_memory::StructuredMemory>(&json_str).map_err(|e| {
+        format!(
+            "JSON parse error: {} from: {}",
+            e,
+            json_str.chars().take(200).collect::<String>()
+        )
+    })
 }
 
 /// 扩展搜索查询为关键词集合（本地处理，无需 Claude CLI）
@@ -209,22 +235,47 @@ fn extract_keywords_local(query: &str) -> String {
     // 常见中英文停用词
     const STOP_WORDS: &[&str] = &[
         // 中文
-        "的", "了", "是", "在", "我", "有", "和", "就", "不", "人", "都", "一", "一个",
-        "上", "也", "很", "到", "说", "要", "去", "你", "会", "着", "没有", "看", "好",
-        "自己", "这", "那", "什么", "为", "吗", "呢", "啊", "吧", "么", "呀", "哦",
-        "这个", "那个", "我们", "他们", "她们", "它们", "可以", "如何", "怎么", "哪些",
-        // 英文
-        "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-        "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
-        "have", "has", "had", "do", "does", "did", "will", "would", "could",
-        "should", "may", "might", "this", "that", "these", "those", "i", "you",
-        "he", "she", "it", "we", "they", "what", "which", "who", "how", "when",
-        "where", "why", "about", "as", "if", "so", "than", "then", "there",
+        "的", "了", "是", "在", "我", "有", "和", "就", "不", "人", "都", "一", "一个", "上", "也",
+        "很", "到", "说", "要", "去", "你", "会", "着", "没有", "看", "好", "自己", "这", "那",
+        "什么", "为", "吗", "呢", "啊", "吧", "么", "呀", "哦", "这个", "那个", "我们", "他们",
+        "她们", "它们", "可以", "如何", "怎么", "哪些", // 英文
+        "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
+        "from", "is", "are", "was", "were", "be", "been", "have", "has", "had", "do", "does",
+        "did", "will", "would", "could", "should", "may", "might", "this", "that", "these",
+        "those", "i", "you", "he", "she", "it", "we", "they", "what", "which", "who", "how",
+        "when", "where", "why", "about", "as", "if", "so", "than", "then", "there",
     ];
 
     // 按空白和常见标点分词
     let words: Vec<&str> = query
-        .split(|c: char| c.is_whitespace() || matches!(c, '，' | '。' | '！' | '？' | '、' | '：' | '；' | ',' | '.' | '!' | '?' | ':' | ';' | '(' | ')' | '（' | '）' | '[' | ']' | '"' | '"' | '\'' | '"'))
+        .split(|c: char| {
+            c.is_whitespace()
+                || matches!(
+                    c,
+                    '，' | '。'
+                        | '！'
+                        | '？'
+                        | '、'
+                        | '：'
+                        | '；'
+                        | ','
+                        | '.'
+                        | '!'
+                        | '?'
+                        | ':'
+                        | ';'
+                        | '('
+                        | ')'
+                        | '（'
+                        | '）'
+                        | '['
+                        | ']'
+                        | '"'
+                        | '"'
+                        | '\''
+                        | '"'
+                )
+        })
         .filter(|w| !w.is_empty())
         .collect();
 
@@ -233,7 +284,8 @@ fn extract_keywords_local(query: &str) -> String {
 
     for word in words {
         let lower = word.to_lowercase();
-        if !STOP_WORDS.contains(&lower.as_str()) && word.chars().count() >= 2 && seen.insert(lower) {
+        if !STOP_WORDS.contains(&lower.as_str()) && word.chars().count() >= 2 && seen.insert(lower)
+        {
             result.push(' ');
             result.push_str(word);
         }

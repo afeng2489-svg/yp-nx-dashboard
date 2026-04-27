@@ -8,9 +8,9 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use super::AppState;
 use crate::models::issue::{CreateIssueRequest, Issue, IssueFilter, UpdateIssueRequest};
 use crate::services::issue_repository::IssueRepositoryError;
-use super::AppState;
 
 // ── 错误类型 ──────────────────────────────────────────────────────────────────
 
@@ -27,14 +27,14 @@ pub enum IssueError {
 impl axum::response::IntoResponse for IssueError {
     fn into_response(self) -> axum::response::Response {
         match self {
-            IssueError::NotFound(msg) => (
-                StatusCode::NOT_FOUND,
-                Json(ErrorBody { error: msg }),
-            ).into_response(),
+            IssueError::NotFound(msg) => {
+                (StatusCode::NOT_FOUND, Json(ErrorBody { error: msg })).into_response()
+            }
             IssueError::Internal(msg) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorBody { error: msg }),
-            ).into_response(),
+            )
+                .into_response(),
         }
     }
 }
@@ -42,7 +42,9 @@ impl axum::response::IntoResponse for IssueError {
 impl From<IssueRepositoryError> for IssueError {
     fn from(e: IssueRepositoryError) -> Self {
         match e {
-            IssueRepositoryError::NotFound(id) => IssueError::NotFound(format!("Issue {} 不存在", id)),
+            IssueRepositoryError::NotFound(id) => {
+                IssueError::NotFound(format!("Issue {} 不存在", id))
+            }
             IssueRepositoryError::Sqlite(e) => IssueError::Internal(e.to_string()),
         }
     }

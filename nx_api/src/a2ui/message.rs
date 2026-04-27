@@ -2,8 +2,8 @@
 //!
 //! Defines the interactive message types for Agent-to-User communication.
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// Agent-to-User message types
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,10 +15,7 @@ pub enum A2UIMessage {
         context: Option<String>,
     },
     /// Agent informs user
-    Inform {
-        message: String,
-        level: InformLevel,
-    },
+    Inform { message: String, level: InformLevel },
     /// Agent requests confirmation
     Confirm {
         prompt: String,
@@ -166,7 +163,10 @@ impl InteractiveMessage {
             id: uuid::Uuid::new_v4().to_string(),
             session_id: session_id.into(),
             execution_id: execution_id.into(),
-            content: A2UIMessage::Select { prompt: prompt.into(), options },
+            content: A2UIMessage::Select {
+                prompt: prompt.into(),
+                options,
+            },
             source: source.into(),
             timestamp: Utc::now(),
             pending: true,

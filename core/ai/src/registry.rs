@@ -7,7 +7,10 @@ use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::{AIError, AIProvider, ChatRequest, ChatResponse, CompletionRequest, CompletionResponse, EmbedRequest, EmbedResponse, TokenUsage};
+use super::{
+    AIError, AIProvider, ChatRequest, ChatResponse, CompletionRequest, CompletionResponse,
+    EmbedRequest, EmbedResponse, TokenUsage,
+};
 
 /// 管理 AI 提供商的注册表
 pub struct AIProviderRegistry {
@@ -33,7 +36,8 @@ impl AIProviderRegistry {
     pub fn register(&self, provider: Arc<dyn AIProvider>) {
         let name = provider.provider_name().to_string();
         // 转换模型引用为拥有的字符串，避免后续借用问题
-        let models: Vec<String> = provider.supported_models()
+        let models: Vec<String> = provider
+            .supported_models()
             .iter()
             .map(|s| s.to_string())
             .collect();
@@ -57,10 +61,7 @@ impl AIProviderRegistry {
     pub fn set_default(&self, name: &str) -> Result<(), AIError> {
         let providers = self.providers.read();
         if !providers.contains_key(name) {
-            return Err(AIError::InvalidRequest(format!(
-                "提供商 '{}' 未注册",
-                name
-            )));
+            return Err(AIError::InvalidRequest(format!("提供商 '{}' 未注册", name)));
         }
 
         let mut default = self.default_provider.write();
@@ -98,7 +99,10 @@ impl AIProviderRegistry {
     }
 
     /// 执行补全请求，按模型路由
-    pub async fn complete(&self, request: CompletionRequest) -> Result<CompletionResponse, AIError> {
+    pub async fn complete(
+        &self,
+        request: CompletionRequest,
+    ) -> Result<CompletionResponse, AIError> {
         let provider = self.route(&request.model)?;
         provider.complete(request).await
     }
@@ -219,7 +223,10 @@ mod tests {
             self.models.iter().map(|s| s.as_str()).collect()
         }
 
-        async fn complete(&self, _request: CompletionRequest) -> Result<CompletionResponse, AIError> {
+        async fn complete(
+            &self,
+            _request: CompletionRequest,
+        ) -> Result<CompletionResponse, AIError> {
             Ok(CompletionResponse {
                 text: "mock response".to_string(),
                 model: self.models[0].clone(),

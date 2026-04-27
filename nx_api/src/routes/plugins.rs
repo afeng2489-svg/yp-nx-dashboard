@@ -11,9 +11,7 @@ use crate::routes::AppState;
 use crate::services::PluginInfo;
 
 /// 列出所有已加载的插件
-pub async fn list_plugins(
-    State(state): State<Arc<AppState>>,
-) -> Json<Vec<PluginInfo>> {
+pub async fn list_plugins(State(state): State<Arc<AppState>>) -> Json<Vec<PluginInfo>> {
     Json(state.plugin_service.list_plugins())
 }
 
@@ -34,7 +32,12 @@ pub async fn get_plugin_registry_status(
 ) -> Json<PluginRegistryStatus> {
     Json(PluginRegistryStatus {
         loaded_count: state.plugin_service.count(),
-        plugin_ids: state.plugin_service.list_plugins().into_iter().map(|p| p.id).collect(),
+        plugin_ids: state
+            .plugin_service
+            .list_plugins()
+            .into_iter()
+            .map(|p| p.id)
+            .collect(),
     })
 }
 

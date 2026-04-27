@@ -6,15 +6,17 @@
 pub mod message;
 pub mod session;
 
-pub use message::{A2UIMessage, U2AMessage, InteractiveMessage, UserResponseRequest, MessagesResponse, InformLevel};
-pub use session::{A2UISession, A2UISessionManager, A2UISessionEvent, SessionState};
+pub use message::{
+    A2UIMessage, InformLevel, InteractiveMessage, MessagesResponse, U2AMessage, UserResponseRequest,
+};
+pub use session::{A2UISession, A2UISessionEvent, A2UISessionManager, SessionState};
 
-use std::sync::Arc;
 use parking_lot::RwLock;
+use std::sync::Arc;
 use tokio::sync::broadcast;
 
-use crate::ws::WebSocketHandler;
 use super::error::ApiResult;
+use crate::ws::WebSocketHandler;
 
 /// A2UI service for managing interactive communication
 pub struct A2UIService {
@@ -58,20 +60,39 @@ impl A2UIService {
         if message.content.is_ask() || message.content.is_confirm() || message.content.is_select() {
             self.session_manager
                 .add_pending_message(session_id, message)
-                .ok_or_else(|| crate::error::ApiError::SessionNotFound(format!("Session not found: {}", session_id)))?;
+                .ok_or_else(|| {
+                    crate::error::ApiError::SessionNotFound(format!(
+                        "Session not found: {}",
+                        session_id
+                    ))
+                })?;
         } else {
             self.session_manager
                 .add_message(session_id, message)
-                .ok_or_else(|| crate::error::ApiError::SessionNotFound(format!("Session not found: {}", session_id)))?;
+                .ok_or_else(|| {
+                    crate::error::ApiError::SessionNotFound(format!(
+                        "Session not found: {}",
+                        session_id
+                    ))
+                })?;
         }
         Ok(())
     }
 
     /// Send a user response to a pending message
-    pub fn respond(&self, session_id: &str, message_id: &str, response: U2AMessage) -> ApiResult<InteractiveMessage> {
+    pub fn respond(
+        &self,
+        session_id: &str,
+        message_id: &str,
+        response: U2AMessage,
+    ) -> ApiResult<InteractiveMessage> {
         self.session_manager
             .respond(session_id, message_id, response)
-            .ok_or_else(|| crate::error::ApiError::MessageNotFound("Message not found or already responded".to_string()))
+            .ok_or_else(|| {
+                crate::error::ApiError::MessageNotFound(
+                    "Message not found or already responded".to_string(),
+                )
+            })
     }
 
     /// Get pending messages for a session
@@ -89,9 +110,9 @@ impl A2UIService {
 
     /// End a session
     pub fn end_session(&self, session_id: &str) -> ApiResult<()> {
-        self.session_manager
-            .end_session(session_id)
-            .ok_or_else(|| crate::error::ApiError::SessionNotFound(format!("Session not found: {}", session_id)))
+        self.session_manager.end_session(session_id).ok_or_else(|| {
+            crate::error::ApiError::SessionNotFound(format!("Session not found: {}", session_id))
+        })
     }
 
     /// Subscribe to session events

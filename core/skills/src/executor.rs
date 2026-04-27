@@ -10,10 +10,8 @@ use parking_lot::RwLock;
 use thiserror::Error;
 use tracing::info;
 
-use super::skill::{
-    SkillContext, SkillExecutionResult, SkillExecutor,
-};
 use super::registry::SkillRegistry;
+use super::skill::{SkillContext, SkillExecutionResult, SkillExecutor};
 
 // ============================================================================
 // Errors
@@ -73,7 +71,10 @@ impl ExecutorRegistry {
     }
 
     /// 批量注册执行器
-    pub fn register_many(&self, executors: impl IntoIterator<Item = Arc<dyn SkillExecutor>>) -> usize {
+    pub fn register_many(
+        &self,
+        executors: impl IntoIterator<Item = Arc<dyn SkillExecutor>>,
+    ) -> usize {
         let mut count = 0;
         let mut executors_lock = self.executors.write();
         for executor in executors {
@@ -190,25 +191,27 @@ impl SkillExecutionEngine {
         context: SkillContext,
     ) -> Result<SkillExecutionResult, ExecutorError> {
         let execution_id = uuid::Uuid::new_v4().to_string();
-        info!("Starting skill execution: {} (id: {})", skill_name, execution_id);
+        info!(
+            "Starting skill execution: {} (id: {})",
+            skill_name, execution_id
+        );
 
         // 获取技能执行器
-        let skill = self.executor_registry.get(skill_name)
+        let skill = self
+            .executor_registry
+            .get(skill_name)
             .ok_or_else(|| ExecutorError::SkillNotFound(skill_name.to_string()))?;
 
         // 如果指定了阶段，直接执行该阶段
         if let Some(phase_name) = phase {
-            return self.execute_single_phase(
-                &execution_id,
-                skill_name,
-                phase_name,
-                &skill,
-                context,
-            ).await;
+            return self
+                .execute_single_phase(&execution_id, skill_name, phase_name, &skill, context)
+                .await;
         }
 
         // 否则执行所有阶段
-        self.execute_all_phases(&execution_id, skill_name, &skill, context).await
+        self.execute_all_phases(&execution_id, skill_name, &skill, context)
+            .await
     }
 
     /// 执行单个阶段
@@ -221,7 +224,8 @@ impl SkillExecutionEngine {
         context: SkillContext,
     ) -> Result<SkillExecutionResult, ExecutorError> {
         // 验证参数
-        skill.validate(&context.params)
+        skill
+            .validate(&context.params)
             .map_err(|e| ExecutorError::InvalidParams(e.to_string()))?;
 
         // 检查阶段是否存在
@@ -238,13 +242,16 @@ impl SkillExecutionEngine {
         // 记录活跃执行
         {
             let mut active = self.active_executions.write();
-            active.insert(execution_id.to_string(), ActiveExecution {
-                execution_id: execution_id.to_string(),
-                skill_name: skill_name.to_string(),
-                phase: phase_name.to_string(),
-                started_at: Instant::now(),
-                context: context.clone(),
-            });
+            active.insert(
+                execution_id.to_string(),
+                ActiveExecution {
+                    execution_id: execution_id.to_string(),
+                    skill_name: skill_name.to_string(),
+                    phase: phase_name.to_string(),
+                    started_at: Instant::now(),
+                    context: context.clone(),
+                },
+            );
         }
 
         // 执行阶段
@@ -285,9 +292,10 @@ impl SkillExecutionEngine {
     ) -> Result<SkillExecutionResult, ExecutorError> {
         let phases = skill.phases();
         if phases.is_empty() {
-            return Err(ExecutorError::ExecutionFailed(
-                format!("Skill '{}' has no phases to execute", skill_name)
-            ));
+            return Err(ExecutorError::ExecutionFailed(format!(
+                "Skill '{}' has no phases to execute",
+                skill_name
+            )));
         }
 
         let mut outputs = Vec::new();
@@ -300,15 +308,20 @@ impl SkillExecutionEngine {
                 continue;
             }
 
-            info!("Executing phase '{}' for skill '{}'", phase.name, skill_name);
+            info!(
+                "Executing phase '{}' for skill '{}'",
+                phase.name, skill_name
+            );
 
-            let phase_result = self.execute_single_phase(
-                execution_id,
-                skill_name,
-                &phase.name,
-                skill,
-                context.clone(),
-            ).await;
+            let phase_result = self
+                .execute_single_phase(
+                    execution_id,
+                    skill_name,
+                    &phase.name,
+                    skill,
+                    context.clone(),
+                )
+                .await;
 
             match phase_result {
                 Ok(result) => {
@@ -337,7 +350,8 @@ impl SkillExecutionEngine {
 
         let total_duration: u64 = {
             let history = self.execution_history.read();
-            history.iter()
+            history
+                .iter()
                 .filter(|r| r.execution_id == execution_id)
                 .map(|r| r.duration_ms)
                 .sum()
@@ -374,7 +388,7 @@ impl SkillExecutionEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::skill::{SkillCategory, SkillPhase, SkillError};
+    use crate::skill::{SkillCategory, SkillError, SkillPhase};
     use async_trait::async_trait;
 
     /// 测试用的小技能

@@ -8,8 +8,8 @@ use rusqlite::{params, Connection, Result as SqliteResult};
 use std::sync::Arc;
 
 use crate::models::group_chat::{
-    ConsensusStrategy, GroupConclusion, GroupMessage, GroupParticipant, GroupSession,
-    GroupStatus, SpeakingStrategy, ToolCall,
+    ConsensusStrategy, GroupConclusion, GroupMessage, GroupParticipant, GroupSession, GroupStatus,
+    SpeakingStrategy, ToolCall,
 };
 
 /// Repository error
@@ -28,24 +28,47 @@ pub trait GroupChatRepository: Send + Sync {
     // Session operations
     fn create_session(&self, session: &GroupSession) -> Result<(), GroupChatRepositoryError>;
     fn get_session(&self, id: &str) -> Result<Option<GroupSession>, GroupChatRepositoryError>;
-    fn get_sessions_by_team(&self, team_id: &str) -> Result<Vec<GroupSession>, GroupChatRepositoryError>;
+    fn get_sessions_by_team(
+        &self,
+        team_id: &str,
+    ) -> Result<Vec<GroupSession>, GroupChatRepositoryError>;
     fn get_all_sessions(&self) -> Result<Vec<GroupSession>, GroupChatRepositoryError>;
     fn update_session(&self, session: &GroupSession) -> Result<(), GroupChatRepositoryError>;
     fn delete_session(&self, id: &str) -> Result<(), GroupChatRepositoryError>;
 
     // Message operations
     fn create_message(&self, message: &GroupMessage) -> Result<(), GroupChatRepositoryError>;
-    fn get_messages_by_session(&self, session_id: &str, limit: Option<u32>, before: Option<&str>) -> Result<Vec<GroupMessage>, GroupChatRepositoryError>;
+    fn get_messages_by_session(
+        &self,
+        session_id: &str,
+        limit: Option<u32>,
+        before: Option<&str>,
+    ) -> Result<Vec<GroupMessage>, GroupChatRepositoryError>;
     fn get_message_count(&self, session_id: &str) -> Result<u32, GroupChatRepositoryError>;
 
     // Participant operations
-    fn add_participant(&self, session_id: &str, participant: &GroupParticipant) -> Result<(), GroupChatRepositoryError>;
-    fn get_participants(&self, session_id: &str) -> Result<Vec<GroupParticipant>, GroupChatRepositoryError>;
-    fn update_participant(&self, session_id: &str, participant: &GroupParticipant) -> Result<(), GroupChatRepositoryError>;
+    fn add_participant(
+        &self,
+        session_id: &str,
+        participant: &GroupParticipant,
+    ) -> Result<(), GroupChatRepositoryError>;
+    fn get_participants(
+        &self,
+        session_id: &str,
+    ) -> Result<Vec<GroupParticipant>, GroupChatRepositoryError>;
+    fn update_participant(
+        &self,
+        session_id: &str,
+        participant: &GroupParticipant,
+    ) -> Result<(), GroupChatRepositoryError>;
 
     // Conclusion operations
-    fn save_conclusion(&self, conclusion: &GroupConclusion) -> Result<(), GroupChatRepositoryError>;
-    fn get_conclusion(&self, session_id: &str) -> Result<Option<GroupConclusion>, GroupChatRepositoryError>;
+    fn save_conclusion(&self, conclusion: &GroupConclusion)
+        -> Result<(), GroupChatRepositoryError>;
+    fn get_conclusion(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<GroupConclusion>, GroupChatRepositoryError>;
 }
 
 /// SQLite implementation
@@ -185,7 +208,10 @@ impl GroupChatRepository for SqliteGroupChatRepository {
         }
     }
 
-    fn get_sessions_by_team(&self, team_id: &str) -> Result<Vec<GroupSession>, GroupChatRepositoryError> {
+    fn get_sessions_by_team(
+        &self,
+        team_id: &str,
+    ) -> Result<Vec<GroupSession>, GroupChatRepositoryError> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, team_id, name, topic, status, speaking_strategy, consensus_strategy,
@@ -284,7 +310,9 @@ impl GroupChatRepository for SqliteGroupChatRepository {
     }
 
     fn delete_session(&self, id: &str) -> Result<(), GroupChatRepositoryError> {
-        self.conn.lock().execute("DELETE FROM group_sessions WHERE id = ?1", params![id])?;
+        self.conn
+            .lock()
+            .execute("DELETE FROM group_sessions WHERE id = ?1", params![id])?;
         Ok(())
     }
 
@@ -310,7 +338,12 @@ impl GroupChatRepository for SqliteGroupChatRepository {
         Ok(())
     }
 
-    fn get_messages_by_session(&self, session_id: &str, limit: Option<u32>, before: Option<&str>) -> Result<Vec<GroupMessage>, GroupChatRepositoryError> {
+    fn get_messages_by_session(
+        &self,
+        session_id: &str,
+        limit: Option<u32>,
+        before: Option<&str>,
+    ) -> Result<Vec<GroupMessage>, GroupChatRepositoryError> {
         let limit = limit.unwrap_or(50);
 
         let query = if before.is_some() {
@@ -348,7 +381,11 @@ impl GroupChatRepository for SqliteGroupChatRepository {
         Ok(count as u32)
     }
 
-    fn add_participant(&self, session_id: &str, participant: &GroupParticipant) -> Result<(), GroupChatRepositoryError> {
+    fn add_participant(
+        &self,
+        session_id: &str,
+        participant: &GroupParticipant,
+    ) -> Result<(), GroupChatRepositoryError> {
         self.conn.lock().execute(
             r#"INSERT OR REPLACE INTO group_participants
                (session_id, role_id, role_name, joined_at, last_spoke_at, message_count)
@@ -365,7 +402,10 @@ impl GroupChatRepository for SqliteGroupChatRepository {
         Ok(())
     }
 
-    fn get_participants(&self, session_id: &str) -> Result<Vec<GroupParticipant>, GroupChatRepositoryError> {
+    fn get_participants(
+        &self,
+        session_id: &str,
+    ) -> Result<Vec<GroupParticipant>, GroupChatRepositoryError> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT role_id, role_name, joined_at, last_spoke_at, message_count
@@ -379,7 +419,8 @@ impl GroupChatRepository for SqliteGroupChatRepository {
                 joined_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(2)?)
                     .map(|dt| dt.with_timezone(&Utc))
                     .unwrap_or_else(|_| Utc::now()),
-                last_spoke_at: row.get::<_, Option<String>>(3)?
+                last_spoke_at: row
+                    .get::<_, Option<String>>(3)?
                     .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
                     .map(|dt| dt.with_timezone(&Utc)),
                 message_count: row.get(4)?,
@@ -393,7 +434,11 @@ impl GroupChatRepository for SqliteGroupChatRepository {
         Ok(participants)
     }
 
-    fn update_participant(&self, session_id: &str, participant: &GroupParticipant) -> Result<(), GroupChatRepositoryError> {
+    fn update_participant(
+        &self,
+        session_id: &str,
+        participant: &GroupParticipant,
+    ) -> Result<(), GroupChatRepositoryError> {
         self.conn.lock().execute(
             r#"UPDATE group_participants SET
                last_spoke_at = ?3, message_count = ?4
@@ -408,7 +453,10 @@ impl GroupChatRepository for SqliteGroupChatRepository {
         Ok(())
     }
 
-    fn save_conclusion(&self, conclusion: &GroupConclusion) -> Result<(), GroupChatRepositoryError> {
+    fn save_conclusion(
+        &self,
+        conclusion: &GroupConclusion,
+    ) -> Result<(), GroupChatRepositoryError> {
         let scores_json = serde_json::to_string(&conclusion.participant_scores)?;
 
         self.conn.lock().execute(
@@ -428,7 +476,10 @@ impl GroupChatRepository for SqliteGroupChatRepository {
         Ok(())
     }
 
-    fn get_conclusion(&self, session_id: &str) -> Result<Option<GroupConclusion>, GroupChatRepositoryError> {
+    fn get_conclusion(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<GroupConclusion>, GroupChatRepositoryError> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, session_id, content, consensus_level, participant_scores, agreed_by, created_at

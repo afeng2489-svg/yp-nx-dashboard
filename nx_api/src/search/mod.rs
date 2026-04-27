@@ -3,12 +3,12 @@
 //! Unified search interface for FTS5, semantic, and hybrid search modes.
 
 pub mod fts;
-pub mod semantic;
 pub mod hybrid;
+pub mod semantic;
 
 pub use fts::*;
-pub use semantic::*;
 pub use hybrid::*;
+pub use semantic::*;
 
 /// Search mode enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

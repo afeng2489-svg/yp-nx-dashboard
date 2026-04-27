@@ -9,9 +9,7 @@ use serde_json::{json, Value};
 use std::sync::{Arc, RwLock};
 
 use crate::routes::AppState;
-use crate::scheduler::{
-    CreateTaskRequest, QueueStats, SchedulerService, TaskResponse,
-};
+use crate::scheduler::{CreateTaskRequest, QueueStats, SchedulerService, TaskResponse};
 use crate::services::ExecutionService;
 
 /// Scheduler state wrapper for route handlers
@@ -49,11 +47,12 @@ pub async fn create_task(
     State(state): State<Arc<AppState>>,
     Json(request): Json<CreateTaskRequest>,
 ) -> Result<Json<TaskResponse>, StatusCode> {
-    let guard = state.scheduler_state.scheduler.read()
+    let guard = state
+        .scheduler_state
+        .scheduler
+        .read()
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    let scheduler = guard
-        .as_ref()
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let scheduler = guard.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
     let task = scheduler.submit_task(request);
     let response = TaskResponse::from(&task);
@@ -62,14 +61,13 @@ pub async fn create_task(
 }
 
 /// GET /api/v1/tasks - List all tasks
-pub async fn list_tasks(
-    State(state): State<Arc<AppState>>,
-) -> Result<Json<Value>, StatusCode> {
-    let guard = state.scheduler_state.scheduler.read()
+pub async fn list_tasks(State(state): State<Arc<AppState>>) -> Result<Json<Value>, StatusCode> {
+    let guard = state
+        .scheduler_state
+        .scheduler
+        .read()
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    let scheduler = guard
-        .as_ref()
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let scheduler = guard.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
     let tasks: Vec<TaskResponse> = scheduler
         .list_tasks()
@@ -90,11 +88,12 @@ pub async fn get_task(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<TaskResponse>, StatusCode> {
-    let guard = state.scheduler_state.scheduler.read()
+    let guard = state
+        .scheduler_state
+        .scheduler
+        .read()
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    let scheduler = guard
-        .as_ref()
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let scheduler = guard.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
     let task = scheduler.get_task(&id).ok_or(StatusCode::NOT_FOUND)?;
 
@@ -106,11 +105,12 @@ pub async fn cancel_task(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    let guard = state.scheduler_state.scheduler.read()
+    let guard = state
+        .scheduler_state
+        .scheduler
+        .read()
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    let scheduler = guard
-        .as_ref()
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let scheduler = guard.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
     if scheduler.cancel_task(&id) {
         Ok(StatusCode::NO_CONTENT)
@@ -120,14 +120,13 @@ pub async fn cancel_task(
 }
 
 /// GET /api/v1/tasks/stats - Get queue statistics
-pub async fn get_stats(
-    State(state): State<Arc<AppState>>,
-) -> Result<Json<QueueStats>, StatusCode> {
-    let guard = state.scheduler_state.scheduler.read()
+pub async fn get_stats(State(state): State<Arc<AppState>>) -> Result<Json<QueueStats>, StatusCode> {
+    let guard = state
+        .scheduler_state
+        .scheduler
+        .read()
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    let scheduler = guard
-        .as_ref()
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let scheduler = guard.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
 
     Ok(Json(scheduler.get_stats()))
 }
@@ -156,7 +155,10 @@ mod tests {
         }"#;
 
         let request: CreateTaskRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(request.task_type, crate::scheduler::TaskType::WorkflowExecution);
+        assert_eq!(
+            request.task_type,
+            crate::scheduler::TaskType::WorkflowExecution
+        );
         assert_eq!(request.delay_seconds, Some(60));
         assert_eq!(request.max_retries, 3);
     }

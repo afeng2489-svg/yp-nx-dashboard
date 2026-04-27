@@ -5,7 +5,10 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-use super::{AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CompletionRequest, CompletionResponse, EmbedRequest, EmbedResponse, TokenUsage};
+use super::{
+    AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CompletionRequest,
+    CompletionResponse, EmbedRequest, EmbedResponse, TokenUsage,
+};
 
 /// Ollama API 基础 URL
 const OLLAMA_API_BASE: &str = "http://localhost:11434/api";
@@ -47,7 +50,11 @@ impl OllamaProvider {
     }
 
     /// 发送 HTTP 请求到 Ollama API
-    async fn request<T: for<'de> Deserialize<'de>>(&self, path: &str, body: Option<serde_json::Value>) -> Result<T, AIError> {
+    async fn request<T: for<'de> Deserialize<'de>>(
+        &self,
+        path: &str,
+        body: Option<serde_json::Value>,
+    ) -> Result<T, AIError> {
         let url = format!("{}{}", self.base_url, path);
         let response = match body {
             Some(b) => {
@@ -58,18 +65,23 @@ impl OllamaProvider {
                     .send()
                     .await
             }
-            None => {
-                self.client.get(&url).send().await
-            }
-        }.map_err(|e| AIError::Network(e.to_string()))?;
+            None => self.client.get(&url).send().await,
+        }
+        .map_err(|e| AIError::Network(e.to_string()))?;
 
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            return Err(AIError::Provider(format!("Ollama 错误 {}: {}", status, error_text)));
+            return Err(AIError::Provider(format!(
+                "Ollama 错误 {}: {}",
+                status, error_text
+            )));
         }
 
-        response.json().await.map_err(|e| AIError::Parse(e.to_string()))
+        response
+            .json()
+            .await
+            .map_err(|e| AIError::Parse(e.to_string()))
     }
 
     /// 从 Ollama 获取可用的模型列表
@@ -162,7 +174,9 @@ impl AIProvider for OllamaProvider {
             prompt_eval_count: Option<usize>,
         }
 
-        let response: GenerateResponse = self.request("/generate", Some(serde_json::to_value(body).unwrap())).await?;
+        let response: GenerateResponse = self
+            .request("/generate", Some(serde_json::to_value(body).unwrap()))
+            .await?;
 
         Ok(CompletionResponse {
             text: response.response,
@@ -215,7 +229,9 @@ impl AIProvider for OllamaProvider {
             content: String,
         }
 
-        let response: ChatResponseBody = self.request("/chat", Some(serde_json::to_value(body).unwrap())).await?;
+        let response: ChatResponseBody = self
+            .request("/chat", Some(serde_json::to_value(body).unwrap()))
+            .await?;
 
         Ok(ChatResponse {
             message: ChatMessage {
@@ -253,7 +269,9 @@ impl AIProvider for OllamaProvider {
                 prompt: text.clone(),
             };
 
-            let response: EmbeddingsResponse = self.request("/embeddings", Some(serde_json::to_value(body).unwrap())).await?;
+            let response: EmbeddingsResponse = self
+                .request("/embeddings", Some(serde_json::to_value(body).unwrap()))
+                .await?;
             embeddings.push(response.embedding);
             total_input_tokens += text.len() / 4; // 粗略估算
         }

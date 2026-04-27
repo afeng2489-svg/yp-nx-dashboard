@@ -13,10 +13,9 @@ use tokio::sync::RwLock;
 
 use crate::routes::AppState;
 use crate::search::{
-    FtsSearchHit, FtsSearchResult, FtsQueryType, HybridSearchHit, HybridSearchResult,
-    IndexRequest, IndexResponse, SearchHit, SearchModesResponse, SearchModeInfo,
-    SearchMode, SearchOptions, SearchResult, SemanticSearchHit, SemanticSearchResult,
-    MatchType,
+    FtsQueryType, FtsSearchHit, FtsSearchResult, HybridSearchHit, HybridSearchResult, IndexRequest,
+    IndexResponse, MatchType, SearchHit, SearchMode, SearchModeInfo, SearchModesResponse,
+    SearchOptions, SearchResult, SemanticSearchHit, SemanticSearchResult,
 };
 
 /// Application state for search (wrapper for accessing via AppState)
@@ -88,9 +87,7 @@ impl SearchState {
             }
         }
 
-        let index_size_bytes = new_fts_docs.iter()
-            .map(|d| d.content.len())
-            .sum::<usize>();
+        let index_size_bytes = new_fts_docs.iter().map(|d| d.content.len()).sum::<usize>();
 
         // Update FTS index
         {
@@ -112,8 +109,6 @@ impl SearchState {
         (documents_indexed, chunks_indexed, index_size_bytes)
     }
 }
-
-
 
 // ============================================================================
 // API Handlers
@@ -275,7 +270,9 @@ struct IndexedDocument {
 
 impl FtsIndex {
     fn empty() -> Self {
-        Self { documents: Vec::new() }
+        Self {
+            documents: Vec::new(),
+        }
     }
 
     fn search(&self, query: &str, options: &SearchOptions) -> Vec<FtsSearchHit> {
@@ -297,19 +294,32 @@ impl FtsIndex {
 
             for (line_num, line) in doc.lines.iter().enumerate() {
                 let line_lower = line.to_lowercase();
-                let matched: Vec<&str> = query_terms.iter()
+                let matched: Vec<&str> = query_terms
+                    .iter()
                     .filter(|t| line_lower.contains(*t))
                     .copied()
                     .collect();
-                if matched.is_empty() { continue; }
+                if matched.is_empty() {
+                    continue;
+                }
 
                 // 评分: term 匹配率 + 完全匹配 bonus + 行首匹配 bonus
                 let term_ratio = matched.len() as f32 / query_terms.len().max(1) as f32;
-                let exact_bonus = if line_lower.contains(&query_lower) { 0.3 } else { 0.0 };
-                let start_bonus = if line_lower.trim_start().starts_with(&query_lower) { 0.2 } else { 0.0 };
+                let exact_bonus = if line_lower.contains(&query_lower) {
+                    0.3
+                } else {
+                    0.0
+                };
+                let start_bonus = if line_lower.trim_start().starts_with(&query_lower) {
+                    0.2
+                } else {
+                    0.0
+                };
                 let score = (term_ratio * 0.5 + exact_bonus + start_bonus).min(1.0);
 
-                if score < min_score { continue; }
+                if score < min_score {
+                    continue;
+                }
 
                 results.push(FtsSearchHit {
                     document_id: doc.id.clone(),
@@ -324,7 +334,11 @@ impl FtsIndex {
         }
 
         // Sort by score descending
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(limit);
         results
     }
@@ -360,7 +374,9 @@ struct SemanticChunk {
 
 impl SemanticIndex {
     fn new() -> Self {
-        Self { documents: Vec::new() }
+        Self {
+            documents: Vec::new(),
+        }
     }
 
     fn search(&self, query: &str, options: &SearchOptions) -> Vec<SemanticSearchHit> {
@@ -382,10 +398,13 @@ impl SemanticIndex {
 
             for chunk in &doc.chunks {
                 let chunk_lower = chunk.content.to_lowercase();
-                let matched_count = query_terms.iter()
+                let matched_count = query_terms
+                    .iter()
                     .filter(|t| chunk_lower.contains(*t))
                     .count();
-                if matched_count == 0 { continue; }
+                if matched_count == 0 {
+                    continue;
+                }
 
                 // 基于 term 匹配率 + 词密度计算评分
                 let term_ratio = matched_count as f32 / query_terms.len().max(1) as f32;
@@ -393,7 +412,9 @@ impl SemanticIndex {
                 let density = matched_count as f32 / total_words;
                 let score = (term_ratio * 0.6 + density * 0.4).min(1.0);
 
-                if score < min_score { continue; }
+                if score < min_score {
+                    continue;
+                }
 
                 results.push(SemanticSearchHit {
                     chunk_id: chunk.id.clone(),
@@ -410,7 +431,11 @@ impl SemanticIndex {
             }
         }
 
-        results.sort_by(|a, b| b.semantic_score.partial_cmp(&a.semantic_score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.semantic_score
+                .partial_cmp(&a.semantic_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(limit);
         results
     }
@@ -444,18 +469,21 @@ impl HybridEngine {
 
         // Process FTS results
         for hit in fts_results {
-            hit_map.insert(hit.document_id.clone(), HybridSearchHit {
-                document_id: hit.document_id.clone(),
-                file: hit.file.clone(),
-                snippet: hit.snippet.clone(),
-                start_line: hit.line_number,
-                end_line: hit.line_number,
-                score: hit.score * 0.5, // Keyword weight
-                semantic_score: 0.0,
-                keyword_score: hit.score,
-                language: hit.language.clone(),
-                match_types: vec![],
-            });
+            hit_map.insert(
+                hit.document_id.clone(),
+                HybridSearchHit {
+                    document_id: hit.document_id.clone(),
+                    file: hit.file.clone(),
+                    snippet: hit.snippet.clone(),
+                    start_line: hit.line_number,
+                    end_line: hit.line_number,
+                    score: hit.score * 0.5, // Keyword weight
+                    semantic_score: 0.0,
+                    keyword_score: hit.score,
+                    language: hit.language.clone(),
+                    match_types: vec![],
+                },
+            );
         }
 
         // Process semantic results
@@ -466,23 +494,30 @@ impl HybridEngine {
                 existing.semantic_score = hit.semantic_score;
                 existing.match_types.push(MatchType::Semantic);
             } else {
-                hit_map.insert(hit.document_id.clone(), HybridSearchHit {
-                    document_id: hit.document_id.clone(),
-                    file: hit.file.clone(),
-                    snippet: hit.snippet.clone(),
-                    start_line: hit.start_line,
-                    end_line: hit.end_line,
-                    score,
-                    semantic_score: hit.semantic_score,
-                    keyword_score: 0.0,
-                    language: hit.language.clone(),
-                    match_types: vec![MatchType::Semantic],
-                });
+                hit_map.insert(
+                    hit.document_id.clone(),
+                    HybridSearchHit {
+                        document_id: hit.document_id.clone(),
+                        file: hit.file.clone(),
+                        snippet: hit.snippet.clone(),
+                        start_line: hit.start_line,
+                        end_line: hit.end_line,
+                        score,
+                        semantic_score: hit.semantic_score,
+                        keyword_score: 0.0,
+                        language: hit.language.clone(),
+                        match_types: vec![MatchType::Semantic],
+                    },
+                );
             }
         }
 
         let mut results: Vec<HybridSearchHit> = hit_map.into_values().collect();
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(options.limit.unwrap_or(20));
         results
     }
@@ -523,7 +558,12 @@ fn scan_dir_recursive(
         let name = entry.file_name().to_string_lossy().to_string();
 
         // Skip hidden dirs and common non-source dirs
-        if name.starts_with('.') || name == "node_modules" || name == "target" || name == "dist" || name == "build" {
+        if name.starts_with('.')
+            || name == "node_modules"
+            || name == "target"
+            || name == "dist"
+            || name == "build"
+        {
             continue;
         }
 
@@ -562,21 +602,24 @@ fn scan_dir_recursive(
 // ============================================================================
 
 fn search_fts(index: &FtsIndex, query: &str, options: &SearchOptions) -> Vec<SearchHit> {
-    index.search(query, options)
+    index
+        .search(query, options)
         .into_iter()
         .map(|h| h.into())
         .collect()
 }
 
 fn search_semantic(index: &SemanticIndex, query: &str, options: &SearchOptions) -> Vec<SearchHit> {
-    index.search(query, options)
+    index
+        .search(query, options)
         .into_iter()
         .map(|h| h.into())
         .collect()
 }
 
 fn search_hybrid(engine: &HybridEngine, query: &str, options: &SearchOptions) -> Vec<SearchHit> {
-    engine.search(query, options)
+    engine
+        .search(query, options)
         .into_iter()
         .map(|h| h.into())
         .collect()

@@ -220,12 +220,7 @@ mod tests {
     #[test]
     fn test_task_creation() {
         let payload = serde_json::json!({ "workflow_id": "test-123" });
-        let task = ScheduledTask::new(
-            TaskType::WorkflowExecution,
-            payload,
-            Utc::now(),
-            3,
-        );
+        let task = ScheduledTask::new(TaskType::WorkflowExecution, payload, Utc::now(), 3);
 
         assert_eq!(task.status, TaskStatus::Pending);
         assert_eq!(task.retry_count, 0);
@@ -250,7 +245,10 @@ mod tests {
     #[test]
     fn test_task_type_conversion() {
         assert_eq!(TaskType::WorkflowExecution.as_str(), "workflow_execution");
-        assert_eq!(TaskType::from_str("workflow_execution"), Some(TaskType::WorkflowExecution));
+        assert_eq!(
+            TaskType::from_str("workflow_execution"),
+            Some(TaskType::WorkflowExecution)
+        );
         assert_eq!(TaskType::from_str("invalid"), None);
     }
 }

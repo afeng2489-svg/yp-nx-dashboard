@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::{AIError, CLI, CLIContext, CLIResponse};
+use super::{AIError, CLIContext, CLIResponse, CLI};
 
 /// CLI 能力描述
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,9 +110,7 @@ impl CLIRegistry {
 
     /// 注册 CLI 配置
     pub fn register_config(&self, config: CLIConfig) {
-        self.configs
-            .write()
-            .insert(config.cli, config);
+        self.configs.write().insert(config.cli, config);
     }
 
     /// 获取 CLI 配置
@@ -127,9 +125,7 @@ impl CLIRegistry {
 
     /// 更新 CLI 能力
     pub fn update_capability(&self, capability: CLICapability) {
-        self.capabilities
-            .write()
-            .insert(capability.cli, capability);
+        self.capabilities.write().insert(capability.cli, capability);
     }
 
     /// 获取 CLI 能力
@@ -221,7 +217,9 @@ impl CLIRegistry {
         }
 
         // Qwen - 中文支持、数学、逻辑
-        let has_cjk = prompt.chars().any(|c| ('\u{4E00}'..='\u{9FFF}').contains(&c));
+        let has_cjk = prompt
+            .chars()
+            .any(|c| ('\u{4E00}'..='\u{9FFF}').contains(&c));
         if has_cjk
             || prompt_lower.contains("中文")
             || prompt_lower.contains("math")
@@ -243,11 +241,7 @@ impl CLIRegistry {
     }
 
     /// 根据策略选择 CLI
-    pub fn select_cli(
-        &self,
-        prompt: &str,
-        manual_cli: Option<CLI>,
-    ) -> Result<CLI, AIError> {
+    pub fn select_cli(&self, prompt: &str, manual_cli: Option<CLI>) -> Result<CLI, AIError> {
         let strategy = self.get_selection_strategy();
 
         match strategy {
@@ -257,9 +251,7 @@ impl CLIRegistry {
             CLISelectionStrategy::Semantic | CLISelectionStrategy::Auto => {
                 Ok(self.select_cli_for_prompt(prompt))
             }
-            CLISelectionStrategy::Fallback => {
-                Ok(self.get_default_cli().unwrap_or(CLI::Claude))
-            }
+            CLISelectionStrategy::Fallback => Ok(self.get_default_cli().unwrap_or(CLI::Claude)),
         }
     }
 }

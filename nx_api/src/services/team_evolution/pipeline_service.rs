@@ -3,17 +3,17 @@
 //! 负责 Pipeline 生命周期管理和步骤调度。
 //! 具体的 dispatch 逻辑（调用 CLI 执行）将在 P1.3 任务中完善。
 
-use std::sync::Arc;
 use chrono::Utc;
+use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::models::pipeline::{
-    Pipeline, PipelinePhase, PipelineStatus, PipelineStep, StepStatus, PhaseGatePolicy,
-};
-use crate::models::feature_flag::keys;
 use super::error::TeamEvolutionError;
-use super::pipeline_repository::SqlitePipelineRepository;
 use super::feature_flag_service::FeatureFlagService;
+use super::pipeline_repository::SqlitePipelineRepository;
+use crate::models::feature_flag::keys;
+use crate::models::pipeline::{
+    PhaseGatePolicy, Pipeline, PipelinePhase, PipelineStatus, PipelineStep, StepStatus,
+};
 
 pub struct PipelineService {
     repo: Arc<SqlitePipelineRepository>,
@@ -25,7 +25,10 @@ impl PipelineService {
         repo: Arc<SqlitePipelineRepository>,
         feature_flags: Arc<FeatureFlagService>,
     ) -> Self {
-        Self { repo, feature_flags }
+        Self {
+            repo,
+            feature_flags,
+        }
     }
 
     /// Create a new pipeline for a project
@@ -61,56 +64,76 @@ impl PipelineService {
     pub fn start(&self, pipeline_id: &str) -> Result<Pipeline, TeamEvolutionError> {
         self.feature_flags.require_enabled(keys::PIPELINE)?;
 
-        let pipeline = self.repo.find_pipeline_by_id(pipeline_id)?
+        let pipeline = self
+            .repo
+            .find_pipeline_by_id(pipeline_id)?
             .ok_or_else(|| TeamEvolutionError::PipelineNotFound(pipeline_id.to_string()))?;
 
         if pipeline.status == PipelineStatus::Running {
-            return Err(TeamEvolutionError::PipelineAlreadyRunning(pipeline_id.to_string()));
+            return Err(TeamEvolutionError::PipelineAlreadyRunning(
+                pipeline_id.to_string(),
+            ));
         }
 
-        self.repo.update_pipeline_status(pipeline_id, &PipelineStatus::Running)?;
+        self.repo
+            .update_pipeline_status(pipeline_id, &PipelineStatus::Running)?;
 
-        self.repo.find_pipeline_by_id(pipeline_id)?
+        self.repo
+            .find_pipeline_by_id(pipeline_id)?
             .ok_or_else(|| TeamEvolutionError::PipelineNotFound(pipeline_id.to_string()))
     }
 
     /// Pause a running pipeline
     pub fn pause(&self, pipeline_id: &str) -> Result<Pipeline, TeamEvolutionError> {
-        let pipeline = self.repo.find_pipeline_by_id(pipeline_id)?
+        let pipeline = self
+            .repo
+            .find_pipeline_by_id(pipeline_id)?
             .ok_or_else(|| TeamEvolutionError::PipelineNotFound(pipeline_id.to_string()))?;
 
         if pipeline.status != PipelineStatus::Running {
             return Err(TeamEvolutionError::PipelinePaused(pipeline_id.to_string()));
         }
 
-        self.repo.update_pipeline_status(pipeline_id, &PipelineStatus::Paused)?;
+        self.repo
+            .update_pipeline_status(pipeline_id, &PipelineStatus::Paused)?;
 
-        self.repo.find_pipeline_by_id(pipeline_id)?
+        self.repo
+            .find_pipeline_by_id(pipeline_id)?
             .ok_or_else(|| TeamEvolutionError::PipelineNotFound(pipeline_id.to_string()))
     }
 
     /// Resume a paused pipeline
     pub fn resume(&self, pipeline_id: &str) -> Result<Pipeline, TeamEvolutionError> {
-        let pipeline = self.repo.find_pipeline_by_id(pipeline_id)?
+        let pipeline = self
+            .repo
+            .find_pipeline_by_id(pipeline_id)?
             .ok_or_else(|| TeamEvolutionError::PipelineNotFound(pipeline_id.to_string()))?;
 
         if pipeline.status != PipelineStatus::Paused {
-            return Err(TeamEvolutionError::Internal(
-                format!("Pipeline {pipeline_id} is not paused, current status: {:?}", pipeline.status)
-            ));
+            return Err(TeamEvolutionError::Internal(format!(
+                "Pipeline {pipeline_id} is not paused, current status: {:?}",
+                pipeline.status
+            )));
         }
 
-        self.repo.update_pipeline_status(pipeline_id, &PipelineStatus::Running)?;
+        self.repo
+            .update_pipeline_status(pipeline_id, &PipelineStatus::Running)?;
 
-        self.repo.find_pipeline_by_id(pipeline_id)?
+        self.repo
+            .find_pipeline_by_id(pipeline_id)?
             .ok_or_else(|| TeamEvolutionError::PipelineNotFound(pipeline_id.to_string()))
     }
 
     /// Get the next batch of steps ready to dispatch
-    pub fn get_dispatchable_steps(&self, pipeline_id: &str) -> Result<Vec<PipelineStep>, TeamEvolutionError> {
+    pub fn get_dispatchable_steps(
+        &self,
+        pipeline_id: &str,
+    ) -> Result<Vec<PipelineStep>, TeamEvolutionError> {
         self.feature_flags.require_enabled(keys::PIPELINE)?;
 
-        let pipeline = self.repo.find_pipeline_by_id(pipeline_id)?
+        let pipeline = self
+            .repo
+            .find_pipeline_by_id(pipeline_id)?
             .ok_or_else(|| TeamEvolutionError::PipelineNotFound(pipeline_id.to_string()))?;
 
         if pipeline.status != PipelineStatus::Running {
@@ -121,13 +144,15 @@ impl PipelineService {
 
         // Filter by current phase execution mode
         let current_group = pipeline.current_phase.phase_group();
-        let phase_steps: Vec<PipelineStep> = ready_steps.into_iter()
+        let phase_steps: Vec<PipelineStep> = ready_steps
+            .into_iter()
             .filter(|s| s.phase.phase_group() == current_group)
             .collect();
 
         // Serial mode: only take the first ready step
         // Parallel mode: take all ready steps (grouped by role_id internally)
-        if pipeline.current_phase.execution_mode() == crate::models::pipeline::ExecutionMode::Serial {
+        if pipeline.current_phase.execution_mode() == crate::models::pipeline::ExecutionMode::Serial
+        {
             Ok(phase_steps.into_iter().take(1).collect())
         } else {
             Ok(phase_steps)
@@ -141,7 +166,8 @@ impl PipelineService {
         step_id: &str,
         output: &str,
     ) -> Result<(), TeamEvolutionError> {
-        self.repo.update_step_status(step_id, &StepStatus::Completed, Some(output))?;
+        self.repo
+            .update_step_status(step_id, &StepStatus::Completed, Some(output))?;
         self.try_advance_phase_pub(pipeline_id)?;
         Ok(())
     }
@@ -153,7 +179,9 @@ impl PipelineService {
         step_id: &str,
         error: &str,
     ) -> Result<bool, TeamEvolutionError> {
-        let pipeline = self.repo.find_pipeline_by_id(pipeline_id)?
+        let pipeline = self
+            .repo
+            .find_pipeline_by_id(pipeline_id)?
             .ok_or_else(|| TeamEvolutionError::PipelineNotFound(pipeline_id.to_string()))?;
 
         // Try auto-retry if policy allows
@@ -165,13 +193,16 @@ impl PipelineService {
         }
 
         // Mark as failed
-        self.repo.update_step_status(step_id, &StepStatus::Failed, Some(error))?;
+        self.repo
+            .update_step_status(step_id, &StepStatus::Failed, Some(error))?;
 
         // Block dependent steps
         let all_steps = self.repo.find_steps_by_pipeline(pipeline_id)?;
         for step in &all_steps {
-            if step.depends_on.contains(&step_id.to_string()) && step.status == StepStatus::Pending {
-                self.repo.update_step_status(&step.id, &StepStatus::Blocked, None)?;
+            if step.depends_on.contains(&step_id.to_string()) && step.status == StepStatus::Pending
+            {
+                self.repo
+                    .update_step_status(&step.id, &StepStatus::Blocked, None)?;
             }
         }
 
@@ -187,12 +218,12 @@ impl PipelineService {
         self.feature_flags.require_enabled(keys::PIPELINE)?;
 
         let steps = self.repo.find_steps_by_pipeline(pipeline_id)?;
-        let step = steps.iter()
-            .find(|s| s.id == step_id)
-            .ok_or_else(|| TeamEvolutionError::StepNotFound {
+        let step = steps.iter().find(|s| s.id == step_id).ok_or_else(|| {
+            TeamEvolutionError::StepNotFound {
                 pipeline_id: pipeline_id.to_string(),
                 step_id: step_id.to_string(),
-            })?;
+            }
+        })?;
 
         if step.status != StepStatus::Failed && step.status != StepStatus::Blocked {
             return Err(TeamEvolutionError::StepNotRetriable {
@@ -201,18 +232,21 @@ impl PipelineService {
             });
         }
 
-        self.repo.update_step_status(step_id, &StepStatus::Pending, None)?;
+        self.repo
+            .update_step_status(step_id, &StepStatus::Pending, None)?;
 
         // Unblock any steps that were blocked by this step
         for s in &steps {
             if s.status == StepStatus::Blocked && s.depends_on.contains(&step_id.to_string()) {
-                self.repo.update_step_status(&s.id, &StepStatus::Pending, None)?;
+                self.repo
+                    .update_step_status(&s.id, &StepStatus::Pending, None)?;
             }
         }
 
         // Return updated step
         let updated_steps = self.repo.find_steps_by_pipeline(pipeline_id)?;
-        updated_steps.into_iter()
+        updated_steps
+            .into_iter()
             .find(|s| s.id == step_id)
             .ok_or_else(|| TeamEvolutionError::StepNotFound {
                 pipeline_id: pipeline_id.to_string(),
@@ -227,7 +261,9 @@ impl PipelineService {
     ) -> Result<(Pipeline, Vec<PipelineStep>), TeamEvolutionError> {
         self.feature_flags.require_readable(keys::PIPELINE)?;
 
-        let pipeline = self.repo.find_pipeline_by_id(pipeline_id)?
+        let pipeline = self
+            .repo
+            .find_pipeline_by_id(pipeline_id)?
             .ok_or_else(|| TeamEvolutionError::PipelineNotFound(pipeline_id.to_string()))?;
         let steps = self.repo.find_steps_by_pipeline(pipeline_id)?;
         Ok((pipeline, steps))
@@ -271,22 +307,28 @@ impl PipelineService {
 
     /// Check phase gate and advance to next phase if all steps in current phase are complete
     pub fn try_advance_phase_pub(&self, pipeline_id: &str) -> Result<(), TeamEvolutionError> {
-        let pipeline = self.repo.find_pipeline_by_id(pipeline_id)?
+        let pipeline = self
+            .repo
+            .find_pipeline_by_id(pipeline_id)?
             .ok_or_else(|| TeamEvolutionError::PipelineNotFound(pipeline_id.to_string()))?;
 
         let steps = self.repo.find_steps_by_pipeline(pipeline_id)?;
         let current_group = pipeline.current_phase.phase_group();
 
         // Check if all steps in current phase group are complete
-        let phase_steps: Vec<&PipelineStep> = steps.iter()
+        let phase_steps: Vec<&PipelineStep> = steps
+            .iter()
             .filter(|s| s.phase.phase_group() == current_group)
             .collect();
 
-        let all_complete = phase_steps.iter().all(|s| s.status == StepStatus::Completed);
+        let all_complete = phase_steps
+            .iter()
+            .all(|s| s.status == StepStatus::Completed);
         let any_failed = phase_steps.iter().any(|s| s.status == StepStatus::Failed);
 
         if any_failed && !pipeline.phase_gate_policy.auto_retry {
-            self.repo.update_pipeline_status(pipeline_id, &PipelineStatus::Failed)?;
+            self.repo
+                .update_pipeline_status(pipeline_id, &PipelineStatus::Failed)?;
             return Ok(());
         }
 
@@ -296,11 +338,12 @@ impl PipelineService {
 
         // Advance to next phase group
         let next_phase = match current_group {
-            1 => Some(PipelinePhase::BackendDev),   // Phase 1 → Phase 2
+            1 => Some(PipelinePhase::BackendDev),     // Phase 1 → Phase 2
             2 => Some(PipelinePhase::ApiIntegration), // Phase 2 → Phase 3
             3 => {
                 // All phases complete
-                self.repo.update_pipeline_status(pipeline_id, &PipelineStatus::Completed)?;
+                self.repo
+                    .update_pipeline_status(pipeline_id, &PipelineStatus::Completed)?;
                 None
             }
             _ => None,

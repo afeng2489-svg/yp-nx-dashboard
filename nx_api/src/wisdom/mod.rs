@@ -61,7 +61,9 @@ impl WisdomService {
     pub fn add(&self, request: CreateWisdomRequest) -> Result<WisdomEntry, WisdomError> {
         // Validate request
         if request.title.trim().is_empty() {
-            return Err(WisdomError::InvalidRequest("Title cannot be empty".to_string()));
+            return Err(WisdomError::InvalidRequest(
+                "Title cannot be empty".to_string(),
+            ));
         }
         if request.content.trim().is_empty() {
             return Err(WisdomError::InvalidRequest(
@@ -103,10 +105,7 @@ impl WisdomService {
     }
 
     /// Get entries by category
-    pub fn by_category(
-        &self,
-        category: WisdomCategory,
-    ) -> Result<Vec<WisdomEntry>, WisdomError> {
+    pub fn by_category(&self, category: WisdomCategory) -> Result<Vec<WisdomEntry>, WisdomError> {
         Ok(self.query_service.by_category(category)?)
     }
 
@@ -253,7 +252,9 @@ impl WisdomService {
             .into_iter()
             .filter(|c| {
                 c.title.to_lowercase().contains(&context_lower)
-                    || c.tags.iter().any(|t| context_lower.contains(&t.to_lowercase()))
+                    || c.tags
+                        .iter()
+                        .any(|t| context_lower.contains(&t.to_lowercase()))
             })
             .take(limit)
             .collect();
@@ -354,7 +355,10 @@ mod tests {
         });
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), WisdomError::InvalidRequest(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            WisdomError::InvalidRequest(_)
+        ));
     }
 
     #[test]
@@ -362,7 +366,13 @@ mod tests {
         let service = WisdomService::new(":memory:").unwrap();
 
         let entry = service
-            .capture_learning("New Learning", "Important content", vec!["tag1".to_string()], "session-1", 0.95)
+            .capture_learning(
+                "New Learning",
+                "Important content",
+                vec!["tag1".to_string()],
+                "session-1",
+                0.95,
+            )
             .unwrap();
 
         assert_eq!(entry.category, WisdomCategory::Learning);

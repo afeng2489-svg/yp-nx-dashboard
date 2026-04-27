@@ -3,10 +3,10 @@
 //! 结合 ACE 语义搜索和 CodexLens FTS 的混合搜索模式,
 //! 根据查询类型自动选择最佳搜索策略。
 
-use serde::{Deserialize, Serialize};
-use crate::ace::{AceEngine, AceSearchResult, AceSearchHit, AceSearchMode};
-use crate::codexlens::{CodexLensEngine, CodexLensResult, CodexLensHit, CodexLensConfig};
+use crate::ace::{AceEngine, AceSearchHit, AceSearchMode, AceSearchResult};
+use crate::codexlens::{CodexLensConfig, CodexLensEngine, CodexLensHit, CodexLensResult};
 use crate::index::VectorIndex;
+use serde::{Deserialize, Serialize};
 
 /// 混合搜索配置
 #[derive(Debug, Clone)]
@@ -192,9 +192,22 @@ impl HybridSearchEngine {
     }
 
     /// 索引文档（同时用于语义和关键词搜索）
-    pub fn index_document(&mut self, id: String, path: String, content: String, language: Option<String>, vectors: Vec<Vec<f32>>, chunks: Vec<crate::index::Chunk>) {
+    pub fn index_document(
+        &mut self,
+        id: String,
+        path: String,
+        content: String,
+        language: Option<String>,
+        vectors: Vec<Vec<f32>>,
+        chunks: Vec<crate::index::Chunk>,
+    ) {
         // 索引到 CodexLens（关键词搜索）
-        self.codexlens_engine.index_document(id.clone(), path.clone(), content.clone(), language.clone());
+        self.codexlens_engine.index_document(
+            id.clone(),
+            path.clone(),
+            content.clone(),
+            language.clone(),
+        );
 
         // 索引到 ACE（语义搜索）
         let doc = crate::index::Document::new(id.clone(), path, content);
@@ -258,7 +271,8 @@ impl HybridSearchEngine {
         };
 
         // 合并结果
-        let (results, score_breakdown) = self.merge_results(semantic_result.as_ref(), keyword_result.as_ref());
+        let (results, score_breakdown) =
+            self.merge_results(semantic_result.as_ref(), keyword_result.as_ref());
         let total_hits = results.len();
 
         let search_time_ms = start.elapsed().as_millis() as u64;
@@ -296,17 +310,40 @@ impl HybridSearchEngine {
 
         // 检测代码语法
         let code_indicators = [
-            "fn ", "function ", "def ", "class ", "struct ", "enum ",
-            "impl ", "pub ", "private ", "public ", "static ",
-            "import ", "use ", "require ", "include ",
-            "if ", "else ", "for ", "while ", "loop ",
-            "->", "=>", "::", "=>", ".", "(",
+            "fn ",
+            "function ",
+            "def ",
+            "class ",
+            "struct ",
+            "enum ",
+            "impl ",
+            "pub ",
+            "private ",
+            "public ",
+            "static ",
+            "import ",
+            "use ",
+            "require ",
+            "include ",
+            "if ",
+            "else ",
+            "for ",
+            "while ",
+            "loop ",
+            "->",
+            "=>",
+            "::",
+            "=>",
+            ".",
+            "(",
         ];
         let has_code_syntax = code_indicators.iter().any(|&ind| query.contains(ind));
 
         // 检测结构化查询
         let structural_indicators = ["继承", "implements", "extends", "trait", "interface"];
-        let is_structural = structural_indicators.iter().any(|&ind| query_lower.contains(ind));
+        let is_structural = structural_indicators
+            .iter()
+            .any(|&ind| query_lower.contains(ind));
 
         // 检测精确短语
         let is_exact_phrase = query.contains('"') || query.contains('\'');
@@ -327,7 +364,11 @@ impl HybridSearchEngine {
     }
 
     /// 合并搜索结果
-    fn merge_results(&self, semantic: Option<&AceSearchResult>, keyword: Option<&CodexLensResult>) -> (Vec<HybridSearchHit>, ScoreBreakdown) {
+    fn merge_results(
+        &self,
+        semantic: Option<&AceSearchResult>,
+        keyword: Option<&CodexLensResult>,
+    ) -> (Vec<HybridSearchHit>, ScoreBreakdown) {
         let mut hit_map: HashMap<String, HybridSearchHit> = HashMap::new();
 
         let mut semantic_count = 0;
@@ -338,18 +379,21 @@ impl HybridSearchEngine {
             semantic_count = sem.results.len();
             for hit in &sem.results {
                 let combined_score = hit.semantic_score * self.config.semantic_weight;
-                hit_map.insert(hit.document_id.clone(), HybridSearchHit {
-                    document_id: hit.document_id.clone(),
-                    file_path: hit.file_path.clone(),
-                    content: hit.content.clone(),
-                    start_line: hit.start_line,
-                    end_line: hit.end_line,
-                    score: combined_score,
-                    semantic_score: hit.semantic_score,
-                    keyword_score: 0.0,
-                    language: hit.language.clone(),
-                    match_types: vec![MatchType::Semantic],
-                });
+                hit_map.insert(
+                    hit.document_id.clone(),
+                    HybridSearchHit {
+                        document_id: hit.document_id.clone(),
+                        file_path: hit.file_path.clone(),
+                        content: hit.content.clone(),
+                        start_line: hit.start_line,
+                        end_line: hit.end_line,
+                        score: combined_score,
+                        semantic_score: hit.semantic_score,
+                        keyword_score: 0.0,
+                        language: hit.language.clone(),
+                        match_types: vec![MatchType::Semantic],
+                    },
+                );
             }
         }
 
@@ -365,25 +409,32 @@ impl HybridSearchEngine {
                     existing.keyword_score = hit.score;
                     existing.match_types.push(MatchType::Exact);
                 } else {
-                    hit_map.insert(hit.document_id.clone(), HybridSearchHit {
-                        document_id: hit.document_id.clone(),
-                        file_path: hit.file_path.clone(),
-                        content: hit.snippet.clone(),
-                        start_line: hit.line_number,
-                        end_line: hit.line_number,
-                        score: keyword_score,
-                        semantic_score: 0.0,
-                        keyword_score: hit.score,
-                        language: hit.language.clone(),
-                        match_types: vec![MatchType::Exact],
-                    });
+                    hit_map.insert(
+                        hit.document_id.clone(),
+                        HybridSearchHit {
+                            document_id: hit.document_id.clone(),
+                            file_path: hit.file_path.clone(),
+                            content: hit.snippet.clone(),
+                            start_line: hit.line_number,
+                            end_line: hit.line_number,
+                            score: keyword_score,
+                            semantic_score: 0.0,
+                            keyword_score: hit.score,
+                            language: hit.language.clone(),
+                            match_types: vec![MatchType::Exact],
+                        },
+                    );
                 }
             }
         }
 
         // 排序
         let mut results: Vec<HybridSearchHit> = hit_map.into_values().collect();
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let score_breakdown = ScoreBreakdown {
             total_score: results.iter().map(|h| h.score).sum(),

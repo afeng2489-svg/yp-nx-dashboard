@@ -8,14 +8,14 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use std::sync::Arc;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
-use crate::wisdom::{
-    WisdomService, WisdomError, CreateWisdomRequest, QueryWisdomRequest, WisdomResponse,
-    WisdomEntry, CategorySummary, WisdomCategory,
-};
 use super::AppState;
+use crate::wisdom::{
+    CategorySummary, CreateWisdomRequest, QueryWisdomRequest, WisdomCategory, WisdomEntry,
+    WisdomError, WisdomResponse, WisdomService,
+};
 
 /// 应用错误类型
 #[derive(Debug)]
@@ -32,7 +32,10 @@ impl IntoResponse for AppError {
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Internal(msg) => {
                 tracing::error!("Wisdom internal error: {}", msg);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
             }
         };
 
@@ -127,7 +130,10 @@ pub async fn search_wisdom(
 ) -> Result<Json<SearchResponse>, AppError> {
     let limit = params.limit.unwrap_or(20).min(100);
     let entries = state.wisdom_service.search(&params.q, limit)?;
-    Ok(Json(SearchResponse { entries, query: params.q }))
+    Ok(Json(SearchResponse {
+        entries,
+        query: params.q,
+    }))
 }
 
 /// Query parameters for listing wisdom

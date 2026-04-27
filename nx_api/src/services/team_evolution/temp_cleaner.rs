@@ -3,9 +3,9 @@
 //! - execution_checkpoints: 7 天后清理 completed 记录
 //! - role_snapshot_history: 30 天后清理
 
-use std::sync::Arc;
 use parking_lot::Mutex;
 use rusqlite::Connection;
+use std::sync::Arc;
 
 use super::error::TeamEvolutionError;
 
@@ -17,7 +17,10 @@ pub struct TempCleaner {
 
 impl TempCleaner {
     pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
-        Self { conn, snapshot_conn: None }
+        Self {
+            conn,
+            snapshot_conn: None,
+        }
     }
 
     /// Set the connection for snapshot history operations
@@ -78,7 +81,9 @@ impl TempCleaner {
         if checkpoints > 0 || history > 0 || stale > 0 {
             tracing::info!(
                 "[TempCleaner] 清理完成: checkpoints={}, history={}, stale_marked={}",
-                checkpoints, history, stale
+                checkpoints,
+                history,
+                stale
             );
         }
 

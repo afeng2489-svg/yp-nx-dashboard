@@ -4,11 +4,11 @@
 //! 处理智能体编排、阶段执行和状态管理。
 
 pub mod engine;
+pub mod events;
 pub mod parser;
 pub mod state;
-pub mod events;
 
 pub use engine::*;
+pub use events::*;
 pub use parser::*;
 pub use state::*;
-pub use events::*;

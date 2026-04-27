@@ -1,12 +1,14 @@
 //! Issue SQLite 仓储
 
+use chrono::Utc;
+use rusqlite::{params, Connection, Result as SqliteResult};
 use std::path::Path;
 use std::sync::Mutex;
-use rusqlite::{Connection, Result as SqliteResult, params};
-use chrono::Utc;
 use uuid::Uuid;
 
-use crate::models::issue::{Issue, IssueStatus, IssuePriority, CreateIssueRequest, UpdateIssueRequest, IssueFilter};
+use crate::models::issue::{
+    CreateIssueRequest, Issue, IssueFilter, IssuePriority, IssueStatus, UpdateIssueRequest,
+};
 
 #[derive(Debug)]
 pub enum IssueRepositoryError {
@@ -52,7 +54,9 @@ impl SqliteIssueRepository {
             );",
         )?;
 
-        Ok(Self { conn: Mutex::new(conn) })
+        Ok(Self {
+            conn: Mutex::new(conn),
+        })
     }
 
     fn row_to_issue(row: &rusqlite::Row<'_>) -> SqliteResult<Issue> {
@@ -81,15 +85,22 @@ impl SqliteIssueRepository {
         let mut status_val = String::new();
         let mut priority_val = String::new();
 
-        if filter.status.is_some() { conditions.push("status = ?1"); status_val = filter.status.clone().unwrap(); }
-        if filter.priority.is_some() { conditions.push("priority = ?2"); priority_val = filter.priority.clone().unwrap(); }
+        if filter.status.is_some() {
+            conditions.push("status = ?1");
+            status_val = filter.status.clone().unwrap();
+        }
+        if filter.priority.is_some() {
+            conditions.push("priority = ?2");
+            priority_val = filter.priority.clone().unwrap();
+        }
 
         let sql = format!(
             "SELECT id,title,description,status,priority,perspectives,solution,depends_on,created_at,updated_at FROM issues WHERE {} ORDER BY created_at DESC",
             conditions.join(" AND ")
         );
         let mut stmt = conn.prepare(&sql)?;
-        let issues = stmt.query_map(params![status_val, priority_val], Self::row_to_issue)?
+        let issues = stmt
+            .query_map(params![status_val, priority_val], Self::row_to_issue)?
             .collect::<SqliteResult<Vec<_>>>()?;
         Ok(issues)
     }
@@ -108,8 +119,10 @@ impl SqliteIssueRepository {
     pub fn create(&self, req: CreateIssueRequest) -> Result<Issue, IssueRepositoryError> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
-        let perspectives = serde_json::to_string(&req.perspectives).unwrap_or_else(|_| "[]".to_string());
-        let depends_on = serde_json::to_string(&req.depends_on).unwrap_or_else(|_| "[]".to_string());
+        let perspectives =
+            serde_json::to_string(&req.perspectives).unwrap_or_else(|_| "[]".to_string());
+        let depends_on =
+            serde_json::to_string(&req.depends_on).unwrap_or_else(|_| "[]".to_string());
 
         let conn = self.conn.lock().unwrap();
         conn.execute(
@@ -130,27 +143,48 @@ impl SqliteIssueRepository {
         let conn = self.conn.lock().unwrap();
 
         if let Some(title) = &req.title {
-            conn.execute("UPDATE issues SET title=?1,updated_at=?2 WHERE id=?3", params![title, now, id])?;
+            conn.execute(
+                "UPDATE issues SET title=?1,updated_at=?2 WHERE id=?3",
+                params![title, now, id],
+            )?;
         }
         if let Some(desc) = &req.description {
-            conn.execute("UPDATE issues SET description=?1,updated_at=?2 WHERE id=?3", params![desc, now, id])?;
+            conn.execute(
+                "UPDATE issues SET description=?1,updated_at=?2 WHERE id=?3",
+                params![desc, now, id],
+            )?;
         }
         if let Some(status) = &req.status {
-            conn.execute("UPDATE issues SET status=?1,updated_at=?2 WHERE id=?3", params![status.as_str(), now, id])?;
+            conn.execute(
+                "UPDATE issues SET status=?1,updated_at=?2 WHERE id=?3",
+                params![status.as_str(), now, id],
+            )?;
         }
         if let Some(priority) = &req.priority {
-            conn.execute("UPDATE issues SET priority=?1,updated_at=?2 WHERE id=?3", params![priority.as_str(), now, id])?;
+            conn.execute(
+                "UPDATE issues SET priority=?1,updated_at=?2 WHERE id=?3",
+                params![priority.as_str(), now, id],
+            )?;
         }
         if let Some(solution) = &req.solution {
-            conn.execute("UPDATE issues SET solution=?1,updated_at=?2 WHERE id=?3", params![solution, now, id])?;
+            conn.execute(
+                "UPDATE issues SET solution=?1,updated_at=?2 WHERE id=?3",
+                params![solution, now, id],
+            )?;
         }
         if let Some(perspectives) = &req.perspectives {
             let json = serde_json::to_string(perspectives).unwrap_or_else(|_| "[]".to_string());
-            conn.execute("UPDATE issues SET perspectives=?1,updated_at=?2 WHERE id=?3", params![json, now, id])?;
+            conn.execute(
+                "UPDATE issues SET perspectives=?1,updated_at=?2 WHERE id=?3",
+                params![json, now, id],
+            )?;
         }
         if let Some(depends_on) = &req.depends_on {
             let json = serde_json::to_string(depends_on).unwrap_or_else(|_| "[]".to_string());
-            conn.execute("UPDATE issues SET depends_on=?1,updated_at=?2 WHERE id=?3", params![json, now, id])?;
+            conn.execute(
+                "UPDATE issues SET depends_on=?1,updated_at=?2 WHERE id=?3",
+                params![json, now, id],
+            )?;
         }
 
         drop(conn);

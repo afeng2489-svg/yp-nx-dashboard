@@ -2,9 +2,9 @@
 //!
 //! 提供 /ccw, /ccw-coordinator, /workflow:session:*, /issue/* 等命令。
 
-use std::path::PathBuf;
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::path::PathBuf;
 
 use crate::config::Config;
 
@@ -152,7 +152,12 @@ pub mod session_commands {
     }
 
     /// 导出会话
-    pub async fn export_session(session_id: &str, format: Option<&str>, output: Option<&str>, config: &Config) -> anyhow::Result<()> {
+    pub async fn export_session(
+        session_id: &str,
+        format: Option<&str>,
+        output: Option<&str>,
+        config: &Config,
+    ) -> anyhow::Result<()> {
         let fmt = format.unwrap_or("json");
         let out = output.unwrap_or("session_export");
 
@@ -314,11 +319,7 @@ pub mod issue_commands {
     }
 
     /// 添加评论
-    pub async fn add_comment(
-        issue_id: &str,
-        comment: &str,
-        config: &Config,
-    ) -> anyhow::Result<()> {
+    pub async fn add_comment(issue_id: &str, comment: &str, config: &Config) -> anyhow::Result<()> {
         println!("💬 添加评论到 {}:", issue_id);
         println!("{}", comment);
         println!("\n评论已添加");
@@ -346,8 +347,8 @@ pub async fn run_workflow(
     _background: bool,
     _config: &Config,
 ) -> anyhow::Result<()> {
-    use nexus_workflow::{WorkflowParser, WorkflowEngine};
     use nexus_workflow::events::InMemoryEventEmitter;
+    use nexus_workflow::{WorkflowEngine, WorkflowParser};
 
     tracing::info!("从 {:?} 加载工作流", workflow_path);
 
@@ -394,7 +395,11 @@ pub async fn run_workflow(
     // 打印阶段结果
     println!("\n阶段结果:");
     for stage_result in &result.stage_results {
-        println!("  - {}: {} 个输出", stage_result.stage_name, stage_result.outputs.len());
+        println!(
+            "  - {}: {} 个输出",
+            stage_result.stage_name,
+            stage_result.outputs.len()
+        );
     }
 
     Ok(())
@@ -412,7 +417,9 @@ pub async fn run_agent(
     let auto_yes_prefix = "You are operating in auto-yes mode. If you ask any question requiring confirmation (yes/no, continue?, proceed?, etc.), always assume the answer is YES and proceed automatically. Never ask for confirmation.";
 
     // 构建 prompt（Claude CLI 格式）
-    let system_prompt = system.map(|s| s.to_string()).unwrap_or_else(|| "你扮演角色并遵循指示。".to_string());
+    let system_prompt = system
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "你扮演角色并遵循指示。".to_string());
     let full_prompt = format!(
         "{}\n\n<system>\n{}\n</system>\n\n<user>\n{}\n</user>",
         auto_yes_prefix, system_prompt, prompt
@@ -449,7 +456,7 @@ pub async fn list_providers(detailed: bool, config: &Config) -> anyhow::Result<(
         println!("- {}:", name);
         if let Some(ref api_key) = provider_config.api_key {
             let masked = if api_key.len() > 8 {
-                format!("{}...{}", &api_key[..4], &api_key[api_key.len()-4..])
+                format!("{}...{}", &api_key[..4], &api_key[api_key.len() - 4..])
             } else {
                 "***".to_string()
             };
@@ -557,7 +564,7 @@ pub async fn execute_code(
     cwd: Option<&PathBuf>,
     timeout: u64,
 ) -> anyhow::Result<()> {
-    use nexus_sandbox::{SandboxExecutor, ExecuteRequest};
+    use nexus_sandbox::{ExecuteRequest, SandboxExecutor};
     use std::collections::HashMap;
 
     let executor = SandboxExecutor::new();
@@ -606,7 +613,8 @@ pub async fn index_code(path: &PathBuf, stats: bool) -> anyhow::Result<()> {
     let files: Vec<_> = walkdir(path)?;
     tracing::info!("找到 {} 个文件需要索引", files.len());
 
-    for file in files.iter().take(100) { // 目前限制数量
+    for file in files.iter().take(100) {
+        // 目前限制数量
         if let Ok(result) = parser.parse_file(file) {
             let symbols = nexus_code_intel::SymbolExtractor::extract(&result);
             index.index_file(file.clone(), symbols);
@@ -635,7 +643,7 @@ pub async fn search_code(query: &str, limit: usize) -> anyhow::Result<()> {
 
 /// 启动 API 服务器
 pub async fn start_server(port: u16, host: &str) -> anyhow::Result<()> {
-    use axum::{Router, routing::get, Json};
+    use axum::{routing::get, Json, Router};
     use std::net::SocketAddr;
 
     tracing::info!("在 {}:{} 启动 NexusFlow API 服务器", host, port);
@@ -680,7 +688,11 @@ fn walkdir(path: &PathBuf) -> anyhow::Result<Vec<PathBuf>> {
         return Ok(files);
     }
 
-    fn walkdir_recursive(dir: &PathBuf, extensions: &[&str], results: &mut Vec<PathBuf>) -> std::io::Result<()> {
+    fn walkdir_recursive(
+        dir: &PathBuf,
+        extensions: &[&str],
+        results: &mut Vec<PathBuf>,
+    ) -> std::io::Result<()> {
         for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
@@ -688,7 +700,10 @@ fn walkdir(path: &PathBuf) -> anyhow::Result<Vec<PathBuf>> {
             if path.is_dir() {
                 // 跳过常见目录
                 let dir_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                if !matches!(dir_name, "node_modules" | "target" | ".git" | "dist" | "build") {
+                if !matches!(
+                    dir_name,
+                    "node_modules" | "target" | ".git" | "dist" | "build"
+                ) {
                     walkdir_recursive(&path, extensions, results)?;
                 }
             } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {

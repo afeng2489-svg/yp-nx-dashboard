@@ -2,9 +2,9 @@
 //!
 //! 管理系统中所有可用的技能，支持技能的注册、查找和调用。
 
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
-use parking_lot::RwLock;
 use thiserror::Error;
 
 use super::{Skill, SkillCategory, SkillId};
@@ -86,7 +86,10 @@ impl SkillRegistry {
     }
 
     /// 批量注册技能
-    pub fn register_many(&self, skills: impl IntoIterator<Item = Skill>) -> Result<usize, RegistryError> {
+    pub fn register_many(
+        &self,
+        skills: impl IntoIterator<Item = Skill>,
+    ) -> Result<usize, RegistryError> {
         let mut registered = 0;
         for skill in skills {
             self.register(skill)?;
@@ -150,8 +153,16 @@ impl SkillRegistry {
             .values()
             .filter(|skill| {
                 skill.metadata.name.to_lowercase().contains(&query_lower)
-                    || skill.metadata.description.to_lowercase().contains(&query_lower)
-                    || skill.metadata.tags.iter().any(|t| t.to_lowercase().contains(&query_lower))
+                    || skill
+                        .metadata
+                        .description
+                        .to_lowercase()
+                        .contains(&query_lower)
+                    || skill
+                        .metadata
+                        .tags
+                        .iter()
+                        .any(|t| t.to_lowercase().contains(&query_lower))
             })
             .cloned()
             .collect()
@@ -197,7 +208,7 @@ mod tests {
         let metadata = SkillMetadata::new(
             SkillId::new(id),
             format!("测试技能 {}", id),
-            "这是一个测试技能"
+            "这是一个测试技能",
         )
         .with_category(category)
         .with_tag("test");
@@ -232,9 +243,15 @@ mod tests {
     fn test_by_category() {
         let registry = SkillRegistry::new();
 
-        registry.register(create_test_skill("dev-1", SkillCategory::Development)).unwrap();
-        registry.register(create_test_skill("test-1", SkillCategory::Testing)).unwrap();
-        registry.register(create_test_skill("dev-2", SkillCategory::Development)).unwrap();
+        registry
+            .register(create_test_skill("dev-1", SkillCategory::Development))
+            .unwrap();
+        registry
+            .register(create_test_skill("test-1", SkillCategory::Testing))
+            .unwrap();
+        registry
+            .register(create_test_skill("dev-2", SkillCategory::Development))
+            .unwrap();
 
         let dev_skills = registry.by_category(SkillCategory::Development);
         assert_eq!(dev_skills.len(), 2);
@@ -247,8 +264,12 @@ mod tests {
     fn test_search() {
         let registry = SkillRegistry::new();
 
-        registry.register(create_test_skill("search-test", SkillCategory::Development)).unwrap();
-        registry.register(create_test_skill("other", SkillCategory::Testing)).unwrap();
+        registry
+            .register(create_test_skill("search-test", SkillCategory::Development))
+            .unwrap();
+        registry
+            .register(create_test_skill("other", SkillCategory::Testing))
+            .unwrap();
 
         let results = registry.search("search");
         assert_eq!(results.len(), 1);

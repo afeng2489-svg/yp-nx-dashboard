@@ -12,8 +12,8 @@ pub use issue::IssueCommands;
 pub use session::SessionCommands;
 pub use workflow::WorkflowCommands;
 
-use std::collections::HashMap;
 use async_trait::async_trait;
+use std::collections::HashMap;
 
 /// Command argument definition
 #[derive(Debug, Clone)]
@@ -57,7 +57,10 @@ impl CommandOutput {
         }
     }
 
-    pub fn success_with_data(message: impl Into<String>, data: impl Into<serde_json::Value>) -> Self {
+    pub fn success_with_data(
+        message: impl Into<String>,
+        data: impl Into<serde_json::Value>,
+    ) -> Self {
         Self {
             success: true,
             message: message.into(),
@@ -253,9 +256,7 @@ mod tests {
 
     #[test]
     fn test_args() {
-        let args = Args::new()
-            .with_arg("name", "test")
-            .with_arg("id", "123");
+        let args = Args::new().with_arg("name", "test").with_arg("id", "123");
 
         assert_eq!(args.get("name"), Some("test"));
         assert_eq!(args.get("id"), Some("123"));
@@ -284,9 +285,11 @@ mod tests {
     #[test]
     fn test_registry() {
         let mut registry = CommandRegistry::new();
-        registry.register(
-            Command::new("issue", "Issue commands", CommandCategory::Issue)
-        );
+        registry.register(Command::new(
+            "issue",
+            "Issue commands",
+            CommandCategory::Issue,
+        ));
 
         assert!(registry.get("issue").is_some());
         assert!(registry.get("missing").is_none());

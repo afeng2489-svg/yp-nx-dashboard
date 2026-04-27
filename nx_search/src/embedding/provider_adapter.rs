@@ -2,13 +2,13 @@
 //!
 //! 桥接 `nexus_ai::AIProviderRegistry` 和 `EmbeddingProvider` trait
 
+use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::future::Future;
 
-use nexus_ai::{AIProviderRegistry, AIError, EmbedRequest};
+use nexus_ai::{AIError, AIProviderRegistry, EmbedRequest};
 
-use super::{EmbeddingProvider, EmbeddingResult, EmbedError};
+use super::{EmbedError, EmbeddingProvider, EmbeddingResult};
 
 /// 默认 embedding 模型
 const DEFAULT_EMBEDDING_MODEL: &str = "text-embedding-3-small";
@@ -42,7 +42,9 @@ impl AIEmbeddingAdapter {
             AIError::Authentication(msg) => EmbedError::Api(msg),
             AIError::Network(msg) => EmbedError::Network(msg),
             AIError::RateLimit(msg) => EmbedError::Api(format!("Rate limit: {}", msg)),
-            AIError::ModelNotSupported(msg) => EmbedError::Api(format!("Model not supported: {}", msg)),
+            AIError::ModelNotSupported(msg) => {
+                EmbedError::Api(format!("Model not supported: {}", msg))
+            }
             AIError::InvalidRequest(msg) => EmbedError::Api(format!("Invalid request: {}", msg)),
             AIError::Provider(msg) => EmbedError::Api(format!("Provider error: {}", msg)),
             AIError::Timeout(msg) => EmbedError::Network(format!("Timeout: {}", msg)),
@@ -56,7 +58,10 @@ impl EmbeddingProvider for AIEmbeddingAdapter {
         "ai_registry_adapter"
     }
 
-    fn embed(&self, text: &str) -> Pin<Box<dyn Future<Output = Result<EmbeddingResult, EmbedError>> + Send + '_>> {
+    fn embed(
+        &self,
+        text: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<EmbeddingResult, EmbedError>> + Send + '_>> {
         let text = text.to_string();
         let registry = self.registry.clone();
         let model = self.default_model.clone();
@@ -67,10 +72,7 @@ impl EmbeddingProvider for AIEmbeddingAdapter {
                 model: model.clone(),
             };
 
-            let response = registry
-                .embed(request)
-                .await
-                .map_err(Self::map_error)?;
+            let response = registry.embed(request).await.map_err(Self::map_error)?;
 
             let vector = response
                 .embeddings
@@ -100,10 +102,7 @@ impl EmbeddingProvider for AIEmbeddingAdapter {
                 model: model.clone(),
             };
 
-            let response = registry
-                .embed(request)
-                .await
-                .map_err(Self::map_error)?;
+            let response = registry.embed(request).await.map_err(Self::map_error)?;
 
             let results = response
                 .embeddings
@@ -124,7 +123,10 @@ impl EmbeddingProvider for AIEmbeddingAdapter {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use nexus_ai::{AIProvider, CompletionRequest, CompletionResponse, ChatRequest, ChatResponse, EmbedResponse, TokenUsage, AIError, EmbedRequest};
+    use nexus_ai::{
+        AIError, AIProvider, ChatRequest, ChatResponse, CompletionRequest, CompletionResponse,
+        EmbedRequest, EmbedResponse, TokenUsage,
+    };
 
     struct MockAIProvider {
         name: &'static str,

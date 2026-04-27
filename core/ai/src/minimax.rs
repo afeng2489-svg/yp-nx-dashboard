@@ -7,7 +7,10 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-use super::{AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CompletionRequest, CompletionResponse, EmbedRequest, EmbedResponse, TokenUsage};
+use super::{
+    AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CompletionRequest,
+    CompletionResponse, EmbedRequest, EmbedResponse, TokenUsage,
+};
 
 /// MiniMax API 基础 URL
 const MINIMAX_API_BASE: &str = "https://api.minimax.chat/v1";
@@ -58,8 +61,13 @@ impl MiniMaxProvider {
     }
 
     /// 发送 HTTP 请求到 MiniMax API
-    async fn request(&self, path: &str, body: serde_json::Value) -> Result<serde_json::Value, AIError> {
-        let response = self.client
+    async fn request(
+        &self,
+        path: &str,
+        body: serde_json::Value,
+    ) -> Result<serde_json::Value, AIError> {
+        let response = self
+            .client
             .post(format!("{}{}", self.base_url, path))
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
@@ -78,7 +86,10 @@ impl MiniMaxProvider {
             });
         }
 
-        response.json().await.map_err(|e| AIError::Parse(e.to_string()))
+        response
+            .json()
+            .await
+            .map_err(|e| AIError::Parse(e.to_string()))
     }
 }
 
@@ -132,7 +143,8 @@ impl AIProvider for MiniMaxProvider {
             content: String,
         }
 
-        let minimax_messages: Vec<MiniMaxChatMessage> = request.messages
+        let minimax_messages: Vec<MiniMaxChatMessage> = request
+            .messages
             .into_iter()
             .map(|m| MiniMaxChatMessage {
                 role: m.role,
@@ -148,7 +160,12 @@ impl AIProvider for MiniMaxProvider {
             stream: false,
         };
 
-        let response = self.request("/chat/completions", serde_json::to_value(body).map_err(|e| AIError::Parse(e.to_string()))?).await?;
+        let response = self
+            .request(
+                "/chat/completions",
+                serde_json::to_value(body).map_err(|e| AIError::Parse(e.to_string()))?,
+            )
+            .await?;
 
         #[derive(Deserialize)]
         struct MiniMaxChatChoice {
@@ -178,7 +195,9 @@ impl AIProvider for MiniMaxProvider {
         let response: MiniMaxChatResponse = serde_json::from_value(response)
             .map_err(|e| AIError::Parse(format!("解析 MiniMax 响应失败: {}", e)))?;
 
-        let choice = response.choices.into_iter()
+        let choice = response
+            .choices
+            .into_iter()
             .next()
             .ok_or_else(|| AIError::Provider("MiniMax 返回空响应".to_string()))?;
 
@@ -215,7 +234,12 @@ impl AIProvider for MiniMaxProvider {
             stream: false,
         };
 
-        let response = self.request("/completions", serde_json::to_value(body).map_err(|e| AIError::Parse(e.to_string()))?).await?;
+        let response = self
+            .request(
+                "/completions",
+                serde_json::to_value(body).map_err(|e| AIError::Parse(e.to_string()))?,
+            )
+            .await?;
 
         #[derive(Deserialize)]
         struct MiniMaxCompletionResponse {
@@ -239,7 +263,9 @@ impl AIProvider for MiniMaxProvider {
         let response: MiniMaxCompletionResponse = serde_json::from_value(response)
             .map_err(|e| AIError::Parse(format!("解析 MiniMax 响应失败: {}", e)))?;
 
-        let choice = response.choices.into_iter()
+        let choice = response
+            .choices
+            .into_iter()
             .next()
             .ok_or_else(|| AIError::Provider("MiniMax 返回空响应".to_string()))?;
 

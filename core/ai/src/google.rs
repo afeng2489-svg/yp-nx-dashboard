@@ -5,7 +5,10 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use super::{AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CompletionRequest, CompletionResponse, EmbedRequest, EmbedResponse, TokenUsage};
+use super::{
+    AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CompletionRequest,
+    CompletionResponse, EmbedRequest, EmbedResponse, TokenUsage,
+};
 
 /// Google Generative Language API 基础 URL
 const GOOGLE_API_BASE: &str = "https://generativelanguage.googleapis.com/v1beta";
@@ -41,9 +44,14 @@ impl GoogleProvider {
     }
 
     /// 发送 HTTP 请求到 Google API
-    async fn request(&self, path: &str, body: serde_json::Value) -> Result<serde_json::Value, AIError> {
+    async fn request(
+        &self,
+        path: &str,
+        body: serde_json::Value,
+    ) -> Result<serde_json::Value, AIError> {
         let url = format!("{}{}?key={}", GOOGLE_API_BASE, path, self.api_key);
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("content-type", "application/json")
             .json(&body)
@@ -61,7 +69,10 @@ impl GoogleProvider {
             });
         }
 
-        response.json().await.map_err(|e| AIError::Parse(e.to_string()))
+        response
+            .json()
+            .await
+            .map_err(|e| AIError::Parse(e.to_string()))
     }
 }
 
@@ -113,7 +124,9 @@ impl AIProvider for GoogleProvider {
 
         let body = GenerateContentRequest {
             contents: vec![Content {
-                parts: vec![Part { text: request.prompt }],
+                parts: vec![Part {
+                    text: request.prompt,
+                }],
             }],
             generation_config: GenerationConfig {
                 max_output_tokens: request.max_tokens,
@@ -123,7 +136,9 @@ impl AIProvider for GoogleProvider {
 
         let model = request.model.trim_start_matches("gemini-");
         let path = format!("/models/{}:generateContent", model);
-        let response = self.request(&path, serde_json::to_value(body).unwrap()).await?;
+        let response = self
+            .request(&path, serde_json::to_value(body).unwrap())
+            .await?;
 
         #[derive(Deserialize)]
         struct GeminiResponse {
@@ -154,13 +169,29 @@ impl AIProvider for GoogleProvider {
             total_token_count: Option<usize>,
         }
 
-        let resp: GeminiResponse = serde_json::from_value(response)
-            .map_err(|e| AIError::Parse(e.to_string()))?;
+        let resp: GeminiResponse =
+            serde_json::from_value(response).map_err(|e| AIError::Parse(e.to_string()))?;
 
-        let candidate = resp.candidates.first().ok_or_else(|| AIError::Provider("响应中没有候选".to_string()))?;
-        let text = candidate.content.parts.first().and_then(|p| p.text.clone()).unwrap_or_default();
-        let prompt_tokens = resp.usage_metadata.as_ref().map(|u| u.prompt_token_count.unwrap_or(0)).unwrap_or(0);
-        let output_tokens = resp.usage_metadata.as_ref().map(|u| u.candidates_token_count.unwrap_or(0)).unwrap_or(0);
+        let candidate = resp
+            .candidates
+            .first()
+            .ok_or_else(|| AIError::Provider("响应中没有候选".to_string()))?;
+        let text = candidate
+            .content
+            .parts
+            .first()
+            .and_then(|p| p.text.clone())
+            .unwrap_or_default();
+        let prompt_tokens = resp
+            .usage_metadata
+            .as_ref()
+            .map(|u| u.prompt_token_count.unwrap_or(0))
+            .unwrap_or(0);
+        let output_tokens = resp
+            .usage_metadata
+            .as_ref()
+            .map(|u| u.candidates_token_count.unwrap_or(0))
+            .unwrap_or(0);
 
         Ok(CompletionResponse {
             text,
@@ -198,10 +229,14 @@ impl AIProvider for GoogleProvider {
             temperature: f32,
         }
 
-        let contents: Vec<Content> = request.messages.into_iter().map(|m| Content {
-            role: m.role,
-            parts: vec![Part { text: m.content }],
-        }).collect();
+        let contents: Vec<Content> = request
+            .messages
+            .into_iter()
+            .map(|m| Content {
+                role: m.role,
+                parts: vec![Part { text: m.content }],
+            })
+            .collect();
 
         let body = GenerateContentRequest {
             contents,
@@ -213,7 +248,9 @@ impl AIProvider for GoogleProvider {
 
         let model = request.model.trim_start_matches("gemini-");
         let path = format!("/models/{}:generateContent", model);
-        let response = self.request(&path, serde_json::to_value(body).unwrap()).await?;
+        let response = self
+            .request(&path, serde_json::to_value(body).unwrap())
+            .await?;
 
         #[derive(Deserialize)]
         struct GeminiResponse {
@@ -243,13 +280,29 @@ impl AIProvider for GoogleProvider {
             candidates_token_count: Option<usize>,
         }
 
-        let resp: GeminiResponse = serde_json::from_value(response)
-            .map_err(|e| AIError::Parse(e.to_string()))?;
+        let resp: GeminiResponse =
+            serde_json::from_value(response).map_err(|e| AIError::Parse(e.to_string()))?;
 
-        let candidate = resp.candidates.first().ok_or_else(|| AIError::Provider("响应中没有候选".to_string()))?;
-        let text = candidate.content.parts.first().and_then(|p| p.text.clone()).unwrap_or_default();
-        let prompt_tokens = resp.usage_metadata.as_ref().map(|u| u.prompt_token_count.unwrap_or(0)).unwrap_or(0);
-        let output_tokens = resp.usage_metadata.as_ref().map(|u| u.candidates_token_count.unwrap_or(0)).unwrap_or(0);
+        let candidate = resp
+            .candidates
+            .first()
+            .ok_or_else(|| AIError::Provider("响应中没有候选".to_string()))?;
+        let text = candidate
+            .content
+            .parts
+            .first()
+            .and_then(|p| p.text.clone())
+            .unwrap_or_default();
+        let prompt_tokens = resp
+            .usage_metadata
+            .as_ref()
+            .map(|u| u.prompt_token_count.unwrap_or(0))
+            .unwrap_or(0);
+        let output_tokens = resp
+            .usage_metadata
+            .as_ref()
+            .map(|u| u.candidates_token_count.unwrap_or(0))
+            .unwrap_or(0);
 
         Ok(ChatResponse {
             message: ChatMessage {
@@ -277,7 +330,12 @@ impl AIProvider for GoogleProvider {
 
         for text in texts {
             let body = EmbedRequestBody { content: text };
-            let response = self.request("/models/embedding-001:embedContent", serde_json::to_value(body).unwrap()).await?;
+            let response = self
+                .request(
+                    "/models/embedding-001:embedContent",
+                    serde_json::to_value(body).unwrap(),
+                )
+                .await?;
 
             #[derive(Deserialize)]
             struct EmbedResponse {
@@ -289,8 +347,8 @@ impl AIProvider for GoogleProvider {
                 values: Vec<f32>,
             }
 
-            let resp: EmbedResponse = serde_json::from_value(response)
-                .map_err(|e| AIError::Parse(e.to_string()))?;
+            let resp: EmbedResponse =
+                serde_json::from_value(response).map_err(|e| AIError::Parse(e.to_string()))?;
             embeddings.push(resp.embedding.values);
         }
 

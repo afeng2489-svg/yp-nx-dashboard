@@ -1,7 +1,7 @@
 //! A2UI 通知系统
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// 通知 ID
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -94,7 +94,12 @@ pub struct NotificationMetadata {
 
 impl Notification {
     /// 创建新的通知
-    pub fn new(title: impl Into<String>, body: impl Into<String>, level: NotificationLevel, source: impl Into<String>) -> Self {
+    pub fn new(
+        title: impl Into<String>,
+        body: impl Into<String>,
+        level: NotificationLevel,
+        source: impl Into<String>,
+    ) -> Self {
         Self {
             id: NotificationId::new(),
             title: title.into(),
@@ -109,22 +114,38 @@ impl Notification {
     }
 
     /// 创建信息通知
-    pub fn info(title: impl Into<String>, body: impl Into<String>, source: impl Into<String>) -> Self {
+    pub fn info(
+        title: impl Into<String>,
+        body: impl Into<String>,
+        source: impl Into<String>,
+    ) -> Self {
         Self::new(title, body, NotificationLevel::Info, source)
     }
 
     /// 创建成功通知
-    pub fn success(title: impl Into<String>, body: impl Into<String>, source: impl Into<String>) -> Self {
+    pub fn success(
+        title: impl Into<String>,
+        body: impl Into<String>,
+        source: impl Into<String>,
+    ) -> Self {
         Self::new(title, body, NotificationLevel::Success, source)
     }
 
     /// 创建警告通知
-    pub fn warning(title: impl Into<String>, body: impl Into<String>, source: impl Into<String>) -> Self {
+    pub fn warning(
+        title: impl Into<String>,
+        body: impl Into<String>,
+        source: impl Into<String>,
+    ) -> Self {
         Self::new(title, body, NotificationLevel::Warning, source)
     }
 
     /// 创建错误通知
-    pub fn error(title: impl Into<String>, body: impl Into<String>, source: impl Into<String>) -> Self {
+    pub fn error(
+        title: impl Into<String>,
+        body: impl Into<String>,
+        source: impl Into<String>,
+    ) -> Self {
         Self::new(title, body, NotificationLevel::Error, source)
     }
 
@@ -169,7 +190,8 @@ impl Notification {
 
     /// 检查是否过期
     pub fn is_expired(&self) -> bool {
-        self.metadata.expires_at
+        self.metadata
+            .expires_at
             .map(|exp| Utc::now() > exp)
             .unwrap_or(false)
     }
@@ -200,7 +222,11 @@ pub trait NotificationHandler: Send + Sync {
     async fn acknowledge(&self, id: &NotificationId) -> Result<(), crate::A2uiError>;
 
     /// 获取用户的所有通知
-    async fn get_notifications(&self, user_id: &str, unread_only: bool) -> Result<Vec<Notification>, crate::A2uiError>;
+    async fn get_notifications(
+        &self,
+        user_id: &str,
+        unread_only: bool,
+    ) -> Result<Vec<Notification>, crate::A2uiError>;
 }
 
 /// 通知存储器（内存实现）
@@ -254,7 +280,10 @@ impl NotificationHandler for InMemoryNotificationStore {
             n.mark_read();
             Ok(())
         } else {
-            Err(crate::A2uiError::InvalidOperation(format!("通知 {} 不存在", id.0)))
+            Err(crate::A2uiError::InvalidOperation(format!(
+                "通知 {} 不存在",
+                id.0
+            )))
         }
     }
 
@@ -264,13 +293,21 @@ impl NotificationHandler for InMemoryNotificationStore {
             n.acknowledge();
             Ok(())
         } else {
-            Err(crate::A2uiError::InvalidOperation(format!("通知 {} 不存在", id.0)))
+            Err(crate::A2uiError::InvalidOperation(format!(
+                "通知 {} 不存在",
+                id.0
+            )))
         }
     }
 
-    async fn get_notifications(&self, _user_id: &str, unread_only: bool) -> Result<Vec<Notification>, crate::A2uiError> {
+    async fn get_notifications(
+        &self,
+        _user_id: &str,
+        unread_only: bool,
+    ) -> Result<Vec<Notification>, crate::A2uiError> {
         let notifications = self.notifications.read().unwrap();
-        let mut result: Vec<Notification> = notifications.values()
+        let mut result: Vec<Notification> = notifications
+            .values()
             .filter(|n| !n.is_expired())
             .cloned()
             .collect();

@@ -10,7 +10,7 @@ use rusqlite::{params, Connection, Result as SqliteResult};
 use std::path::Path;
 use std::sync::Mutex;
 
-use crate::types::{MessageRole, MemoryChunk, MemoryStats, Transcript, TranscriptMetadata};
+use crate::types::{MemoryChunk, MemoryStats, MessageRole, Transcript, TranscriptMetadata};
 
 /// Memory 存储
 pub struct MemoryStore {
@@ -177,7 +177,11 @@ impl MemoryStore {
             INSERT OR REPLACE INTO bm25_metadata (chunk_id, content, metadata)
             VALUES (?1, ?2, ?3)
             "#,
-            params![chunk_id, content, serde_json::to_string(metadata).unwrap_or_default()],
+            params![
+                chunk_id,
+                content,
+                serde_json::to_string(metadata).unwrap_or_default()
+            ],
         )?;
 
         Ok(())
@@ -200,7 +204,11 @@ impl MemoryStore {
 
         let chunks = stmt
             .query_map([team_id], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get::<_, Option<Vec<u8>>>(2)?.unwrap_or_default()))
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get::<_, Option<Vec<u8>>>(2)?.unwrap_or_default(),
+                ))
             })?
             .filter_map(|r| r.ok())
             .collect();
@@ -209,7 +217,10 @@ impl MemoryStore {
     }
 
     /// 获取指定团队的记忆块（用于 BM25 重建）
-    pub fn get_team_bm25_data(&self, team_id: &str) -> SqliteResult<Vec<(String, String, serde_json::Value)>> {
+    pub fn get_team_bm25_data(
+        &self,
+        team_id: &str,
+    ) -> SqliteResult<Vec<(String, String, serde_json::Value)>> {
         let conn = self.conn.lock().unwrap();
 
         let mut stmt = conn.prepare(
@@ -228,7 +239,8 @@ impl MemoryStore {
                 let chunk_id: String = row.get(0)?;
                 let content: String = row.get(1)?;
                 let metadata_str: String = row.get(2)?;
-                let metadata: serde_json::Value = serde_json::from_str(&metadata_str).unwrap_or_default();
+                let metadata: serde_json::Value =
+                    serde_json::from_str(&metadata_str).unwrap_or_default();
                 Ok((chunk_id, content, metadata))
             })?
             .filter_map(|r| r.ok())
@@ -409,10 +421,7 @@ impl MemoryStore {
     /// 清空团队记忆
     pub fn clear_team(&self, team_id: &str) -> SqliteResult<()> {
         let conn = self.conn.lock().unwrap();
-        conn.execute(
-            "DELETE FROM transcripts WHERE team_id = ?1",
-            [team_id],
-        )?;
+        conn.execute("DELETE FROM transcripts WHERE team_id = ?1", [team_id])?;
         Ok(())
     }
 }

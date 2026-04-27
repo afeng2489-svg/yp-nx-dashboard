@@ -135,7 +135,11 @@ impl SkillExecutor for BrainstormSkill {
     }
 
     fn tags(&self) -> Vec<String> {
-        vec!["brainstorm".to_string(), "creative".to_string(), "multi-role".to_string()]
+        vec![
+            "brainstorm".to_string(),
+            "creative".to_string(),
+            "multi-role".to_string(),
+        ]
     }
 }
 
@@ -262,7 +266,11 @@ impl SkillExecutor for ReviewCodeSkill {
     }
 
     fn tags(&self) -> Vec<String> {
-        vec!["review".to_string(), "code".to_string(), "quality".to_string()]
+        vec![
+            "review".to_string(),
+            "code".to_string(),
+            "quality".to_string(),
+        ]
     }
 }
 
@@ -398,7 +406,11 @@ impl SkillExecutor for SecurityAuditSkill {
     }
 
     fn tags(&self) -> Vec<String> {
-        vec!["security".to_string(), "audit".to_string(), "vulnerability".to_string()]
+        vec![
+            "security".to_string(),
+            "audit".to_string(),
+            "vulnerability".to_string(),
+        ]
     }
 }
 
@@ -528,7 +540,11 @@ impl SkillExecutor for DelegationCheckSkill {
     }
 
     fn tags(&self) -> Vec<String> {
-        vec!["delegation".to_string(), "task".to_string(), "collaboration".to_string()]
+        vec![
+            "delegation".to_string(),
+            "task".to_string(),
+            "collaboration".to_string(),
+        ]
     }
 }
 
@@ -644,7 +660,11 @@ impl SkillExecutor for SkillGeneratorSkill {
     }
 
     fn tags(&self) -> Vec<String> {
-        vec!["generator".to_string(), "skill".to_string(), "code-generation".to_string()]
+        vec![
+            "generator".to_string(),
+            "skill".to_string(),
+            "code-generation".to_string(),
+        ]
     }
 }
 

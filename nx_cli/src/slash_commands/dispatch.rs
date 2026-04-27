@@ -4,10 +4,7 @@
 
 use std::collections::HashMap;
 
-use super::{
-    Args, CommandHandler, CommandOutput, CommandRegistry,
-    build_registry,
-};
+use super::{build_registry, Args, CommandHandler, CommandOutput, CommandRegistry};
 
 /// Type alias for backwards compatibility
 pub type CommandDispatcher = SlashCommandDispatcher;
@@ -132,7 +129,9 @@ impl SlashCommandDispatcher {
                 remaining = rest;
             } else {
                 // Positional argument (no '=')
-                let end = remaining.find(char::is_whitespace).unwrap_or(remaining.len());
+                let end = remaining
+                    .find(char::is_whitespace)
+                    .unwrap_or(remaining.len());
                 let token = &remaining[..end];
                 let arg_name = format!("arg{}", args.keys().count() + 1);
                 args = args.with_arg(arg_name, token);
@@ -211,11 +210,18 @@ impl SlashCommandDispatcher {
             if parts.len() > 1 {
                 let subcmd_name = parts[1];
                 if let Some(subcmd) = cmd.subcommands.iter().find(|s| s.name == subcmd_name) {
-                    help.push_str(&format!("## /{}:{}\n\n{}\n\n", cmd_name, subcmd.name, subcmd.description));
+                    help.push_str(&format!(
+                        "## /{}:{}\n\n{}\n\n",
+                        cmd_name, subcmd.name, subcmd.description
+                    ));
                     if !subcmd.arguments.is_empty() {
                         help.push_str("### Arguments\n\n");
                         for arg in &subcmd.arguments {
-                            let required = if arg.required { "(required)" } else { "(optional)" };
+                            let required = if arg.required {
+                                "(required)"
+                            } else {
+                                "(optional)"
+                            };
                             help.push_str(&format!(
                                 "- `{}` {}: {}\n",
                                 arg.name, required, arg.description

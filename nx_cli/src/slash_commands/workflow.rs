@@ -6,8 +6,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Command, CommandArgument, CommandCategory, CommandHandler, CommandOutput, Args,
-    SubCommand,
+    Args, Command, CommandArgument, CommandCategory, CommandHandler, CommandOutput, SubCommand,
 };
 
 /// Workflow definition
@@ -54,21 +53,23 @@ impl WorkflowCommands {
     }
 
     pub fn command_definition() -> Command {
-        Command::new("workflow", "Workflow management commands", CommandCategory::Workflow)
-            .with_subcommand(
-                SubCommand::new("execute", "Execute a workflow")
-                    .with_arg(CommandArgument::new("name", "Workflow name", true))
-                    .with_arg(CommandArgument::new("vars", "JSON variables for the workflow", false)),
-            )
-            .with_subcommand(
-                SubCommand::new("list", "List available workflows"),
-            )
-            .with_subcommand(
-                SubCommand::new("status", "Show current workflow status"),
-            )
-            .with_subcommand(
-                SubCommand::new("stop", "Stop the running workflow"),
-            )
+        Command::new(
+            "workflow",
+            "Workflow management commands",
+            CommandCategory::Workflow,
+        )
+        .with_subcommand(
+            SubCommand::new("execute", "Execute a workflow")
+                .with_arg(CommandArgument::new("name", "Workflow name", true))
+                .with_arg(CommandArgument::new(
+                    "vars",
+                    "JSON variables for the workflow",
+                    false,
+                )),
+        )
+        .with_subcommand(SubCommand::new("list", "List available workflows"))
+        .with_subcommand(SubCommand::new("status", "Show current workflow status"))
+        .with_subcommand(SubCommand::new("stop", "Stop the running workflow"))
     }
 }
 
@@ -154,10 +155,7 @@ impl CommandHandler for WorkflowExecuteCommand {
             ]
         });
 
-        CommandOutput::success_with_data(
-            format!("Workflow '{}' started", name),
-            execution,
-        )
+        CommandOutput::success_with_data(format!("Workflow '{}' started", name), execution)
     }
 }
 

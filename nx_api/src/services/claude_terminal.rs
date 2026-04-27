@@ -3,10 +3,10 @@
 //! 管理团队角色的 PTY 终端会话，每个会话运行一个持久的 `claude` 交互进程。
 //! 前端通过 xterm.js 渲染原始终端输出，可直接在应用内看到 Claude 的完整执行过程。
 
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::Arc;
-use parking_lot::RwLock;
 use tokio::sync::{broadcast, mpsc};
 use uuid::Uuid;
 
@@ -50,7 +50,11 @@ impl ClaudeTerminalSession {
             run_pty_session(output_tx_clone, input_rx, working_dir, cols, rows);
         });
 
-        Self { info, output_tx, input_tx }
+        Self {
+            info,
+            output_tx,
+            input_tx,
+        }
     }
 
     /// 订阅终端输出（每个 WebSocket 客户端订阅一个 receiver）
@@ -95,7 +99,7 @@ fn run_pty_session(
     cols: u16,
     rows: u16,
 ) {
-    use portable_pty::{CommandBuilder, PtySize, native_pty_system};
+    use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 
     let pty_system = native_pty_system();
     let pair = match pty_system.openpty(PtySize {
@@ -186,7 +190,12 @@ fn run_pty_session(
                     let _ = writer.flush();
                 }
                 PtyInput::Resize { rows, cols } => {
-                    let size = PtySize { rows, cols, pixel_width: 0, pixel_height: 0 };
+                    let size = PtySize {
+                        rows,
+                        cols,
+                        pixel_width: 0,
+                        pixel_height: 0,
+                    };
                     if let Err(e) = master.resize(size) {
                         tracing::warn!("[PTY] resize 失败: {}", e);
                     }
@@ -233,13 +242,18 @@ impl ClaudeTerminalManager {
 
         // Maintain secondary index by (team_id, role_id)
         if let Some(rid) = role_id {
-            self.sessions_by_role.write().insert(
-                (team_id.to_string(), rid.to_string()),
-                session_id.clone(),
-            );
+            self.sessions_by_role
+                .write()
+                .insert((team_id.to_string(), rid.to_string()), session_id.clone());
         }
 
-        tracing::info!("[ClaudeTerminal] 创建会话: {}, team: {}, size: {}x{}", session_id, team_id, cols, rows);
+        tracing::info!(
+            "[ClaudeTerminal] 创建会话: {}, team: {}, size: {}x{}",
+            session_id,
+            team_id,
+            cols,
+            rows
+        );
         session_id
     }
 
@@ -290,7 +304,11 @@ impl ClaudeTerminalManager {
     }
 
     /// 通过 (team_id, role_id) 查找会话
-    pub fn get_session_by_role(&self, team_id: &str, role_id: &str) -> Option<Arc<ClaudeTerminalSession>> {
+    pub fn get_session_by_role(
+        &self,
+        team_id: &str,
+        role_id: &str,
+    ) -> Option<Arc<ClaudeTerminalSession>> {
         let sessions_by_role = self.sessions_by_role.read();
         let session_id = sessions_by_role.get(&(team_id.to_string(), role_id.to_string()))?;
         self.sessions.read().get(session_id).cloned()
@@ -311,7 +329,11 @@ impl ClaudeTerminalManager {
         }
         // Create new one
         let session_id = self.create_session(team_id, Some(role_id), working_dir, cols, rows);
-        self.sessions.read().get(&session_id).cloned().expect("session just created")
+        self.sessions
+            .read()
+            .get(&session_id)
+            .cloned()
+            .expect("session just created")
     }
 
     /// 列出团队所有会话
@@ -326,7 +348,11 @@ impl ClaudeTerminalManager {
 
     /// 列出所有会话信息
     pub fn list_sessions(&self) -> Vec<TerminalSessionInfo> {
-        self.sessions.read().values().map(|s| s.info.clone()).collect()
+        self.sessions
+            .read()
+            .values()
+            .map(|s| s.info.clone())
+            .collect()
     }
 }
 

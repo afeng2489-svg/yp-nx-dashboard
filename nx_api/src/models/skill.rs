@@ -105,7 +105,8 @@ impl SkillRecord {
         let updated_at_str: String = row.get("updated_at")?;
 
         let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
-        let parameters: Vec<SkillParameter> = serde_json::from_str(&parameters_json).unwrap_or_default();
+        let parameters: Vec<SkillParameter> =
+            serde_json::from_str(&parameters_json).unwrap_or_default();
 
         Ok(Self {
             id: row.get("id")?,

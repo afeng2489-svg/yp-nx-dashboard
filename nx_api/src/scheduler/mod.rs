@@ -3,14 +3,12 @@
 //! This module provides a task scheduling system for NexusFlow,
 //! enabling deferred execution of various task types.
 
-pub mod task;
 pub mod queue;
+pub mod task;
 pub mod worker;
 
-pub use task::{
-    CreateTaskRequest, ScheduledTask, TaskResponse, TaskStatus, TaskType,
-};
 pub use queue::{create_task_queue, SharedTaskQueue, TaskQueue};
+pub use task::{CreateTaskRequest, ScheduledTask, TaskResponse, TaskStatus, TaskType};
 pub use worker::{spawn_workers, TaskResult, TaskWorker};
 
 use chrono::{DateTime, Duration, Utc};
@@ -139,11 +137,7 @@ impl SchedulerService {
         let _ = self.shutdown_tx.send(());
 
         // Wait for workers to finish
-        let handles: Vec<_> = self.worker_handles
-            .lock()
-            .unwrap()
-            .drain(..)
-            .collect();
+        let handles: Vec<_> = self.worker_handles.lock().unwrap().drain(..).collect();
 
         for handle in handles {
             if let Err(e) = handle.await {

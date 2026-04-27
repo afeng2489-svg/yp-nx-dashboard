@@ -121,9 +121,7 @@ pub struct TestGenerator {
 
 impl TestGenerator {
     /// Create a new test generator
-    pub fn new(
-        ai_registry: std::sync::Arc<nexus_ai::AIProviderRegistry>,
-    ) -> Self {
+    pub fn new(ai_registry: std::sync::Arc<nexus_ai::AIProviderRegistry>) -> Self {
         Self {
             ai_registry,
             default_model: "gpt-4".to_string(),
@@ -190,8 +188,7 @@ impl TestGenerator {
             file_path: None,
             integration: true,
             additional_instructions: Some(
-                "Focus on testing the interaction between components, "
-                    .to_string()
+                "Focus on testing the interaction between components, ".to_string()
                     + "database operations, API calls, and external service integrations.",
             ),
         })
@@ -199,11 +196,7 @@ impl TestGenerator {
     }
 
     /// Build the prompt for test generation
-    fn build_prompt(
-        &self,
-        request: &GenerateTestsRequest,
-        framework: TestFramework,
-    ) -> String {
+    fn build_prompt(&self, request: &GenerateTestsRequest, framework: TestFramework) -> String {
         let test_type = if request.integration {
             "integration tests"
         } else {
@@ -350,21 +343,16 @@ Generate complete, working test code that can be run immediately.
             }
             TestFramework::JavaScriptJest | TestFramework::TypeScriptJest => {
                 // Count it(' or test(' or describe(
-                code.matches("it('")
-                    .count()
-                    + code.matches("it(\"")
-                    .count()
-                    + code.matches("test('")
-                    .count()
-                    + code.matches("test(\"")
-                    .count()
+                code.matches("it('").count()
+                    + code.matches("it(\"").count()
+                    + code.matches("test('").count()
+                    + code.matches("test(\"").count()
                     + code.matches("describe('").count()
                     + code.matches("describe(\"").count()
             }
             TestFramework::GoTest => {
                 // Count func Test
-                code.matches("func Test")
-                    .count()
+                code.matches("func Test").count()
             }
             TestFramework::JavaJUnit => {
                 // Count @Test annotations
@@ -425,9 +413,8 @@ mod tests {
 
     #[test]
     fn test_count_rust_tests() {
-        let generator = TestGenerator::new(std::sync::Arc::new(
-            nexus_ai::AIProviderRegistry::new(),
-        ));
+        let generator =
+            TestGenerator::new(std::sync::Arc::new(nexus_ai::AIProviderRegistry::new()));
 
         let code = r#"
 #[test]
@@ -446,9 +433,8 @@ fn test_subtraction() {
 
     #[test]
     fn test_count_python_tests() {
-        let generator = TestGenerator::new(std::sync::Arc::new(
-            nexus_ai::AIProviderRegistry::new(),
-        ));
+        let generator =
+            TestGenerator::new(std::sync::Arc::new(nexus_ai::AIProviderRegistry::new()));
 
         let code = r#"
 def test_addition():
@@ -462,17 +448,13 @@ def test_subtraction():
     assert 5 - 3 == 2
 "#;
 
-        assert_eq!(
-            generator.count_tests(code, TestFramework::PythonPytest),
-            3
-        );
+        assert_eq!(generator.count_tests(code, TestFramework::PythonPytest), 3);
     }
 
     #[test]
     fn test_extract_code_blocks() {
-        let generator = TestGenerator::new(std::sync::Arc::new(
-            nexus_ai::AIProviderRegistry::new(),
-        ));
+        let generator =
+            TestGenerator::new(std::sync::Arc::new(nexus_ai::AIProviderRegistry::new()));
 
         let content = r#"
 Here is the test code:
@@ -494,9 +476,8 @@ That's it!
 
     #[test]
     fn test_extract_code_blocks_no_blocks() {
-        let generator = TestGenerator::new(std::sync::Arc::new(
-            nexus_ai::AIProviderRegistry::new(),
-        ));
+        let generator =
+            TestGenerator::new(std::sync::Arc::new(nexus_ai::AIProviderRegistry::new()));
 
         let content = "Just plain text without code blocks.";
 

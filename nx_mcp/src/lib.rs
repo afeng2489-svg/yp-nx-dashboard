@@ -7,5 +7,5 @@ pub mod server;
 pub mod tools;
 pub mod transport;
 
-pub use server::{McpServer, McpError};
-pub use tools::{Tool, ToolInput, ToolOutput, ToolHandler};
+pub use server::{McpError, McpServer};
+pub use tools::{Tool, ToolHandler, ToolInput, ToolOutput};

@@ -8,8 +8,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::routes::{AppState, resolve_project_id};
 use crate::models::pipeline::{Pipeline, PipelineStep, StepStatus};
+use crate::routes::{resolve_project_id, AppState};
 use crate::services::team_evolution::error::TeamEvolutionError;
 
 #[derive(Serialize)]
@@ -51,10 +51,23 @@ pub struct CreatePipelineRequest {
 
 fn build_response(pipeline: Pipeline, steps: Vec<PipelineStep>) -> PipelineResponse {
     let total = steps.len();
-    let completed = steps.iter().filter(|s| s.status == StepStatus::Completed).count();
-    let running = steps.iter().filter(|s| s.status == StepStatus::Running).count();
-    let failed = steps.iter().filter(|s| s.status == StepStatus::Failed).count();
-    let pct = if total > 0 { (completed * 100 / total) as u32 } else { 0 };
+    let completed = steps
+        .iter()
+        .filter(|s| s.status == StepStatus::Completed)
+        .count();
+    let running = steps
+        .iter()
+        .filter(|s| s.status == StepStatus::Running)
+        .count();
+    let failed = steps
+        .iter()
+        .filter(|s| s.status == StepStatus::Failed)
+        .count();
+    let pct = if total > 0 {
+        (completed * 100 / total) as u32
+    } else {
+        0
+    };
 
     PipelineResponse {
         id: pipeline.id,
@@ -62,16 +75,19 @@ fn build_response(pipeline: Pipeline, steps: Vec<PipelineStep>) -> PipelineRespo
         team_id: pipeline.team_id,
         current_phase: pipeline.current_phase.as_str().to_string(),
         status: pipeline.status.as_str().to_string(),
-        steps: steps.into_iter().map(|s| StepResponse {
-            id: s.id,
-            task_id: s.task_id,
-            phase: s.phase.as_str().to_string(),
-            role_id: s.role_id,
-            instruction: s.instruction,
-            status: s.status.as_str().to_string(),
-            output: s.output,
-            retry_count: s.retry_count,
-        }).collect(),
+        steps: steps
+            .into_iter()
+            .map(|s| StepResponse {
+                id: s.id,
+                task_id: s.task_id,
+                phase: s.phase.as_str().to_string(),
+                role_id: s.role_id,
+                instruction: s.instruction,
+                status: s.status.as_str().to_string(),
+                output: s.output,
+                retry_count: s.retry_count,
+            })
+            .collect(),
         progress: ProgressSummary {
             total_steps: total,
             completed_steps: completed,
@@ -102,11 +118,17 @@ pub async fn create_pipeline(
     Path(project_id): Path<String>,
     Json(body): Json<CreatePipelineRequest>,
 ) -> Result<(StatusCode, Json<PipelineResponse>), (StatusCode, Json<serde_json::Value>)> {
-    let service = state.pipeline_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Pipeline service not available" }))))?;
+    let service = state.pipeline_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Pipeline service not available" })),
+        )
+    })?;
 
     let resolved_id = resolve_project_id(&state, &project_id);
-    let pipeline = service.create_pipeline(&resolved_id, &body.team_id).map_err(map_tev_error)?;
+    let pipeline = service
+        .create_pipeline(&resolved_id, &body.team_id)
+        .map_err(map_tev_error)?;
     let resp = build_response(pipeline, vec![]);
     Ok((StatusCode::CREATED, Json(resp)))
 }
@@ -116,11 +138,18 @@ pub async fn get_project_pipeline(
     State(state): State<Arc<AppState>>,
     Path(project_id): Path<String>,
 ) -> Result<Json<Option<PipelineResponse>>, (StatusCode, Json<serde_json::Value>)> {
-    let service = state.pipeline_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Pipeline service not available" }))))?;
+    let service = state.pipeline_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Pipeline service not available" })),
+        )
+    })?;
 
     let resolved_id = resolve_project_id(&state, &project_id);
-    match service.get_by_project(&resolved_id).map_err(map_tev_error)? {
+    match service
+        .get_by_project(&resolved_id)
+        .map_err(map_tev_error)?
+    {
         Some((pipeline, steps)) => Ok(Json(Some(build_response(pipeline, steps)))),
         None => Ok(Json(None)),
     }
@@ -131,8 +160,12 @@ pub async fn start_pipeline(
     State(state): State<Arc<AppState>>,
     Path(pipeline_id): Path<String>,
 ) -> Result<Json<PipelineResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let service = state.pipeline_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Pipeline service not available" }))))?;
+    let service = state.pipeline_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Pipeline service not available" })),
+        )
+    })?;
 
     let pipeline = service.start(&pipeline_id).map_err(map_tev_error)?;
     let (pipeline, steps) = service.get_status(&pipeline_id).map_err(map_tev_error)?;
@@ -144,8 +177,12 @@ pub async fn pause_pipeline(
     State(state): State<Arc<AppState>>,
     Path(pipeline_id): Path<String>,
 ) -> Result<Json<PipelineResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let service = state.pipeline_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Pipeline service not available" }))))?;
+    let service = state.pipeline_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Pipeline service not available" })),
+        )
+    })?;
 
     let _pipeline = service.pause(&pipeline_id).map_err(map_tev_error)?;
     let (pipeline, steps) = service.get_status(&pipeline_id).map_err(map_tev_error)?;
@@ -157,8 +194,12 @@ pub async fn resume_pipeline(
     State(state): State<Arc<AppState>>,
     Path(pipeline_id): Path<String>,
 ) -> Result<Json<PipelineResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let service = state.pipeline_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Pipeline service not available" }))))?;
+    let service = state.pipeline_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Pipeline service not available" })),
+        )
+    })?;
 
     let _pipeline = service.resume(&pipeline_id).map_err(map_tev_error)?;
     let (pipeline, steps) = service.get_status(&pipeline_id).map_err(map_tev_error)?;
@@ -170,8 +211,12 @@ pub async fn get_pipeline_steps(
     State(state): State<Arc<AppState>>,
     Path(pipeline_id): Path<String>,
 ) -> Result<Json<PipelineResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let service = state.pipeline_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Pipeline service not available" }))))?;
+    let service = state.pipeline_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Pipeline service not available" })),
+        )
+    })?;
 
     let (pipeline, steps) = service.get_status(&pipeline_id).map_err(map_tev_error)?;
     Ok(Json(build_response(pipeline, steps)))
@@ -182,10 +227,16 @@ pub async fn retry_step(
     State(state): State<Arc<AppState>>,
     Path((pipeline_id, step_id)): Path<(String, String)>,
 ) -> Result<Json<StepResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let service = state.pipeline_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Pipeline service not available" }))))?;
+    let service = state.pipeline_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Pipeline service not available" })),
+        )
+    })?;
 
-    let step = service.retry_step(&pipeline_id, &step_id).map_err(map_tev_error)?;
+    let step = service
+        .retry_step(&pipeline_id, &step_id)
+        .map_err(map_tev_error)?;
     Ok(Json(StepResponse {
         id: step.id,
         task_id: step.task_id,
@@ -204,13 +255,21 @@ pub async fn dispatch_pipeline_steps(
     State(state): State<Arc<AppState>>,
     Path(pipeline_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let service = state.pipeline_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Pipeline service not available" }))))?;
+    let service = state.pipeline_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Pipeline service not available" })),
+        )
+    })?;
 
-    let steps = service.get_dispatchable_steps(&pipeline_id).map_err(map_tev_error)?;
+    let steps = service
+        .get_dispatchable_steps(&pipeline_id)
+        .map_err(map_tev_error)?;
 
     if steps.is_empty() {
-        return Ok(Json(serde_json::json!({ "dispatched": 0, "message": "no steps ready" })));
+        return Ok(Json(
+            serde_json::json!({ "dispatched": 0, "message": "no steps ready" }),
+        ));
     }
 
     let mut dispatched = Vec::new();
@@ -218,7 +277,12 @@ pub async fn dispatch_pipeline_steps(
 
     for step in &steps {
         // Mark step as Running
-        service.update_step_status(&step.id, &crate::models::pipeline::StepStatus::Running, None)
+        service
+            .update_step_status(
+                &step.id,
+                &crate::models::pipeline::StepStatus::Running,
+                None,
+            )
             .map_err(map_tev_error)?;
 
         // Register with event handler for auto-tracking
@@ -247,7 +311,9 @@ pub async fn dispatch_pipeline_steps(
 
                 // Register cancel token
                 let cancel_token = tokio_util::sync::CancellationToken::new();
-                state.agent_execution_manager.register_cancel_token(&execution_id, cancel_token.clone());
+                state
+                    .agent_execution_manager
+                    .register_cancel_token(&execution_id, cancel_token.clone());
 
                 // ── PTY-first dispatch (reusing existing infra) ──
                 let event_tx = state.agent_execution_manager.event_sender();
@@ -265,13 +331,14 @@ pub async fn dispatch_pipeline_steps(
                 );
 
                 if let Ok(session_id) = pty_result {
-                    let _ = event_tx.send(crate::ws::agent_execution::AgentExecutionEvent::Started {
-                        execution_id: execution_id.clone(),
-                        agent_role: "pipeline".to_string(),
-                        task_summary: step.instruction.clone(),
-                        role_id: Some(step.role_id.clone()),
-                        session_id: Some(session_id),
-                    });
+                    let _ =
+                        event_tx.send(crate::ws::agent_execution::AgentExecutionEvent::Started {
+                            execution_id: execution_id.clone(),
+                            agent_role: "pipeline".to_string(),
+                            task_summary: step.instruction.clone(),
+                            role_id: Some(step.role_id.clone()),
+                            session_id: Some(session_id),
+                        });
                     dispatched.push(serde_json::json!({
                         "step_id": step.id,
                         "execution_id": execution_id,

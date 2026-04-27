@@ -45,7 +45,12 @@ pub struct Workspace {
 
 impl Workspace {
     /// 创建新的工作区
-    pub fn new(name: String, owner_id: String, description: Option<String>, root_path: Option<String>) -> Self {
+    pub fn new(
+        name: String,
+        owner_id: String,
+        description: Option<String>,
+        root_path: Option<String>,
+    ) -> Self {
         let now = Utc::now();
         Self {
             id: uuid::Uuid::new_v4().to_string(),
@@ -155,8 +160,7 @@ impl SqliteWorkspaceRepository {
             .map(|dt| dt.with_timezone(&Utc))
             .unwrap_or_else(|_| Utc::now());
 
-        let settings = serde_json::from_str(&settings)
-            .unwrap_or_else(|_| serde_json::json!({}));
+        let settings = serde_json::from_str(&settings).unwrap_or_else(|_| serde_json::json!({}));
 
         Ok(Workspace {
             id,
@@ -254,7 +258,8 @@ impl WorkspaceRepository for SqliteWorkspaceRepository {
 
         let mut workspaces = Vec::new();
         for row in rows {
-            let (id, name, description, owner_id, root_path, settings, created_at, updated_at) = row?;
+            let (id, name, description, owner_id, root_path, settings, created_at, updated_at) =
+                row?;
             workspaces.push(Self::deserialize_row(
                 id,
                 name,
@@ -291,7 +296,8 @@ impl WorkspaceRepository for SqliteWorkspaceRepository {
 
         let mut workspaces = Vec::new();
         for row in rows {
-            let (id, name, description, owner_id, root_path, settings, created_at, updated_at) = row?;
+            let (id, name, description, owner_id, root_path, settings, created_at, updated_at) =
+                row?;
             workspaces.push(Self::deserialize_row(
                 id,
                 name,
@@ -364,8 +370,10 @@ mod tests {
     fn test_find_by_owner() {
         let repo = SqliteWorkspaceRepository::in_memory().unwrap();
 
-        let workspace1 = Workspace::new("Workspace 1".to_string(), "owner-1".to_string(), None, None);
-        let workspace2 = Workspace::new("Workspace 2".to_string(), "owner-2".to_string(), None, None);
+        let workspace1 =
+            Workspace::new("Workspace 1".to_string(), "owner-1".to_string(), None, None);
+        let workspace2 =
+            Workspace::new("Workspace 2".to_string(), "owner-2".to_string(), None, None);
 
         repo.create(&workspace1).unwrap();
         repo.create(&workspace2).unwrap();
@@ -378,7 +386,8 @@ mod tests {
     #[test]
     fn test_update() {
         let repo = SqliteWorkspaceRepository::in_memory().unwrap();
-        let mut workspace = Workspace::new("Original".to_string(), "owner-1".to_string(), None, None);
+        let mut workspace =
+            Workspace::new("Original".to_string(), "owner-1".to_string(), None, None);
 
         repo.create(&workspace).unwrap();
 

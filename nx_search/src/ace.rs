@@ -2,9 +2,9 @@
 //!
 //! 提供基于语义理解的代码搜索能力,通过 embedding 向量匹配找到语义相似的代码片段。
 
-use serde::{Deserialize, Serialize};
-use crate::index::{VectorIndex, Chunk, Document};
 use crate::embedding::EmbeddingProvider;
+use crate::index::{Chunk, Document, VectorIndex};
+use serde::{Deserialize, Serialize};
 
 /// ACE 搜索配置
 #[derive(Debug, Clone)]
@@ -207,7 +207,9 @@ impl AceEngine {
     /// 生成查询 embedding
     async fn generate_query_embedding(&self, query: &str) -> Result<Vec<f32>, AceError> {
         if let Some(ref provider) = self.embedding_provider {
-            let result = provider.embed(query).await
+            let result = provider
+                .embed(query)
+                .await
                 .map_err(|e| AceError::EmbeddingError(e.to_string()))?;
             Ok(result.vector)
         } else {
@@ -321,7 +323,8 @@ impl SymbolGraph {
     pub fn get_children(&self, id: &str) -> Vec<SymbolNode> {
         let nodes = self.nodes.read().unwrap();
         if let Some(node) = nodes.get(id) {
-            node.children.iter()
+            node.children
+                .iter()
                 .filter_map(|child_id| nodes.get(child_id).cloned())
                 .collect()
         } else {
@@ -333,7 +336,8 @@ impl SymbolGraph {
     pub fn get_parent(&self, id: &str) -> Option<SymbolNode> {
         let nodes = self.nodes.read().unwrap();
         if let Some(node) = nodes.get(id) {
-            node.parent_id.as_ref()
+            node.parent_id
+                .as_ref()
                 .and_then(|pid| nodes.get(pid).cloned())
         } else {
             None
@@ -345,10 +349,11 @@ impl SymbolGraph {
         let nodes = self.nodes.read().unwrap();
         let query_lower = query.to_lowercase();
 
-        nodes.values()
+        nodes
+            .values()
             .filter(|node| {
-                node.name.to_lowercase().contains(&query_lower) ||
-                node.kind.to_lowercase().contains(&query_lower)
+                node.name.to_lowercase().contains(&query_lower)
+                    || node.kind.to_lowercase().contains(&query_lower)
             })
             .cloned()
             .collect()

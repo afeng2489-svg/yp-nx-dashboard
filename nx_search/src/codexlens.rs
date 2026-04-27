@@ -2,9 +2,9 @@
 //!
 //! 基于倒排索引的全文搜索,支持代码感知分词、模糊匹配和高级查询语法。
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use chrono::{DateTime, Utc};
 
 /// CodexLens FTS 配置
 #[derive(Debug, Clone)]
@@ -154,13 +154,14 @@ impl IndexedDocument {
 
     /// 获取指定行的内容
     fn get_line(&self, line_num: usize) -> Option<&str> {
-        self.lines.get(line_num.saturating_sub(1)).map(|s| s.as_str())
+        self.lines
+            .get(line_num.saturating_sub(1))
+            .map(|s| s.as_str())
     }
 
     /// 获取行范围的内容
     fn get_line_range(&self, start: usize, end: usize) -> String {
-        self.lines[start.saturating_sub(1)..end.min(self.lines.len())]
-            .join("\n")
+        self.lines[start.saturating_sub(1)..end.min(self.lines.len())].join("\n")
     }
 }
 
@@ -241,7 +242,13 @@ impl CodexLensEngine {
     }
 
     /// 索引文档
-    pub fn index_document(&mut self, id: String, path: String, content: String, language: Option<String>) {
+    pub fn index_document(
+        &mut self,
+        id: String,
+        path: String,
+        content: String,
+        language: Option<String>,
+    ) {
         let doc = IndexedDocument::new(id.clone(), path.clone(), content.clone(), language.clone());
 
         // 分词
@@ -249,14 +256,21 @@ impl CodexLensEngine {
 
         // 更新倒排索引
         for (term, positions) in tokens {
-            let entry = self.inverted_index.entry(term.clone()).or_insert_with(|| InvertedIndexEntry {
-                document_ids: HashSet::new(),
-                positions: HashMap::new(),
-                doc_frequency: 0,
-            });
+            let entry =
+                self.inverted_index
+                    .entry(term.clone())
+                    .or_insert_with(|| InvertedIndexEntry {
+                        document_ids: HashSet::new(),
+                        positions: HashMap::new(),
+                        doc_frequency: 0,
+                    });
 
             entry.document_ids.insert(id.clone());
-            entry.positions.entry(id.clone()).or_insert_with(Vec::new).extend(positions);
+            entry
+                .positions
+                .entry(id.clone())
+                .or_insert_with(Vec::new)
+                .extend(positions);
             entry.doc_frequency = entry.document_ids.len();
         }
 
@@ -303,7 +317,7 @@ impl CodexLensEngine {
                     // 特殊处理代码符号
                     if *c == '#' || *c == '/' || *c == '@' || *c == '.' {
                         if i + 1 < chars.len() {
-                            let next_word: String = chars[i+1..]
+                            let next_word: String = chars[i + 1..]
                                 .iter()
                                 .take_while(|&&c| c.is_alphanumeric() || c == '_')
                                 .collect::<String>()
@@ -351,7 +365,8 @@ impl CodexLensEngine {
             return;
         }
 
-        tokens.entry(term.to_string())
+        tokens
+            .entry(term.to_string())
             .or_insert_with(Vec::new)
             .push(line_num);
     }
@@ -386,16 +401,31 @@ impl CodexLensEngine {
 
         if query_trimmed.starts_with('/') && query_trimmed.ends_with('/') {
             // 正则表达式
-            (QueryType::Regex, vec![query_trimmed[1..query_trimmed.len()-1].to_string()])
+            (
+                QueryType::Regex,
+                vec![query_trimmed[1..query_trimmed.len() - 1].to_string()],
+            )
         } else if query_trimmed.ends_with('*') {
             // 前缀查询
-            (QueryType::Prefix, vec![query_trimmed.trim_end_matches('*').to_string()])
+            (
+                QueryType::Prefix,
+                vec![query_trimmed.trim_end_matches('*').to_string()],
+            )
         } else if query_trimmed.contains('~') {
             // 模糊查询
-            (QueryType::Fuzzy, vec![query_trimmed.trim_end_matches('~').to_string()])
+            (
+                QueryType::Fuzzy,
+                vec![query_trimmed.trim_end_matches('~').to_string()],
+            )
         } else if query_trimmed.contains(' ') {
             // 短语查询
-            (QueryType::Phrase, query_trimmed.split_whitespace().map(|s| s.to_string()).collect())
+            (
+                QueryType::Phrase,
+                query_trimmed
+                    .split_whitespace()
+                    .map(|s| s.to_string())
+                    .collect(),
+            )
         } else {
             // 简单查询
             (QueryType::Simple, vec![query_trimmed.to_lowercase()])
@@ -403,7 +433,11 @@ impl CodexLensEngine {
     }
 
     /// 简单搜索
-    fn search_simple(&self, terms: &[String], options: &CodexLensSearchOptions) -> Vec<CodexLensHit> {
+    fn search_simple(
+        &self,
+        terms: &[String],
+        options: &CodexLensSearchOptions,
+    ) -> Vec<CodexLensHit> {
         let mut scores: HashMap<String, (f32, Vec<String>, usize)> = HashMap::new();
 
         for term in terms {
@@ -418,12 +452,21 @@ impl CodexLensEngine {
                     let idf = self.calculate_idf(entry.doc_frequency);
                     let score = (positions as f32) * idf;
 
-                    let entry_data = scores.entry(doc_id.clone()).or_insert((0.0, Vec::new(), usize::MAX));
+                    let entry_data =
+                        scores
+                            .entry(doc_id.clone())
+                            .or_insert((0.0, Vec::new(), usize::MAX));
                     entry_data.0 += score;
                     if !entry_data.1.contains(term) {
                         entry_data.1.push(term.clone());
                     }
-                    entry_data.2 = entry_data.2.min(*entry.positions.get(doc_id).and_then(|p| p.first()).unwrap_or(&1));
+                    entry_data.2 = entry_data.2.min(
+                        *entry
+                            .positions
+                            .get(doc_id)
+                            .and_then(|p| p.first())
+                            .unwrap_or(&1),
+                    );
                 }
             }
         }
@@ -432,7 +475,11 @@ impl CodexLensEngine {
     }
 
     /// 短语搜索
-    fn search_phrase(&self, terms: &[String], options: &CodexLensSearchOptions) -> Vec<CodexLensHit> {
+    fn search_phrase(
+        &self,
+        terms: &[String],
+        options: &CodexLensSearchOptions,
+    ) -> Vec<CodexLensHit> {
         if terms.len() < 2 {
             return self.search_simple(terms, options);
         }
@@ -447,7 +494,9 @@ impl CodexLensEngine {
                     continue;
                 }
 
-                let first_positions: Vec<usize> = first_entry.positions.get(doc_id)
+                let first_positions: Vec<usize> = first_entry
+                    .positions
+                    .get(doc_id)
                     .cloned()
                     .unwrap_or_default();
 
@@ -494,7 +543,11 @@ impl CodexLensEngine {
     }
 
     /// 前缀搜索
-    fn search_prefix(&self, prefix: &[String], options: &CodexLensSearchOptions) -> Vec<CodexLensHit> {
+    fn search_prefix(
+        &self,
+        prefix: &[String],
+        options: &CodexLensSearchOptions,
+    ) -> Vec<CodexLensHit> {
         let prefix_str = &prefix[0].to_lowercase();
         let mut scores: HashMap<String, (f32, Vec<String>, usize)> = HashMap::new();
 
@@ -508,7 +561,10 @@ impl CodexLensEngine {
                     let idf = self.calculate_idf(entry.doc_frequency);
                     let score = (term.len() as f32 / prefix_str.len() as f32) * idf;
 
-                    let entry_data = scores.entry(doc_id.clone()).or_insert((0.0, Vec::new(), usize::MAX));
+                    let entry_data =
+                        scores
+                            .entry(doc_id.clone())
+                            .or_insert((0.0, Vec::new(), usize::MAX));
                     entry_data.0 += score;
                     if !entry_data.1.contains(term) {
                         entry_data.1.push(term.clone());
@@ -521,7 +577,11 @@ impl CodexLensEngine {
     }
 
     /// 模糊搜索
-    fn search_fuzzy(&self, terms: &[String], options: &CodexLensSearchOptions) -> Vec<CodexLensHit> {
+    fn search_fuzzy(
+        &self,
+        terms: &[String],
+        options: &CodexLensSearchOptions,
+    ) -> Vec<CodexLensHit> {
         let term = &terms[0].to_lowercase();
         let tolerance = self.config.fuzzy_tolerance;
         let mut scores: HashMap<String, (f32, Vec<String>, usize)> = HashMap::new();
@@ -534,11 +594,14 @@ impl CodexLensEngine {
                         continue;
                     }
 
-                    let similarity = 1.0 - (distance as f32 / index_term.len().max(term.len()) as f32);
+                    let similarity =
+                        1.0 - (distance as f32 / index_term.len().max(term.len()) as f32);
                     let idf = self.calculate_idf(entry.doc_frequency);
                     let score = similarity * idf;
 
-                    scores.entry(doc_id.clone()).or_insert((0.0, Vec::new(), usize::MAX));
+                    scores
+                        .entry(doc_id.clone())
+                        .or_insert((0.0, Vec::new(), usize::MAX));
                 }
             }
         }
@@ -547,7 +610,11 @@ impl CodexLensEngine {
     }
 
     /// 构建搜索结果
-    fn build_results(&self, scores: HashMap<String, (f32, Vec<String>, usize)>, options: &CodexLensSearchOptions) -> Vec<CodexLensHit> {
+    fn build_results(
+        &self,
+        scores: HashMap<String, (f32, Vec<String>, usize)>,
+        options: &CodexLensSearchOptions,
+    ) -> Vec<CodexLensHit> {
         let mut results: Vec<CodexLensHit> = scores
             .into_iter()
             .filter(|(_, (score, _, _))| *score >= options.min_score)
@@ -556,7 +623,8 @@ impl CodexLensEngine {
                 CodexLensHit {
                     document_id: doc_id,
                     file_path: doc.as_ref().map(|d| d.path.clone()).unwrap_or_default(),
-                    snippet: doc.as_ref()
+                    snippet: doc
+                        .as_ref()
                         .map(|d| d.get_line(line_num).unwrap_or("").to_string())
                         .unwrap_or_default(),
                     line_number: line_num,
@@ -568,7 +636,11 @@ impl CodexLensEngine {
             .collect();
 
         // 排序
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // 限制数量
         results.truncate(options.max_results);
@@ -624,7 +696,11 @@ impl CodexLensEngine {
 
         for i in 1..=len1 {
             for j in 1..=len2 {
-                let cost = if s1.chars().nth(i - 1) == s2.chars().nth(j - 1) { 0 } else { 1 };
+                let cost = if s1.chars().nth(i - 1) == s2.chars().nth(j - 1) {
+                    0
+                } else {
+                    1
+                };
                 matrix[i][j] = (matrix[i - 1][j] + 1)
                     .min(matrix[i][j - 1] + 1)
                     .min(matrix[i - 1][j - 1] + cost);
@@ -641,7 +717,11 @@ impl CodexLensEngine {
         self.stats.avg_doc_length = if self.documents.is_empty() {
             0.0
         } else {
-            self.documents.values().map(|d| d.content.len()).sum::<usize>() as f64 / self.documents.len() as f64
+            self.documents
+                .values()
+                .map(|d| d.content.len())
+                .sum::<usize>() as f64
+                / self.documents.len() as f64
         };
     }
 

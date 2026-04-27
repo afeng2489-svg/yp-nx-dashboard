@@ -132,9 +132,15 @@ pub struct AgentConfig {
     pub stream: bool,
 }
 
-fn default_temperature() -> f32 { 0.7 }
-fn default_max_tokens() -> usize { 4096 }
-fn default_false() -> bool { false }
+fn default_temperature() -> f32 {
+    0.7
+}
+fn default_max_tokens() -> usize {
+    4096
+}
+fn default_false() -> bool {
+    false
+}
 
 impl Default for AgentConfig {
     fn default() -> Self {
@@ -231,7 +237,9 @@ pub struct StageDefinition {
     pub max_iterations: usize,
 }
 
-fn default_max_loop() -> usize { 10 }
+fn default_max_loop() -> usize {
+    10
+}
 
 /// 输出定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -256,7 +264,9 @@ pub struct ErrorHandler {
     pub max_retries: usize,
 }
 
-fn default_max_retries() -> usize { 3 }
+fn default_max_retries() -> usize {
+    3
+}
 
 /// 工作流解析器
 pub struct WorkflowParser;
@@ -269,8 +279,8 @@ impl WorkflowParser {
 
     /// 从文件解析工作流
     pub fn parse_file(path: &std::path::Path) -> Result<WorkflowDefinition, WorkflowError> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| WorkflowError::Io(e.to_string()))?;
+        let content =
+            std::fs::read_to_string(path).map_err(|e| WorkflowError::Io(e.to_string()))?;
         Self::parse(&content)
     }
 

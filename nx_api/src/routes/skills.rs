@@ -9,17 +9,15 @@ use axum::{
 use std::sync::Arc;
 
 use super::AppState;
-use crate::services::skill_service::{
-    SkillService, SkillSummary, SkillDetail, SkillStats, ExecuteSkillRequest,
-    ExecuteSkillResponse, SearchSkillsRequest,
-};
 use crate::models::skill::{CreateSkillRequest, UpdateSkillRequest};
+use crate::services::skill_service::{
+    ExecuteSkillRequest, ExecuteSkillResponse, SearchSkillsRequest, SkillDetail, SkillService,
+    SkillStats, SkillSummary,
+};
 use crate::services::workflow_service::{WorkflowService, WorkflowServiceError};
 
 /// 列出所有技能
-pub async fn list_skills(
-    State(state): State<Arc<AppState>>,
-) -> Json<Vec<SkillSummary>> {
+pub async fn list_skills(State(state): State<Arc<AppState>>) -> Json<Vec<SkillSummary>> {
     let skills = state.skill_service.list_skills();
     Json(skills)
 }
@@ -29,7 +27,8 @@ pub async fn list_by_category(
     State(state): State<Arc<AppState>>,
     Path(category): Path<String>,
 ) -> Result<Json<Vec<SkillSummary>>, (axum::http::StatusCode, String)> {
-    state.skill_service
+    state
+        .skill_service
         .list_by_category(&category)
         .map(Json)
         .map_err(|e| (axum::http::StatusCode::BAD_REQUEST, e.to_string()))
@@ -41,16 +40,21 @@ pub async fn get_skill(
     Path(id): Path<String>,
 ) -> Result<Json<SkillDetail>, (axum::http::StatusCode, String)> {
     eprintln!("[DEBUG ROUTE] get_skill called with id={}", id);
-    state.skill_service
+    state
+        .skill_service
         .get_skill(&id)
         .map(|detail| {
-            eprintln!("[DEBUG ROUTE] get_skill returning code_len={}", detail.code.as_ref().map(|c| c.len()).unwrap_or(0));
+            eprintln!(
+                "[DEBUG ROUTE] get_skill returning code_len={}",
+                detail.code.as_ref().map(|c| c.len()).unwrap_or(0)
+            );
             Json(detail)
         })
         .map_err(|e| {
             let status = match e {
-                crate::services::skill_service::SkillServiceError::SkillNotFound(_) =>
-                    axum::http::StatusCode::NOT_FOUND,
+                crate::services::skill_service::SkillServiceError::SkillNotFound(_) => {
+                    axum::http::StatusCode::NOT_FOUND
+                }
                 _ => axum::http::StatusCode::BAD_REQUEST,
             };
             (status, e.to_string())
@@ -67,7 +71,10 @@ pub async fn search_skills(
     } else if let Some(tag) = params.tags.as_ref().and_then(|t| t.first()) {
         state.skill_service.list_by_tag(tag)
     } else if let Some(category) = &params.category {
-        state.skill_service.list_by_category(category).unwrap_or_default()
+        state
+            .skill_service
+            .list_by_category(category)
+            .unwrap_or_default()
     } else {
         state.skill_service.list_skills()
     };
@@ -84,25 +91,19 @@ pub async fn list_by_tag(
 }
 
 /// 获取所有类别
-pub async fn list_categories(
-    State(state): State<Arc<AppState>>,
-) -> Json<Vec<String>> {
+pub async fn list_categories(State(state): State<Arc<AppState>>) -> Json<Vec<String>> {
     let categories = state.skill_service.list_categories();
     Json(categories)
 }
 
 /// 获取所有标签
-pub async fn list_tags(
-    State(state): State<Arc<AppState>>,
-) -> Json<Vec<String>> {
+pub async fn list_tags(State(state): State<Arc<AppState>>) -> Json<Vec<String>> {
     let tags = state.skill_service.list_tags();
     Json(tags)
 }
 
 /// 获取技能统计
-pub async fn get_stats(
-    State(state): State<Arc<AppState>>,
-) -> Json<SkillStats> {
+pub async fn get_stats(State(state): State<Arc<AppState>>) -> Json<SkillStats> {
     let stats = state.skill_service.get_stats();
     Json(stats)
 }
@@ -112,15 +113,18 @@ pub async fn create_skill(
     State(state): State<Arc<AppState>>,
     Json(req): Json<CreateSkillRequest>,
 ) -> Result<Json<SkillDetail>, (axum::http::StatusCode, String)> {
-    state.skill_service
+    state
+        .skill_service
         .create_skill(req)
         .map(Json)
         .map_err(|e| {
             let status = match e {
-                crate::services::skill_service::SkillServiceError::AlreadyExists(_) =>
-                    axum::http::StatusCode::CONFLICT,
-                crate::services::skill_service::SkillServiceError::ValidationFailed(_) =>
-                    axum::http::StatusCode::BAD_REQUEST,
+                crate::services::skill_service::SkillServiceError::AlreadyExists(_) => {
+                    axum::http::StatusCode::CONFLICT
+                }
+                crate::services::skill_service::SkillServiceError::ValidationFailed(_) => {
+                    axum::http::StatusCode::BAD_REQUEST
+                }
                 _ => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             };
             (status, e.to_string())
@@ -133,15 +137,18 @@ pub async fn update_skill(
     Path(id): Path<String>,
     Json(req): Json<UpdateSkillRequest>,
 ) -> Result<Json<SkillDetail>, (axum::http::StatusCode, String)> {
-    state.skill_service
+    state
+        .skill_service
         .update_skill(&id, req)
         .map(Json)
         .map_err(|e| {
             let status = match e {
-                crate::services::skill_service::SkillServiceError::SkillNotFound(_) =>
-                    axum::http::StatusCode::NOT_FOUND,
-                crate::services::skill_service::SkillServiceError::ValidationFailed(_) =>
-                    axum::http::StatusCode::BAD_REQUEST,
+                crate::services::skill_service::SkillServiceError::SkillNotFound(_) => {
+                    axum::http::StatusCode::NOT_FOUND
+                }
+                crate::services::skill_service::SkillServiceError::ValidationFailed(_) => {
+                    axum::http::StatusCode::BAD_REQUEST
+                }
                 _ => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             };
             (status, e.to_string())
@@ -153,15 +160,18 @@ pub async fn delete_skill(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<axum::http::StatusCode, (axum::http::StatusCode, String)> {
-    state.skill_service
+    state
+        .skill_service
         .delete_skill(&id)
         .map(|_| axum::http::StatusCode::NO_CONTENT)
         .map_err(|e| {
             let status = match e {
-                crate::services::skill_service::SkillServiceError::SkillNotFound(_) =>
-                    axum::http::StatusCode::NOT_FOUND,
-                crate::services::skill_service::SkillServiceError::ValidationFailed(_) =>
-                    axum::http::StatusCode::FORBIDDEN,
+                crate::services::skill_service::SkillServiceError::SkillNotFound(_) => {
+                    axum::http::StatusCode::NOT_FOUND
+                }
+                crate::services::skill_service::SkillServiceError::ValidationFailed(_) => {
+                    axum::http::StatusCode::FORBIDDEN
+                }
                 _ => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             };
             (status, e.to_string())
@@ -173,13 +183,9 @@ pub async fn execute_skill(
     State(state): State<Arc<AppState>>,
     Json(req): Json<ExecuteSkillRequest>,
 ) -> Result<Json<ExecuteSkillResponse>, (axum::http::StatusCode, String)> {
-    state.skill_service
-        .execute_skill(
-            &req.skill_id,
-            req.phase,
-            req.params,
-            req.working_dir,
-        )
+    state
+        .skill_service
+        .execute_skill(&req.skill_id, req.phase, req.params, req.working_dir)
         .await
         .map(Json)
         .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
@@ -189,7 +195,8 @@ pub async fn execute_skill(
 pub async fn import_from_agents(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ImportAgentsResponse>, (axum::http::StatusCode, String)> {
-    state.skill_service
+    state
+        .skill_service
         .reload_skills()
         .map(|count| {
             Json(ImportAgentsResponse {
@@ -220,16 +227,19 @@ pub async fn import_skill(
     State(state): State<Arc<AppState>>,
     Json(req): Json<ImportSkillRequest>,
 ) -> Result<Json<SkillDetail>, (axum::http::StatusCode, String)> {
-    state.skill_service
+    state
+        .skill_service
         .import_skill(&req.source, &req.content, req.filename.as_deref())
         .await
         .map(Json)
         .map_err(|e| {
             let status = match e {
-                crate::services::skill_service::SkillServiceError::AlreadyExists(_) =>
-                    axum::http::StatusCode::CONFLICT,
-                crate::services::skill_service::SkillServiceError::ValidationFailed(_) =>
-                    axum::http::StatusCode::BAD_REQUEST,
+                crate::services::skill_service::SkillServiceError::AlreadyExists(_) => {
+                    axum::http::StatusCode::CONFLICT
+                }
+                crate::services::skill_service::SkillServiceError::ValidationFailed(_) => {
+                    axum::http::StatusCode::BAD_REQUEST
+                }
                 _ => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             };
             (status, e.to_string())
@@ -242,7 +252,9 @@ pub async fn generate_workflow_from_skill(
     Path(skill_id): Path<String>,
 ) -> Result<Json<GenerateWorkflowResponse>, (axum::http::StatusCode, String)> {
     // 获取技能详情
-    let skill = state.skill_service.get_skill(&skill_id)
+    let skill = state
+        .skill_service
+        .get_skill(&skill_id)
         .map_err(|e| (axum::http::StatusCode::NOT_FOUND, e.to_string()))?;
 
     // 根据技能类别生成不同的工作流
@@ -278,7 +290,7 @@ pub async fn generate_workflow_from_skill(
                 },
             ];
             (stages, agents)
-        },
+        }
         "development" | "testing" | "review" => {
             // 开发/测试/审查技能 -> TDD 工作流
             let stages = vec![
@@ -322,16 +334,14 @@ pub async fn generate_workflow_from_skill(
                 },
             ];
             (stages, agents)
-        },
+        }
         _ => {
             // 默认 -> 简单规划工作流
-            let stages = vec![
-                crate::routes::templates::Stage {
-                    name: "执行".to_string(),
-                    agents: vec!["executor".to_string()],
-                    parallel: false,
-                },
-            ];
+            let stages = vec![crate::routes::templates::Stage {
+                name: "执行".to_string(),
+                agents: vec!["executor".to_string()],
+                parallel: false,
+            }];
             let agents = vec![
                 crate::routes::templates::Agent {
                     id: "executor".to_string(),
@@ -346,7 +356,8 @@ pub async fn generate_workflow_from_skill(
     };
 
     // 创建工作流
-    let workflow = state.workflow_service
+    let workflow = state
+        .workflow_service
         .create_workflow(
             format!("从技能创建: {}", skill.name),
             Some("1.0.0".to_string()),

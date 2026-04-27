@@ -1,7 +1,7 @@
 //! A2UI 消息定义
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// 消息类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -84,7 +84,11 @@ pub struct MessageMetadata {
 
 impl A2UMessage {
     /// 创建新的文本消息
-    pub fn text(session_id: impl Into<String>, source: impl Into<String>, content: impl Into<String>) -> Self {
+    pub fn text(
+        session_id: impl Into<String>,
+        source: impl Into<String>,
+        content: impl Into<String>,
+    ) -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             session_id: session_id.into(),
@@ -98,7 +102,11 @@ impl A2UMessage {
     }
 
     /// 创建 Markdown 消息
-    pub fn markdown(session_id: impl Into<String>, source: impl Into<String>, content: impl Into<String>) -> Self {
+    pub fn markdown(
+        session_id: impl Into<String>,
+        source: impl Into<String>,
+        content: impl Into<String>,
+    ) -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             session_id: session_id.into(),
@@ -112,7 +120,11 @@ impl A2UMessage {
     }
 
     /// 创建错误消息
-    pub fn error(session_id: impl Into<String>, source: impl Into<String>, content: impl Into<String>) -> Self {
+    pub fn error(
+        session_id: impl Into<String>,
+        source: impl Into<String>,
+        content: impl Into<String>,
+    ) -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             session_id: session_id.into(),
@@ -126,10 +138,17 @@ impl A2UMessage {
     }
 
     /// 创建代码块消息
-    pub fn code(session_id: impl Into<String>, source: impl Into<String>, content: impl Into<String>, language: Option<String>) -> Self {
+    pub fn code(
+        session_id: impl Into<String>,
+        source: impl Into<String>,
+        content: impl Into<String>,
+        language: Option<String>,
+    ) -> Self {
         let mut metadata = MessageMetadata::default();
         if let Some(lang) = language {
-            metadata.extra.insert("language".to_string(), serde_json::Value::String(lang));
+            metadata
+                .extra
+                .insert("language".to_string(), serde_json::Value::String(lang));
         }
         Self {
             id: uuid::Uuid::new_v4().to_string(),
@@ -144,7 +163,12 @@ impl A2UMessage {
     }
 
     /// 设置工作流上下文
-    pub fn with_workflow(mut self, workflow_id: impl Into<String>, stage_id: Option<String>, agent_id: Option<String>) -> Self {
+    pub fn with_workflow(
+        mut self,
+        workflow_id: impl Into<String>,
+        stage_id: Option<String>,
+        agent_id: Option<String>,
+    ) -> Self {
         self.metadata.workflow_id = Some(workflow_id.into());
         self.metadata.stage_id = stage_id;
         self.metadata.agent_id = agent_id;

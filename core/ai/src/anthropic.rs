@@ -5,7 +5,10 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use super::{AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CompletionRequest, CompletionResponse, EmbedRequest, EmbedResponse, TokenUsage};
+use super::{
+    AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CompletionRequest,
+    CompletionResponse, EmbedRequest, EmbedResponse, TokenUsage,
+};
 
 /// Anthropic API 基础 URL
 const ANTHROPIC_API_BASE: &str = "https://api.anthropic.com/v1";
@@ -41,8 +44,13 @@ impl AnthropicProvider {
     }
 
     /// 发送 HTTP 请求到 Anthropic API
-    async fn request(&self, path: &str, body: serde_json::Value) -> Result<serde_json::Value, AIError> {
-        let response = self.client
+    async fn request(
+        &self,
+        path: &str,
+        body: serde_json::Value,
+    ) -> Result<serde_json::Value, AIError> {
+        let response = self
+            .client
             .post(&format!("{}{}", ANTHROPIC_API_BASE, path))
             .header("x-api-key", &self.api_key)
             .header("anthropic-version", "2023-06-01")
@@ -62,7 +70,10 @@ impl AnthropicProvider {
             });
         }
 
-        response.json().await.map_err(|e| AIError::Parse(e.to_string()))
+        response
+            .json()
+            .await
+            .map_err(|e| AIError::Parse(e.to_string()))
     }
 }
 
@@ -109,7 +120,9 @@ impl AIProvider for AnthropicProvider {
             stop_sequences: request.stop_sequences,
         };
 
-        let response = self.request("/messages", serde_json::to_value(body).unwrap()).await?;
+        let response = self
+            .request("/messages", serde_json::to_value(body).unwrap())
+            .await?;
 
         #[derive(Deserialize)]
         struct AnthropicResponse {
@@ -130,11 +143,15 @@ impl AIProvider for AnthropicProvider {
             output_tokens: usize,
         }
 
-        let resp: AnthropicResponse = serde_json::from_value(response)
-            .map_err(|e| AIError::Parse(e.to_string()))?;
+        let resp: AnthropicResponse =
+            serde_json::from_value(response).map_err(|e| AIError::Parse(e.to_string()))?;
 
         Ok(CompletionResponse {
-            text: resp.content.first().map(|c| c.text.clone()).unwrap_or_default(),
+            text: resp
+                .content
+                .first()
+                .map(|c| c.text.clone())
+                .unwrap_or_default(),
             model: resp.model,
             usage: TokenUsage {
                 input_tokens: resp.usage.input_tokens,
@@ -164,13 +181,19 @@ impl AIProvider for AnthropicProvider {
             model: request.model.clone(),
             max_tokens: request.max_tokens,
             temperature: request.temperature,
-            messages: request.messages.into_iter().map(|m| AnthropicMessage {
-                role: m.role,
-                content: m.content,
-            }).collect(),
+            messages: request
+                .messages
+                .into_iter()
+                .map(|m| AnthropicMessage {
+                    role: m.role,
+                    content: m.content,
+                })
+                .collect(),
         };
 
-        let response = self.request("/messages", serde_json::to_value(body).unwrap()).await?;
+        let response = self
+            .request("/messages", serde_json::to_value(body).unwrap())
+            .await?;
 
         #[derive(Deserialize)]
         struct AnthropicResponse {
@@ -191,13 +214,17 @@ impl AIProvider for AnthropicProvider {
             output_tokens: usize,
         }
 
-        let resp: AnthropicResponse = serde_json::from_value(response)
-            .map_err(|e| AIError::Parse(e.to_string()))?;
+        let resp: AnthropicResponse =
+            serde_json::from_value(response).map_err(|e| AIError::Parse(e.to_string()))?;
 
         Ok(ChatResponse {
             message: ChatMessage {
                 role: "assistant".to_string(),
-                content: resp.content.first().map(|c| c.text.clone()).unwrap_or_default(),
+                content: resp
+                    .content
+                    .first()
+                    .map(|c| c.text.clone())
+                    .unwrap_or_default(),
             },
             model: resp.model,
             usage: TokenUsage {
@@ -210,6 +237,8 @@ impl AIProvider for AnthropicProvider {
 
     /// Anthropic 不支持嵌入生成
     async fn embed(&self, _request: EmbedRequest) -> Result<EmbedResponse, AIError> {
-        Err(AIError::InvalidRequest("Anthropic 不支持嵌入生成".to_string()))
+        Err(AIError::InvalidRequest(
+            "Anthropic 不支持嵌入生成".to_string(),
+        ))
     }
 }

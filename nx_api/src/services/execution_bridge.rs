@@ -2,11 +2,11 @@
 //!
 //! 将 WorkflowEvent 桥接到 ExecutionEvent，实现真正的 AI 执行与 API 的集成。
 
-use std::sync::Arc;
-use tokio::sync::broadcast;
-use nexus_workflow::events::{EventEmitter, WorkflowEvent};
 use crate::services::events::{ExecutionEvent, WorkflowOption};
 use crate::services::ExecutionService;
+use nexus_workflow::events::{EventEmitter, WorkflowEvent};
+use std::sync::Arc;
+use tokio::sync::broadcast;
 
 /// 工作流事件桥接器
 ///
@@ -26,7 +26,10 @@ impl WorkflowEventBridge {
     ///
     /// `api_exec_id` 是 ExecutionService 分配的执行 ID，所有事件将使用该 ID。
     pub fn new(execution_service: ExecutionService, api_exec_id: String) -> Self {
-        Self { execution_service, api_exec_id }
+        Self {
+            execution_service,
+            api_exec_id,
+        }
     }
 
     /// 将 WorkflowEvent 转换为 ExecutionEvent 并广播
@@ -35,40 +38,45 @@ impl WorkflowEventBridge {
     fn convert_and_broadcast(&self, event: WorkflowEvent) {
         let id = self.api_exec_id.clone();
         let execution_event = match event {
-            WorkflowEvent::WorkflowStarted { workflow_id, .. } => {
-                Some(ExecutionEvent::Started {
-                    execution_id: id,
-                    workflow_id,
-                })
-            }
-            WorkflowEvent::StageStarted { stage_name, .. } => {
-                Some(ExecutionEvent::StageStarted {
-                    execution_id: id,
-                    stage_name,
-                })
-            }
-            WorkflowEvent::StageCompleted { stage_name, outputs, .. } => {
-                let output_json = serde_json::json!({ "stage": stage_name.clone(), "outputs": outputs });
-                self.execution_service.add_stage_output(&id, stage_name.clone(), output_json.clone());
+            WorkflowEvent::WorkflowStarted { workflow_id, .. } => Some(ExecutionEvent::Started {
+                execution_id: id,
+                workflow_id,
+            }),
+            WorkflowEvent::StageStarted { stage_name, .. } => Some(ExecutionEvent::StageStarted {
+                execution_id: id,
+                stage_name,
+            }),
+            WorkflowEvent::StageCompleted {
+                stage_name,
+                outputs,
+                ..
+            } => {
+                let output_json =
+                    serde_json::json!({ "stage": stage_name.clone(), "outputs": outputs });
+                self.execution_service.add_stage_output(
+                    &id,
+                    stage_name.clone(),
+                    output_json.clone(),
+                );
                 Some(ExecutionEvent::StageCompleted {
                     execution_id: id,
                     stage_name,
                     output: output_json,
                 })
             }
-            WorkflowEvent::AgentStarted { agent_id, role, .. } => {
-                Some(ExecutionEvent::Output {
-                    execution_id: id,
-                    line: format!("[Agent {}] 开始执行（{}）", agent_id, role),
-                })
-            }
-            WorkflowEvent::AgentMessage { agent_id, message, .. } => {
-                Some(ExecutionEvent::Output {
-                    execution_id: id,
-                    line: format!("[Agent {}] {}", agent_id, message),
-                })
-            }
-            WorkflowEvent::AgentCompleted { agent_id, output, .. } => {
+            WorkflowEvent::AgentStarted { agent_id, role, .. } => Some(ExecutionEvent::Output {
+                execution_id: id,
+                line: format!("[Agent {}] 开始执行（{}）", agent_id, role),
+            }),
+            WorkflowEvent::AgentMessage {
+                agent_id, message, ..
+            } => Some(ExecutionEvent::Output {
+                execution_id: id,
+                line: format!("[Agent {}] {}", agent_id, message),
+            }),
+            WorkflowEvent::AgentCompleted {
+                agent_id, output, ..
+            } => {
                 self.execution_service.add_stage_output(
                     &id,
                     format!("agent:{}", agent_id),
@@ -79,49 +87,48 @@ impl WorkflowEventBridge {
                     line: format!("[Agent {}]\n{}", agent_id, output),
                 })
             }
-            WorkflowEvent::AgentFailed { agent_id, error, .. } => {
-                Some(ExecutionEvent::Failed {
-                    execution_id: id,
-                    error: format!("Agent {} failed: {}", agent_id, error),
-                })
-            }
+            WorkflowEvent::AgentFailed {
+                agent_id, error, ..
+            } => Some(ExecutionEvent::Failed {
+                execution_id: id,
+                error: format!("Agent {} failed: {}", agent_id, error),
+            }),
             WorkflowEvent::WorkflowCompleted { .. } => None,
-            WorkflowEvent::WorkflowPaused { stage_name, question, options, .. } => {
-                Some(ExecutionEvent::WorkflowPaused {
-                    execution_id: id,
-                    stage_name,
-                    question,
-                    options: options
-                        .into_iter()
-                        .map(|(label, value)| WorkflowOption { label, value })
-                        .collect(),
-                })
-            }
-            WorkflowEvent::WorkflowResumed { stage_name, chosen_value, .. } => {
-                Some(ExecutionEvent::WorkflowResumed {
-                    execution_id: id,
-                    stage_name,
-                    chosen_value,
-                })
-            }
-            WorkflowEvent::WorkflowFailed { error, .. } => {
-                Some(ExecutionEvent::Failed {
-                    execution_id: id,
-                    error: format!("Workflow failed: {}", error),
-                })
-            }
-            WorkflowEvent::WorkflowCancelled { .. } => {
-                Some(ExecutionEvent::Failed {
-                    execution_id: id,
-                    error: "Workflow cancelled".to_string(),
-                })
-            }
-            WorkflowEvent::VariableSet { key, value, .. } => {
-                Some(ExecutionEvent::Output {
-                    execution_id: id,
-                    line: format!("[Variable] {} = {}", key, value),
-                })
-            }
+            WorkflowEvent::WorkflowPaused {
+                stage_name,
+                question,
+                options,
+                ..
+            } => Some(ExecutionEvent::WorkflowPaused {
+                execution_id: id,
+                stage_name,
+                question,
+                options: options
+                    .into_iter()
+                    .map(|(label, value)| WorkflowOption { label, value })
+                    .collect(),
+            }),
+            WorkflowEvent::WorkflowResumed {
+                stage_name,
+                chosen_value,
+                ..
+            } => Some(ExecutionEvent::WorkflowResumed {
+                execution_id: id,
+                stage_name,
+                chosen_value,
+            }),
+            WorkflowEvent::WorkflowFailed { error, .. } => Some(ExecutionEvent::Failed {
+                execution_id: id,
+                error: format!("Workflow failed: {}", error),
+            }),
+            WorkflowEvent::WorkflowCancelled { .. } => Some(ExecutionEvent::Failed {
+                execution_id: id,
+                error: "Workflow cancelled".to_string(),
+            }),
+            WorkflowEvent::VariableSet { key, value, .. } => Some(ExecutionEvent::Output {
+                execution_id: id,
+                line: format!("[Variable] {} = {}", key, value),
+            }),
         };
 
         if let Some(event) = execution_event {

@@ -2,14 +2,14 @@
 //!
 //! 提供工作流规划和执行相关的技能。
 
-use crate::{Skill, SkillCategory, SkillId, SkillMetadata, SkillParameter, ParameterType};
+use crate::{ParameterType, Skill, SkillCategory, SkillId, SkillMetadata, SkillParameter};
 
 /// 创建工作流规划技能
 pub fn workflow_lite_plan() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("workflow-lite-plan"),
         "workflow-lite-plan",
-        "轻量级单模块规划技能。适用于简单任务的快速规划，生成简洁的实现步骤。"
+        "轻量级单模块规划技能。适用于简单任务的快速规划，生成简洁的实现步骤。",
     )
     .with_category(SkillCategory::WorkflowPlanning)
     .with_tag("planning")
@@ -30,11 +30,10 @@ pub fn workflow_lite_plan() -> Skill {
         default: None,
     });
 
-    Skill::new(metadata, "workflow_lite_plan")
-        .with_config(serde_json::json!({
-            "max_steps": 10,
-            "timeout_secs": 300
-        }))
+    Skill::new(metadata, "workflow_lite_plan").with_config(serde_json::json!({
+        "max_steps": 10,
+        "timeout_secs": 300
+    }))
 }
 
 /// 创建多 CLI 协作分析技能
@@ -42,7 +41,7 @@ pub fn workflow_multi_cli_plan() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("workflow-multi-cli-plan"),
         "workflow-multi-cli-plan",
-        "多 CLI 协作分析技能。协调多个 CLI 工具进行联合分析，汇总结果。"
+        "多 CLI 协作分析技能。协调多个 CLI 工具进行联合分析，汇总结果。",
     )
     .with_category(SkillCategory::WorkflowPlanning)
     .with_tag("planning")
@@ -63,11 +62,10 @@ pub fn workflow_multi_cli_plan() -> Skill {
         default: None,
     });
 
-    Skill::new(metadata, "workflow_multi_cli_plan")
-        .with_config(serde_json::json!({
-            "parallel": true,
-            "timeout_secs": 600
-        }))
+    Skill::new(metadata, "workflow_multi_cli_plan").with_config(serde_json::json!({
+        "parallel": true,
+        "timeout_secs": 600
+    }))
 }
 
 /// 创建完整规划技能
@@ -75,7 +73,7 @@ pub fn workflow_plan() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("workflow-plan"),
         "workflow-plan",
-        "完整规划技能。包含需求分析、架构设计、任务拆分的完整流程，支持会话持久化。"
+        "完整规划技能。包含需求分析、架构设计、任务拆分的完整流程，支持会话持久化。",
     )
     .with_category(SkillCategory::WorkflowPlanning)
     .with_tag("planning")
@@ -103,11 +101,10 @@ pub fn workflow_plan() -> Skill {
         default: Some(serde_json::json!(true)),
     });
 
-    Skill::new(metadata, "workflow_plan")
-        .with_config(serde_json::json!({
-            "phases": ["analysis", "design", "breakdown", "review"],
-            "timeout_secs": 1800
-        }))
+    Skill::new(metadata, "workflow_plan").with_config(serde_json::json!({
+        "phases": ["analysis", "design", "breakdown", "review"],
+        "timeout_secs": 1800
+    }))
 }
 
 /// 创建 TDD 工作流技能
@@ -115,7 +112,7 @@ pub fn workflow_tdd_plan() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("workflow-tdd-plan"),
         "workflow-tdd-plan",
-        "测试驱动开发工作流。遵循红-绿-重构循环，先写测试再实现。"
+        "测试驱动开发工作流。遵循红-绿-重构循环，先写测试再实现。",
     )
     .with_category(SkillCategory::WorkflowPlanning)
     .with_tag("tdd")
@@ -136,11 +133,10 @@ pub fn workflow_tdd_plan() -> Skill {
         default: Some(serde_json::json!("default")),
     });
 
-    Skill::new(metadata, "workflow_tdd_plan")
-        .with_config(serde_json::json!({
-            "phases": ["write_test", "run_test_red", "implement", "run_test_green", "refactor"],
-            "coverage_target": 80
-        }))
+    Skill::new(metadata, "workflow_tdd_plan").with_config(serde_json::json!({
+        "phases": ["write_test", "run_test_red", "implement", "run_test_green", "refactor"],
+        "coverage_target": 80
+    }))
 }
 
 /// 创建测试修复循环技能
@@ -148,7 +144,7 @@ pub fn workflow_test_fix() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("workflow-test-fix"),
         "workflow-test-fix",
-        "测试生成修复循环。持续生成测试和修复，直到测试通过。"
+        "测试生成修复循环。持续生成测试和修复，直到测试通过。",
     )
     .with_category(SkillCategory::WorkflowPlanning)
     .with_tag("testing")
@@ -169,11 +165,10 @@ pub fn workflow_test_fix() -> Skill {
         default: Some(serde_json::json!(5)),
     });
 
-    Skill::new(metadata, "workflow_test_fix")
-        .with_config(serde_json::json!({
-            "loop_mode": true,
-            "timeout_secs": 1200
-        }))
+    Skill::new(metadata, "workflow_test_fix").with_config(serde_json::json!({
+        "loop_mode": true,
+        "timeout_secs": 1200
+    }))
 }
 
 /// 创建头脑风暴技能
@@ -181,7 +176,7 @@ pub fn brainstorm() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("brainstorm"),
         "brainstorm",
-        "多角色头脑风暴。模拟多个专家角色进行创意讨论和问题解决。"
+        "多角色头脑风暴。模拟多个专家角色进行创意讨论和问题解决。",
     )
     .with_category(SkillCategory::WorkflowPlanning)
     .with_tag("brainstorm")
@@ -209,11 +204,10 @@ pub fn brainstorm() -> Skill {
         default: Some(serde_json::json!(3)),
     });
 
-    Skill::new(metadata, "brainstorm")
-        .with_config(serde_json::json!({
-            "enable_diversity": true,
-            "timeout_secs": 900
-        }))
+    Skill::new(metadata, "brainstorm").with_config(serde_json::json!({
+        "enable_diversity": true,
+        "timeout_secs": 900
+    }))
 }
 
 /// 获取所有工作流技能

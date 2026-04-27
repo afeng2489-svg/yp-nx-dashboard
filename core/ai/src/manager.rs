@@ -5,16 +5,19 @@
 //! CLI 支持：Claude, Gemini, Codex, Qwen, OpenCode
 
 use parking_lot::RwLock as SyncRwLock;
-use tokio::sync::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
+use super::claude_switch::{BackendConfig, ClaudeSwitchProvider, SwitchBackend};
 use super::cli_registry::{CLIRegistry, SemanticCLISelector};
 use super::registry::AIProviderRegistry;
 use super::selector::{GlobalModelSelector, ModelInfo};
-use super::{ChatMessage, ChatRequest, ChatResponse, CLI, CLIContext, CLIResponse, CompletionRequest, CompletionResponse, AIError, AIProvider};
-use super::claude_switch::{ClaudeSwitchProvider, SwitchBackend, BackendConfig};
+use super::{
+    AIError, AIProvider, CLIContext, CLIResponse, ChatMessage, ChatRequest, ChatResponse,
+    CompletionRequest, CompletionResponse, CLI,
+};
 
 /// AI 提供商类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -68,8 +71,12 @@ pub struct ModelConfig {
     pub extra_params: HashMap<String, String>,
 }
 
-fn default_max_tokens() -> usize { 4096 }
-fn default_temperature() -> f32 { 0.7 }
+fn default_max_tokens() -> usize {
+    4096
+}
+fn default_temperature() -> f32 {
+    0.7
+}
 
 impl Default for ModelConfig {
     fn default() -> Self {
@@ -101,7 +108,9 @@ pub struct APIConfig {
     pub timeout_secs: u64,
 }
 
-fn default_timeout() -> u64 { 120 }
+fn default_timeout() -> u64 {
+    120
+}
 
 impl Default for APIConfig {
     fn default() -> Self {
@@ -399,7 +408,9 @@ impl AIModelManager {
 
         // 缓存模型配置并注册到选择器
         let model_id = config.default_model.model_id.clone();
-        self.model_configs.write().insert(model_id.clone(), config.default_model.clone());
+        self.model_configs
+            .write()
+            .insert(model_id.clone(), config.default_model.clone());
 
         // 注册模型到全局选择器
         self.selector.register_model(ModelInfo {
@@ -418,7 +429,9 @@ impl AIModelManager {
 
     /// 注册新的模型配置
     pub fn register_model(&self, config: ModelConfig) {
-        self.model_configs.write().insert(config.model_id.clone(), config.clone());
+        self.model_configs
+            .write()
+            .insert(config.model_id.clone(), config.clone());
     }
 
     /// 获取模型配置
@@ -502,7 +515,9 @@ impl AIModelManager {
     /// 根据模型 ID 选择提供商并执行
     pub async fn call(&self, model_id: &str, prompt: String) -> Result<AIResponse, AIError> {
         // 首先尝试从 model_configs 获取完整配置
-        let config = self.model_configs.read()
+        let config = self
+            .model_configs
+            .read()
             .get(model_id)
             .cloned()
             .unwrap_or_else(|| {
@@ -511,7 +526,8 @@ impl AIModelManager {
                 self.config.read().default_model.clone()
             });
 
-        self.complete(AIRequestParams::completion(config, prompt)).await
+        self.complete(AIRequestParams::completion(config, prompt))
+            .await
     }
 
     /// 获取提供商注册表
@@ -575,91 +591,507 @@ impl AIModelManager {
 
         let default_models = vec![
             // Anthropic
-            ModelInfo { model_id: "claude-opus-4-5".to_string(), provider: "claude-official".to_string(), display_name: "Claude Opus 4.5".to_string(), description: "Most intelligent model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "claude-sonnet-4-5".to_string(), provider: "claude-official".to_string(), display_name: "Claude Sonnet 4.5".to_string(), description: "Balanced model".to_string(), supports_chat: true, supports_completion: true, is_default: true },
-            ModelInfo { model_id: "claude-haiku-4-5".to_string(), provider: "claude-official".to_string(), display_name: "Claude Haiku 4.5".to_string(), description: "Fastest model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "claude-opus-4-5".to_string(),
+                provider: "claude-official".to_string(),
+                display_name: "Claude Opus 4.5".to_string(),
+                description: "Most intelligent model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "claude-sonnet-4-5".to_string(),
+                provider: "claude-official".to_string(),
+                display_name: "Claude Sonnet 4.5".to_string(),
+                description: "Balanced model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: true,
+            },
+            ModelInfo {
+                model_id: "claude-haiku-4-5".to_string(),
+                provider: "claude-official".to_string(),
+                display_name: "Claude Haiku 4.5".to_string(),
+                description: "Fastest model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // DeepSeek
-            ModelInfo { model_id: "deepseek-chat".to_string(), provider: "deepseek".to_string(), display_name: "DeepSeek Chat".to_string(), description: "DeepSeek general model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "deepseek-coder".to_string(), provider: "deepseek".to_string(), display_name: "DeepSeek Coder".to_string(), description: "DeepSeek code model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "deepseek-chat".to_string(),
+                provider: "deepseek".to_string(),
+                display_name: "DeepSeek Chat".to_string(),
+                description: "DeepSeek general model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "deepseek-coder".to_string(),
+                provider: "deepseek".to_string(),
+                display_name: "DeepSeek Coder".to_string(),
+                description: "DeepSeek code model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Zhipu GLM
-            ModelInfo { model_id: "glm-4".to_string(), provider: "zhipu-glm".to_string(), display_name: "GLM-4".to_string(), description: "Zhipu GLM-4".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "glm-4-plus".to_string(), provider: "zhipu-glm".to_string(), display_name: "GLM-4 Plus".to_string(), description: "Zhipu GLM-4 Plus".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "glm-4-air".to_string(), provider: "zhipu-glm".to_string(), display_name: "GLM-4 Air".to_string(), description: "Zhipu GLM-4 Air".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "glm-4-airx".to_string(), provider: "zhipu-glm".to_string(), display_name: "GLM-4 AirX".to_string(), description: "Zhipu GLM-4 AirX".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "glm-4".to_string(),
+                provider: "zhipu-glm".to_string(),
+                display_name: "GLM-4".to_string(),
+                description: "Zhipu GLM-4".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "glm-4-plus".to_string(),
+                provider: "zhipu-glm".to_string(),
+                display_name: "GLM-4 Plus".to_string(),
+                description: "Zhipu GLM-4 Plus".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "glm-4-air".to_string(),
+                provider: "zhipu-glm".to_string(),
+                display_name: "GLM-4 Air".to_string(),
+                description: "Zhipu GLM-4 Air".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "glm-4-airx".to_string(),
+                provider: "zhipu-glm".to_string(),
+                display_name: "GLM-4 AirX".to_string(),
+                description: "Zhipu GLM-4 AirX".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Bailian
-            ModelInfo { model_id: "qwen-plus".to_string(), provider: "bailian".to_string(), display_name: "Bailian Qwen Plus".to_string(), description: "Alibaba Qwen Plus".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "qwen-turbo".to_string(), provider: "bailian".to_string(), display_name: "Bailian Qwen Turbo".to_string(), description: "Alibaba Qwen Turbo".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "qwen-max".to_string(), provider: "bailian".to_string(), display_name: "Bailian Qwen Max".to_string(), description: "Alibaba Qwen Max".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "bailian-coder".to_string(), provider: "bailian".to_string(), display_name: "Bailian For Coding".to_string(), description: "Alibaba code model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "qwen-plus".to_string(),
+                provider: "bailian".to_string(),
+                display_name: "Bailian Qwen Plus".to_string(),
+                description: "Alibaba Qwen Plus".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "qwen-turbo".to_string(),
+                provider: "bailian".to_string(),
+                display_name: "Bailian Qwen Turbo".to_string(),
+                description: "Alibaba Qwen Turbo".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "qwen-max".to_string(),
+                provider: "bailian".to_string(),
+                display_name: "Bailian Qwen Max".to_string(),
+                description: "Alibaba Qwen Max".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "bailian-coder".to_string(),
+                provider: "bailian".to_string(),
+                display_name: "Bailian For Coding".to_string(),
+                description: "Alibaba code model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Kimi
-            ModelInfo { model_id: "moonshot-v1-8k".to_string(), provider: "kimi".to_string(), display_name: "Kimi 8K".to_string(), description: "Moonshot 8K context".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "moonshot-v1-32k".to_string(), provider: "kimi".to_string(), display_name: "Kimi 32K".to_string(), description: "Moonshot 32K context".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "moonshot-v1-128k".to_string(), provider: "kimi".to_string(), display_name: "Kimi 128K".to_string(), description: "Moonshot 128K context".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "moonshot-v1-8k".to_string(),
+                provider: "kimi".to_string(),
+                display_name: "Kimi 8K".to_string(),
+                description: "Moonshot 8K context".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "moonshot-v1-32k".to_string(),
+                provider: "kimi".to_string(),
+                display_name: "Kimi 32K".to_string(),
+                description: "Moonshot 32K context".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "moonshot-v1-128k".to_string(),
+                provider: "kimi".to_string(),
+                display_name: "Kimi 128K".to_string(),
+                description: "Moonshot 128K context".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // StepFun
-            ModelInfo { model_id: "step-1v-8k".to_string(), provider: "stepfun".to_string(), display_name: "Step-1V 8K".to_string(), description: "StepFun vision model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "step-1v-32k".to_string(), provider: "stepfun".to_string(), display_name: "Step-1V 32K".to_string(), description: "StepFun vision 32K".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "step-1-flash".to_string(), provider: "stepfun".to_string(), display_name: "Step-1 Flash".to_string(), description: "StepFun fast model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "step-1v-8k".to_string(),
+                provider: "stepfun".to_string(),
+                display_name: "Step-1V 8K".to_string(),
+                description: "StepFun vision model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "step-1v-32k".to_string(),
+                provider: "stepfun".to_string(),
+                display_name: "Step-1V 32K".to_string(),
+                description: "StepFun vision 32K".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "step-1-flash".to_string(),
+                provider: "stepfun".to_string(),
+                display_name: "Step-1 Flash".to_string(),
+                description: "StepFun fast model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // KAT-Coder
-            ModelInfo { model_id: "kat-coder".to_string(), provider: "kat-coder".to_string(), display_name: "KAT-Coder".to_string(), description: "KAT Coder".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "kat-coder".to_string(),
+                provider: "kat-coder".to_string(),
+                display_name: "KAT-Coder".to_string(),
+                description: "KAT Coder".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Longcat
-            ModelInfo { model_id: "longcat-chat".to_string(), provider: "longcat".to_string(), display_name: "Longcat Chat".to_string(), description: "Longcat chat model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "longcat-chat".to_string(),
+                provider: "longcat".to_string(),
+                display_name: "Longcat Chat".to_string(),
+                description: "Longcat chat model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // MiniMax
-            ModelInfo { model_id: "MiniMax-M2.7".to_string(), provider: "minimax".to_string(), display_name: "MiniMax-M2.7".to_string(), description: "MiniMax M2.7 latest model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "abab6-chat".to_string(), provider: "minimax".to_string(), display_name: "MiniMax Chat".to_string(), description: "MiniMax chat model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "abab6-gs".to_string(), provider: "minimax".to_string(), display_name: "MiniMax GS".to_string(), description: "MiniMax GS model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "MiniMax-M2.7".to_string(),
+                provider: "minimax".to_string(),
+                display_name: "MiniMax-M2.7".to_string(),
+                description: "MiniMax M2.7 latest model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "abab6-chat".to_string(),
+                provider: "minimax".to_string(),
+                display_name: "MiniMax Chat".to_string(),
+                description: "MiniMax chat model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "abab6-gs".to_string(),
+                provider: "minimax".to_string(),
+                display_name: "MiniMax GS".to_string(),
+                description: "MiniMax GS model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // DouBaoSeed
-            ModelInfo { model_id: "doubao-seed".to_string(), provider: "doubao".to_string(), display_name: "DouBao Seed".to_string(), description: "DouBao seed model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "doubao-seed".to_string(),
+                provider: "doubao".to_string(),
+                display_name: "DouBao Seed".to_string(),
+                description: "DouBao seed model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // BaiLing
-            ModelInfo { model_id: "bailing-chat".to_string(), provider: "bailing".to_string(), display_name: "BaiLing Chat".to_string(), description: "BaiLing chat model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "bailing-chat".to_string(),
+                provider: "bailing".to_string(),
+                display_name: "BaiLing Chat".to_string(),
+                description: "BaiLing chat model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Xiaomi MiMo
-            ModelInfo { model_id: "mimo-chat".to_string(), provider: "xiaomi".to_string(), display_name: "MiMo Chat".to_string(), description: "Xiaomi MiMo".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "mimo-chat".to_string(),
+                provider: "xiaomi".to_string(),
+                display_name: "MiMo Chat".to_string(),
+                description: "Xiaomi MiMo".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // ModelScope
-            ModelInfo { model_id: "modelscope-chat".to_string(), provider: "modelscope".to_string(), display_name: "ModelScope Chat".to_string(), description: "ModelScope chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "modelscope-chat".to_string(),
+                provider: "modelscope".to_string(),
+                display_name: "ModelScope Chat".to_string(),
+                description: "ModelScope chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // AiHubMix
-            ModelInfo { model_id: "aihubmix-chat".to_string(), provider: "aihubmix".to_string(), display_name: "AiHubMix Chat".to_string(), description: "AiHubMix chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "aihubmix-chat".to_string(),
+                provider: "aihubmix".to_string(),
+                display_name: "AiHubMix Chat".to_string(),
+                description: "AiHubMix chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // SiliconFlow
-            ModelInfo { model_id: "siliconflow-chat".to_string(), provider: "siliconflow".to_string(), display_name: "SiliconFlow Chat".to_string(), description: "SiliconFlow chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "siliconflow-chat".to_string(),
+                provider: "siliconflow".to_string(),
+                display_name: "SiliconFlow Chat".to_string(),
+                description: "SiliconFlow chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // OpenRouter
-            ModelInfo { model_id: "openrouter-chat".to_string(), provider: "openrouter".to_string(), display_name: "OpenRouter Chat".to_string(), description: "OpenRouter chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "openrouter-chat".to_string(),
+                provider: "openrouter".to_string(),
+                display_name: "OpenRouter Chat".to_string(),
+                description: "OpenRouter chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Novita AI
-            ModelInfo { model_id: "novita-chat".to_string(), provider: "novita".to_string(), display_name: "Novita AI Chat".to_string(), description: "Novita AI chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "novita-chat".to_string(),
+                provider: "novita".to_string(),
+                display_name: "Novita AI Chat".to_string(),
+                description: "Novita AI chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Nvidia
-            ModelInfo { model_id: "nvidia-chat".to_string(), provider: "nvidia".to_string(), display_name: "Nvidia Chat".to_string(), description: "Nvidia NIM".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "nvidia-chat".to_string(),
+                provider: "nvidia".to_string(),
+                display_name: "Nvidia Chat".to_string(),
+                description: "Nvidia NIM".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // PackyCode
-            ModelInfo { model_id: "packycode-chat".to_string(), provider: "packycode".to_string(), display_name: "PackyCode Chat".to_string(), description: "PackyCode chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "packycode-chat".to_string(),
+                provider: "packycode".to_string(),
+                display_name: "PackyCode Chat".to_string(),
+                description: "PackyCode chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Cubence
-            ModelInfo { model_id: "cubence-chat".to_string(), provider: "cubence".to_string(), display_name: "Cubence Chat".to_string(), description: "Cubence chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "cubence-chat".to_string(),
+                provider: "cubence".to_string(),
+                display_name: "Cubence Chat".to_string(),
+                description: "Cubence chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // AIGoCode
-            ModelInfo { model_id: "aigocode-chat".to_string(), provider: "aigocode".to_string(), display_name: "AIGoCode Chat".to_string(), description: "AIGoCode chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "aigocode-chat".to_string(),
+                provider: "aigocode".to_string(),
+                display_name: "AIGoCode Chat".to_string(),
+                description: "AIGoCode chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // RightCode
-            ModelInfo { model_id: "rightcode-chat".to_string(), provider: "rightcode".to_string(), display_name: "RightCode Chat".to_string(), description: "RightCode chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "rightcode-chat".to_string(),
+                provider: "rightcode".to_string(),
+                display_name: "RightCode Chat".to_string(),
+                description: "RightCode chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // AICodeMirror
-            ModelInfo { model_id: "aicodemirror-chat".to_string(), provider: "aicodemirror".to_string(), display_name: "AICodeMirror Chat".to_string(), description: "AICodeMirror chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "aicodemirror-chat".to_string(),
+                provider: "aicodemirror".to_string(),
+                display_name: "AICodeMirror Chat".to_string(),
+                description: "AICodeMirror chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // AICoding
-            ModelInfo { model_id: "aicoding-chat".to_string(), provider: "aicoding".to_string(), display_name: "AICoding Chat".to_string(), description: "AICoding chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "aicoding-chat".to_string(),
+                provider: "aicoding".to_string(),
+                display_name: "AICoding Chat".to_string(),
+                description: "AICoding chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // CrazyRouter
-            ModelInfo { model_id: "crazyrouter-chat".to_string(), provider: "crazyrouter".to_string(), display_name: "CrazyRouter Chat".to_string(), description: "CrazyRouter chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "crazyrouter-chat".to_string(),
+                provider: "crazyrouter".to_string(),
+                display_name: "CrazyRouter Chat".to_string(),
+                description: "CrazyRouter chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // SSSAiCode
-            ModelInfo { model_id: "sssaicode-chat".to_string(), provider: "sssaicode".to_string(), display_name: "SSSAiCode Chat".to_string(), description: "SSSAiCode chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "sssaicode-chat".to_string(),
+                provider: "sssaicode".to_string(),
+                display_name: "SSSAiCode Chat".to_string(),
+                description: "SSSAiCode chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Micu
-            ModelInfo { model_id: "micu-chat".to_string(), provider: "micu".to_string(), display_name: "Micu Chat".to_string(), description: "Micu chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "micu-chat".to_string(),
+                provider: "micu".to_string(),
+                display_name: "Micu Chat".to_string(),
+                description: "Micu chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // X-Code API
-            ModelInfo { model_id: "xcodeapi-chat".to_string(), provider: "xcodeapi".to_string(), display_name: "X-Code API Chat".to_string(), description: "X-Code API chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "xcodeapi-chat".to_string(),
+                provider: "xcodeapi".to_string(),
+                display_name: "X-Code API Chat".to_string(),
+                description: "X-Code API chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // CTok.ai
-            ModelInfo { model_id: "ctok-chat".to_string(), provider: "ctok".to_string(), display_name: "CTok.ai Chat".to_string(), description: "CTok.ai chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "ctok-chat".to_string(),
+                provider: "ctok".to_string(),
+                display_name: "CTok.ai Chat".to_string(),
+                description: "CTok.ai chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // GitHub Copilot
-            ModelInfo { model_id: "github-copilot".to_string(), provider: "github-copilot".to_string(), display_name: "GitHub Copilot".to_string(), description: "GitHub Copilot".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "github-copilot".to_string(),
+                provider: "github-copilot".to_string(),
+                display_name: "GitHub Copilot".to_string(),
+                description: "GitHub Copilot".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // AWS Bedrock
-            ModelInfo { model_id: "bedrock-claude".to_string(), provider: "aws-bedrock".to_string(), display_name: "Claude on Bedrock".to_string(), description: "AWS Bedrock Claude".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "bedrock-claude".to_string(),
+                provider: "aws-bedrock".to_string(),
+                display_name: "Claude on Bedrock".to_string(),
+                description: "AWS Bedrock Claude".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // OpenAI (original)
-            ModelInfo { model_id: "gpt-4o".to_string(), provider: "openai".to_string(), display_name: "GPT-4o".to_string(), description: "OpenAI GPT-4o".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "gpt-4-turbo".to_string(), provider: "openai".to_string(), display_name: "GPT-4 Turbo".to_string(), description: "OpenAI GPT-4 Turbo".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "gpt-4o".to_string(),
+                provider: "openai".to_string(),
+                display_name: "GPT-4o".to_string(),
+                description: "OpenAI GPT-4o".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "gpt-4-turbo".to_string(),
+                provider: "openai".to_string(),
+                display_name: "GPT-4 Turbo".to_string(),
+                description: "OpenAI GPT-4 Turbo".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Google
-            ModelInfo { model_id: "gemini-1.5-pro".to_string(), provider: "google".to_string(), display_name: "Gemini 1.5 Pro".to_string(), description: "Google Gemini 1.5 Pro".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "gemini-1.5-flash".to_string(), provider: "google".to_string(), display_name: "Gemini 1.5 Flash".to_string(), description: "Google Gemini 1.5 Flash".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "gemini-1.5-pro".to_string(),
+                provider: "google".to_string(),
+                display_name: "Gemini 1.5 Pro".to_string(),
+                description: "Google Gemini 1.5 Pro".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "gemini-1.5-flash".to_string(),
+                provider: "google".to_string(),
+                display_name: "Gemini 1.5 Flash".to_string(),
+                description: "Google Gemini 1.5 Flash".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Ollama
-            ModelInfo { model_id: "llama3".to_string(), provider: "ollama".to_string(), display_name: "Llama 3".to_string(), description: "Meta Llama 3".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "codellama".to_string(), provider: "ollama".to_string(), display_name: "Code Llama".to_string(), description: "Code Llama".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "llama3".to_string(),
+                provider: "ollama".to_string(),
+                display_name: "Llama 3".to_string(),
+                description: "Meta Llama 3".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "codellama".to_string(),
+                provider: "ollama".to_string(),
+                display_name: "Code Llama".to_string(),
+                description: "Code Llama".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
         ];
 
         for model in default_models {
@@ -691,91 +1123,507 @@ impl AIModelManager {
 
         let default_models = vec![
             // Anthropic
-            ModelInfo { model_id: "claude-opus-4-5".to_string(), provider: "claude-official".to_string(), display_name: "Claude Opus 4.5".to_string(), description: "Most intelligent model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "claude-sonnet-4-5".to_string(), provider: "claude-official".to_string(), display_name: "Claude Sonnet 4.5".to_string(), description: "Balanced model".to_string(), supports_chat: true, supports_completion: true, is_default: true },
-            ModelInfo { model_id: "claude-haiku-4-5".to_string(), provider: "claude-official".to_string(), display_name: "Claude Haiku 4.5".to_string(), description: "Fastest model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "claude-opus-4-5".to_string(),
+                provider: "claude-official".to_string(),
+                display_name: "Claude Opus 4.5".to_string(),
+                description: "Most intelligent model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "claude-sonnet-4-5".to_string(),
+                provider: "claude-official".to_string(),
+                display_name: "Claude Sonnet 4.5".to_string(),
+                description: "Balanced model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: true,
+            },
+            ModelInfo {
+                model_id: "claude-haiku-4-5".to_string(),
+                provider: "claude-official".to_string(),
+                display_name: "Claude Haiku 4.5".to_string(),
+                description: "Fastest model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // DeepSeek
-            ModelInfo { model_id: "deepseek-chat".to_string(), provider: "deepseek".to_string(), display_name: "DeepSeek Chat".to_string(), description: "DeepSeek general model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "deepseek-coder".to_string(), provider: "deepseek".to_string(), display_name: "DeepSeek Coder".to_string(), description: "DeepSeek code model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "deepseek-chat".to_string(),
+                provider: "deepseek".to_string(),
+                display_name: "DeepSeek Chat".to_string(),
+                description: "DeepSeek general model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "deepseek-coder".to_string(),
+                provider: "deepseek".to_string(),
+                display_name: "DeepSeek Coder".to_string(),
+                description: "DeepSeek code model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Zhipu GLM
-            ModelInfo { model_id: "glm-4".to_string(), provider: "zhipu-glm".to_string(), display_name: "GLM-4".to_string(), description: "Zhipu GLM-4".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "glm-4-plus".to_string(), provider: "zhipu-glm".to_string(), display_name: "GLM-4 Plus".to_string(), description: "Zhipu GLM-4 Plus".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "glm-4-air".to_string(), provider: "zhipu-glm".to_string(), display_name: "GLM-4 Air".to_string(), description: "Zhipu GLM-4 Air".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "glm-4-airx".to_string(), provider: "zhipu-glm".to_string(), display_name: "GLM-4 AirX".to_string(), description: "Zhipu GLM-4 AirX".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "glm-4".to_string(),
+                provider: "zhipu-glm".to_string(),
+                display_name: "GLM-4".to_string(),
+                description: "Zhipu GLM-4".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "glm-4-plus".to_string(),
+                provider: "zhipu-glm".to_string(),
+                display_name: "GLM-4 Plus".to_string(),
+                description: "Zhipu GLM-4 Plus".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "glm-4-air".to_string(),
+                provider: "zhipu-glm".to_string(),
+                display_name: "GLM-4 Air".to_string(),
+                description: "Zhipu GLM-4 Air".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "glm-4-airx".to_string(),
+                provider: "zhipu-glm".to_string(),
+                display_name: "GLM-4 AirX".to_string(),
+                description: "Zhipu GLM-4 AirX".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Bailian
-            ModelInfo { model_id: "qwen-plus".to_string(), provider: "bailian".to_string(), display_name: "Bailian Qwen Plus".to_string(), description: "Alibaba Qwen Plus".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "qwen-turbo".to_string(), provider: "bailian".to_string(), display_name: "Bailian Qwen Turbo".to_string(), description: "Alibaba Qwen Turbo".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "qwen-max".to_string(), provider: "bailian".to_string(), display_name: "Bailian Qwen Max".to_string(), description: "Alibaba Qwen Max".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "bailian-coder".to_string(), provider: "bailian".to_string(), display_name: "Bailian For Coding".to_string(), description: "Alibaba code model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "qwen-plus".to_string(),
+                provider: "bailian".to_string(),
+                display_name: "Bailian Qwen Plus".to_string(),
+                description: "Alibaba Qwen Plus".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "qwen-turbo".to_string(),
+                provider: "bailian".to_string(),
+                display_name: "Bailian Qwen Turbo".to_string(),
+                description: "Alibaba Qwen Turbo".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "qwen-max".to_string(),
+                provider: "bailian".to_string(),
+                display_name: "Bailian Qwen Max".to_string(),
+                description: "Alibaba Qwen Max".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "bailian-coder".to_string(),
+                provider: "bailian".to_string(),
+                display_name: "Bailian For Coding".to_string(),
+                description: "Alibaba code model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Kimi
-            ModelInfo { model_id: "moonshot-v1-8k".to_string(), provider: "kimi".to_string(), display_name: "Kimi 8K".to_string(), description: "Moonshot 8K context".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "moonshot-v1-32k".to_string(), provider: "kimi".to_string(), display_name: "Kimi 32K".to_string(), description: "Moonshot 32K context".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "moonshot-v1-128k".to_string(), provider: "kimi".to_string(), display_name: "Kimi 128K".to_string(), description: "Moonshot 128K context".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "moonshot-v1-8k".to_string(),
+                provider: "kimi".to_string(),
+                display_name: "Kimi 8K".to_string(),
+                description: "Moonshot 8K context".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "moonshot-v1-32k".to_string(),
+                provider: "kimi".to_string(),
+                display_name: "Kimi 32K".to_string(),
+                description: "Moonshot 32K context".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "moonshot-v1-128k".to_string(),
+                provider: "kimi".to_string(),
+                display_name: "Kimi 128K".to_string(),
+                description: "Moonshot 128K context".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // StepFun
-            ModelInfo { model_id: "step-1v-8k".to_string(), provider: "stepfun".to_string(), display_name: "Step-1V 8K".to_string(), description: "StepFun vision model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "step-1v-32k".to_string(), provider: "stepfun".to_string(), display_name: "Step-1V 32K".to_string(), description: "StepFun vision 32K".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "step-1-flash".to_string(), provider: "stepfun".to_string(), display_name: "Step-1 Flash".to_string(), description: "StepFun fast model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "step-1v-8k".to_string(),
+                provider: "stepfun".to_string(),
+                display_name: "Step-1V 8K".to_string(),
+                description: "StepFun vision model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "step-1v-32k".to_string(),
+                provider: "stepfun".to_string(),
+                display_name: "Step-1V 32K".to_string(),
+                description: "StepFun vision 32K".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "step-1-flash".to_string(),
+                provider: "stepfun".to_string(),
+                display_name: "Step-1 Flash".to_string(),
+                description: "StepFun fast model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // KAT-Coder
-            ModelInfo { model_id: "kat-coder".to_string(), provider: "kat-coder".to_string(), display_name: "KAT-Coder".to_string(), description: "KAT Coder".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "kat-coder".to_string(),
+                provider: "kat-coder".to_string(),
+                display_name: "KAT-Coder".to_string(),
+                description: "KAT Coder".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Longcat
-            ModelInfo { model_id: "longcat-chat".to_string(), provider: "longcat".to_string(), display_name: "Longcat Chat".to_string(), description: "Longcat chat model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "longcat-chat".to_string(),
+                provider: "longcat".to_string(),
+                display_name: "Longcat Chat".to_string(),
+                description: "Longcat chat model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // MiniMax
-            ModelInfo { model_id: "MiniMax-M2.7".to_string(), provider: "minimax".to_string(), display_name: "MiniMax-M2.7".to_string(), description: "MiniMax M2.7 latest model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "abab6-chat".to_string(), provider: "minimax".to_string(), display_name: "MiniMax Chat".to_string(), description: "MiniMax chat model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "abab6-gs".to_string(), provider: "minimax".to_string(), display_name: "MiniMax GS".to_string(), description: "MiniMax GS model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "MiniMax-M2.7".to_string(),
+                provider: "minimax".to_string(),
+                display_name: "MiniMax-M2.7".to_string(),
+                description: "MiniMax M2.7 latest model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "abab6-chat".to_string(),
+                provider: "minimax".to_string(),
+                display_name: "MiniMax Chat".to_string(),
+                description: "MiniMax chat model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "abab6-gs".to_string(),
+                provider: "minimax".to_string(),
+                display_name: "MiniMax GS".to_string(),
+                description: "MiniMax GS model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // DouBaoSeed
-            ModelInfo { model_id: "doubao-seed".to_string(), provider: "doubao".to_string(), display_name: "DouBao Seed".to_string(), description: "DouBao seed model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "doubao-seed".to_string(),
+                provider: "doubao".to_string(),
+                display_name: "DouBao Seed".to_string(),
+                description: "DouBao seed model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // BaiLing
-            ModelInfo { model_id: "bailing-chat".to_string(), provider: "bailing".to_string(), display_name: "BaiLing Chat".to_string(), description: "BaiLing chat model".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "bailing-chat".to_string(),
+                provider: "bailing".to_string(),
+                display_name: "BaiLing Chat".to_string(),
+                description: "BaiLing chat model".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Xiaomi MiMo
-            ModelInfo { model_id: "mimo-chat".to_string(), provider: "xiaomi".to_string(), display_name: "MiMo Chat".to_string(), description: "Xiaomi MiMo".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "mimo-chat".to_string(),
+                provider: "xiaomi".to_string(),
+                display_name: "MiMo Chat".to_string(),
+                description: "Xiaomi MiMo".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // ModelScope
-            ModelInfo { model_id: "modelscope-chat".to_string(), provider: "modelscope".to_string(), display_name: "ModelScope Chat".to_string(), description: "ModelScope chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "modelscope-chat".to_string(),
+                provider: "modelscope".to_string(),
+                display_name: "ModelScope Chat".to_string(),
+                description: "ModelScope chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // AiHubMix
-            ModelInfo { model_id: "aihubmix-chat".to_string(), provider: "aihubmix".to_string(), display_name: "AiHubMix Chat".to_string(), description: "AiHubMix chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "aihubmix-chat".to_string(),
+                provider: "aihubmix".to_string(),
+                display_name: "AiHubMix Chat".to_string(),
+                description: "AiHubMix chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // SiliconFlow
-            ModelInfo { model_id: "siliconflow-chat".to_string(), provider: "siliconflow".to_string(), display_name: "SiliconFlow Chat".to_string(), description: "SiliconFlow chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "siliconflow-chat".to_string(),
+                provider: "siliconflow".to_string(),
+                display_name: "SiliconFlow Chat".to_string(),
+                description: "SiliconFlow chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // OpenRouter
-            ModelInfo { model_id: "openrouter-chat".to_string(), provider: "openrouter".to_string(), display_name: "OpenRouter Chat".to_string(), description: "OpenRouter chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "openrouter-chat".to_string(),
+                provider: "openrouter".to_string(),
+                display_name: "OpenRouter Chat".to_string(),
+                description: "OpenRouter chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Novita AI
-            ModelInfo { model_id: "novita-chat".to_string(), provider: "novita".to_string(), display_name: "Novita AI Chat".to_string(), description: "Novita AI chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "novita-chat".to_string(),
+                provider: "novita".to_string(),
+                display_name: "Novita AI Chat".to_string(),
+                description: "Novita AI chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Nvidia
-            ModelInfo { model_id: "nvidia-chat".to_string(), provider: "nvidia".to_string(), display_name: "Nvidia Chat".to_string(), description: "Nvidia NIM".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "nvidia-chat".to_string(),
+                provider: "nvidia".to_string(),
+                display_name: "Nvidia Chat".to_string(),
+                description: "Nvidia NIM".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // PackyCode
-            ModelInfo { model_id: "packycode-chat".to_string(), provider: "packycode".to_string(), display_name: "PackyCode Chat".to_string(), description: "PackyCode chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "packycode-chat".to_string(),
+                provider: "packycode".to_string(),
+                display_name: "PackyCode Chat".to_string(),
+                description: "PackyCode chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Cubence
-            ModelInfo { model_id: "cubence-chat".to_string(), provider: "cubence".to_string(), display_name: "Cubence Chat".to_string(), description: "Cubence chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "cubence-chat".to_string(),
+                provider: "cubence".to_string(),
+                display_name: "Cubence Chat".to_string(),
+                description: "Cubence chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // AIGoCode
-            ModelInfo { model_id: "aigocode-chat".to_string(), provider: "aigocode".to_string(), display_name: "AIGoCode Chat".to_string(), description: "AIGoCode chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "aigocode-chat".to_string(),
+                provider: "aigocode".to_string(),
+                display_name: "AIGoCode Chat".to_string(),
+                description: "AIGoCode chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // RightCode
-            ModelInfo { model_id: "rightcode-chat".to_string(), provider: "rightcode".to_string(), display_name: "RightCode Chat".to_string(), description: "RightCode chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "rightcode-chat".to_string(),
+                provider: "rightcode".to_string(),
+                display_name: "RightCode Chat".to_string(),
+                description: "RightCode chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // AICodeMirror
-            ModelInfo { model_id: "aicodemirror-chat".to_string(), provider: "aicodemirror".to_string(), display_name: "AICodeMirror Chat".to_string(), description: "AICodeMirror chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "aicodemirror-chat".to_string(),
+                provider: "aicodemirror".to_string(),
+                display_name: "AICodeMirror Chat".to_string(),
+                description: "AICodeMirror chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // AICoding
-            ModelInfo { model_id: "aicoding-chat".to_string(), provider: "aicoding".to_string(), display_name: "AICoding Chat".to_string(), description: "AICoding chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "aicoding-chat".to_string(),
+                provider: "aicoding".to_string(),
+                display_name: "AICoding Chat".to_string(),
+                description: "AICoding chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // CrazyRouter
-            ModelInfo { model_id: "crazyrouter-chat".to_string(), provider: "crazyrouter".to_string(), display_name: "CrazyRouter Chat".to_string(), description: "CrazyRouter chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "crazyrouter-chat".to_string(),
+                provider: "crazyrouter".to_string(),
+                display_name: "CrazyRouter Chat".to_string(),
+                description: "CrazyRouter chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // SSSAiCode
-            ModelInfo { model_id: "sssaicode-chat".to_string(), provider: "sssaicode".to_string(), display_name: "SSSAiCode Chat".to_string(), description: "SSSAiCode chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "sssaicode-chat".to_string(),
+                provider: "sssaicode".to_string(),
+                display_name: "SSSAiCode Chat".to_string(),
+                description: "SSSAiCode chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Micu
-            ModelInfo { model_id: "micu-chat".to_string(), provider: "micu".to_string(), display_name: "Micu Chat".to_string(), description: "Micu chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "micu-chat".to_string(),
+                provider: "micu".to_string(),
+                display_name: "Micu Chat".to_string(),
+                description: "Micu chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // X-Code API
-            ModelInfo { model_id: "xcodeapi-chat".to_string(), provider: "xcodeapi".to_string(), display_name: "X-Code API Chat".to_string(), description: "X-Code API chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "xcodeapi-chat".to_string(),
+                provider: "xcodeapi".to_string(),
+                display_name: "X-Code API Chat".to_string(),
+                description: "X-Code API chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // CTok.ai
-            ModelInfo { model_id: "ctok-chat".to_string(), provider: "ctok".to_string(), display_name: "CTok.ai Chat".to_string(), description: "CTok.ai chat".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "ctok-chat".to_string(),
+                provider: "ctok".to_string(),
+                display_name: "CTok.ai Chat".to_string(),
+                description: "CTok.ai chat".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // GitHub Copilot
-            ModelInfo { model_id: "github-copilot".to_string(), provider: "github-copilot".to_string(), display_name: "GitHub Copilot".to_string(), description: "GitHub Copilot".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "github-copilot".to_string(),
+                provider: "github-copilot".to_string(),
+                display_name: "GitHub Copilot".to_string(),
+                description: "GitHub Copilot".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // AWS Bedrock
-            ModelInfo { model_id: "bedrock-claude".to_string(), provider: "aws-bedrock".to_string(), display_name: "Claude on Bedrock".to_string(), description: "AWS Bedrock Claude".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "bedrock-claude".to_string(),
+                provider: "aws-bedrock".to_string(),
+                display_name: "Claude on Bedrock".to_string(),
+                description: "AWS Bedrock Claude".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // OpenAI (original)
-            ModelInfo { model_id: "gpt-4o".to_string(), provider: "openai".to_string(), display_name: "GPT-4o".to_string(), description: "OpenAI GPT-4o".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "gpt-4-turbo".to_string(), provider: "openai".to_string(), display_name: "GPT-4 Turbo".to_string(), description: "OpenAI GPT-4 Turbo".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "gpt-4o".to_string(),
+                provider: "openai".to_string(),
+                display_name: "GPT-4o".to_string(),
+                description: "OpenAI GPT-4o".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "gpt-4-turbo".to_string(),
+                provider: "openai".to_string(),
+                display_name: "GPT-4 Turbo".to_string(),
+                description: "OpenAI GPT-4 Turbo".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Google
-            ModelInfo { model_id: "gemini-1.5-pro".to_string(), provider: "google".to_string(), display_name: "Gemini 1.5 Pro".to_string(), description: "Google Gemini 1.5 Pro".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "gemini-1.5-flash".to_string(), provider: "google".to_string(), display_name: "Gemini 1.5 Flash".to_string(), description: "Google Gemini 1.5 Flash".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "gemini-1.5-pro".to_string(),
+                provider: "google".to_string(),
+                display_name: "Gemini 1.5 Pro".to_string(),
+                description: "Google Gemini 1.5 Pro".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "gemini-1.5-flash".to_string(),
+                provider: "google".to_string(),
+                display_name: "Gemini 1.5 Flash".to_string(),
+                description: "Google Gemini 1.5 Flash".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Ollama
-            ModelInfo { model_id: "llama3".to_string(), provider: "ollama".to_string(), display_name: "Llama 3".to_string(), description: "Meta Llama 3".to_string(), supports_chat: true, supports_completion: true, is_default: false },
-            ModelInfo { model_id: "codellama".to_string(), provider: "ollama".to_string(), display_name: "Code Llama".to_string(), description: "Code Llama".to_string(), supports_chat: true, supports_completion: true, is_default: false },
+            ModelInfo {
+                model_id: "llama3".to_string(),
+                provider: "ollama".to_string(),
+                display_name: "Llama 3".to_string(),
+                description: "Meta Llama 3".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
+            ModelInfo {
+                model_id: "codellama".to_string(),
+                provider: "ollama".to_string(),
+                display_name: "Code Llama".to_string(),
+                description: "Code Llama".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
         ];
 
         for model in default_models {
@@ -820,7 +1668,10 @@ impl AIModelManager {
     }
 
     /// 使用全局选定模型执行聊天(所有 AI 调用的统一入口)
-    pub async fn chat_with_selected(&self, messages: Vec<ChatMessage>) -> Result<ChatResponse, AIError> {
+    pub async fn chat_with_selected(
+        &self,
+        messages: Vec<ChatMessage>,
+    ) -> Result<ChatResponse, AIError> {
         // 检查 Claude Switch 是否已配置，提取结果以避免跨 await 持有 RwLockReadGuard
         let has_claude_switch = {
             let switch = self.claude_switch.read().await;
@@ -844,7 +1695,10 @@ impl AIModelManager {
     }
 
     /// 使用全局选定模型执行补全(所有 AI 调用的统一入口)
-    pub async fn complete_with_selected(&self, prompt: String) -> Result<CompletionResponse, AIError> {
+    pub async fn complete_with_selected(
+        &self,
+        prompt: String,
+    ) -> Result<CompletionResponse, AIError> {
         let model_id = self.selector.get_selected_model();
         let request = CompletionRequest {
             prompt,
@@ -886,7 +1740,8 @@ impl AIModelManager {
         });
 
         // 注册到 registry 的 model_to_provider 映射（关键！否则 route() 找不到）
-        self.registry.register_model_mapping(&model_id, "claude-switch");
+        self.registry
+            .register_model_mapping(&model_id, "claude-switch");
 
         // 存储提供商
         *self.claude_switch.blocking_write() = Some(provider);
@@ -925,12 +1780,15 @@ impl AIModelManager {
             });
 
             // 注册到 registry 的 model_to_provider 映射（关键！否则 route() 找不到）
-            self.registry.register_model_mapping(&model_id, "claude-switch");
+            self.registry
+                .register_model_mapping(&model_id, "claude-switch");
 
             *self.claude_switch.blocking_write() = Some(new_provider);
             Ok(())
         } else {
-            Err(AIError::InvalidRequest("Claude Switch 未初始化，请先调用 configure_claude_switch".to_string()))
+            Err(AIError::InvalidRequest(
+                "Claude Switch 未初始化，请先调用 configure_claude_switch".to_string(),
+            ))
         }
     }
 
@@ -943,12 +1801,15 @@ impl AIModelManager {
                 // list_backends 现在返回 owned 数据
                 provider.list_backends()
             } else {
-                return Err(AIError::InvalidRequest("Claude Switch 未初始化".to_string()));
+                return Err(AIError::InvalidRequest(
+                    "Claude Switch 未初始化".to_string(),
+                ));
             }
         };
 
         // 查找目标后端配置
-        let target_config = configs.iter()
+        let target_config = configs
+            .iter()
             .find(|(b, _)| *b == backend)
             .map(|(_, c)| c.clone());
 
@@ -963,7 +1824,8 @@ impl AIModelManager {
             }
 
             // 添加目标后端
-            let final_config = configs.iter()
+            let final_config = configs
+                .iter()
                 .find(|(b, _)| *b == backend)
                 .map(|(_, c)| c.clone())
                 .unwrap();
@@ -973,7 +1835,10 @@ impl AIModelManager {
             *self.active_backend.blocking_write() = backend;
             Ok(())
         } else {
-            Err(AIError::InvalidRequest(format!("后端 '{}' 不可用", backend.as_str())))
+            Err(AIError::InvalidRequest(format!(
+                "后端 '{}' 不可用",
+                backend.as_str()
+            )))
         }
     }
 
@@ -993,7 +1858,8 @@ impl AIModelManager {
         let switch = self.claude_switch.blocking_read();
         if let Some(ref provider) = *switch {
             let active = *self.active_backend.blocking_read();
-            provider.list_backends()
+            provider
+                .list_backends()
                 .into_iter()
                 .map(|(b, _)| (b, b == active))
                 .collect()
@@ -1007,7 +1873,8 @@ impl AIModelManager {
         let switch = self.claude_switch.read().await;
         if let Some(ref provider) = *switch {
             let active = *self.active_backend.read().await;
-            provider.list_backends()
+            provider
+                .list_backends()
                 .into_iter()
                 .map(|(b, _)| (b, b == active))
                 .collect()
@@ -1017,7 +1884,10 @@ impl AIModelManager {
     }
 
     /// 使用 Claude Switch 执行聊天
-    pub async fn chat_with_claude_switch(&self, messages: Vec<ChatMessage>) -> Result<ChatResponse, AIError> {
+    pub async fn chat_with_claude_switch(
+        &self,
+        messages: Vec<ChatMessage>,
+    ) -> Result<ChatResponse, AIError> {
         let switch = self.claude_switch.read().await;
 
         if let Some(ref provider) = *switch {
@@ -1034,12 +1904,19 @@ impl AIModelManager {
     }
 
     /// 测试 Claude Switch 后端连接
-    pub async fn test_claude_switch_backend(&self, backend: SwitchBackend, api_key: &str, model: &str) -> Result<(), AIError> {
+    pub async fn test_claude_switch_backend(
+        &self,
+        backend: SwitchBackend,
+        api_key: &str,
+        model: &str,
+    ) -> Result<(), AIError> {
         use crate::claude_switch::BackendConfig;
 
         let config = match backend {
             SwitchBackend::MiniMax => BackendConfig::minimax(api_key.to_string(), model),
-            SwitchBackend::OpenAI => BackendConfig::openai(api_key.to_string(), "https://api.openai.com/v1", model),
+            SwitchBackend::OpenAI => {
+                BackendConfig::openai(api_key.to_string(), "https://api.openai.com/v1", model)
+            }
             SwitchBackend::DeepSeek => BackendConfig::deepseek(api_key.to_string(), model),
             SwitchBackend::Zhipu => BackendConfig::zhipu(api_key.to_string(), model),
             SwitchBackend::Ollama => BackendConfig::ollama("http://localhost:11434", model),
@@ -1071,15 +1948,14 @@ pub async fn chat(
     user_message: String,
     manager: &AIModelManager,
 ) -> Result<AIResponse, AIError> {
-    let config = manager.get_model_config(model_id)
-        .unwrap_or_else(|| {
-            // 如果没有专门配置，使用默认模型的配置
-            manager.get_config().default_model
-        });
+    let config = manager.get_model_config(model_id).unwrap_or_else(|| {
+        // 如果没有专门配置，使用默认模型的配置
+        manager.get_config().default_model
+    });
 
-    manager.chat(
-        AIRequestParams::chat(config, user_message)
-    ).await
+    manager
+        .chat(AIRequestParams::chat(config, user_message))
+        .await
 }
 
 #[cfg(test)]

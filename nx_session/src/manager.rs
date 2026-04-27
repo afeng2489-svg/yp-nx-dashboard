@@ -2,15 +2,15 @@
 //!
 //! 负责会话的创建、存储、查找和生命周期管理。
 
+use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use chrono::Utc;
 use uuid::Uuid;
 
-use super::{Session, SessionId, SessionStatus, SessionMetadata, CheckpointManager};
-use super::persistence::{SessionStore, PersistenceError};
+use super::persistence::{PersistenceError, SessionStore};
 use super::pty::PtyManager;
+use super::{CheckpointManager, Session, SessionId, SessionMetadata, SessionStatus};
 
 /// 会话管理器
 ///
@@ -190,7 +190,10 @@ impl SessionManager {
     }
 
     /// 从持久化存储恢复会话
-    pub async fn restore_session(&self, id: &SessionId) -> Result<Option<Session>, PersistenceError> {
+    pub async fn restore_session(
+        &self,
+        id: &SessionId,
+    ) -> Result<Option<Session>, PersistenceError> {
         if let Some(ref store) = self.store {
             match store.get(id) {
                 Ok(session) => {
@@ -218,7 +221,8 @@ impl SessionManager {
             s.status = SessionStatus::Terminated;
             s.terminated_at = Some(Utc::now());
             s.updated_at = Utc::now();
-        }).await
+        })
+        .await
     }
 
     /// 列出会话
@@ -240,10 +244,7 @@ impl SessionManager {
     /// 获取活动会话数
     pub async fn active_session_count(&self) -> usize {
         let sessions = self.sessions.read().await;
-        sessions
-            .values()
-            .filter(|s| s.is_active())
-            .count()
+        sessions.values().filter(|s| s.is_active()).count()
     }
 
     /// 检查是否可以创建新会话

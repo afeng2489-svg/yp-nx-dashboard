@@ -11,7 +11,7 @@ use axum::{
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use nx_memory::{SearchRequest, Transcript, MemoryChunk, MessageRole};
+use nx_memory::{MemoryChunk, MessageRole, SearchRequest, Transcript};
 
 use crate::models::team::{
     AssignSkillRequest, CreateRoleRequest, CreateTeamRequest, ExecuteRoleTaskRequest,
@@ -52,39 +52,52 @@ pub struct AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
-        (self.status, Json(serde_json::json!({ "error": self.message }))).into_response()
+        (
+            self.status,
+            Json(serde_json::json!({ "error": self.message })),
+        )
+            .into_response()
     }
 }
 
 impl From<crate::services::team_service::TeamServiceError> for AppError {
     fn from(err: crate::services::team_service::TeamServiceError) -> Self {
         match err {
-            crate::services::team_service::TeamServiceError::TeamNotFound(id) => {
-                AppError { status: StatusCode::NOT_FOUND, message: format!("Team not found: {}", id) }
-            }
-            crate::services::team_service::TeamServiceError::RoleNotFound(id) => {
-                AppError { status: StatusCode::NOT_FOUND, message: format!("Role not found: {}", id) }
-            }
+            crate::services::team_service::TeamServiceError::TeamNotFound(id) => AppError {
+                status: StatusCode::NOT_FOUND,
+                message: format!("Team not found: {}", id),
+            },
+            crate::services::team_service::TeamServiceError::RoleNotFound(id) => AppError {
+                status: StatusCode::NOT_FOUND,
+                message: format!("Role not found: {}", id),
+            },
             crate::services::team_service::TeamServiceError::TelegramConfigNotFound(role_id) => {
-                AppError { status: StatusCode::NOT_FOUND, message: format!("Telegram config not found for role: {}", role_id) }
+                AppError {
+                    status: StatusCode::NOT_FOUND,
+                    message: format!("Telegram config not found for role: {}", role_id),
+                }
             }
-            _ => AppError { status: StatusCode::INTERNAL_SERVER_ERROR, message: err.to_string() },
+            _ => AppError {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                message: err.to_string(),
+            },
         }
     }
 }
 
 impl From<crate::services::agent_team_service::AgentTeamServiceError> for AppError {
     fn from(err: crate::services::agent_team_service::AgentTeamServiceError) -> Self {
-        AppError { status: StatusCode::INTERNAL_SERVER_ERROR, message: err.to_string() }
+        AppError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: err.to_string(),
+        }
     }
 }
 
 // Team endpoints
 
 /// List all teams
-pub async fn list_teams(
-    State(state): State<Arc<AppState>>,
-) -> ApiResponse<Vec<Team>> {
+pub async fn list_teams(State(state): State<Arc<AppState>>) -> ApiResponse<Vec<Team>> {
     let teams = state.teams_state.team_service.list_teams()?;
     Ok(Json(teams))
 }
@@ -103,7 +116,10 @@ pub async fn get_team(
     State(state): State<Arc<AppState>>,
     Path(team_id): Path<String>,
 ) -> ApiResponse<TeamWithRoles> {
-    let team = state.teams_state.team_service.get_team_with_roles(&team_id)?;
+    let team = state
+        .teams_state
+        .team_service
+        .get_team_with_roles(&team_id)?;
     Ok(Json(team))
 }
 
@@ -113,7 +129,10 @@ pub async fn update_team(
     Path(team_id): Path<String>,
     Json(request): Json<UpdateTeamRequest>,
 ) -> ApiResponse<Team> {
-    let team = state.teams_state.team_service.update_team(&team_id, request)?;
+    let team = state
+        .teams_state
+        .team_service
+        .update_team(&team_id, request)?;
     Ok(Json(team))
 }
 
@@ -142,14 +161,15 @@ pub async fn remove_role_from_team(
     State(state): State<Arc<AppState>>,
     Path((team_id, role_id)): Path<(String, String)>,
 ) -> ApiResponse<bool> {
-    let removed = state.teams_state.team_service.remove_role_from_team(&team_id, &role_id)?;
+    let removed = state
+        .teams_state
+        .team_service
+        .remove_role_from_team(&team_id, &role_id)?;
     Ok(Json(removed))
 }
 
 /// List all roles across all teams
-pub async fn list_all_roles(
-    State(state): State<Arc<AppState>>,
-) -> ApiResponse<Vec<TeamRole>> {
+pub async fn list_all_roles(State(state): State<Arc<AppState>>) -> ApiResponse<Vec<TeamRole>> {
     let roles = state.teams_state.team_service.list_all_roles()?;
     Ok(Json(roles))
 }
@@ -160,7 +180,10 @@ pub async fn create_role(
     Path(team_id): Path<String>,
     Json(request): Json<CreateRoleRequest>,
 ) -> ApiResponse<TeamRole> {
-    let role = state.teams_state.team_service.create_role(&team_id, request)?;
+    let role = state
+        .teams_state
+        .team_service
+        .create_role(&team_id, request)?;
     Ok(Json(role))
 }
 
@@ -169,7 +192,10 @@ pub async fn get_role(
     State(state): State<Arc<AppState>>,
     Path(role_id): Path<String>,
 ) -> ApiResponse<RoleWithSkills> {
-    let role = state.teams_state.team_service.get_role_with_skills(&role_id)?;
+    let role = state
+        .teams_state
+        .team_service
+        .get_role_with_skills(&role_id)?;
     Ok(Json(role))
 }
 
@@ -179,7 +205,10 @@ pub async fn update_role(
     Path(role_id): Path<String>,
     Json(request): Json<UpdateRoleRequest>,
 ) -> ApiResponse<TeamRole> {
-    let role = state.teams_state.team_service.update_role(&role_id, request)?;
+    let role = state
+        .teams_state
+        .team_service
+        .update_role(&role_id, request)?;
     Ok(Json(role))
 }
 
@@ -198,7 +227,10 @@ pub async fn assign_role_to_team(
     Path(role_id): Path<String>,
     Json(request): Json<crate::models::team::AssignRoleToTeamRequest>,
 ) -> ApiResponse<TeamRole> {
-    let role = state.teams_state.team_service.assign_role_to_team(&role_id, &request.team_id)?;
+    let role = state
+        .teams_state
+        .team_service
+        .assign_role_to_team(&role_id, &request.team_id)?;
     Ok(Json(role))
 }
 
@@ -212,7 +244,10 @@ pub async fn assign_skill(
 ) -> ApiResponse<crate::models::team::RoleSkill> {
     // skill_id comes from path, but we still parse request for priority
     let priority = request.priority.or(Some(SkillPriority::Medium));
-    let skill = state.teams_state.team_service.assign_skill(&role_id, &skill_id, priority)?;
+    let skill = state
+        .teams_state
+        .team_service
+        .assign_skill(&role_id, &skill_id, priority)?;
     Ok(Json(skill))
 }
 
@@ -221,7 +256,10 @@ pub async fn remove_skill(
     State(state): State<Arc<AppState>>,
     Path((role_id, skill_id)): Path<(String, String)>,
 ) -> ApiResponse<bool> {
-    let removed = state.teams_state.team_service.remove_skill(&role_id, &skill_id)?;
+    let removed = state
+        .teams_state
+        .team_service
+        .remove_skill(&role_id, &skill_id)?;
     Ok(Json(removed))
 }
 
@@ -242,7 +280,10 @@ pub async fn get_team_messages(
     Path(team_id): Path<String>,
     Query(params): Query<MessageQueryParams>,
 ) -> ApiResponse<Vec<TeamMessage>> {
-    let messages = state.teams_state.team_service.get_team_messages(&team_id, params.limit)?;
+    let messages = state
+        .teams_state
+        .team_service
+        .get_team_messages(&team_id, params.limit)?;
     Ok(Json(messages))
 }
 
@@ -265,7 +306,9 @@ pub async fn execute_team_task(
     let execution_id = uuid::Uuid::new_v4().to_string();
     let event_tx = state.agent_execution_manager.event_sender();
     let cancel_token = tokio_util::sync::CancellationToken::new();
-    state.agent_execution_manager.register_cancel_token(&execution_id, cancel_token.clone());
+    state
+        .agent_execution_manager
+        .register_cancel_token(&execution_id, cancel_token.clone());
 
     // ── PTY-first dispatch: resolve target role_id(s) ──────────────────────
     // trigger 匹配到多个角色 → 并行派发（如"前后端一起开发"）
@@ -275,14 +318,20 @@ pub async fn execute_team_task(
         matched_role_ids
     } else {
         // 先尝试已有 PTY session 的角色，否则取团队第一个角色
-        let sessions = state.claude_terminal_manager.list_sessions_for_team(&team_id);
+        let sessions = state
+            .claude_terminal_manager
+            .list_sessions_for_team(&team_id);
         let from_session = sessions.first().and_then(|s| s.info.role_id.clone());
         if let Some(rid) = from_session {
             vec![rid]
         } else {
             // 无已有 session — 使用团队第一个角色，try_pty_dispatch_pub 会自动创建 session
             match state.teams_state.team_service.get_team_with_roles(&team_id) {
-                Ok(twr) => twr.roles.first().map(|r| vec![r.role.id.clone()]).unwrap_or_default(),
+                Ok(twr) => twr
+                    .roles
+                    .first()
+                    .map(|r| vec![r.role.id.clone()])
+                    .unwrap_or_default(),
                 Err(_) => vec![],
             }
         }
@@ -317,7 +366,9 @@ pub async fn execute_team_task(
                 cancel_token.clone()
             } else {
                 let ct = tokio_util::sync::CancellationToken::new();
-                state.agent_execution_manager.register_cancel_token(&exec_id, ct.clone());
+                state
+                    .agent_execution_manager
+                    .register_cancel_token(&exec_id, ct.clone());
                 ct
             };
 
@@ -332,18 +383,28 @@ pub async fn execute_team_task(
                 ct,
             ) {
                 Ok(session_id) => {
-                    tracing::info!("[Route] PTY dispatch 成功, role: {}, session: {}, execution_id: {}", role_id, session_id, exec_id);
-                    let _ = event_tx.send(crate::ws::agent_execution::AgentExecutionEvent::Started {
-                        execution_id: exec_id.clone(),
-                        agent_role: "team".to_string(),
-                        task_summary: task_summary.clone(),
-                        role_id: Some(role_id.clone()),
-                        session_id: Some(session_id),
-                    });
+                    tracing::info!(
+                        "[Route] PTY dispatch 成功, role: {}, session: {}, execution_id: {}",
+                        role_id,
+                        session_id,
+                        exec_id
+                    );
+                    let _ =
+                        event_tx.send(crate::ws::agent_execution::AgentExecutionEvent::Started {
+                            execution_id: exec_id.clone(),
+                            agent_role: "team".to_string(),
+                            task_summary: task_summary.clone(),
+                            role_id: Some(role_id.clone()),
+                            session_id: Some(session_id),
+                        });
                     all_execution_ids.push(exec_id);
                 }
                 Err(e) => {
-                    tracing::warn!("[Route] PTY dispatch 失败 for role {}: {}, fallback 到原有路径", role_id, e);
+                    tracing::warn!(
+                        "[Route] PTY dispatch 失败 for role {}: {}, fallback 到原有路径",
+                        role_id,
+                        e
+                    );
                 }
             }
         }
@@ -408,7 +469,8 @@ pub async fn execute_team_task(
                     "status": "processing",
                     "parallel_count": all_execution_ids.len(),
                     "sessions": sessions_map,
-                }).to_string(),
+                })
+                .to_string(),
                 error: None,
             }));
         }
@@ -426,7 +488,8 @@ pub async fn execute_team_task(
 
     // ── Fallback: 原有执行路径 ───────────────────────────────────────────
     // 没有匹配到 PTY session 或 PTY dispatch 失败，使用原有异步执行逻辑
-    let memory_context = search_and_build_context(&state.memory_state, &team_id, &request.task).await;
+    let memory_context =
+        search_and_build_context(&state.memory_state, &team_id, &request.task).await;
 
     let enhanced_request = ExecuteTeamTaskRequest {
         team_id: request.team_id.clone(),
@@ -459,7 +522,12 @@ pub async fn execute_team_task(
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
         interval.tick().await;
 
-        let task_future = state_bg.teams_state.agent_team_service.execute_team_task(enhanced_request, Some((tx.clone(), exec_id.clone())), Some(confirm_rx), auto_confirm);
+        let task_future = state_bg.teams_state.agent_team_service.execute_team_task(
+            enhanced_request,
+            Some((tx.clone(), exec_id.clone())),
+            Some(confirm_rx),
+            auto_confirm,
+        );
         tokio::pin!(task_future);
 
         let result = loop {
@@ -488,16 +556,43 @@ pub async fn execute_team_task(
                 let assistant_reply = response.final_output.clone();
                 let team_id_for_memory = team_id_bg.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = store_raw_transcript(&memory_state, &team_id_for_memory, "user", &user_message).await {
+                    if let Err(e) = store_raw_transcript(
+                        &memory_state,
+                        &team_id_for_memory,
+                        "user",
+                        &user_message,
+                    )
+                    .await
+                    {
                         tracing::warn!("[Memory] Failed to store user transcript: {}", e);
                     }
                     if !assistant_reply.is_empty() {
-                        if let Err(e) = store_raw_transcript(&memory_state, &team_id_for_memory, "assistant", &assistant_reply).await {
+                        if let Err(e) = store_raw_transcript(
+                            &memory_state,
+                            &team_id_for_memory,
+                            "assistant",
+                            &assistant_reply,
+                        )
+                        .await
+                        {
                             tracing::warn!("[Memory] Failed to store assistant transcript: {}", e);
                         }
-                        if let Err(e) = store_structured_memory(&memory_state, &team_id_for_memory, &user_message, &assistant_reply).await {
+                        if let Err(e) = store_structured_memory(
+                            &memory_state,
+                            &team_id_for_memory,
+                            &user_message,
+                            &assistant_reply,
+                        )
+                        .await
+                        {
                             tracing::warn!("[Memory] Structured storage failed: {}", e);
-                            let _ = store_to_memory(&memory_state, &team_id_for_memory, "assistant", &assistant_reply).await;
+                            let _ = store_to_memory(
+                                &memory_state,
+                                &team_id_for_memory,
+                                "assistant",
+                                &assistant_reply,
+                            )
+                            .await;
                         }
                     }
                 });
@@ -529,7 +624,10 @@ pub async fn execute_team_task(
         success: true,
         team_id: team_id.clone(),
         messages: vec![],
-        final_output: format!("{{\"execution_id\":\"{}\",\"status\":\"processing\"}}", execution_id),
+        final_output: format!(
+            "{{\"execution_id\":\"{}\",\"status\":\"processing\"}}",
+            execution_id
+        ),
         error: None,
     }))
 }
@@ -548,13 +646,10 @@ pub fn try_pty_dispatch_pub(
     cancel_token: tokio_util::sync::CancellationToken,
 ) -> Result<String, String> {
     // Get or create a PTY session for this role
-    let session = state.claude_terminal_manager.get_or_create_session(
-        team_id,
-        role_id,
-        working_dir,
-        80,
-        24,
-    );
+    let session =
+        state
+            .claude_terminal_manager
+            .get_or_create_session(team_id, role_id, working_dir, 80, 24);
     let session_id = session.info.session_id.clone();
 
     // Build the full prompt using the shared function
@@ -562,15 +657,21 @@ pub fn try_pty_dispatch_pub(
         // Build minimal team context from available roles
         let teams_state = &state.teams_state;
         match teams_state.team_service.get_team_with_roles(team_id) {
-            Ok(twr) => crate::services::agent_team_service::AgentTeamService::build_team_context_pub(&twr.team, &twr.roles),
+            Ok(twr) => {
+                crate::services::agent_team_service::AgentTeamService::build_team_context_pub(
+                    &twr.team, &twr.roles,
+                )
+            }
             Err(_) => String::new(),
         }
     };
 
     let memory_context = tokio::task::block_in_place(|| {
-        tokio::runtime::Handle::current().block_on(
-            search_and_build_context(&state.memory_state, team_id, task)
-        )
+        tokio::runtime::Handle::current().block_on(search_and_build_context(
+            &state.memory_state,
+            team_id,
+            task,
+        ))
     });
     let full_prompt = crate::services::agent_team_service::build_team_prompt(
         &team_context,
@@ -596,18 +697,15 @@ pub fn try_pty_dispatch_pub(
             event_tx,
             cancel_token,
             manager,
-        ).await;
+        )
+        .await;
     });
 
     Ok(session_id)
 }
 
 /// 根据触发关键词查找所有匹配的角色
-async fn find_roles_by_trigger(
-    state: &Arc<AppState>,
-    team_id: &str,
-    task: &str,
-) -> Vec<String> {
+async fn find_roles_by_trigger(state: &Arc<AppState>, team_id: &str, task: &str) -> Vec<String> {
     let Ok(roles) = state.teams_state.team_service.list_roles(team_id) else {
         return vec![];
     };
@@ -634,20 +732,38 @@ async fn find_roles_by_trigger(
 async fn execute_role_task_with_context(
     State(state): State<Arc<AppState>>,
     Json(request): Json<crate::models::team::ExecuteRoleTaskRequest>,
-    stream_tx: Option<(tokio::sync::broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>, String)>,
+    stream_tx: Option<(
+        tokio::sync::broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>,
+        String,
+    )>,
 ) -> ApiResponse<crate::models::team::ExecuteRoleTaskResponse> {
-    tracing::info!("[Route] execute_role_task_with_context called, role_id: {}", request.role_id);
+    tracing::info!(
+        "[Route] execute_role_task_with_context called, role_id: {}",
+        request.role_id
+    );
 
     // 1. 获取 role 信息以确定 team_id
-    let role_with_skills = state.teams_state.team_service.get_role_with_skills(&request.role_id)
-        .map_err(|e| AppError::from(crate::services::team_service::TeamServiceError::RoleNotFound(e.to_string())))?;
+    let role_with_skills = state
+        .teams_state
+        .team_service
+        .get_role_with_skills(&request.role_id)
+        .map_err(|e| {
+            AppError::from(
+                crate::services::team_service::TeamServiceError::RoleNotFound(e.to_string()),
+            )
+        })?;
 
     let role_team_id = role_with_skills.role.team_id.clone().unwrap_or_default();
     tracing::info!("[Route] role_team_id: {}", role_team_id);
 
     // 2. 搜索相关记忆
-    let memory_context = search_and_build_context(&state.memory_state, &role_team_id, &request.task).await;
-    tracing::info!("[Memory] role_id: {}, memory_context length: {}", request.role_id, memory_context.len());
+    let memory_context =
+        search_and_build_context(&state.memory_state, &role_team_id, &request.task).await;
+    tracing::info!(
+        "[Memory] role_id: {}, memory_context length: {}",
+        request.role_id,
+        memory_context.len()
+    );
 
     // 3. 创建增强的请求（包含记忆上下文）
     let enhanced_request = crate::models::team::ExecuteRoleTaskRequest {
@@ -676,16 +792,30 @@ async fn execute_role_task_with_context(
     let assistant_reply = response.response.clone();
 
     tokio::spawn(async move {
-        if let Err(e) = store_raw_transcript(&memory_state, &team_id_clone, "user", &user_message).await {
+        if let Err(e) =
+            store_raw_transcript(&memory_state, &team_id_clone, "user", &user_message).await
+        {
             tracing::warn!("[Memory] Failed to store user transcript: {}", e);
         }
         if !assistant_reply.is_empty() {
-            if let Err(e) = store_raw_transcript(&memory_state, &team_id_clone, "assistant", &assistant_reply).await {
+            if let Err(e) =
+                store_raw_transcript(&memory_state, &team_id_clone, "assistant", &assistant_reply)
+                    .await
+            {
                 tracing::warn!("[Memory] Failed to store assistant transcript: {}", e);
             }
-            if let Err(e) = store_structured_memory(&memory_state, &team_id_clone, &user_message, &assistant_reply).await {
+            if let Err(e) = store_structured_memory(
+                &memory_state,
+                &team_id_clone,
+                &user_message,
+                &assistant_reply,
+            )
+            .await
+            {
                 tracing::warn!("[Memory] Structured storage failed, falling back: {}", e);
-                let _ = store_to_memory(&memory_state, &team_id_clone, "assistant", &assistant_reply).await;
+                let _ =
+                    store_to_memory(&memory_state, &team_id_clone, "assistant", &assistant_reply)
+                        .await;
             }
         }
     });
@@ -772,9 +902,7 @@ async fn search_and_build_context(
     match memory_state.search.search(&search_request, None) {
         Ok(results) if !results.results.is_empty() => {
             // 过滤低相关性结果
-            let meaningful: Vec<_> = results.results.iter()
-                .filter(|r| r.score >= 0.5)
-                .collect();
+            let meaningful: Vec<_> = results.results.iter().filter(|r| r.score >= 0.5).collect();
 
             if meaningful.is_empty() {
                 tracing::debug!("[Memory] 所有结果低于相关性阈值");
@@ -823,7 +951,9 @@ async fn search_and_build_context(
                 ));
             }
 
-            context.push_str("Use the above conversation history to provide contextually relevant responses.\n");
+            context.push_str(
+                "Use the above conversation history to provide contextually relevant responses.\n",
+            );
             tracing::info!("[Memory] 注入 {} 条相关记忆", meaningful.len());
             context
         }
@@ -848,15 +978,23 @@ async fn store_to_memory(
     let transcript = Transcript::new(
         team_id,
         "system", // user_id - 可以改进
-        if role == "user" { MessageRole::User } else { MessageRole::Assistant },
+        if role == "user" {
+            MessageRole::User
+        } else {
+            MessageRole::Assistant
+        },
         content,
     );
 
-    memory_state.store.store_transcript(&transcript)
+    memory_state
+        .store
+        .store_transcript(&transcript)
         .map_err(|e| e.to_string())?;
 
     let chunk = MemoryChunk::from_transcript(&transcript, content.to_string(), 0);
-    memory_state.store.store_chunk(&chunk)
+    memory_state
+        .store
+        .store_chunk(&chunk)
         .map_err(|e| e.to_string())?;
 
     // 索引
@@ -865,7 +1003,9 @@ async fn store_to_memory(
         "role": role,
         "created_at": transcript.created_at.to_rfc3339(),
     });
-    memory_state.search.index_chunk(team_id, &chunk.id, &chunk.content, metadata)
+    memory_state
+        .search
+        .index_chunk(team_id, &chunk.id, &chunk.content, metadata)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -897,8 +1037,7 @@ async fn store_structured_memory(
         .map_err(|e| e.to_string())?;
 
     // 存储完整结构化 JSON 为 chunk content（上下文注入时使用）
-    let chunk_content =
-        serde_json::to_string(&structured).map_err(|e| e.to_string())?;
+    let chunk_content = serde_json::to_string(&structured).map_err(|e| e.to_string())?;
     let chunk = MemoryChunk::from_transcript(&transcript, chunk_content, 0);
     memory_state
         .store
@@ -966,15 +1105,26 @@ pub async fn execute_role_task(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ExecuteRoleTaskRequest>,
 ) -> ApiResponse<ExecuteRoleTaskResponse> {
-    tracing::info!("[Route] execute_role_task 被调用，role_id: {}", request.role_id);
+    tracing::info!(
+        "[Route] execute_role_task 被调用，role_id: {}",
+        request.role_id
+    );
 
     // 1. 获取 role 信息以确定 team_id
-    let role_with_skills = state.teams_state.team_service.get_role_with_skills(&request.role_id)
-        .map_err(|e| AppError::from(crate::services::team_service::TeamServiceError::RoleNotFound(e.to_string())))?;
+    let role_with_skills = state
+        .teams_state
+        .team_service
+        .get_role_with_skills(&request.role_id)
+        .map_err(|e| {
+            AppError::from(
+                crate::services::team_service::TeamServiceError::RoleNotFound(e.to_string()),
+            )
+        })?;
     let team_id = role_with_skills.role.team_id.clone().unwrap_or_default();
 
     // 2. 搜索相关记忆
-    let memory_context = search_and_build_context(&state.memory_state, &team_id, &request.task).await;
+    let memory_context =
+        search_and_build_context(&state.memory_state, &team_id, &request.task).await;
 
     // 3. 创建增强的请求（包含记忆上下文）
     let enhanced_request = ExecuteRoleTaskRequest {
@@ -1003,16 +1153,32 @@ pub async fn execute_role_task(
     let assistant_reply = response.response.clone();
 
     tokio::spawn(async move {
-        if let Err(e) = store_raw_transcript(&memory_state, &team_id_clone, "user", &user_message).await {
+        if let Err(e) =
+            store_raw_transcript(&memory_state, &team_id_clone, "user", &user_message).await
+        {
             tracing::warn!("[Memory] Failed to store user transcript: {}", e);
         }
-        if !assistant_reply.is_empty() && assistant_reply != "Message received, processing in background..." {
-            if let Err(e) = store_raw_transcript(&memory_state, &team_id_clone, "assistant", &assistant_reply).await {
+        if !assistant_reply.is_empty()
+            && assistant_reply != "Message received, processing in background..."
+        {
+            if let Err(e) =
+                store_raw_transcript(&memory_state, &team_id_clone, "assistant", &assistant_reply)
+                    .await
+            {
                 tracing::warn!("[Memory] Failed to store assistant transcript: {}", e);
             }
-            if let Err(e) = store_structured_memory(&memory_state, &team_id_clone, &user_message, &assistant_reply).await {
+            if let Err(e) = store_structured_memory(
+                &memory_state,
+                &team_id_clone,
+                &user_message,
+                &assistant_reply,
+            )
+            .await
+            {
                 tracing::warn!("[Memory] Structured storage failed, falling back: {}", e);
-                let _ = store_to_memory(&memory_state, &team_id_clone, "assistant", &assistant_reply).await;
+                let _ =
+                    store_to_memory(&memory_state, &team_id_clone, "assistant", &assistant_reply)
+                        .await;
             }
         }
     });
@@ -1028,16 +1194,13 @@ pub async fn configure_telegram(
     Path(role_id): Path<String>,
     Json(request): Json<TelegramConfigRequest>,
 ) -> ApiResponse<TelegramBotConfig> {
-    let config = state
-        .teams_state
-        .team_service
-        .configure_telegram(
-            &role_id,
-            request.bot_token,
-            request.chat_id,
-            request.notifications_enabled,
-            request.conversation_enabled,
-        )?;
+    let config = state.teams_state.team_service.configure_telegram(
+        &role_id,
+        request.bot_token,
+        request.chat_id,
+        request.notifications_enabled,
+        request.conversation_enabled,
+    )?;
     Ok(Json(config))
 }
 
@@ -1046,7 +1209,10 @@ pub async fn get_telegram_config(
     State(state): State<Arc<AppState>>,
     Path(role_id): Path<String>,
 ) -> ApiResponse<TelegramBotConfig> {
-    let config = state.teams_state.team_service.get_telegram_config(&role_id)?;
+    let config = state
+        .teams_state
+        .team_service
+        .get_telegram_config(&role_id)?;
     Ok(Json(config))
 }
 
@@ -1055,7 +1221,10 @@ pub async fn enable_telegram(
     State(state): State<Arc<AppState>>,
     Path((role_id, enabled)): Path<(String, bool)>,
 ) -> ApiResponse<TelegramBotConfig> {
-    let config = state.teams_state.team_service.enable_telegram(&role_id, enabled)?;
+    let config = state
+        .teams_state
+        .team_service
+        .enable_telegram(&role_id, enabled)?;
 
     // Start or stop polling based on enabled state
     let telegram_service = &state.teams_state.telegram_service;
@@ -1075,7 +1244,10 @@ pub async fn delete_telegram_config(
 ) -> ApiResponse<bool> {
     // Stop polling first
     state.teams_state.telegram_service.stop_polling(&role_id);
-    let deleted = state.teams_state.team_service.delete_telegram_config(&role_id)?;
+    let deleted = state
+        .teams_state
+        .team_service
+        .delete_telegram_config(&role_id)?;
     Ok(Json(deleted))
 }
 
@@ -1087,13 +1259,21 @@ pub async fn get_team_telegram_config(
     Path(team_id): Path<String>,
 ) -> ApiResponse<crate::models::team::TelegramBotConfig> {
     // Get the first role of the team
-    let roles = state.teams_state.team_service.list_roles(&team_id)
+    let roles = state
+        .teams_state
+        .team_service
+        .list_roles(&team_id)
         .map_err(|e| AppError::from(e))?;
 
-    let first_role = roles.into_iter().next()
-        .ok_or_else(|| AppError { status: StatusCode::NOT_FOUND, message: format!("No roles found for team {}", team_id) })?;
+    let first_role = roles.into_iter().next().ok_or_else(|| AppError {
+        status: StatusCode::NOT_FOUND,
+        message: format!("No roles found for team {}", team_id),
+    })?;
 
-    let config = state.teams_state.team_service.get_telegram_config(&first_role.id)
+    let config = state
+        .teams_state
+        .team_service
+        .get_telegram_config(&first_role.id)
         .map_err(|e| AppError::from(e))?;
     Ok(Json(config))
 }
@@ -1105,11 +1285,16 @@ pub async fn configure_team_telegram(
     Json(request): Json<crate::models::team::TelegramConfigRequest>,
 ) -> ApiResponse<crate::models::team::TelegramBotConfig> {
     // Get the first role of the team
-    let roles = state.teams_state.team_service.list_roles(&team_id)
+    let roles = state
+        .teams_state
+        .team_service
+        .list_roles(&team_id)
         .map_err(|e| AppError::from(e))?;
 
-    let first_role = roles.into_iter().next()
-        .ok_or_else(|| AppError { status: StatusCode::NOT_FOUND, message: format!("No roles found for team {}", team_id) })?;
+    let first_role = roles.into_iter().next().ok_or_else(|| AppError {
+        status: StatusCode::NOT_FOUND,
+        message: format!("No roles found for team {}", team_id),
+    })?;
 
     let config = state
         .teams_state
@@ -1131,13 +1316,21 @@ pub async fn enable_team_telegram(
     Path((team_id, enabled)): Path<(String, bool)>,
 ) -> ApiResponse<crate::models::team::TelegramBotConfig> {
     // Get the first role of the team
-    let roles = state.teams_state.team_service.list_roles(&team_id)
+    let roles = state
+        .teams_state
+        .team_service
+        .list_roles(&team_id)
         .map_err(|e| AppError::from(e))?;
 
-    let first_role = roles.into_iter().next()
-        .ok_or_else(|| AppError { status: StatusCode::NOT_FOUND, message: format!("No roles found for team {}", team_id) })?;
+    let first_role = roles.into_iter().next().ok_or_else(|| AppError {
+        status: StatusCode::NOT_FOUND,
+        message: format!("No roles found for team {}", team_id),
+    })?;
 
-    let config = state.teams_state.team_service.enable_telegram(&first_role.id, enabled)
+    let config = state
+        .teams_state
+        .team_service
+        .enable_telegram(&first_role.id, enabled)
         .map_err(|e| AppError::from(e))?;
 
     // Start or stop polling based on enabled state
@@ -1156,13 +1349,20 @@ pub async fn get_team_member_bots(
     State(state): State<Arc<AppState>>,
     Path(team_id): Path<String>,
 ) -> ApiResponse<Vec<MemberBotStatus>> {
-    let roles = state.teams_state.team_service.list_roles(&team_id)
+    let roles = state
+        .teams_state
+        .team_service
+        .list_roles(&team_id)
         .map_err(|e| AppError::from(e))?;
 
     let statuses = roles
         .into_iter()
         .map(|role| {
-            let bot_config = state.teams_state.team_service.get_telegram_config(&role.id).ok();
+            let bot_config = state
+                .teams_state
+                .team_service
+                .get_telegram_config(&role.id)
+                .ok();
             let is_polling = state.teams_state.telegram_service.is_polling(&role.id);
             MemberBotStatus {
                 role_id: role.id.clone(),
@@ -1183,7 +1383,10 @@ pub async fn configure_member_bot(
     Json(request): Json<MemberBotConfigItem>,
 ) -> ApiResponse<MemberBotStatus> {
     // Verify role belongs to this team
-    let roles = state.teams_state.team_service.list_roles(&team_id)
+    let roles = state
+        .teams_state
+        .team_service
+        .list_roles(&team_id)
         .map_err(|e| AppError::from(e))?;
     if !roles.iter().any(|r| r.id == role_id) {
         return Err(AppError {
@@ -1192,13 +1395,17 @@ pub async fn configure_member_bot(
         });
     }
 
-    let bot_config = state.teams_state.team_service.configure_telegram(
-        &role_id,
-        request.bot_token,
-        request.chat_id,
-        request.notifications_enabled,
-        request.conversation_enabled,
-    ).map_err(|e| AppError::from(e))?;
+    let bot_config = state
+        .teams_state
+        .team_service
+        .configure_telegram(
+            &role_id,
+            request.bot_token,
+            request.chat_id,
+            request.notifications_enabled,
+            request.conversation_enabled,
+        )
+        .map_err(|e| AppError::from(e))?;
 
     let role = roles.into_iter().find(|r| r.id == role_id).unwrap();
     let is_polling = state.teams_state.telegram_service.is_polling(&role_id);
@@ -1216,16 +1423,25 @@ pub async fn toggle_all_member_bots(
     State(state): State<Arc<AppState>>,
     Path((team_id, enabled)): Path<(String, bool)>,
 ) -> ApiResponse<Vec<MemberBotStatus>> {
-    let roles = state.teams_state.team_service.list_roles(&team_id)
+    let roles = state
+        .teams_state
+        .team_service
+        .list_roles(&team_id)
         .map_err(|e| AppError::from(e))?;
 
     let mut statuses = Vec::new();
     for role in &roles {
-        let config_result = state.teams_state.team_service.enable_telegram(&role.id, enabled);
+        let config_result = state
+            .teams_state
+            .team_service
+            .enable_telegram(&role.id, enabled);
         let bot_config = match config_result {
             Ok(cfg) => {
                 if enabled {
-                    state.teams_state.telegram_service.start_polling(role.id.clone(), cfg.bot_token.clone());
+                    state
+                        .teams_state
+                        .telegram_service
+                        .start_polling(role.id.clone(), cfg.bot_token.clone());
                 } else {
                     state.teams_state.telegram_service.stop_polling(&role.id);
                 }
@@ -1255,7 +1471,10 @@ pub async fn send_telegram_message(
     Path(role_id): Path<String>,
     Json(request): Json<crate::models::team::TelegramSendMessageRequest>,
 ) -> Result<StatusCode, AppError> {
-    let config = state.teams_state.team_service.get_telegram_config(&role_id)
+    let config = state
+        .teams_state
+        .team_service
+        .get_telegram_config(&role_id)
         .map_err(|e| AppError::from(e))?;
 
     state
@@ -1263,7 +1482,10 @@ pub async fn send_telegram_message(
         .telegram_service
         .send_message(&config.bot_token, &request.chat_id, &request.text)
         .await
-        .map_err(|e| AppError { status: StatusCode::BAD_REQUEST, message: e.to_string() })?;
+        .map_err(|e| AppError {
+            status: StatusCode::BAD_REQUEST,
+            message: e.to_string(),
+        })?;
 
     Ok(StatusCode::OK)
 }

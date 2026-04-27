@@ -5,7 +5,10 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use super::{AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CompletionRequest, CompletionResponse, EmbedRequest, EmbedResponse, TokenUsage};
+use super::{
+    AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CompletionRequest,
+    CompletionResponse, EmbedRequest, EmbedResponse, TokenUsage,
+};
 
 /// OpenAI API 基础 URL
 const OPENAI_API_BASE: &str = "https://api.openai.com/v1";
@@ -41,8 +44,13 @@ impl OpenAIProvider {
     }
 
     /// 发送 HTTP 请求到 OpenAI API
-    async fn request(&self, path: &str, body: serde_json::Value) -> Result<serde_json::Value, AIError> {
-        let response = self.client
+    async fn request(
+        &self,
+        path: &str,
+        body: serde_json::Value,
+    ) -> Result<serde_json::Value, AIError> {
+        let response = self
+            .client
             .post(&format!("{}{}", OPENAI_API_BASE, path))
             .header("authorization", format!("Bearer {}", self.api_key))
             .header("content-type", "application/json")
@@ -61,7 +69,10 @@ impl OpenAIProvider {
             });
         }
 
-        response.json().await.map_err(|e| AIError::Parse(e.to_string()))
+        response
+            .json()
+            .await
+            .map_err(|e| AIError::Parse(e.to_string()))
     }
 }
 
@@ -107,7 +118,9 @@ impl AIProvider for OpenAIProvider {
             stop: request.stop_sequences,
         };
 
-        let response = self.request("/completions", serde_json::to_value(body).unwrap()).await?;
+        let response = self
+            .request("/completions", serde_json::to_value(body).unwrap())
+            .await?;
 
         #[derive(Deserialize)]
         struct OpenAIResponse {
@@ -129,17 +142,25 @@ impl AIProvider for OpenAIProvider {
             total_tokens: usize,
         }
 
-        let resp: OpenAIResponse = serde_json::from_value(response)
-            .map_err(|e| AIError::Parse(e.to_string()))?;
+        let resp: OpenAIResponse =
+            serde_json::from_value(response).map_err(|e| AIError::Parse(e.to_string()))?;
 
         Ok(CompletionResponse {
-            text: resp.choices.first().map(|c| c.text.clone()).unwrap_or_default(),
+            text: resp
+                .choices
+                .first()
+                .map(|c| c.text.clone())
+                .unwrap_or_default(),
             model: resp.model,
             usage: TokenUsage {
                 input_tokens: resp.usage.prompt_tokens,
                 output_tokens: resp.usage.completion_tokens,
             },
-            stop_reason: resp.choices.first().map(|c| c.finish_reason.clone()).unwrap_or_default(),
+            stop_reason: resp
+                .choices
+                .first()
+                .map(|c| c.finish_reason.clone())
+                .unwrap_or_default(),
         })
     }
 
@@ -160,7 +181,9 @@ impl AIProvider for OpenAIProvider {
             temperature: request.temperature,
         };
 
-        let response = self.request("/chat/completions", serde_json::to_value(body).unwrap()).await?;
+        let response = self
+            .request("/chat/completions", serde_json::to_value(body).unwrap())
+            .await?;
 
         #[derive(Deserialize)]
         struct OpenAIResponse {
@@ -188,10 +211,13 @@ impl AIProvider for OpenAIProvider {
             total_tokens: usize,
         }
 
-        let resp: OpenAIResponse = serde_json::from_value(response)
-            .map_err(|e| AIError::Parse(e.to_string()))?;
+        let resp: OpenAIResponse =
+            serde_json::from_value(response).map_err(|e| AIError::Parse(e.to_string()))?;
 
-        let choice = resp.choices.first().ok_or_else(|| AIError::Provider("响应中没有选项".to_string()))?;
+        let choice = resp
+            .choices
+            .first()
+            .ok_or_else(|| AIError::Provider("响应中没有选项".to_string()))?;
 
         Ok(ChatResponse {
             message: ChatMessage {
@@ -220,7 +246,9 @@ impl AIProvider for OpenAIProvider {
             input: request.texts,
         };
 
-        let response = self.request("/embeddings", serde_json::to_value(body).unwrap()).await?;
+        let response = self
+            .request("/embeddings", serde_json::to_value(body).unwrap())
+            .await?;
 
         #[derive(Deserialize)]
         struct OpenAIResponse {
@@ -240,8 +268,8 @@ impl AIProvider for OpenAIProvider {
             total_tokens: usize,
         }
 
-        let resp: OpenAIResponse = serde_json::from_value(response)
-            .map_err(|e| AIError::Parse(e.to_string()))?;
+        let resp: OpenAIResponse =
+            serde_json::from_value(response).map_err(|e| AIError::Parse(e.to_string()))?;
 
         Ok(EmbedResponse {
             embeddings: resp.data.into_iter().map(|d| d.embedding).collect(),

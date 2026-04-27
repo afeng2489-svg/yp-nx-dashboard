@@ -6,8 +6,8 @@ use parking_lot::RwLock;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::broadcast;
 use tokio::time::{sleep, Duration};
@@ -132,7 +132,9 @@ impl TelegramService {
                 Ok(identity) => {
                     tracing::info!(
                         "Bot identity for role {}: @{} (id={})",
-                        role_id, identity.username, identity.user_id
+                        role_id,
+                        identity.username,
+                        identity.user_id
                     );
                     let mut identities = bot_identities.write();
                     identities.insert(bot_token.clone(), identity.clone());
@@ -279,10 +281,7 @@ impl TelegramService {
     }
 
     /// Call getMe to get bot identity (user_id + username)
-    async fn get_me_inner(
-        client: &Client,
-        bot_token: &str,
-    ) -> Result<BotIdentity, TelegramError> {
+    async fn get_me_inner(client: &Client, bot_token: &str) -> Result<BotIdentity, TelegramError> {
         let url = format!("https://api.telegram.org/bot{}/getMe", bot_token);
         let response = client.get(&url).send().await?;
 
@@ -301,9 +300,7 @@ impl TelegramService {
             });
         }
 
-        let result = api_response
-            .result
-            .ok_or(TelegramError::InvalidToken)?;
+        let result = api_response.result.ok_or(TelegramError::InvalidToken)?;
 
         Ok(BotIdentity {
             user_id: result.id,
@@ -318,7 +315,8 @@ impl TelegramService {
         chat_id: &str,
         text: &str,
     ) -> Result<(), TelegramError> {
-        self.send_message_with_reply(bot_token, chat_id, text, None).await
+        self.send_message_with_reply(bot_token, chat_id, text, None)
+            .await
     }
 
     /// Send a message via a bot with optional reply_to_message_id
@@ -347,7 +345,9 @@ impl TelegramService {
 
         if !api_response.ok {
             let code = api_response.error_code.unwrap_or(0);
-            let message = api_response.description.unwrap_or_else(|| "Unknown error".to_string());
+            let message = api_response
+                .description
+                .unwrap_or_else(|| "Unknown error".to_string());
             return Err(TelegramError::Api { code, message });
         }
 
@@ -368,9 +368,7 @@ impl TelegramService {
             }
 
             if let Some(chat_id) = &config.chat_id {
-                let result = self
-                    .send_message(&config.bot_token, chat_id, message)
-                    .await;
+                let result = self.send_message(&config.bot_token, chat_id, message).await;
                 results.push(result);
             }
         }
@@ -421,7 +419,9 @@ impl TelegramService {
 
         if !api_response.ok {
             let code = api_response.error_code.unwrap_or(0);
-            let message = api_response.description.unwrap_or_else(|| "Unknown error".to_string());
+            let message = api_response
+                .description
+                .unwrap_or_else(|| "Unknown error".to_string());
             return Err(TelegramError::Api { code, message });
         }
 
@@ -448,7 +448,9 @@ impl TelegramService {
 
         if !api_response.ok {
             let code = api_response.error_code.unwrap_or(0);
-            let message = api_response.description.unwrap_or_else(|| "Unknown error".to_string());
+            let message = api_response
+                .description
+                .unwrap_or_else(|| "Unknown error".to_string());
             return Err(TelegramError::Api { code, message });
         }
 

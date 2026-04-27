@@ -169,7 +169,10 @@ pub async fn list_templates(
 
     let total = templates.len();
 
-    Ok(Json(ListResponse { items: templates, total }))
+    Ok(Json(ListResponse {
+        items: templates,
+        total,
+    }))
 }
 
 /// 获取单个模板
@@ -226,7 +229,10 @@ pub async fn create_template(
     let template_path = templates_path.join(format!("{}.yaml", id));
 
     if template_path.exists() {
-        return Err(AppError::BadRequest(format!("Template '{}' already exists", id)));
+        return Err(AppError::BadRequest(format!(
+            "Template '{}' already exists",
+            id
+        )));
     }
 
     // 创建模板定义
@@ -240,7 +246,8 @@ pub async fn create_template(
     };
 
     // 序列化为 YAML
-    let yaml = serde_yaml::to_string(&template_def).map_err(|e| AppError::Internal(e.to_string()))?;
+    let yaml =
+        serde_yaml::to_string(&template_def).map_err(|e| AppError::Internal(e.to_string()))?;
 
     // 写入文件
     fs::write(&template_path, yaml).map_err(|e| AppError::Internal(e.to_string()))?;
@@ -270,55 +277,69 @@ pub async fn instantiate_template(
     // 优先检查 config/workflows/{id}.yaml（支持完整 stage_type/user_input 等特性）
     let config_workflow_path = std::path::PathBuf::from(
         std::env::var("NEXUS_BASE_DIR")
-            .unwrap_or_else(|_| "/Users/Zhuanz/Desktop/yp-nx-dashboard".to_string())
+            .unwrap_or_else(|_| "/Users/Zhuanz/Desktop/yp-nx-dashboard".to_string()),
     )
     .join("config/workflows")
     .join(format!("{}.yaml", id));
 
-    let (workflow_name, workflow_description, workflow_definition) = if config_workflow_path.exists() {
-        // 直接读取完整 YAML，用 serde_json::Value 保留所有字段（含 stage_type 等）
-        let yaml_content = fs::read_to_string(&config_workflow_path)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let mut yaml_val: serde_json::Value = serde_yaml::from_str(&yaml_content)
-            .map_err(|e| AppError::Internal(format!("YAML 解析失败: {}", e)))?;
+    let (workflow_name, workflow_description, workflow_definition) =
+        if config_workflow_path.exists() {
+            // 直接读取完整 YAML，用 serde_json::Value 保留所有字段（含 stage_type 等）
+            let yaml_content = fs::read_to_string(&config_workflow_path)
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+            let mut yaml_val: serde_json::Value = serde_yaml::from_str(&yaml_content)
+                .map_err(|e| AppError::Internal(format!("YAML 解析失败: {}", e)))?;
 
-        // 将用户传入变量注入 variables 字段（非空值覆盖 YAML 默认值）
-        if let Some(user_vars) = payload.variables.as_ref().and_then(|v| v.as_object()) {
-            let vars = yaml_val.get_mut("variables").and_then(|v| v.as_object_mut());
-            if let Some(vars_obj) = vars {
-                for (k, v) in user_vars {
-                    if let Some(s) = v.as_str() {
-                        if !s.is_empty() {
-                            vars_obj.insert(k.clone(), v.clone());
+            // 将用户传入变量注入 variables 字段（非空值覆盖 YAML 默认值）
+            if let Some(user_vars) = payload.variables.as_ref().and_then(|v| v.as_object()) {
+                let vars = yaml_val
+                    .get_mut("variables")
+                    .and_then(|v| v.as_object_mut());
+                if let Some(vars_obj) = vars {
+                    for (k, v) in user_vars {
+                        if let Some(s) = v.as_str() {
+                            if !s.is_empty() {
+                                vars_obj.insert(k.clone(), v.clone());
+                            }
                         }
                     }
                 }
             }
-        }
 
-        let name = yaml_val.get("name").and_then(|v| v.as_str()).unwrap_or(&id).to_string();
-        let desc = yaml_val.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
-        (name, desc, yaml_val)
-    } else {
-        // 从模板文件系统或内置模板获取定义（简单模板，不含 user_input）
-        let template_def = if template_path.exists() {
-            let (_, def) = parse_template_file(&template_path)?;
-            def
+            let name = yaml_val
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or(&id)
+                .to_string();
+            let desc = yaml_val
+                .get("description")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            (name, desc, yaml_val)
         } else {
-            get_builtin_templates()
-                .into_iter()
-                .find(|(builtin_id, _)| builtin_id == &id)
-                .map(|(_, def)| def)
-                .ok_or_else(|| AppError::NotFound(format!("Template '{}' not found", id)))?
-        };
+            // 从模板文件系统或内置模板获取定义（简单模板，不含 user_input）
+            let template_def = if template_path.exists() {
+                let (_, def) = parse_template_file(&template_path)?;
+                def
+            } else {
+                get_builtin_templates()
+                    .into_iter()
+                    .find(|(builtin_id, _)| builtin_id == &id)
+                    .map(|(_, def)| def)
+                    .ok_or_else(|| AppError::NotFound(format!("Template '{}' not found", id)))?
+            };
 
-        let definition = serde_json::json!({
-            "stages": template_def.stages,
-            "agents": template_def.agents,
-            "variables": payload.variables.unwrap_or(serde_json::json!({})),
-        });
-        (template_def.name, Some(template_def.description), definition)
-    };
+            let definition = serde_json::json!({
+                "stages": template_def.stages,
+                "agents": template_def.agents,
+                "variables": payload.variables.unwrap_or(serde_json::json!({})),
+            });
+            (
+                template_def.name,
+                Some(template_def.description),
+                definition,
+            )
+        };
 
     // 使用工作流服务创建工作流
     let workflow = state
@@ -696,7 +717,10 @@ pub async fn list_templates_by_category(
 
     let total = templates.len();
 
-    Ok(Json(ListResponse { items: templates, total }))
+    Ok(Json(ListResponse {
+        items: templates,
+        total,
+    }))
 }
 
 // ============ 错误类型 ============
@@ -733,7 +757,10 @@ impl IntoResponse for AppError {
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Internal(msg) => {
                 tracing::error!("内部错误: {}", msg);
-                (StatusCode::INTERNAL_SERVER_ERROR, "内部服务器错误".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "内部服务器错误".to_string(),
+                )
             }
         };
 

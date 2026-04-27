@@ -24,10 +24,18 @@ pub trait EmbeddingProvider: Send + Sync {
     fn name(&self) -> &str;
 
     /// 生成文本的 embedding
-    fn embed(&self, text: &str) -> Pin<Box<dyn std::future::Future<Output = Result<EmbeddingResult, EmbedError>> + Send + '_>>;
+    fn embed(
+        &self,
+        text: &str,
+    ) -> Pin<Box<dyn std::future::Future<Output = Result<EmbeddingResult, EmbedError>> + Send + '_>>;
 
     /// 批量生成 embedding
-    fn embed_batch(&self, texts: &[String]) -> Pin<Box<dyn std::future::Future<Output = Result<Vec<EmbeddingResult>, EmbedError>> + Send + '_>>;
+    fn embed_batch(
+        &self,
+        texts: &[String],
+    ) -> Pin<
+        Box<dyn std::future::Future<Output = Result<Vec<EmbeddingResult>, EmbedError>> + Send + '_>,
+    >;
 }
 
 /// Embedding 错误

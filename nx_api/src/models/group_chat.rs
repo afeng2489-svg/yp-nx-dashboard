@@ -10,10 +10,10 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GroupStatus {
-    Pending,     // 等待开始
-    Active,      // 讨论中
-    Concluded,   // 已结束
-    Cancelled,   // 已取消
+    Pending,   // 等待开始
+    Active,    // 讨论中
+    Concluded, // 已结束
+    Cancelled, // 已取消
 }
 
 impl Default for GroupStatus {
@@ -46,7 +46,7 @@ impl GroupStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SpeakingStrategy {
-    Free,      // 自由发言
+    Free,       // 自由发言
     RoundRobin, // 轮询发言
     Moderator,  // 主持人模式
     Debate,     // 辩论模式
@@ -121,10 +121,10 @@ pub struct GroupSession {
     pub status: GroupStatus,
     pub speaking_strategy: SpeakingStrategy,
     pub consensus_strategy: ConsensusStrategy,
-    pub moderator_role_id: Option<String>,  // 主持人角色ID
-    pub max_turns: u32,                     // 最大轮次
-    pub current_turn: u32,                  // 当前轮次
-    pub turn_policy: String,                // 轮次策略，如 "all" 或 "one_per_role"
+    pub moderator_role_id: Option<String>, // 主持人角色ID
+    pub max_turns: u32,                    // 最大轮次
+    pub current_turn: u32,                 // 当前轮次
+    pub turn_policy: String,               // 轮次策略，如 "all" 或 "one_per_role"
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -210,9 +210,9 @@ pub struct GroupConclusion {
     pub id: String,
     pub session_id: String,
     pub content: String,
-    pub consensus_level: f32,  // 0.0 - 1.0
-    pub participant_scores: HashMap<String, f32>,  // role_id -> score
-    pub agreed_by: Vec<String>,  // 同意的角色ID列表
+    pub consensus_level: f32,                     // 0.0 - 1.0
+    pub participant_scores: HashMap<String, f32>, // role_id -> score
+    pub agreed_by: Vec<String>,                   // 同意的角色ID列表
     pub created_at: DateTime<Utc>,
 }
 
@@ -289,14 +289,14 @@ pub struct StartDiscussionRequest {
 /// Conclude discussion request
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConcludeDiscussionRequest {
-    pub force: Option<bool>,  // 强制结束
+    pub force: Option<bool>, // 强制结束
 }
 
 /// Get session messages request
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GetMessagesRequest {
     pub limit: Option<u32>,
-    pub before: Option<String>,  // 消息ID，用于分页
+    pub before: Option<String>, // 消息ID，用于分页
 }
 
 // ============== Response Types ==============
@@ -318,7 +318,7 @@ pub struct DiscussionTurnInfo {
     pub max_turns: u32,
     pub next_speaker_role_id: Option<String>,
     pub next_speaker_role_name: Option<String>,
-    pub speaking_order: Vec<String>,  // 角色ID列表
+    pub speaking_order: Vec<String>, // 角色ID列表
 }
 
 /// Next speaker info

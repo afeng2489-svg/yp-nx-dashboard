@@ -1,8 +1,8 @@
 //! 工作流服务
 
-use std::sync::Arc;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use super::workflow_repository::{RepositoryError, SharedWorkflowRepository};
 
@@ -103,7 +103,9 @@ impl WorkflowService {
         definition: Option<serde_json::Value>,
     ) -> Result<Workflow, WorkflowServiceError> {
         // 先获取现有工作流
-        let existing = self.repository.find_by_id(id)?
+        let existing = self
+            .repository
+            .find_by_id(id)?
             .ok_or_else(|| WorkflowServiceError::NotFound(id.to_string()))?;
 
         let updated = Workflow {
@@ -181,8 +183,8 @@ pub struct WorkflowSummary {
 impl Workflow {
     /// 从 YAML 定义创建工作流
     pub fn from_yaml(id: String, yaml: &str) -> Result<Self, String> {
-        let definition: serde_json::Value = serde_yaml::from_str(yaml)
-            .map_err(|e| format!("YAML 解析失败: {}", e))?;
+        let definition: serde_json::Value =
+            serde_yaml::from_str(yaml).map_err(|e| format!("YAML 解析失败: {}", e))?;
 
         let name = definition
             .get("name")

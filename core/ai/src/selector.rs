@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use super::{AIError, AIProviderRegistry, ChatRequest, ChatResponse, CompletionRequest, CompletionResponse};
+use super::{
+    AIError, AIProviderRegistry, ChatRequest, ChatResponse, CompletionRequest, CompletionResponse,
+};
 
 /// 24 小时刷新间隔
 const MODEL_REFRESH_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
@@ -132,7 +134,10 @@ impl GlobalModelSelector {
     pub fn register_model(&self, model_info: ModelInfo) {
         let mut configs = self.model_configs.write();
         // 如果已存在,更新而不是重复添加
-        if let Some(existing) = configs.iter_mut().find(|c| c.model_id == model_info.model_id) {
+        if let Some(existing) = configs
+            .iter_mut()
+            .find(|c| c.model_id == model_info.model_id)
+        {
             *existing = model_info;
         } else {
             configs.push(model_info);
@@ -154,7 +159,8 @@ impl GlobalModelSelector {
     /// 获取当前选定模型的完整信息
     pub fn get_selected_model_info(&self) -> Option<ModelInfo> {
         let selected = self.get_selected_model();
-        self.model_configs.read()
+        self.model_configs
+            .read()
             .iter()
             .find(|c| c.model_id == selected)
             .cloned()
@@ -171,7 +177,10 @@ impl GlobalModelSelector {
     }
 
     /// 执行补全请求,使用当前选定的模型
-    pub async fn complete(&self, request: CompletionRequest) -> Result<CompletionResponse, AIError> {
+    pub async fn complete(
+        &self,
+        request: CompletionRequest,
+    ) -> Result<CompletionResponse, AIError> {
         let model_id = self.get_selected_model();
         let request = CompletionRequest {
             model: model_id,
@@ -181,7 +190,11 @@ impl GlobalModelSelector {
     }
 
     /// 使用指定的模型执行聊天请求(覆盖全局选择)
-    pub async fn chat_with_model(&self, model_id: &str, request: ChatRequest) -> Result<ChatResponse, AIError> {
+    pub async fn chat_with_model(
+        &self,
+        model_id: &str,
+        request: ChatRequest,
+    ) -> Result<ChatResponse, AIError> {
         let request = ChatRequest {
             model: model_id.to_string(),
             ..request
@@ -190,7 +203,11 @@ impl GlobalModelSelector {
     }
 
     /// 使用指定的模型执行补全请求(覆盖全局选择)
-    pub async fn complete_with_model(&self, model_id: &str, request: CompletionRequest) -> Result<CompletionResponse, AIError> {
+    pub async fn complete_with_model(
+        &self,
+        model_id: &str,
+        request: CompletionRequest,
+    ) -> Result<CompletionResponse, AIError> {
         let request = CompletionRequest {
             model: model_id.to_string(),
             ..request
@@ -200,7 +217,8 @@ impl GlobalModelSelector {
 
     /// 检查指定模型是否可用
     pub fn is_model_available(&self, model_id: &str) -> bool {
-        self.model_configs.read()
+        self.model_configs
+            .read()
             .iter()
             .any(|c| c.model_id == model_id)
     }

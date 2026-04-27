@@ -10,7 +10,7 @@ mod commands;
 mod config;
 mod slash_commands;
 
-use commands::{run_workflow, run_agent, list_providers};
+use commands::{list_providers, run_agent, run_workflow};
 use slash_commands::CommandDispatcher;
 
 /// NexusFlow CLI
@@ -368,10 +368,19 @@ async fn main() -> anyhow::Result<()> {
     tracing::debug!("已从 {:?} 加载配置", cli.config);
 
     match &cli.command {
-        Commands::Run { workflow, vars, background } => {
+        Commands::Run {
+            workflow,
+            vars,
+            background,
+        } => {
             run_workflow(workflow, vars.as_deref(), *background, &config).await?;
         }
-        Commands::Agent { role, model, prompt, system } => {
+        Commands::Agent {
+            role,
+            model,
+            prompt,
+            system,
+        } => {
             run_agent(role, model, prompt, system.as_deref(), &config).await?;
         }
         Commands::Providers { detailed } => {
@@ -380,7 +389,12 @@ async fn main() -> anyhow::Result<()> {
         Commands::Validate { workflow, show_ast } => {
             commands::validate_workflow(workflow, *show_ast).await?;
         }
-        Commands::Exec { program, args, cwd, timeout } => {
+        Commands::Exec {
+            program,
+            args,
+            cwd,
+            timeout,
+        } => {
             commands::execute_code(program, args, cwd.as_ref(), *timeout).await?;
         }
         Commands::Index { path, stats } => {
@@ -392,97 +406,128 @@ async fn main() -> anyhow::Result<()> {
         Commands::Serve { port, host } => {
             commands::start_server(*port, host).await?;
         }
-        Commands::Ccw { workflow, auto, parallel, max_agents, subcommand } => {
-            match subcommand {
-                Some(CcwSubcommand::List) => {
-                    println!("📋 可用工作流:");
-                    println!("  - code_review");
-                    println!("  - test_generation");
-                    println!("  - documentation");
-                    println!("  - refactoring");
-                    println!("  - bug_fixing");
-                }
-                Some(CcwSubcommand::Run { name }) => {
-                    commands::run_ccw(Some(name.clone()), *auto, *parallel, *max_agents, &config).await?;
-                }
-                Some(CcwSubcommand::Status) => {
-                    println!("🔄 CCW 状态: 空闲");
-                }
-                Some(CcwSubcommand::Stop) => {
-                    println!("🛑 停止 CCW");
-                }
-                None => {
-                    commands::run_ccw(workflow.clone(), *auto, *parallel, *max_agents, &config).await?;
-                }
+        Commands::Ccw {
+            workflow,
+            auto,
+            parallel,
+            max_agents,
+            subcommand,
+        } => match subcommand {
+            Some(CcwSubcommand::List) => {
+                println!("📋 可用工作流:");
+                println!("  - code_review");
+                println!("  - test_generation");
+                println!("  - documentation");
+                println!("  - refactoring");
+                println!("  - bug_fixing");
             }
-        }
-        Commands::CcwCoordinator { project, strategy, subcommand } => {
-            match subcommand {
-                Some(CcwCoordinatorSubcommand::Analyze { path }) => {
-                    println!("🔍 分析项目: {:?}", path);
-                }
-                Some(CcwCoordinatorSubcommand::Plan { workflow }) => {
-                    println!("📋 规划工作流: {}", workflow);
-                }
-                Some(CcwCoordinatorSubcommand::Execute { workflow }) => {
-                    println!("▶️  执行工作流: {}", workflow);
-                }
-                None => {
-                    commands::run_ccw_coordinator(project.clone(), strategy.clone(), &config).await?;
-                }
+            Some(CcwSubcommand::Run { name }) => {
+                commands::run_ccw(Some(name.clone()), *auto, *parallel, *max_agents, &config)
+                    .await?;
             }
-        }
-        Commands::WorkflowSession { session_id, subcommand } => {
-            match subcommand {
-                WorkflowSessionSubcommand::List => {
-                    commands::session_commands::list_sessions(&config).await?;
-                }
-                WorkflowSessionSubcommand::Get { session_id } => {
-                    commands::session_commands::get_session(session_id, &config).await?;
-                }
-                WorkflowSessionSubcommand::Delete { session_id } => {
-                    commands::session_commands::delete_session(session_id, &config).await?;
-                }
-                WorkflowSessionSubcommand::Export { session_id, format, output } => {
-                    commands::session_commands::export_session(session_id, format.as_deref(), output.as_deref(), &config).await?;
-                }
-                WorkflowSessionSubcommand::Pause { session_id } => {
-                    commands::session_commands::pause_session(session_id, &config).await?;
-                }
-                WorkflowSessionSubcommand::Resume { session_id } => {
-                    commands::session_commands::resume_session(session_id, &config).await?;
-                }
+            Some(CcwSubcommand::Status) => {
+                println!("🔄 CCW 状态: 空闲");
             }
-        }
-        Commands::Issue { id, subcommand } => {
-            match subcommand {
-                IssueSubcommand::List { status } => {
-                    commands::issue_commands::list_issues(status.as_deref(), &config).await?;
-                }
-                IssueSubcommand::Get { id } => {
-                    commands::issue_commands::get_issue(id, &config).await?;
-                }
-                IssueSubcommand::Create { title, description, priority, assignee } => {
-                    commands::issue_commands::create_issue(title, description.as_deref(), priority.as_deref(), assignee.as_deref(), &config).await?;
-                }
-                IssueSubcommand::UpdateStatus { id, status } => {
-                    commands::issue_commands::update_issue_status(id, status, &config).await?;
-                }
-                IssueSubcommand::Comment { id, comment } => {
-                    commands::issue_commands::add_comment(id, comment, &config).await?;
-                }
-                IssueSubcommand::Search { query } => {
-                    commands::issue_commands::search_issues(query, &config).await?;
-                }
+            Some(CcwSubcommand::Stop) => {
+                println!("🛑 停止 CCW");
             }
-        }
+            None => {
+                commands::run_ccw(workflow.clone(), *auto, *parallel, *max_agents, &config).await?;
+            }
+        },
+        Commands::CcwCoordinator {
+            project,
+            strategy,
+            subcommand,
+        } => match subcommand {
+            Some(CcwCoordinatorSubcommand::Analyze { path }) => {
+                println!("🔍 分析项目: {:?}", path);
+            }
+            Some(CcwCoordinatorSubcommand::Plan { workflow }) => {
+                println!("📋 规划工作流: {}", workflow);
+            }
+            Some(CcwCoordinatorSubcommand::Execute { workflow }) => {
+                println!("▶️  执行工作流: {}", workflow);
+            }
+            None => {
+                commands::run_ccw_coordinator(project.clone(), strategy.clone(), &config).await?;
+            }
+        },
+        Commands::WorkflowSession {
+            session_id,
+            subcommand,
+        } => match subcommand {
+            WorkflowSessionSubcommand::List => {
+                commands::session_commands::list_sessions(&config).await?;
+            }
+            WorkflowSessionSubcommand::Get { session_id } => {
+                commands::session_commands::get_session(session_id, &config).await?;
+            }
+            WorkflowSessionSubcommand::Delete { session_id } => {
+                commands::session_commands::delete_session(session_id, &config).await?;
+            }
+            WorkflowSessionSubcommand::Export {
+                session_id,
+                format,
+                output,
+            } => {
+                commands::session_commands::export_session(
+                    session_id,
+                    format.as_deref(),
+                    output.as_deref(),
+                    &config,
+                )
+                .await?;
+            }
+            WorkflowSessionSubcommand::Pause { session_id } => {
+                commands::session_commands::pause_session(session_id, &config).await?;
+            }
+            WorkflowSessionSubcommand::Resume { session_id } => {
+                commands::session_commands::resume_session(session_id, &config).await?;
+            }
+        },
+        Commands::Issue { id, subcommand } => match subcommand {
+            IssueSubcommand::List { status } => {
+                commands::issue_commands::list_issues(status.as_deref(), &config).await?;
+            }
+            IssueSubcommand::Get { id } => {
+                commands::issue_commands::get_issue(id, &config).await?;
+            }
+            IssueSubcommand::Create {
+                title,
+                description,
+                priority,
+                assignee,
+            } => {
+                commands::issue_commands::create_issue(
+                    title,
+                    description.as_deref(),
+                    priority.as_deref(),
+                    assignee.as_deref(),
+                    &config,
+                )
+                .await?;
+            }
+            IssueSubcommand::UpdateStatus { id, status } => {
+                commands::issue_commands::update_issue_status(id, status, &config).await?;
+            }
+            IssueSubcommand::Comment { id, comment } => {
+                commands::issue_commands::add_comment(id, comment, &config).await?;
+            }
+            IssueSubcommand::Search { query } => {
+                commands::issue_commands::search_issues(query, &config).await?;
+            }
+        },
         Commands::Slash { command } => {
             let dispatcher = CommandDispatcher::new();
             match dispatcher.dispatch_raw(command).await {
                 Ok(result) => {
                     println!("{}", result.output.message);
                     if let Some(data) = result.output.data {
-                        println!("{}", serde_json::to_string_pretty(&data).unwrap_or_default());
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&data).unwrap_or_default()
+                        );
                     }
                     tracing::info!("Command executed in {}ms", result.execution_time_ms);
                 }
@@ -519,14 +564,13 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn init_logging(verbose: bool) {
-    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| {
-            if verbose {
-                tracing_subscriber::EnvFilter::new("debug")
-            } else {
-                tracing_subscriber::EnvFilter::new("info")
-            }
-        });
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        if verbose {
+            tracing_subscriber::EnvFilter::new("debug")
+        } else {
+            tracing_subscriber::EnvFilter::new("info")
+        }
+    });
 
     tracing_subscriber::registry()
         .with(env_filter)

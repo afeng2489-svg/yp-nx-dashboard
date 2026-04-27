@@ -1,12 +1,12 @@
 //! API 密钥认证中间件
 
+use axum::body::Body;
 use axum::{
     extract::{Request, State},
     http::StatusCode,
     middleware::Next,
     response::Response,
 };
-use axum::body::Body;
 use std::sync::Arc;
 
 use crate::routes::AppState;
@@ -39,9 +39,7 @@ impl ApiKeyAuth {
             .or_else(|| auth_header);
 
         match provided_key {
-            Some(key) if key == api_key => {
-                Ok(next.run(request).await)
-            }
+            Some(key) if key == api_key => Ok(next.run(request).await),
             _ => Err(StatusCode::UNAUTHORIZED),
         }
     }

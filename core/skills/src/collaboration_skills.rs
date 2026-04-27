@@ -2,14 +2,14 @@
 //!
 //! 提供团队协作相关的技能。
 
-use crate::{Skill, SkillCategory, SkillId, SkillMetadata, SkillParameter, ParameterType};
+use crate::{ParameterType, Skill, SkillCategory, SkillId, SkillMetadata, SkillParameter};
 
 /// 创建代码审查技能
 pub fn code_review() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("code-review"),
         "code-review",
-        "代码审查技能。执行代码审查，发现问题并提供改进建议。"
+        "代码审查技能。执行代码审查，发现问题并提供改进建议。",
     )
     .with_category(SkillCategory::Review)
     .with_tag("review")
@@ -29,11 +29,10 @@ pub fn code_review() -> Skill {
         default: None,
     });
 
-    Skill::new(metadata, "code_review")
-        .with_config(serde_json::json!({
-            "check_security": true,
-            "check_performance": true
-        }))
+    Skill::new(metadata, "code_review").with_config(serde_json::json!({
+        "check_security": true,
+        "check_performance": true
+    }))
 }
 
 /// 创建 PR 审查技能
@@ -41,7 +40,7 @@ pub fn pr_review() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("pr-review"),
         "pr-review",
-        "Pull Request 审查技能。全面审查 PR，包括设计、实现、测试等方面。"
+        "Pull Request 审查技能。全面审查 PR，包括设计、实现、测试等方面。",
     )
     .with_category(SkillCategory::Review)
     .with_tag("review")
@@ -62,11 +61,10 @@ pub fn pr_review() -> Skill {
         default: Some(serde_json::json!(["correctness", "design", "tests"])),
     });
 
-    Skill::new(metadata, "pr_review")
-        .with_config(serde_json::json!({
-            "auto_description": true,
-            "check_ci": true
-        }))
+    Skill::new(metadata, "pr_review").with_config(serde_json::json!({
+        "auto_description": true,
+        "check_ci": true
+    }))
 }
 
 /// 创建设计评审技能
@@ -74,7 +72,7 @@ pub fn design_review() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("design-review"),
         "design-review",
-        "设计评审技能。评审系统设计，发现架构问题和改进点。"
+        "设计评审技能。评审系统设计，发现架构问题和改进点。",
     )
     .with_category(SkillCategory::Review)
     .with_tag("review")
@@ -92,14 +90,18 @@ pub fn design_review() -> Skill {
         description: "评审标准".to_string(),
         param_type: ParameterType::Array,
         required: false,
-        default: Some(serde_json::json!(["scalability", "maintainability", "security", "performance"])),
+        default: Some(serde_json::json!([
+            "scalability",
+            "maintainability",
+            "security",
+            "performance"
+        ])),
     });
 
-    Skill::new(metadata, "design_review")
-        .with_config(serde_json::json!({
-            "score_design": true,
-            "provide_alternatives": true
-        }))
+    Skill::new(metadata, "design_review").with_config(serde_json::json!({
+        "score_design": true,
+        "provide_alternatives": true
+    }))
 }
 
 /// 创建结对编程技能
@@ -107,7 +109,7 @@ pub fn pair_programming() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("pair-programming"),
         "pair-programming",
-        "结对编程技能。模拟结对编程场景，驾驶员和导航员角色切换。"
+        "结对编程技能。模拟结对编程场景，驾驶员和导航员角色切换。",
     )
     .with_category(SkillCategory::Collaboration)
     .with_tag("pair")
@@ -135,11 +137,10 @@ pub fn pair_programming() -> Skill {
         default: None,
     });
 
-    Skill::new(metadata, "pair_programming")
-        .with_config(serde_json::json!({
-            "switch_interval_minutes": 15,
-            "record_session": true
-        }))
+    Skill::new(metadata, "pair_programming").with_config(serde_json::json!({
+        "switch_interval_minutes": 15,
+        "record_session": true
+    }))
 }
 
 /// 创建团队回顾技能
@@ -147,7 +148,7 @@ pub fn team_retrospective() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("team-retrospective"),
         "team-retrospective",
-        "团队回顾技能。帮助团队进行迭代回顾，总结经验教训。"
+        "团队回顾技能。帮助团队进行迭代回顾，总结经验教训。",
     )
     .with_category(SkillCategory::Collaboration)
     .with_tag("retrospective")
@@ -175,11 +176,10 @@ pub fn team_retrospective() -> Skill {
         default: None,
     });
 
-    Skill::new(metadata, "team_retrospective")
-        .with_config(serde_json::json!({
-            "format": "start_stop_continue",
-            "action_items": true
-        }))
+    Skill::new(metadata, "team_retrospective").with_config(serde_json::json!({
+        "format": "start_stop_continue",
+        "action_items": true
+    }))
 }
 
 /// 创建知识分享技能
@@ -187,7 +187,7 @@ pub fn knowledge_sharing() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("knowledge-sharing"),
         "knowledge-sharing",
-        "知识分享技能。组织和促进技术知识分享会议。"
+        "知识分享技能。组织和促进技术知识分享会议。",
     )
     .with_category(SkillCategory::Collaboration)
     .with_tag("knowledge")
@@ -215,11 +215,10 @@ pub fn knowledge_sharing() -> Skill {
         default: Some(serde_json::json!(30)),
     });
 
-    Skill::new(metadata, "knowledge_sharing")
-        .with_config(serde_json::json!({
-            "include_examples": true,
-            "include_quiz": true
-        }))
+    Skill::new(metadata, "knowledge_sharing").with_config(serde_json::json!({
+        "include_examples": true,
+        "include_quiz": true
+    }))
 }
 
 /// 获取所有协作技能

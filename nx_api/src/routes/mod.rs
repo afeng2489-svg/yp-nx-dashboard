@@ -2,52 +2,58 @@
 
 use axum::{
     extract::{Path, State},
-    routing::{get, post, put, delete},
-    Json,
-    Router,
+    routing::{delete, get, post, put},
+    Json, Router,
 };
-use tower_http::cors::{CorsLayer, Any};
-use std::sync::Arc;
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use parking_lot::RwLock;
+use std::sync::Arc;
+use tower_http::cors::{Any, CorsLayer};
 
 use crate::config::ApiConfig;
-use crate::services::{WorkflowService, ExecutionService, SessionService, SqliteSessionRepository, SqliteWorkflowRepository, SqliteWorkspaceRepository, WorkspaceService, TestGenerator, PluginService, WisdomService, SharedWisdomService, SkillService, TelegramService, SqliteTeamRepository, SqliteApiKeyRepository, ProjectService, SqliteProjectRepository, AgentTeamService, SqliteProviderRepository, ProviderService, GroupChatService, SqliteGroupChatRepository, SqliteIssueRepository, ClaudeTerminalManager};
 use crate::middleware::auth::ApiKeyAuth;
-use crate::ws::TerminalWsHandler;
+use crate::routes::teams_state::TeamsAppState;
+use crate::services::{
+    AgentTeamService, ClaudeTerminalManager, ExecutionService, GroupChatService, PluginService,
+    ProjectService, ProviderService, SessionService, SharedWisdomService, SkillService,
+    SqliteApiKeyRepository, SqliteGroupChatRepository, SqliteIssueRepository,
+    SqliteProjectRepository, SqliteProviderRepository, SqliteSessionRepository,
+    SqliteTeamRepository, SqliteWorkflowRepository, SqliteWorkspaceRepository, TelegramService,
+    TestGenerator, WisdomService, WorkflowService, WorkspaceService,
+};
+use crate::ws::AgentExecutionManager;
 use crate::ws::ClaudeStreamWsHandler;
 use crate::ws::RunCommandWsHandler;
-use crate::ws::AgentExecutionManager;
-use crate::routes::teams_state::TeamsAppState;
-use nexus_ai::{AIModelManager, AIManagerConfig, APIConfig, ProviderType, ModelConfig};
+use crate::ws::TerminalWsHandler;
+use nexus_ai::{AIManagerConfig, AIModelManager, APIConfig, ModelConfig, ProviderType};
 
-pub mod health;
-pub mod workflows;
+pub mod ai_config;
 pub mod executions;
-pub mod sessions;
-pub mod workspaces;
-pub mod test_gen;
+pub mod feature_flags;
+pub mod file_watch;
+pub mod group_chat;
+pub mod health;
+pub mod issues;
+pub mod memory;
+pub mod pipelines;
 pub mod plugins;
-pub mod templates;
+pub mod process_lifecycle;
+pub mod processes;
+pub mod projects;
+pub mod resume;
 pub mod scheduler;
 pub mod search;
-pub mod wisdom;
-pub mod ai_config;
+pub mod sessions;
 pub mod skills;
+pub mod snapshots;
 pub mod teams;
 pub mod teams_state;
-pub mod projects;
-pub mod group_chat;
-pub mod memory;
-pub mod processes;
-pub mod issues;
-pub mod feature_flags;
-pub mod pipelines;
-pub mod snapshots;
-pub mod process_lifecycle;
-pub mod resume;
-pub mod file_watch;
+pub mod templates;
+pub mod test_gen;
+pub mod wisdom;
+pub mod workflows;
+pub mod workspaces;
 
 /// Resolve a project ID from a path parameter that might be either a project_id or workspace_id.
 /// Frontend often passes workspace.id where project.id is expected.
@@ -135,7 +141,8 @@ fn seed_workflows_from_yaml(workflow_service: &WorkflowService) {
     tracing::info!("[WorkflowSeeder] 扫描目录: {:?}", dir);
 
     // 获取已有工作流名称集合
-    let existing_names: std::collections::HashSet<String> = match workflow_service.list_workflows() {
+    let existing_names: std::collections::HashSet<String> = match workflow_service.list_workflows()
+    {
         Ok(list) => list.into_iter().map(|w| w.name).collect(),
         Err(e) => {
             tracing::warn!("[WorkflowSeeder] 无法读取已有工作流: {}", e);
@@ -184,7 +191,8 @@ fn seed_dir_recursive(
             }
         };
 
-        let name = definition.get("name")
+        let name = definition
+            .get("name")
             .and_then(|v| v.as_str())
             .unwrap_or_default()
             .to_string();
@@ -199,16 +207,19 @@ fn seed_dir_recursive(
             continue;
         }
 
-        let version = definition.get("version")
+        let version = definition
+            .get("version")
             .and_then(|v| v.as_str())
             .unwrap_or("1.0")
             .to_string();
 
-        let description = definition.get("description")
+        let description = definition
+            .get("description")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
-        match workflow_service.create_workflow(name.clone(), Some(version), description, definition) {
+        match workflow_service.create_workflow(name.clone(), Some(version), description, definition)
+        {
             Ok(w) => tracing::info!("[WorkflowSeeder] 已导入: {} (id={})", name, w.id),
             Err(e) => tracing::warn!("[WorkflowSeeder] 导入失败 {}: {}", name, e),
         }
@@ -252,9 +263,7 @@ fn resolve_agents_dir() -> PathBuf {
     }
 
     // fallback
-    std::env::current_dir()
-        .unwrap_or_default()
-        .join(&subpath)
+    std::env::current_dir().unwrap_or_default().join(&subpath)
 }
 
 /// 从环境变量加载 AI 配置
@@ -264,48 +273,60 @@ fn load_ai_config_from_env() -> AIManagerConfig {
     // 加载 Anthropic API 配置
     if let Ok(api_key) = std::env::var("ANTHROPIC_API_KEY") {
         if !api_key.is_empty() {
-            api_config.insert(ProviderType::Anthropic, APIConfig {
-                api_key,
-                base_url: String::new(),
-                organization_id: String::new(),
-                timeout_secs: 120,
-            });
+            api_config.insert(
+                ProviderType::Anthropic,
+                APIConfig {
+                    api_key,
+                    base_url: String::new(),
+                    organization_id: String::new(),
+                    timeout_secs: 120,
+                },
+            );
         }
     }
 
     // 加载 OpenAI API 配置
     if let Ok(api_key) = std::env::var("OPENAI_API_KEY") {
         if !api_key.is_empty() {
-            api_config.insert(ProviderType::OpenAI, APIConfig {
-                api_key,
-                base_url: String::new(),
-                organization_id: String::new(),
-                timeout_secs: 120,
-            });
+            api_config.insert(
+                ProviderType::OpenAI,
+                APIConfig {
+                    api_key,
+                    base_url: String::new(),
+                    organization_id: String::new(),
+                    timeout_secs: 120,
+                },
+            );
         }
     }
 
     // 加载 Google API 配置
     if let Ok(api_key) = std::env::var("GOOGLE_API_KEY") {
         if !api_key.is_empty() {
-            api_config.insert(ProviderType::Google, APIConfig {
-                api_key,
-                base_url: String::new(),
-                organization_id: String::new(),
-                timeout_secs: 120,
-            });
+            api_config.insert(
+                ProviderType::Google,
+                APIConfig {
+                    api_key,
+                    base_url: String::new(),
+                    organization_id: String::new(),
+                    timeout_secs: 120,
+                },
+            );
         }
     }
 
     // 加载 MiniMax API 配置
     if let Ok(api_key) = std::env::var("MINIMAX_API_KEY") {
         if !api_key.is_empty() {
-            api_config.insert(ProviderType::MiniMax, APIConfig {
-                api_key,
-                base_url: String::new(),
-                organization_id: String::new(),
-                timeout_secs: 120,
-            });
+            api_config.insert(
+                ProviderType::MiniMax,
+                APIConfig {
+                    api_key,
+                    base_url: String::new(),
+                    organization_id: String::new(),
+                    timeout_secs: 120,
+                },
+            );
         }
     }
 
@@ -339,10 +360,10 @@ fn load_ai_config_from_env() -> AIManagerConfig {
     }
 }
 
+use crate::routes::memory::MemoryState;
+use crate::routes::scheduler::SchedulerState;
 /// Application state for search
 use crate::routes::search::SearchState;
-use crate::routes::scheduler::SchedulerState;
-use crate::routes::memory::MemoryState;
 
 /// 应用状态
 pub struct AppState {
@@ -388,7 +409,8 @@ pub struct AppState {
     /// Temp 清理器 (team_evolution P4)
     pub temp_cleaner: Option<Arc<crate::services::team_evolution::TempCleaner>>,
     /// Integration event handler (team_evolution)
-    pub team_evolution_handler: Option<Arc<crate::services::team_evolution::TeamEvolutionEventHandler>>,
+    pub team_evolution_handler:
+        Option<Arc<crate::services::team_evolution::TeamEvolutionEventHandler>>,
     /// File watcher (team_evolution P5)
     pub file_watcher: Option<Arc<crate::services::team_evolution::FileWatcher>>,
 }
@@ -406,21 +428,21 @@ impl AppState {
         // 创建会话仓库和服务
         let session_repo = Arc::new(
             SqliteSessionRepository::new(&config.db_path)
-                .expect("Failed to create session repository")
+                .expect("Failed to create session repository"),
         );
         let session_service = SessionService::new(session_repo);
 
         // 创建工作区仓库和服务
         let workspace_repo = Arc::new(
             SqliteWorkspaceRepository::new(&config.db_path)
-                .expect("Failed to create workspace repository")
+                .expect("Failed to create workspace repository"),
         );
         let workspace_service = WorkspaceService::new(workspace_repo);
 
         // 创建工作流仓库和服务
         let workflow_repo = Arc::new(
             SqliteWorkflowRepository::new(config.db_path.as_ref())
-                .expect("Failed to create workflow repository")
+                .expect("Failed to create workflow repository"),
         );
         let workflow_service = WorkflowService::with_repository(workflow_repo);
 
@@ -445,9 +467,8 @@ impl AppState {
         scheduler_state.init(Some(execution_service.clone())); // Initialize scheduler with execution service
 
         // 创建 Wisdom 服务
-        let wisdom_service = Arc::new(
-            WisdomService::new(&config.db_path).expect("Failed to create wisdom service")
-        );
+        let wisdom_service =
+            Arc::new(WisdomService::new(&config.db_path).expect("Failed to create wisdom service"));
 
         // 创建技能服务（文件型，直接读写 .claude/agents/*.md）
         // 优先使用 AGENTS_DIR 环境变量（通过 Tauri app 传递），否则自动查找 workspace root
@@ -456,13 +477,15 @@ impl AppState {
             .unwrap_or_else(|_| resolve_agents_dir());
         tracing::info!("[Skills] Using agents directory: {:?}", agents_dir);
         let skill_service = crate::services::SkillService::with_agents_dir(agents_dir.clone())
-            .expect(&format!("Failed to create skill service with agents_dir: {:?}", agents_dir));
+            .expect(&format!(
+                "Failed to create skill service with agents_dir: {:?}",
+                agents_dir
+            ));
         let skill_service_for_agent = skill_service.clone();
 
         // 创建团队仓库和服务
         let team_repo = Arc::new(
-            SqliteTeamRepository::new(&config.db_path)
-                .expect("Failed to create team repository")
+            SqliteTeamRepository::new(&config.db_path).expect("Failed to create team repository"),
         );
         let team_service = crate::services::TeamService::new(team_repo);
 
@@ -472,21 +495,19 @@ impl AppState {
         // 创建 AI Provider 仓库和服务
         let provider_repo = Arc::new(
             SqliteProviderRepository::new(&config.db_path)
-                .expect("Failed to create provider repository")
+                .expect("Failed to create provider repository"),
         );
         let provider_service = Arc::new(ProviderService::new(provider_repo));
 
         // 创建 AgentTeamService（带有 provider_service 以便从数据库获取 API keys）
-        let agent_team_service = Arc::new(
-            AgentTeamService::with_provider_service(
-                team_service.clone(),
-                skill_service_for_agent,
-                TelegramService::new(),
-                ai_model_manager.clone(),
-                provider_service.clone(),
-                current_workspace_path.clone(),
-            )
-        );
+        let agent_team_service = Arc::new(AgentTeamService::with_provider_service(
+            team_service.clone(),
+            skill_service_for_agent,
+            TelegramService::new(),
+            ai_model_manager.clone(),
+            provider_service.clone(),
+            current_workspace_path.clone(),
+        ));
 
         // 创建 Memory 状态（使用单独的数据库文件）- 需要在 teams_state 之前创建
         let memory_db_path = if config.db_path.contains('/') {
@@ -495,12 +516,17 @@ impl AppState {
         } else {
             // 相对路径：加上当前工作目录
             let cwd = std::env::current_dir().unwrap_or_default();
-            format!("{}/{}_memory.db", cwd.display(), config.db_path.replace(".db", ""))
+            format!(
+                "{}/{}_memory.db",
+                cwd.display(),
+                config.db_path.replace(".db", "")
+            )
         };
         tracing::info!("[Memory] Using database path: {}", memory_db_path);
-        let memory_state = Arc::new(
-            crate::routes::memory::create_memory_state(&memory_db_path, None)
-        );
+        let memory_state = Arc::new(crate::routes::memory::create_memory_state(
+            &memory_db_path,
+            None,
+        ));
 
         // 创建团队服务状态（将 memory_state 注入到 agent_team_service）
         let teams_state = TeamsAppState::new_with_agent_and_memory(
@@ -514,30 +540,35 @@ impl AppState {
         // 创建项目仓库和服务
         let project_repo = Arc::new(
             SqliteProjectRepository::new(&config.db_path)
-                .expect("Failed to create project repository")
+                .expect("Failed to create project repository"),
         );
-        let project_service = Arc::new(ProjectService::new(project_repo, Arc::new(team_service.clone()), agent_team_service.clone(), Arc::new(workspace_service.clone())));
+        let project_service = Arc::new(ProjectService::new(
+            project_repo,
+            Arc::new(team_service.clone()),
+            agent_team_service.clone(),
+            Arc::new(workspace_service.clone()),
+        ));
 
         // 创建 API 密钥仓库
         let api_key_repo = Arc::new(
             SqliteApiKeyRepository::new(&config.db_path)
-                .expect("Failed to create API key repository")
+                .expect("Failed to create API key repository"),
         );
 
         // 创建群组讨论服务
         let group_chat_repo = Arc::new(
             SqliteGroupChatRepository::new(&config.db_path)
-                .expect("Failed to create group chat repository")
+                .expect("Failed to create group chat repository"),
         );
-        group_chat_repo.init_tables().expect("Failed to init group chat tables");
-        let group_chat_service = Arc::new(
-            GroupChatService::new(
-                group_chat_repo,
-                team_service.clone(),
-                ai_model_manager.clone(),
-                current_workspace_path.clone(),
-            )
-        );
+        group_chat_repo
+            .init_tables()
+            .expect("Failed to init group chat tables");
+        let group_chat_service = Arc::new(GroupChatService::new(
+            group_chat_repo,
+            team_service.clone(),
+            ai_model_manager.clone(),
+            current_workspace_path.clone(),
+        ));
 
         // 创建 Agent 执行管理器
         let agent_execution_manager = AgentExecutionManager::new();
@@ -548,11 +579,20 @@ impl AppState {
         // 创建 Issue 仓储
         let issue_repository = Arc::new(
             SqliteIssueRepository::new(config.db_path.as_ref())
-                .expect("Failed to create issue repository")
+                .expect("Failed to create issue repository"),
         );
 
         // 创建 Team Evolution 服务（Feature Flag + Pipeline）
-        let (feature_flag_service, pipeline_service, snapshot_service, process_lifecycle, resume_service, crash_detector, temp_cleaner, file_watcher) = {
+        let (
+            feature_flag_service,
+            pipeline_service,
+            snapshot_service,
+            process_lifecycle,
+            resume_service,
+            crash_detector,
+            temp_cleaner,
+            file_watcher,
+        ) = {
             use crate::services::team_evolution::feature_flag_repository::SqliteFeatureFlagRepository;
             use crate::services::team_evolution::feature_flag_service::FeatureFlagService;
             use crate::services::team_evolution::pipeline_repository::SqlitePipelineRepository;
@@ -562,7 +602,7 @@ impl AppState {
 
             let db_conn = Arc::new(parking_lot::Mutex::new(
                 rusqlite::Connection::open(&config.db_path)
-                    .expect("Failed to open DB for team_evolution")
+                    .expect("Failed to open DB for team_evolution"),
             ));
 
             match SqliteFeatureFlagRepository::new(db_conn.clone()) {
@@ -602,17 +642,17 @@ impl AppState {
                         crate::services::team_evolution::ProcessLifecycleManager::new(
                             crate::services::team_evolution::LifecycleConfig::default(),
                             ff_service.clone(),
-                        )
+                        ),
                     ));
 
                     // P4: Resume + CrashDetector + TempCleaner (shared DB conn for checkpoints)
                     let resume_db_conn = Arc::new(parking_lot::Mutex::new(
                         rusqlite::Connection::open(&config.db_path)
-                            .expect("Failed to open DB for resume_service")
+                            .expect("Failed to open DB for resume_service"),
                     ));
                     let (resume_service, crash_detector, temp_cleaner) = {
-                        use crate::services::team_evolution::resume_service::ResumeService;
                         use crate::services::team_evolution::crash_detector::CrashDetector;
+                        use crate::services::team_evolution::resume_service::ResumeService;
                         use crate::services::team_evolution::temp_cleaner::TempCleaner;
 
                         match ResumeService::new(resume_db_conn.clone(), ff_service.clone()) {
@@ -621,26 +661,37 @@ impl AppState {
                                 // CrashDetector will be initialized after event_sender is available
                                 let cleaner = Arc::new(
                                     TempCleaner::new(resume_db_conn)
-                                        .with_snapshot_conn(snapshot_db_conn)
+                                        .with_snapshot_conn(snapshot_db_conn),
                                 );
                                 (Some(svc), None as Option<Arc<CrashDetector>>, Some(cleaner))
                             }
                             Err(e) => {
-                                tracing::warn!("[TeamEvolution] Failed to init resume service: {e}");
+                                tracing::warn!(
+                                    "[TeamEvolution] Failed to init resume service: {e}"
+                                );
                                 (None, None, None)
                             }
                         }
                     };
 
                     // P5: File watcher
-                    let file_watcher = Some(Arc::new(
-                        crate::services::team_evolution::FileWatcher::new(
-                            crate::services::team_evolution::file_watcher::FileWatchConfig::default(),
+                    let file_watcher =
+                        Some(Arc::new(crate::services::team_evolution::FileWatcher::new(
+                            crate::services::team_evolution::file_watcher::FileWatchConfig::default(
+                            ),
                             ff_service.clone(),
-                        )
-                    ));
+                        )));
 
-                    (Some(ff_service), pipeline_service, snapshot_service, process_lifecycle, resume_service, crash_detector, temp_cleaner, file_watcher)
+                    (
+                        Some(ff_service),
+                        pipeline_service,
+                        snapshot_service,
+                        process_lifecycle,
+                        resume_service,
+                        crash_detector,
+                        temp_cleaner,
+                        file_watcher,
+                    )
                 }
                 Err(e) => {
                     tracing::warn!("[TeamEvolution] Failed to init feature flag repo: {e}");
@@ -704,7 +755,7 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
                     let handler = Arc::new(
                         crate::services::team_evolution::TeamEvolutionEventHandler::new(
                             ps, ss, rs, lc, tx,
-                        )
+                        ),
                     );
                     handler.spawn_event_listener();
                     Some(handler)
@@ -720,7 +771,10 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
                 app_state.temp_cleaner.clone(),
             ) {
                 crate::services::team_evolution::TeamEvolutionEventHandler::spawn_periodic_tasks(
-                    ps, lc, tc, app_state.agent_execution_manager.event_sender(),
+                    ps,
+                    lc,
+                    tc,
+                    app_state.agent_execution_manager.event_sender(),
                 );
             }
         }
@@ -733,8 +787,9 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
                 let event_tx = state_mut.agent_execution_manager.event_sender();
                 state_mut.crash_detector = Some(Arc::new(
                     crate::services::team_evolution::crash_detector::CrashDetector::new(
-                        rs.clone(), event_tx,
-                    )
+                        rs.clone(),
+                        event_tx,
+                    ),
                 ));
             }
         }
@@ -748,48 +803,101 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/workflows/:id", get(workflows::get_workflow))
         .route("/api/v1/workflows/:id", put(workflows::update_workflow))
         .route("/api/v1/workflows/:id", delete(workflows::delete_workflow))
-        .route("/api/v1/workflows/:id/execute", post(workflows::execute_workflow))
+        .route(
+            "/api/v1/workflows/:id/execute",
+            post(workflows::execute_workflow),
+        )
         // 执行路由
         .route("/api/v1/executions", get(executions::list_executions))
         .route("/api/v1/executions/:id", get(executions::get_execution))
-        .route("/api/v1/executions/:id/cancel", post(executions::cancel_execution))
-        .route("/api/v1/executions/start", post(executions::start_execution))
+        .route(
+            "/api/v1/executions/:id/cancel",
+            post(executions::cancel_execution),
+        )
+        .route(
+            "/api/v1/executions/start",
+            post(executions::start_execution),
+        )
         // 会话路由
         .route("/api/v1/sessions", get(sessions::list_sessions))
         .route("/api/v1/sessions", post(sessions::create_session))
         .route("/api/v1/sessions/:id", get(sessions::get_session))
         .route("/api/v1/sessions/:id", delete(sessions::delete_session))
         .route("/api/v1/sessions/:id/pause", post(sessions::pause_session))
-        .route("/api/v1/sessions/:id/activate", post(sessions::activate_session))
+        .route(
+            "/api/v1/sessions/:id/activate",
+            post(sessions::activate_session),
+        )
         .route("/api/v1/sessions/:id/sync", post(sessions::sync_session))
-        .route("/api/v1/sessions/resume/:resume_key", post(sessions::resume_session))
+        .route(
+            "/api/v1/sessions/resume/:resume_key",
+            post(sessions::resume_session),
+        )
         // 工作区路由
         .route("/api/v1/workspaces", get(workspaces::list_workspaces))
         .route("/api/v1/workspaces", post(workspaces::create_workspace))
         .route("/api/v1/workspaces/:id", get(workspaces::get_workspace))
         .route("/api/v1/workspaces/:id", put(workspaces::update_workspace))
-        .route("/api/v1/workspaces/:id", delete(workspaces::delete_workspace))
-        .route("/api/v1/workspaces/:id/browse", get(workspaces::browse_workspace))
-        .route("/api/v1/workspaces/:id/diffs", get(workspaces::get_git_diffs))
-        .route("/api/v1/workspaces/:id/diff/*file_path", get(workspaces::get_file_diff))
-        .route("/api/v1/workspaces/:id/git/status", get(workspaces::get_git_status))
-        .route("/api/v1/workspaces/:id/scripts", get(workspaces::detect_scripts))
-        .route("/api/v1/workspaces/:id/detect-services", get(workspaces::detect_services))
-        .route("/api/v1/workspaces/:id/file", get(workspaces::read_file).put(workspaces::write_file).delete(workspaces::delete_file))
+        .route(
+            "/api/v1/workspaces/:id",
+            delete(workspaces::delete_workspace),
+        )
+        .route(
+            "/api/v1/workspaces/:id/browse",
+            get(workspaces::browse_workspace),
+        )
+        .route(
+            "/api/v1/workspaces/:id/diffs",
+            get(workspaces::get_git_diffs),
+        )
+        .route(
+            "/api/v1/workspaces/:id/diff/*file_path",
+            get(workspaces::get_file_diff),
+        )
+        .route(
+            "/api/v1/workspaces/:id/git/status",
+            get(workspaces::get_git_status),
+        )
+        .route(
+            "/api/v1/workspaces/:id/scripts",
+            get(workspaces::detect_scripts),
+        )
+        .route(
+            "/api/v1/workspaces/:id/detect-services",
+            get(workspaces::detect_services),
+        )
+        .route(
+            "/api/v1/workspaces/:id/file",
+            get(workspaces::read_file)
+                .put(workspaces::write_file)
+                .delete(workspaces::delete_file),
+        )
         // 测试生成路由
         .route("/api/v1/test-gen", post(test_gen::generate_tests))
         .route("/api/v1/test-gen/unit", post(test_gen::generate_unit_tests))
-        .route("/api/v1/test-gen/integration", post(test_gen::generate_integration_tests))
+        .route(
+            "/api/v1/test-gen/integration",
+            post(test_gen::generate_integration_tests),
+        )
         // 插件路由
-        .route("/api/v1/plugins/registry", get(plugins::get_plugin_registry_status))
+        .route(
+            "/api/v1/plugins/registry",
+            get(plugins::get_plugin_registry_status),
+        )
         .route("/api/v1/plugins/:id", get(plugins::get_plugin))
         .route("/api/v1/plugins", get(plugins::list_plugins))
         // 模板路由
         .route("/api/v1/templates", get(templates::list_templates))
         .route("/api/v1/templates", post(templates::create_template))
         .route("/api/v1/templates/:id", get(templates::get_template))
-        .route("/api/v1/templates/:id/instantiate", post(templates::instantiate_template))
-        .route("/api/v1/templates/category/:category", get(templates::list_templates_by_category))
+        .route(
+            "/api/v1/templates/:id/instantiate",
+            post(templates::instantiate_template),
+        )
+        .route(
+            "/api/v1/templates/category/:category",
+            get(templates::list_templates_by_category),
+        )
         // 搜索路由
         .route("/api/v1/search", get(search::search).post(search::reindex))
         .route("/api/v1/search/index", post(search::reindex))
@@ -800,7 +908,10 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/wisdom/:id", get(wisdom::get_wisdom))
         .route("/api/v1/wisdom/:id", delete(wisdom::delete_wisdom))
         .route("/api/v1/wisdom/categories", get(wisdom::list_categories))
-        .route("/api/v1/wisdom/categories/:category", get(wisdom::get_by_category))
+        .route(
+            "/api/v1/wisdom/categories/:category",
+            get(wisdom::get_by_category),
+        )
         .route("/api/v1/wisdom/search", get(wisdom::search_wisdom))
         // 任务调度路由
         .route("/api/v1/tasks", get(scheduler::list_tasks))
@@ -813,46 +924,118 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/ai/clis", get(ai_config::list_clis))
         .route("/api/v1/ai/execute", post(ai_config::execute_cli))
         .route("/api/v1/ai/clis/config", put(ai_config::update_cli_config))
-        .route("/api/v1/ai/strategy", put(ai_config::update_selection_strategy))
-        .route("/api/v1/ai/suggestion", post(ai_config::get_selection_suggestion))
+        .route(
+            "/api/v1/ai/strategy",
+            put(ai_config::update_selection_strategy),
+        )
+        .route(
+            "/api/v1/ai/suggestion",
+            post(ai_config::get_selection_suggestion),
+        )
         // 模型选择路由
         .route("/api/v1/ai/models", get(ai_config::list_models))
         .route("/api/v1/ai/selected", get(ai_config::get_selected_model))
         .route("/api/v1/ai/selected", put(ai_config::set_selected_model))
         .route("/api/v1/ai/default", put(ai_config::set_default_model))
         .route("/api/v1/ai/chat", post(ai_config::chat_with_selected))
-        .route("/api/v1/ai/providers/:provider/models", get(ai_config::get_provider_models))
-        .route("/api/v1/ai/models/config", put(ai_config::update_model_config))
-        .route("/api/v1/ai/models/refresh-status", get(ai_config::get_refresh_status))
+        .route(
+            "/api/v1/ai/providers/:provider/models",
+            get(ai_config::get_provider_models),
+        )
+        .route(
+            "/api/v1/ai/models/config",
+            put(ai_config::update_model_config),
+        )
+        .route(
+            "/api/v1/ai/models/refresh-status",
+            get(ai_config::get_refresh_status),
+        )
         .route("/api/v1/ai/models/refresh", post(ai_config::refresh_models))
         // API 密钥管理
         .route("/api/v1/ai/api-keys", get(ai_config::list_api_keys))
         .route("/api/v1/ai/api-keys", post(ai_config::save_api_key))
-        .route("/api/v1/ai/api-keys/:provider", delete(ai_config::delete_api_key))
+        .route(
+            "/api/v1/ai/api-keys/:provider",
+            delete(ai_config::delete_api_key),
+        )
         // AI Provider 管理路由
         .route("/api/v1/ai/v2/providers", get(ai_config::list_providers_v2))
         .route("/api/v1/ai/v2/providers", post(ai_config::create_provider))
         .route("/api/v1/ai/v2/providers/:id", get(ai_config::get_provider))
-        .route("/api/v1/ai/v2/providers/:id", put(ai_config::update_provider))
-        .route("/api/v1/ai/v2/providers/:id", delete(ai_config::delete_provider))
-        .route("/api/v1/ai/v2/providers/:id/test-connection", post(ai_config::test_provider_connection))
-        .route("/api/v1/ai/v2/providers/:id/enable", post(ai_config::enable_provider))
-        .route("/api/v1/ai/v2/providers/:id/disable", post(ai_config::disable_provider))
-        .route("/api/v1/ai/v2/providers/:id/models", get(ai_config::get_provider_mappings))
-        .route("/api/v1/ai/v2/providers/:id/models", post(ai_config::add_model_mapping))
-        .route("/api/v1/ai/v2/providers/:id/models/:model_id/:mapping_type", delete(ai_config::remove_model_mapping))
-        .route("/api/v1/ai/v2/presets", get(ai_config::get_provider_presets))
-        .route("/api/v1/ai/v2/providers/from-preset", post(ai_config::create_from_preset))
+        .route(
+            "/api/v1/ai/v2/providers/:id",
+            put(ai_config::update_provider),
+        )
+        .route(
+            "/api/v1/ai/v2/providers/:id",
+            delete(ai_config::delete_provider),
+        )
+        .route(
+            "/api/v1/ai/v2/providers/:id/test-connection",
+            post(ai_config::test_provider_connection),
+        )
+        .route(
+            "/api/v1/ai/v2/providers/:id/enable",
+            post(ai_config::enable_provider),
+        )
+        .route(
+            "/api/v1/ai/v2/providers/:id/disable",
+            post(ai_config::disable_provider),
+        )
+        .route(
+            "/api/v1/ai/v2/providers/:id/models",
+            get(ai_config::get_provider_mappings),
+        )
+        .route(
+            "/api/v1/ai/v2/providers/:id/models",
+            post(ai_config::add_model_mapping),
+        )
+        .route(
+            "/api/v1/ai/v2/providers/:id/models/:model_id/:mapping_type",
+            delete(ai_config::remove_model_mapping),
+        )
+        .route(
+            "/api/v1/ai/v2/presets",
+            get(ai_config::get_provider_presets),
+        )
+        .route(
+            "/api/v1/ai/v2/providers/from-preset",
+            post(ai_config::create_from_preset),
+        )
         // Claude Switch 路由
-        .route("/api/v1/ai/claude-switch/configure", post(ai_config::configure_claude_switch))
-        .route("/api/v1/ai/claude-switch/backends", get(ai_config::list_claude_switch_backends))
-        .route("/api/v1/ai/claude-switch/backends", post(ai_config::add_claude_switch_backend))
-        .route("/api/v1/ai/claude-switch/backends/switch", post(ai_config::switch_claude_switch_backend))
-        .route("/api/v1/ai/claude-switch/active", get(ai_config::get_active_claude_switch_backend))
-        .route("/api/v1/ai/claude-switch/backends/test", post(ai_config::test_claude_switch_backend))
+        .route(
+            "/api/v1/ai/claude-switch/configure",
+            post(ai_config::configure_claude_switch),
+        )
+        .route(
+            "/api/v1/ai/claude-switch/backends",
+            get(ai_config::list_claude_switch_backends),
+        )
+        .route(
+            "/api/v1/ai/claude-switch/backends",
+            post(ai_config::add_claude_switch_backend),
+        )
+        .route(
+            "/api/v1/ai/claude-switch/backends/switch",
+            post(ai_config::switch_claude_switch_backend),
+        )
+        .route(
+            "/api/v1/ai/claude-switch/active",
+            get(ai_config::get_active_claude_switch_backend),
+        )
+        .route(
+            "/api/v1/ai/claude-switch/backends/test",
+            post(ai_config::test_claude_switch_backend),
+        )
         // 当前工作区路由（用于 Claude CLI --project 参数）
-        .route("/api/v1/ai/current-workspace", get(ai_config::get_current_workspace))
-        .route("/api/v1/ai/current-workspace", put(ai_config::set_current_workspace))
+        .route(
+            "/api/v1/ai/current-workspace",
+            get(ai_config::get_current_workspace),
+        )
+        .route(
+            "/api/v1/ai/current-workspace",
+            put(ai_config::set_current_workspace),
+        )
         // 技能路由
         .route("/api/v1/skills", get(skills::list_skills))
         .route("/api/v1/skills", post(skills::create_skill))
@@ -863,11 +1046,20 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/skills/:id", get(skills::get_skill))
         .route("/api/v1/skills/:id", put(skills::update_skill))
         .route("/api/v1/skills/:id", delete(skills::delete_skill))
-        .route("/api/v1/skills/category/:category", get(skills::list_by_category))
+        .route(
+            "/api/v1/skills/category/:category",
+            get(skills::list_by_category),
+        )
         .route("/api/v1/skills/tag/:tag", get(skills::list_by_tag))
         .route("/api/v1/skills/:id/execute", post(skills::execute_skill))
-        .route("/api/v1/skills/:id/generate-workflow", post(skills::generate_workflow_from_skill))
-        .route("/api/v1/skills/import-from-agents", post(skills::import_from_agents))
+        .route(
+            "/api/v1/skills/:id/generate-workflow",
+            post(skills::generate_workflow_from_skill),
+        )
+        .route(
+            "/api/v1/skills/import-from-agents",
+            post(skills::import_from_agents),
+        )
         .route("/api/v1/skills/import", post(skills::import_skill))
         // 团队路由
         .route("/api/v1/teams", get(teams::list_teams))
@@ -877,29 +1069,77 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/teams/:team_id", delete(teams::delete_team))
         .route("/api/v1/teams/:team_id/roles", get(teams::list_roles))
         .route("/api/v1/teams/:team_id/roles", post(teams::create_role))
-        .route("/api/v1/teams/:team_id/roles/:role_id", delete(teams::remove_role_from_team))
-        .route("/api/v1/teams/:team_id/messages", get(teams::get_team_messages))
-        .route("/api/v1/teams/:team_id/execute", post(teams::execute_team_task))
-        .route("/api/v1/teams/:team_id/telegram", get(teams::get_team_telegram_config))
-        .route("/api/v1/teams/:team_id/telegram", put(teams::configure_team_telegram))
-        .route("/api/v1/teams/:team_id/telegram/:enabled", post(teams::enable_team_telegram))
+        .route(
+            "/api/v1/teams/:team_id/roles/:role_id",
+            delete(teams::remove_role_from_team),
+        )
+        .route(
+            "/api/v1/teams/:team_id/messages",
+            get(teams::get_team_messages),
+        )
+        .route(
+            "/api/v1/teams/:team_id/execute",
+            post(teams::execute_team_task),
+        )
+        .route(
+            "/api/v1/teams/:team_id/telegram",
+            get(teams::get_team_telegram_config),
+        )
+        .route(
+            "/api/v1/teams/:team_id/telegram",
+            put(teams::configure_team_telegram),
+        )
+        .route(
+            "/api/v1/teams/:team_id/telegram/:enabled",
+            post(teams::enable_team_telegram),
+        )
         // Per-member bot management
-        .route("/api/v1/teams/:team_id/members/bots", get(teams::get_team_member_bots))
-        .route("/api/v1/teams/:team_id/members/:role_id/bot", put(teams::configure_member_bot))
-        .route("/api/v1/teams/:team_id/members/bots/:enabled", post(teams::toggle_all_member_bots))
+        .route(
+            "/api/v1/teams/:team_id/members/bots",
+            get(teams::get_team_member_bots),
+        )
+        .route(
+            "/api/v1/teams/:team_id/members/:role_id/bot",
+            put(teams::configure_member_bot),
+        )
+        .route(
+            "/api/v1/teams/:team_id/members/bots/:enabled",
+            post(teams::toggle_all_member_bots),
+        )
         .route("/api/v1/roles/:id", get(teams::get_role))
         .route("/api/v1/roles/:id", put(teams::update_role))
         .route("/api/v1/roles/:id", delete(teams::delete_role))
         .route("/api/v1/roles/:id/team", put(teams::assign_role_to_team))
         .route("/api/v1/roles", get(teams::list_all_roles))
-        .route("/api/v1/roles/:id/skills/:skill_id", post(teams::assign_skill))
-        .route("/api/v1/roles/:id/skills/:skill_id", delete(teams::remove_skill))
+        .route(
+            "/api/v1/roles/:id/skills/:skill_id",
+            post(teams::assign_skill),
+        )
+        .route(
+            "/api/v1/roles/:id/skills/:skill_id",
+            delete(teams::remove_skill),
+        )
         .route("/api/v1/roles/:id/skills", get(teams::get_role_skills))
-        .route("/api/v1/roles/:id/telegram", post(teams::configure_telegram))
-        .route("/api/v1/roles/:id/telegram", get(teams::get_telegram_config))
-        .route("/api/v1/roles/:id/telegram/:enabled", post(teams::enable_telegram))
-        .route("/api/v1/roles/:id/telegram", delete(teams::delete_telegram_config))
-        .route("/api/v1/roles/:id/telegram/send", post(teams::send_telegram_message))
+        .route(
+            "/api/v1/roles/:id/telegram",
+            post(teams::configure_telegram),
+        )
+        .route(
+            "/api/v1/roles/:id/telegram",
+            get(teams::get_telegram_config),
+        )
+        .route(
+            "/api/v1/roles/:id/telegram/:enabled",
+            post(teams::enable_telegram),
+        )
+        .route(
+            "/api/v1/roles/:id/telegram",
+            delete(teams::delete_telegram_config),
+        )
+        .route(
+            "/api/v1/roles/:id/telegram/send",
+            post(teams::send_telegram_message),
+        )
         .route("/api/v1/roles/:id/execute", post(teams::execute_role_task))
         // 项目路由
         .route("/api/v1/projects", get(projects::list_projects))
@@ -907,31 +1147,81 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/projects/:id", get(projects::get_project))
         .route("/api/v1/projects/:id", put(projects::update_project))
         .route("/api/v1/projects/:id", delete(projects::delete_project))
-        .route("/api/v1/projects/team/:team_id", get(projects::list_projects_by_team))
-        .route("/api/v1/projects/:id/execute", post(projects::execute_project))
+        .route(
+            "/api/v1/projects/team/:team_id",
+            get(projects::list_projects_by_team),
+        )
+        .route(
+            "/api/v1/projects/:id/execute",
+            post(projects::execute_project),
+        )
         // 群组讨论路由
         .route("/api/v1/group-sessions", post(group_chat::create_session))
         .route("/api/v1/group-sessions", get(group_chat::list_sessions))
         .route("/api/v1/group-sessions/:id", get(group_chat::get_session))
-        .route("/api/v1/group-sessions/:id", put(group_chat::update_session))
-        .route("/api/v1/group-sessions/:id", delete(group_chat::delete_session))
-        .route("/api/v1/group-sessions/:id/start", post(group_chat::start_discussion))
-        .route("/api/v1/group-sessions/:id/messages", get(group_chat::get_messages))
-        .route("/api/v1/group-sessions/:id/messages", post(group_chat::send_message))
-        .route("/api/v1/group-sessions/:id/next-speaker", get(group_chat::get_next_speaker))
-        .route("/api/v1/group-sessions/:id/advance", post(group_chat::advance_speaker))
-        .route("/api/v1/group-sessions/:id/conclude", post(group_chat::conclude_discussion))
-        .route("/api/v1/group-sessions/:id/execute-turn/:role_id", post(group_chat::execute_role_turn))
-        .route("/api/v1/group-sessions/:id/execute-round", post(group_chat::execute_round))
+        .route(
+            "/api/v1/group-sessions/:id",
+            put(group_chat::update_session),
+        )
+        .route(
+            "/api/v1/group-sessions/:id",
+            delete(group_chat::delete_session),
+        )
+        .route(
+            "/api/v1/group-sessions/:id/start",
+            post(group_chat::start_discussion),
+        )
+        .route(
+            "/api/v1/group-sessions/:id/messages",
+            get(group_chat::get_messages),
+        )
+        .route(
+            "/api/v1/group-sessions/:id/messages",
+            post(group_chat::send_message),
+        )
+        .route(
+            "/api/v1/group-sessions/:id/next-speaker",
+            get(group_chat::get_next_speaker),
+        )
+        .route(
+            "/api/v1/group-sessions/:id/advance",
+            post(group_chat::advance_speaker),
+        )
+        .route(
+            "/api/v1/group-sessions/:id/conclude",
+            post(group_chat::conclude_discussion),
+        )
+        .route(
+            "/api/v1/group-sessions/:id/execute-turn/:role_id",
+            post(group_chat::execute_role_turn),
+        )
+        .route(
+            "/api/v1/group-sessions/:id/execute-round",
+            post(group_chat::execute_round),
+        )
         // 团队记忆路由
-        .route("/api/v1/teams/:team_id/memories", post(memory::store_memory))
-        .route("/api/v1/teams/:team_id/memories/search", post(memory::search_memory))
-        .route("/api/v1/teams/:team_id/memories/stats", get(memory::get_stats))
-        .route("/api/v1/teams/:team_id/memories", delete(memory::clear_memory))
-
+        .route(
+            "/api/v1/teams/:team_id/memories",
+            post(memory::store_memory),
+        )
+        .route(
+            "/api/v1/teams/:team_id/memories/search",
+            post(memory::search_memory),
+        )
+        .route(
+            "/api/v1/teams/:team_id/memories/stats",
+            get(memory::get_stats),
+        )
+        .route(
+            "/api/v1/teams/:team_id/memories",
+            delete(memory::clear_memory),
+        )
         // Process monitoring
         .route("/api/v1/processes", get(processes::list_processes))
-        .route("/api/v1/processes/:execution_id/kill", post(processes::kill_process))
+        .route(
+            "/api/v1/processes/:execution_id/kill",
+            post(processes::kill_process),
+        )
         // Issue 路由
         .route("/api/v1/issues", get(issues::list_issues))
         .route("/api/v1/issues", post(issues::create_issue))
@@ -939,51 +1229,147 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/issues/:id", put(issues::update_issue))
         .route("/api/v1/issues/:id", delete(issues::delete_issue))
         // Feature Flag 路由 (team_evolution)
-        .route("/api/v1/feature-flags", get(feature_flags::list_feature_flags))
-        .route("/api/v1/feature-flags/:key", get(feature_flags::get_feature_flag))
-        .route("/api/v1/feature-flags/:key", put(feature_flags::update_feature_flag))
-        .route("/api/v1/feature-flags/:key/reset", post(feature_flags::reset_feature_flag))
+        .route(
+            "/api/v1/feature-flags",
+            get(feature_flags::list_feature_flags),
+        )
+        .route(
+            "/api/v1/feature-flags/:key",
+            get(feature_flags::get_feature_flag),
+        )
+        .route(
+            "/api/v1/feature-flags/:key",
+            put(feature_flags::update_feature_flag),
+        )
+        .route(
+            "/api/v1/feature-flags/:key/reset",
+            post(feature_flags::reset_feature_flag),
+        )
         // Pipeline 路由 (team_evolution)
-        .route("/api/v1/projects/:id/pipeline", post(pipelines::create_pipeline).get(pipelines::get_project_pipeline))
-        .route("/api/v1/pipelines/:id/start", post(pipelines::start_pipeline))
-        .route("/api/v1/pipelines/:id/pause", post(pipelines::pause_pipeline))
-        .route("/api/v1/pipelines/:id/resume", post(pipelines::resume_pipeline))
-        .route("/api/v1/pipelines/:id/steps", get(pipelines::get_pipeline_steps))
-        .route("/api/v1/pipelines/:id/dispatch", post(pipelines::dispatch_pipeline_steps))
-        .route("/api/v1/pipelines/:pipeline_id/steps/:step_id/retry", post(pipelines::retry_step))
+        .route(
+            "/api/v1/projects/:id/pipeline",
+            post(pipelines::create_pipeline).get(pipelines::get_project_pipeline),
+        )
+        .route(
+            "/api/v1/pipelines/:id/start",
+            post(pipelines::start_pipeline),
+        )
+        .route(
+            "/api/v1/pipelines/:id/pause",
+            post(pipelines::pause_pipeline),
+        )
+        .route(
+            "/api/v1/pipelines/:id/resume",
+            post(pipelines::resume_pipeline),
+        )
+        .route(
+            "/api/v1/pipelines/:id/steps",
+            get(pipelines::get_pipeline_steps),
+        )
+        .route(
+            "/api/v1/pipelines/:id/dispatch",
+            post(pipelines::dispatch_pipeline_steps),
+        )
+        .route(
+            "/api/v1/pipelines/:pipeline_id/steps/:step_id/retry",
+            post(pipelines::retry_step),
+        )
         // Snapshot 路由 (team_evolution)
-        .route("/api/v1/projects/:id/progress", get(snapshots::get_project_progress))
-        .route("/api/v1/projects/:id/role-snapshots", get(snapshots::get_role_snapshots))
-        .route("/api/v1/projects/:id/role-snapshots/:role_id", get(snapshots::get_role_snapshot))
-        .route("/api/v1/projects/:id/role-snapshots/:role_id/history", get(snapshots::get_role_snapshot_history))
-        .route("/api/v1/projects/:id/snapshot-all", post(snapshots::snapshot_all_active))
+        .route(
+            "/api/v1/projects/:id/progress",
+            get(snapshots::get_project_progress),
+        )
+        .route(
+            "/api/v1/projects/:id/role-snapshots",
+            get(snapshots::get_role_snapshots),
+        )
+        .route(
+            "/api/v1/projects/:id/role-snapshots/:role_id",
+            get(snapshots::get_role_snapshot),
+        )
+        .route(
+            "/api/v1/projects/:id/role-snapshots/:role_id/history",
+            get(snapshots::get_role_snapshot_history),
+        )
+        .route(
+            "/api/v1/projects/:id/snapshot-all",
+            post(snapshots::snapshot_all_active),
+        )
         // Process lifecycle 路由 (team_evolution)
-        .route("/api/v1/processes/stats", get(process_lifecycle::get_process_stats))
-        .route("/api/v1/projects/:id/processes/cleanup", post(process_lifecycle::cleanup_project_processes))
-        .route("/api/v1/processes/:execution_id/hibernate", post(process_lifecycle::hibernate_process))
-        .route("/api/v1/processes/:execution_id/wake", post(process_lifecycle::wake_process))
+        .route(
+            "/api/v1/processes/stats",
+            get(process_lifecycle::get_process_stats),
+        )
+        .route(
+            "/api/v1/projects/:id/processes/cleanup",
+            post(process_lifecycle::cleanup_project_processes),
+        )
+        .route(
+            "/api/v1/processes/:execution_id/hibernate",
+            post(process_lifecycle::hibernate_process),
+        )
+        .route(
+            "/api/v1/processes/:execution_id/wake",
+            post(process_lifecycle::wake_process),
+        )
         // Resume + Crash recovery 路由 (team_evolution P4)
-        .route("/api/v1/executions/interrupted", get(resume::get_interrupted_executions))
-        .route("/api/v1/executions/:id/resume", post(resume::resume_execution))
-        .route("/api/v1/executions/:id/checkpoint", delete(resume::abandon_checkpoint))
-        .route("/api/v1/crash-detect", post(resume::trigger_crash_detection))
+        .route(
+            "/api/v1/executions/interrupted",
+            get(resume::get_interrupted_executions),
+        )
+        .route(
+            "/api/v1/executions/:id/resume",
+            post(resume::resume_execution),
+        )
+        .route(
+            "/api/v1/executions/:id/checkpoint",
+            delete(resume::abandon_checkpoint),
+        )
+        .route(
+            "/api/v1/crash-detect",
+            post(resume::trigger_crash_detection),
+        )
         .route("/api/v1/temp-cleanup", post(resume::trigger_temp_cleanup))
         // File Watch 路由 (team_evolution P5)
-        .route("/api/v1/projects/:id/file-changes", get(file_watch::get_file_changes))
-        .route("/api/v1/projects/:id/file-watch/start", post(file_watch::start_file_watch))
-        .route("/api/v1/projects/:id/file-watch/stop", post(file_watch::stop_file_watch))
+        .route(
+            "/api/v1/projects/:id/file-changes",
+            get(file_watch::get_file_changes),
+        )
+        .route(
+            "/api/v1/projects/:id/file-watch/start",
+            post(file_watch::start_file_watch),
+        )
+        .route(
+            "/api/v1/projects/:id/file-watch/stop",
+            post(file_watch::stop_file_watch),
+        )
         // WebSocket 路由
         .route("/ws/executions/:id", get(executions::execution_ws))
         .route("/ws/sessions/:id", get(sessions::session_ws))
         .route("/ws/terminal", get(terminal_ws_handler))
         .route("/ws/claude-stream", get(claude_stream_ws_handler))
         .route("/ws/run-command", get(run_command_ws_handler))
-        .route("/ws/agent-executions/:execution_id", get(agent_execution_ws_handler))
-        .route("/ws/teams/:team_id/terminal/:session_id", get(claude_terminal_ws_handler))
+        .route(
+            "/ws/agent-executions/:execution_id",
+            get(agent_execution_ws_handler),
+        )
+        .route(
+            "/ws/teams/:team_id/terminal/:session_id",
+            get(claude_terminal_ws_handler),
+        )
         // 创建终端会话 REST 端点
-        .route("/api/v1/teams/:team_id/terminal", post(create_terminal_session_handler))
-        .route("/api/v1/teams/:team_id/terminal/:session_id/task", post(dispatch_terminal_task_handler))
-        .route("/api/v1/teams/:team_id/terminal/:session_id", delete(close_terminal_session_handler))
+        .route(
+            "/api/v1/teams/:team_id/terminal",
+            post(create_terminal_session_handler),
+        )
+        .route(
+            "/api/v1/teams/:team_id/terminal/:session_id/task",
+            post(dispatch_terminal_task_handler),
+        )
+        .route(
+            "/api/v1/teams/:team_id/terminal/:session_id",
+            delete(close_terminal_session_handler),
+        )
         // 应用认证中间件到所有 API 和 WebSocket 路由
         .route_layer(axum::middleware::from_fn_with_state(
             app_state_for_router.clone(),
@@ -1099,7 +1485,10 @@ async fn dispatch_terminal_task_handler(
 ) -> impl axum::response::IntoResponse {
     let task = body.get("task").and_then(|v| v.as_str()).unwrap_or("");
 
-    if state.claude_terminal_manager.dispatch_task(&session_id, task) {
+    if state
+        .claude_terminal_manager
+        .dispatch_task(&session_id, task)
+    {
         axum::Json(serde_json::json!({ "ok": true }))
     } else {
         axum::Json(serde_json::json!({ "ok": false, "error": "session not found" }))

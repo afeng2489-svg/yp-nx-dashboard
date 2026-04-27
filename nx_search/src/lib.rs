@@ -2,31 +2,31 @@
 //!
 //! 代码搜索功能: ACE 语义搜索、CodexLens FTS、混合搜索。
 
-pub mod embedding;
-pub mod index;
-pub mod searcher;
 pub mod ace;
 pub mod codexlens;
+pub mod embedding;
 pub mod hybrid;
+pub mod index;
+pub mod searcher;
 
-pub use embedding::{EmbeddingProvider, EmbeddingResult, AIEmbeddingAdapter};
-pub use index::{Document, Chunk, VectorIndex};
-pub use searcher::{SearchResult, SearchOptions, CodeSearcher};
+pub use embedding::{AIEmbeddingAdapter, EmbeddingProvider, EmbeddingResult};
+pub use index::{Chunk, Document, VectorIndex};
+pub use searcher::{CodeSearcher, SearchOptions, SearchResult};
 
 // ACE 语义搜索
 pub use ace::{
-    AceEngine, AceConfig, AceSearchResult, AceSearchHit, AceSearchMode,
-    AceError, SymbolGraph, SymbolContext,
+    AceConfig, AceEngine, AceError, AceSearchHit, AceSearchMode, AceSearchResult, SymbolContext,
+    SymbolGraph,
 };
 
 // CodexLens FTS
 pub use codexlens::{
-    CodexLensEngine, CodexLensConfig, CodexLensResult, CodexLensHit,
-    CodexLensStats, CodexLensSearchOptions, QueryType,
+    CodexLensConfig, CodexLensEngine, CodexLensHit, CodexLensResult, CodexLensSearchOptions,
+    CodexLensStats, QueryType,
 };
 
 // Hybrid 混合搜索
 pub use hybrid::{
-    HybridSearchEngine, HybridConfig, HybridSearchResult, HybridSearchHit,
-    HybridSearchMode, HybridError, ScoreBreakdown, MatchType,
+    HybridConfig, HybridError, HybridSearchEngine, HybridSearchHit, HybridSearchMode,
+    HybridSearchResult, MatchType, ScoreBreakdown,
 };

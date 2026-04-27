@@ -38,17 +38,26 @@ impl ProviderService {
 
     /// List all providers
     pub async fn list_providers(&self) -> Result<Vec<AIProvider>, ProviderServiceError> {
-        self.repo.list_providers().map_err(ProviderServiceError::from)
+        self.repo
+            .list_providers()
+            .map_err(ProviderServiceError::from)
     }
 
     /// Get provider by ID
     pub async fn get_provider(&self, id: &str) -> Result<Option<AIProvider>, ProviderServiceError> {
-        self.repo.get_provider(id).map_err(ProviderServiceError::from)
+        self.repo
+            .get_provider(id)
+            .map_err(ProviderServiceError::from)
     }
 
     /// Get provider by key
-    pub async fn get_provider_by_key(&self, key: &str) -> Result<Option<AIProvider>, ProviderServiceError> {
-        self.repo.get_provider_by_key(key).map_err(ProviderServiceError::from)
+    pub async fn get_provider_by_key(
+        &self,
+        key: &str,
+    ) -> Result<Option<AIProvider>, ProviderServiceError> {
+        self.repo
+            .get_provider_by_key(key)
+            .map_err(ProviderServiceError::from)
     }
 
     /// Create a new provider
@@ -68,7 +77,9 @@ impl ProviderService {
             ));
         }
 
-        self.repo.create_provider(provider).map_err(ProviderServiceError::from)?;
+        self.repo
+            .create_provider(provider)
+            .map_err(ProviderServiceError::from)?;
         Ok(provider.clone())
     }
 
@@ -78,32 +89,53 @@ impl ProviderService {
         provider: &AIProvider,
     ) -> Result<AIProvider, ProviderServiceError> {
         // Check if provider exists
-        let existing = self.repo.get_provider(&provider.id).map_err(ProviderServiceError::from)?;
+        let existing = self
+            .repo
+            .get_provider(&provider.id)
+            .map_err(ProviderServiceError::from)?;
         if existing.is_none() {
             return Err(ProviderServiceError::NotFound(provider.id.clone()));
         }
 
-        self.repo.update_provider(provider).map_err(ProviderServiceError::from)?;
+        self.repo
+            .update_provider(provider)
+            .map_err(ProviderServiceError::from)?;
         Ok(provider.clone())
     }
 
     /// Delete a provider
     pub async fn delete_provider(&self, id: &str) -> Result<bool, ProviderServiceError> {
-        self.repo.delete_provider(id).map_err(ProviderServiceError::from)
+        self.repo
+            .delete_provider(id)
+            .map_err(ProviderServiceError::from)
     }
 
     /// Save API key for a provider
-    pub async fn save_api_key(&self, provider_id: &str, api_key: &str) -> Result<(), ProviderServiceError> {
-        self.repo.save_api_key(provider_id, api_key).map_err(ProviderServiceError::from)
+    pub async fn save_api_key(
+        &self,
+        provider_id: &str,
+        api_key: &str,
+    ) -> Result<(), ProviderServiceError> {
+        self.repo
+            .save_api_key(provider_id, api_key)
+            .map_err(ProviderServiceError::from)
     }
 
     /// Get API key for a provider
-    pub async fn get_api_key(&self, provider_id: &str) -> Result<Option<String>, ProviderServiceError> {
-        self.repo.get_api_key(provider_id).map_err(ProviderServiceError::from)
+    pub async fn get_api_key(
+        &self,
+        provider_id: &str,
+    ) -> Result<Option<String>, ProviderServiceError> {
+        self.repo
+            .get_api_key(provider_id)
+            .map_err(ProviderServiceError::from)
     }
 
     /// Get API key by provider key (e.g., "anthropic", "openai")
-    pub async fn get_api_key_by_provider_key(&self, provider_key: &str) -> Result<Option<String>, ProviderServiceError> {
+    pub async fn get_api_key_by_provider_key(
+        &self,
+        provider_key: &str,
+    ) -> Result<Option<String>, ProviderServiceError> {
         if let Some(provider) = self.get_provider_by_key(provider_key).await? {
             self.get_api_key(&provider.id).await
         } else {
@@ -113,7 +145,9 @@ impl ProviderService {
 
     /// Delete API key for a provider
     pub async fn delete_api_key(&self, provider_id: &str) -> Result<bool, ProviderServiceError> {
-        self.repo.delete_api_key(provider_id).map_err(ProviderServiceError::from)
+        self.repo
+            .delete_api_key(provider_id)
+            .map_err(ProviderServiceError::from)
     }
 
     /// Add model mapping to a provider
@@ -121,22 +155,37 @@ impl ProviderService {
         &self,
         mapping: &ModelMapping,
     ) -> Result<(), ProviderServiceError> {
-        self.repo.create_model_mapping(mapping).map_err(ProviderServiceError::from)
+        self.repo
+            .create_model_mapping(mapping)
+            .map_err(ProviderServiceError::from)
     }
 
     /// Get model mappings for a provider
-    pub async fn get_model_mappings(&self, provider_id: &str) -> Result<Vec<ModelMapping>, ProviderServiceError> {
-        self.repo.get_model_mappings(provider_id).map_err(ProviderServiceError::from)
+    pub async fn get_model_mappings(
+        &self,
+        provider_id: &str,
+    ) -> Result<Vec<ModelMapping>, ProviderServiceError> {
+        self.repo
+            .get_model_mappings(provider_id)
+            .map_err(ProviderServiceError::from)
     }
 
     /// Get model mapping by type
-    pub async fn get_model_mapping_by_type(&self, provider_id: &str, mapping_type: &MappingType) -> Result<Option<ModelMapping>, ProviderServiceError> {
-        self.repo.get_model_mapping_by_type(provider_id, mapping_type).map_err(ProviderServiceError::from)
+    pub async fn get_model_mapping_by_type(
+        &self,
+        provider_id: &str,
+        mapping_type: &MappingType,
+    ) -> Result<Option<ModelMapping>, ProviderServiceError> {
+        self.repo
+            .get_model_mapping_by_type(provider_id, mapping_type)
+            .map_err(ProviderServiceError::from)
     }
 
     /// Delete model mapping
     pub async fn delete_model_mapping(&self, id: &str) -> Result<bool, ProviderServiceError> {
-        self.repo.delete_model_mapping(id).map_err(ProviderServiceError::from)
+        self.repo
+            .delete_model_mapping(id)
+            .map_err(ProviderServiceError::from)
     }
 
     /// Get preset providers
@@ -150,18 +199,34 @@ impl ProviderService {
         preset_key: &str,
         api_key: &str,
     ) -> Result<AIProvider, ProviderServiceError> {
-        tracing::info!("[create_from_preset] preset_key = '{}', api_key_length = {}", preset_key, api_key.len());
+        tracing::info!(
+            "[create_from_preset] preset_key = '{}', api_key_length = {}",
+            preset_key,
+            api_key.len()
+        );
 
         let presets = Self::get_presets();
         let preset = presets
             .iter()
             .find(|p| p.key == preset_key)
-            .ok_or_else(|| ProviderServiceError::InvalidOperation(format!("Preset not found: {}", preset_key)))?;
+            .ok_or_else(|| {
+                ProviderServiceError::InvalidOperation(format!("Preset not found: {}", preset_key))
+            })?;
 
         // Check if provider with same key already exists
-        if let Some(existing) = self.repo.get_provider_by_key(preset_key).map_err(ProviderServiceError::from)? {
-            tracing::info!("[create_from_preset] Provider with key '{}' already exists (id: {}), deleting...", preset_key, existing.id);
-            self.repo.delete_provider(&existing.id).map_err(ProviderServiceError::from)?;
+        if let Some(existing) = self
+            .repo
+            .get_provider_by_key(preset_key)
+            .map_err(ProviderServiceError::from)?
+        {
+            tracing::info!(
+                "[create_from_preset] Provider with key '{}' already exists (id: {}), deleting...",
+                preset_key,
+                existing.id
+            );
+            self.repo
+                .delete_provider(&existing.id)
+                .map_err(ProviderServiceError::from)?;
         }
 
         let provider_id = uuid::Uuid::new_v4().to_string();
@@ -193,7 +258,11 @@ impl ProviderService {
 
         // Then save the API key (it will be encrypted)
         tracing::info!("[create_from_preset] Saving API key...");
-        if let Err(e) = self.repo.save_api_key(&provider_id, api_key).map_err(ProviderServiceError::from) {
+        if let Err(e) = self
+            .repo
+            .save_api_key(&provider_id, api_key)
+            .map_err(ProviderServiceError::from)
+        {
             tracing::error!("[create_from_preset] Failed to save API key: {}", e);
             return Err(e);
         }
@@ -201,8 +270,15 @@ impl ProviderService {
 
         // Verify by reading it back
         tracing::info!("[create_from_preset] Verifying API key...");
-        match self.repo.get_api_key(&provider_id).map_err(ProviderServiceError::from) {
-            Ok(Some(key)) => tracing::info!("[create_from_preset] API key verified! Length: {}", key.len()),
+        match self
+            .repo
+            .get_api_key(&provider_id)
+            .map_err(ProviderServiceError::from)
+        {
+            Ok(Some(key)) => tracing::info!(
+                "[create_from_preset] API key verified! Length: {}",
+                key.len()
+            ),
             Ok(None) => tracing::error!("[create_from_preset] API key not found after save!"),
             Err(e) => tracing::error!("[create_from_preset] Error reading API key: {}", e),
         }
@@ -211,38 +287,64 @@ impl ProviderService {
     }
 
     /// Test connection to a provider
-    pub async fn test_provider_connection(&self, provider_id: &str) -> Result<ConnectionTestResult, ProviderServiceError> {
+    pub async fn test_provider_connection(
+        &self,
+        provider_id: &str,
+    ) -> Result<ConnectionTestResult, ProviderServiceError> {
         tracing::info!("[ConnectionTest] Testing provider: {}", provider_id);
 
         // Get provider
-        let provider = self.repo.get_provider(provider_id)
+        let provider = self
+            .repo
+            .get_provider(provider_id)
             .map_err(ProviderServiceError::from)?
             .ok_or_else(|| ProviderServiceError::NotFound(provider_id.to_string()))?;
 
-        tracing::info!("[ConnectionTest] Provider found: {}, base_url: {}, api_format: {:?}",
-            provider.name, provider.base_url, provider.api_format);
+        tracing::info!(
+            "[ConnectionTest] Provider found: {}, base_url: {}, api_format: {:?}",
+            provider.name,
+            provider.base_url,
+            provider.api_format
+        );
 
         // Get API key
-        tracing::info!("[ConnectionTest] Getting API key for provider: {}", provider_id);
-        let api_key = match self.repo.get_api_key(provider_id).map_err(ProviderServiceError::from) {
+        tracing::info!(
+            "[ConnectionTest] Getting API key for provider: {}",
+            provider_id
+        );
+        let api_key = match self
+            .repo
+            .get_api_key(provider_id)
+            .map_err(ProviderServiceError::from)
+        {
             Ok(Some(key)) => {
                 tracing::info!("[ConnectionTest] API key found, length: {}", key.len());
                 key
             }
             Ok(None) => {
-                tracing::error!("[ConnectionTest] API key is None for provider: {}", provider_id);
-                return Err(ProviderServiceError::ConnectionFailed("API key not found".to_string()));
+                tracing::error!(
+                    "[ConnectionTest] API key is None for provider: {}",
+                    provider_id
+                );
+                return Err(ProviderServiceError::ConnectionFailed(
+                    "API key not found".to_string(),
+                ));
             }
             Err(e) => {
                 tracing::error!("[ConnectionTest] Error getting API key: {}", e);
-                return Err(ProviderServiceError::ConnectionFailed(format!("Error getting API key: {}", e)));
+                return Err(ProviderServiceError::ConnectionFailed(format!(
+                    "Error getting API key: {}",
+                    e
+                )));
             }
         };
 
         tracing::info!("[ConnectionTest] API key found, length: {}", api_key.len());
 
         // Get the first model mapping to use for testing
-        let model_mappings = self.repo.get_model_mappings(provider_id)
+        let model_mappings = self
+            .repo
+            .get_model_mappings(provider_id)
             .map_err(ProviderServiceError::from)?;
 
         let model_id = model_mappings
@@ -250,7 +352,10 @@ impl ProviderService {
             .next()
             .map(|m| m.model_id)
             .unwrap_or_else(|| {
-                tracing::warn!("[ConnectionTest] No model mappings found for provider {}", provider_id);
+                tracing::warn!(
+                    "[ConnectionTest] No model mappings found for provider {}",
+                    provider_id
+                );
                 "gpt-4".to_string()
             });
 
@@ -260,15 +365,28 @@ impl ProviderService {
         let test_result = match provider.api_format {
             APIFormat::OpenAI => {
                 tracing::info!("[ConnectionTest] Testing OpenAI format");
-                self.test_openai_connection(&provider.base_url, &api_key, &provider.auth_field, &model_id).await
+                self.test_openai_connection(
+                    &provider.base_url,
+                    &api_key,
+                    &provider.auth_field,
+                    &model_id,
+                )
+                .await
             }
             APIFormat::Anthropic => {
                 tracing::info!("[ConnectionTest] Testing Anthropic format");
-                self.test_anthropic_connection(&provider.base_url, &api_key, &provider.auth_field).await
+                self.test_anthropic_connection(&provider.base_url, &api_key, &provider.auth_field)
+                    .await
             }
             APIFormat::Custom(ref format) => {
                 tracing::info!("[ConnectionTest] Testing custom format: {}", format);
-                self.test_openai_connection(&provider.base_url, &api_key, &provider.auth_field, &model_id).await
+                self.test_openai_connection(
+                    &provider.base_url,
+                    &api_key,
+                    &provider.auth_field,
+                    &model_id,
+                )
+                .await
             }
         };
 
@@ -314,7 +432,10 @@ impl ProviderService {
                 if resp.status().is_success() {
                     let json: serde_json::Value = resp.json().await.unwrap_or_default();
                     // Try to extract model info from response
-                    let model = json.get("model").and_then(|m| m.as_str()).map(|s| s.to_string());
+                    let model = json
+                        .get("model")
+                        .and_then(|m| m.as_str())
+                        .map(|s| s.to_string());
                     tracing::info!("[ConnectionTest] Success! Model: {:?}", model);
 
                     ConnectionTestResult {
@@ -339,7 +460,7 @@ impl ProviderService {
                     message: format!("Connection failed: {}", e),
                     models: None,
                 }
-            },
+            }
         }
     }
 
@@ -379,7 +500,11 @@ impl ProviderService {
                 } else {
                     ConnectionTestResult {
                         success: false,
-                        message: format!("HTTP {}: {}", resp.status().as_u16(), resp.text().await.unwrap_or_default()),
+                        message: format!(
+                            "HTTP {}: {}",
+                            resp.status().as_u16(),
+                            resp.text().await.unwrap_or_default()
+                        ),
                         models: None,
                     }
                 }

@@ -4,11 +4,11 @@
 //! 无崩溃状态保存。本模块在每次 Progress/Output 事件时更新 checkpoint，
 //! 启动时查找中断记录，构建续跑 prompt。
 
-use std::sync::Arc;
+use chrono::Utc;
 use parking_lot::Mutex;
 use rusqlite::Connection;
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use uuid::Uuid;
 
 use super::error::TeamEvolutionError;
@@ -37,8 +37,14 @@ pub struct ResumeService {
 }
 
 impl ResumeService {
-    pub fn new(conn: Arc<Mutex<Connection>>, feature_flags: Arc<FeatureFlagService>) -> Result<Self, TeamEvolutionError> {
-        let svc = Self { conn, feature_flags };
+    pub fn new(
+        conn: Arc<Mutex<Connection>>,
+        feature_flags: Arc<FeatureFlagService>,
+    ) -> Result<Self, TeamEvolutionError> {
+        let svc = Self {
+            conn,
+            feature_flags,
+        };
         svc.initialize_tables()?;
         Ok(svc)
     }
@@ -60,7 +66,7 @@ impl ResumeService {
             );
             CREATE INDEX IF NOT EXISTS idx_chk_exec ON execution_checkpoints(execution_id);
             CREATE INDEX IF NOT EXISTS idx_chk_project ON execution_checkpoints(project_id);
-            CREATE INDEX IF NOT EXISTS idx_chk_heartbeat ON execution_checkpoints(last_heartbeat);"
+            CREATE INDEX IF NOT EXISTS idx_chk_heartbeat ON execution_checkpoints(last_heartbeat);",
         )?;
         Ok(())
     }
@@ -74,8 +80,14 @@ impl ResumeService {
         role_id: &str,
         task_prompt: &str,
     ) -> Result<ExecutionCheckpoint, TeamEvolutionError> {
-        if !self.feature_flags.is_enabled(keys::CRASH_RESUME).unwrap_or(false) {
-            return Err(TeamEvolutionError::FeatureDisabled(keys::CRASH_RESUME.to_string()));
+        if !self
+            .feature_flags
+            .is_enabled(keys::CRASH_RESUME)
+            .unwrap_or(false)
+        {
+            return Err(TeamEvolutionError::FeatureDisabled(
+                keys::CRASH_RESUME.to_string(),
+            ));
         }
 
         let now = Utc::now().to_rfc3339();
@@ -99,10 +111,16 @@ impl ResumeService {
                  accumulated_output, phase, started_at, last_heartbeat)
              VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
             rusqlite::params![
-                checkpoint.id, checkpoint.execution_id, checkpoint.project_id,
-                checkpoint.pipeline_step_id, checkpoint.role_id, checkpoint.task_prompt,
-                checkpoint.accumulated_output, checkpoint.phase,
-                checkpoint.started_at, checkpoint.last_heartbeat,
+                checkpoint.id,
+                checkpoint.execution_id,
+                checkpoint.project_id,
+                checkpoint.pipeline_step_id,
+                checkpoint.role_id,
+                checkpoint.task_prompt,
+                checkpoint.accumulated_output,
+                checkpoint.phase,
+                checkpoint.started_at,
+                checkpoint.last_heartbeat,
             ],
         )?;
         Ok(checkpoint)
@@ -141,7 +159,11 @@ impl ResumeService {
 
     /// 查找被中断的检查点（last_heartbeat > 30s 未更新且 phase=running 或 interrupted）
     pub fn find_interrupted(&self) -> Result<Vec<ExecutionCheckpoint>, TeamEvolutionError> {
-        if !self.feature_flags.is_enabled(keys::CRASH_RESUME).unwrap_or(false) {
+        if !self
+            .feature_flags
+            .is_enabled(keys::CRASH_RESUME)
+            .unwrap_or(false)
+        {
             return Ok(vec![]);
         }
 
@@ -152,23 +174,25 @@ impl ResumeService {
              FROM execution_checkpoints
              WHERE phase IN ('running', 'interrupted')
                AND datetime(last_heartbeat) < datetime('now', '-30 seconds')
-             ORDER BY last_heartbeat DESC"
+             ORDER BY last_heartbeat DESC",
         )?;
 
-        let rows = stmt.query_map([], |row| {
-            Ok(ExecutionCheckpoint {
-                id: row.get(0)?,
-                execution_id: row.get(1)?,
-                project_id: row.get(2)?,
-                pipeline_step_id: row.get(3)?,
-                role_id: row.get(4)?,
-                task_prompt: row.get(5)?,
-                accumulated_output: row.get(6)?,
-                phase: row.get(7)?,
-                started_at: row.get(8)?,
-                last_heartbeat: row.get(9)?,
-            })
-        })?.collect::<Result<Vec<_>, _>>()?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(ExecutionCheckpoint {
+                    id: row.get(0)?,
+                    execution_id: row.get(1)?,
+                    project_id: row.get(2)?,
+                    pipeline_step_id: row.get(3)?,
+                    role_id: row.get(4)?,
+                    task_prompt: row.get(5)?,
+                    accumulated_output: row.get(6)?,
+                    phase: row.get(7)?,
+                    started_at: row.get(8)?,
+                    last_heartbeat: row.get(9)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(rows)
     }
@@ -176,7 +200,10 @@ impl ResumeService {
     /// 构建恢复提示词
     pub fn build_resume_prompt(&self, checkpoint: &ExecutionCheckpoint) -> String {
         let output_summary = if checkpoint.accumulated_output.len() > 2000 {
-            format!("...{}...", &checkpoint.accumulated_output[checkpoint.accumulated_output.len() - 2000..])
+            format!(
+                "...{}...",
+                &checkpoint.accumulated_output[checkpoint.accumulated_output.len() - 2000..]
+            )
         } else {
             checkpoint.accumulated_output.clone()
         };
@@ -212,29 +239,34 @@ impl ResumeService {
     }
 
     /// 获取项目的检查点
-    pub fn find_by_project(&self, project_id: &str) -> Result<Vec<ExecutionCheckpoint>, TeamEvolutionError> {
+    pub fn find_by_project(
+        &self,
+        project_id: &str,
+    ) -> Result<Vec<ExecutionCheckpoint>, TeamEvolutionError> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, execution_id, project_id, pipeline_step_id, role_id, task_prompt,
                     accumulated_output, phase, started_at, last_heartbeat
              FROM execution_checkpoints
              WHERE project_id = ?1
-             ORDER BY started_at DESC"
+             ORDER BY started_at DESC",
         )?;
-        let rows = stmt.query_map(rusqlite::params![project_id], |row| {
-            Ok(ExecutionCheckpoint {
-                id: row.get(0)?,
-                execution_id: row.get(1)?,
-                project_id: row.get(2)?,
-                pipeline_step_id: row.get(3)?,
-                role_id: row.get(4)?,
-                task_prompt: row.get(5)?,
-                accumulated_output: row.get(6)?,
-                phase: row.get(7)?,
-                started_at: row.get(8)?,
-                last_heartbeat: row.get(9)?,
-            })
-        })?.collect::<Result<Vec<_>, _>>()?;
+        let rows = stmt
+            .query_map(rusqlite::params![project_id], |row| {
+                Ok(ExecutionCheckpoint {
+                    id: row.get(0)?,
+                    execution_id: row.get(1)?,
+                    project_id: row.get(2)?,
+                    pipeline_step_id: row.get(3)?,
+                    role_id: row.get(4)?,
+                    task_prompt: row.get(5)?,
+                    accumulated_output: row.get(6)?,
+                    phase: row.get(7)?,
+                    started_at: row.get(8)?,
+                    last_heartbeat: row.get(9)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
     }
 }

@@ -2,12 +2,12 @@
 //!
 //! 工作区业务逻辑层。
 
+use chrono::Utc;
 use std::path::Path;
 use std::sync::Arc;
-use chrono::Utc;
 use thiserror::Error;
 
-use super::workspace_repository::{WorkspaceRepository, Workspace, RepositoryError};
+use super::workspace_repository::{RepositoryError, Workspace, WorkspaceRepository};
 
 /// 服务错误
 #[derive(Error, Debug)]
@@ -78,7 +78,10 @@ fn detect_language(path: &Path) -> String {
 }
 
 /// 验证文件路径安全性（防止路径遍历）
-fn validate_file_path(root: &str, relative_path: &str) -> Result<std::path::PathBuf, WorkspaceServiceError> {
+fn validate_file_path(
+    root: &str,
+    relative_path: &str,
+) -> Result<std::path::PathBuf, WorkspaceServiceError> {
     // 拒绝包含 .. 的路径
     if relative_path.contains("..") {
         return Err(WorkspaceServiceError::FileError(
@@ -104,9 +107,10 @@ fn validate_file_path(root: &str, relative_path: &str) -> Result<std::path::Path
             .parent()
             .ok_or_else(|| WorkspaceServiceError::FileError("无效路径".to_string()))?;
         if !parent.exists() {
-            return Err(WorkspaceServiceError::FileError(
-                format!("父目录不存在: {}", parent.display()),
-            ));
+            return Err(WorkspaceServiceError::FileError(format!(
+                "父目录不存在: {}",
+                parent.display()
+            )));
         }
         let canonical_parent = parent
             .canonicalize()
@@ -305,12 +309,10 @@ impl WorkspaceService {
         }
 
         // 按目录优先，然后按名称排序
-        nodes.sort_by(|a, b| {
-            match (a.is_directory, b.is_directory) {
-                (true, false) => std::cmp::Ordering::Less,
-                (false, true) => std::cmp::Ordering::Greater,
-                _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-            }
+        nodes.sort_by(|a, b| match (a.is_directory, b.is_directory) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
         });
 
         Ok(nodes)
@@ -411,9 +413,7 @@ impl WorkspaceService {
         let full_path = validate_file_path(&root, file_path)?;
 
         if full_path.is_dir() {
-            return Err(WorkspaceServiceError::FileError(
-                "不能写入目录".to_string(),
-            ));
+            return Err(WorkspaceServiceError::FileError("不能写入目录".to_string()));
         }
 
         std::fs::write(&full_path, content)
@@ -511,7 +511,11 @@ impl WorkspaceService {
                     additions: 0,
                     deletions: 0,
                 });
-            } else if index_and_working_tree.contains('D') || index_and_working_tree == "DD" || index_and_working_tree == "AU" || index_and_working_tree == "UD" {
+            } else if index_and_working_tree.contains('D')
+                || index_and_working_tree == "DD"
+                || index_and_working_tree == "AU"
+                || index_and_working_tree == "UD"
+            {
                 // Deleted file
                 diffs.push(GitDiff {
                     path: file_path.to_string(),
@@ -525,7 +529,10 @@ impl WorkspaceService {
                 });
             } else {
                 // Modified or added in index
-                let diff_type = if index_and_working_tree == "A " || index_and_working_tree == "AM" || index_and_working_tree == "M " {
+                let diff_type = if index_and_working_tree == "A "
+                    || index_and_working_tree == "AM"
+                    || index_and_working_tree == "M "
+                {
                     GitDiffType::Added
                 } else {
                     GitDiffType::Modified
@@ -569,7 +576,11 @@ impl WorkspaceService {
     }
 
     /// 获取单个文件的 diff 内容
-    pub fn get_file_diff(&self, workspace_id: &str, file_path: &str) -> Result<String, WorkspaceServiceError> {
+    pub fn get_file_diff(
+        &self,
+        workspace_id: &str,
+        file_path: &str,
+    ) -> Result<String, WorkspaceServiceError> {
         let workspace = self
             .repository
             .find_by_id(workspace_id)?
@@ -584,7 +595,9 @@ impl WorkspaceService {
             .args(["diff", "--", file_path])
             .current_dir(&root)
             .output()
-            .map_err(|e| WorkspaceServiceError::FileError(format!("Failed to run git diff: {}", e)))?;
+            .map_err(|e| {
+                WorkspaceServiceError::FileError(format!("Failed to run git diff: {}", e))
+            })?;
 
         let diff_content = String::from_utf8_lossy(&output.stdout).to_string();
 
@@ -594,7 +607,12 @@ impl WorkspaceService {
                 .args(["diff", "--cached", "--", file_path])
                 .current_dir(&root)
                 .output()
-                .map_err(|e| WorkspaceServiceError::FileError(format!("Failed to run git diff --cached: {}", e)))?;
+                .map_err(|e| {
+                    WorkspaceServiceError::FileError(format!(
+                        "Failed to run git diff --cached: {}",
+                        e
+                    ))
+                })?;
             return Ok(String::from_utf8_lossy(&staged_output.stdout).to_string());
         }
 
@@ -614,7 +632,9 @@ impl WorkspaceService {
 
         let git_dir = Path::new(&root).join(".git");
         if !git_dir.exists() {
-            return Err(WorkspaceServiceError::FileError("Not a git repository".to_string()));
+            return Err(WorkspaceServiceError::FileError(
+                "Not a git repository".to_string(),
+            ));
         }
 
         // Get branch name
@@ -762,8 +782,14 @@ mod tests {
 
     #[test]
     fn test_detect_language_typescript() {
-        assert_eq!(detect_language(std::path::Path::new("app.ts")), "typescript");
-        assert_eq!(detect_language(std::path::Path::new("comp.tsx")), "typescript");
+        assert_eq!(
+            detect_language(std::path::Path::new("app.ts")),
+            "typescript"
+        );
+        assert_eq!(
+            detect_language(std::path::Path::new("comp.tsx")),
+            "typescript"
+        );
     }
 
     #[test]
@@ -780,7 +806,10 @@ mod tests {
 
     #[test]
     fn test_detect_language_unknown() {
-        assert_eq!(detect_language(std::path::Path::new("data.xyz")), "plaintext");
+        assert_eq!(
+            detect_language(std::path::Path::new("data.xyz")),
+            "plaintext"
+        );
         assert_eq!(detect_language(std::path::Path::new("noext")), "plaintext");
     }
 
@@ -816,6 +845,10 @@ mod tests {
         std::fs::write(&file_path, b"").unwrap();
 
         let result = validate_file_path(root, "src/main.rs");
-        assert!(result.is_ok(), "valid path should be accepted: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "valid path should be accepted: {:?}",
+            result
+        );
     }
 }

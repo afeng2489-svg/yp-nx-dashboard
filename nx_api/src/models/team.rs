@@ -69,7 +69,7 @@ impl Team {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TeamRole {
     pub id: String,
-    pub team_id: Option<String>,  // Optional: role can exist without a team
+    pub team_id: Option<String>, // Optional: role can exist without a team
     pub name: String,
     pub description: String,
     pub model_config: ModelConfig,
@@ -318,7 +318,10 @@ impl TelegramUpdate {
                 let start = entity.offset as usize;
                 let end = start + entity.length as usize;
                 if let Some(cmd) = text.get(start..end) {
-                    if cmd.to_lowercase().ends_with(&format!("@{}", bot_username.to_lowercase())) {
+                    if cmd
+                        .to_lowercase()
+                        .ends_with(&format!("@{}", bot_username.to_lowercase()))
+                    {
                         return true;
                     }
                 }
@@ -371,7 +374,11 @@ impl TelegramUpdate {
         let text = self.text()?;
         let mention = format!("@{}", bot_username);
         let cleaned = text.replace(&mention, "").trim().to_string();
-        if cleaned.is_empty() { None } else { Some(cleaned) }
+        if cleaned.is_empty() {
+            None
+        } else {
+            Some(cleaned)
+        }
     }
 }
 
@@ -451,7 +458,7 @@ pub struct UpdateRoleRequest {
 /// Assign skill request
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssignSkillRequest {
-    pub skill_id: Option<String>,  // Optional - skill_id comes from URL path
+    pub skill_id: Option<String>, // Optional - skill_id comes from URL path
     pub priority: Option<SkillPriority>,
 }
 

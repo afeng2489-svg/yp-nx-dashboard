@@ -2,16 +2,18 @@
 //!
 //! Business logic for project management and team execution.
 
+use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
-use chrono::Utc;
 use thiserror::Error;
 
 use crate::models::project::{
-    Project, ProjectStatus, ProjectWithTeam, ExecuteProjectRequest, ExecuteProjectResponse, ProjectMessage,
-    CreateProjectRequest, UpdateProjectRequest,
+    CreateProjectRequest, ExecuteProjectRequest, ExecuteProjectResponse, Project, ProjectMessage,
+    ProjectStatus, ProjectWithTeam, UpdateProjectRequest,
 };
-use crate::services::project_repository::{ProjectRepository, RepositoryError, SqliteProjectRepository};
+use crate::services::project_repository::{
+    ProjectRepository, RepositoryError, SqliteProjectRepository,
+};
 
 #[derive(Error, Debug)]
 pub enum ProjectError {
@@ -77,8 +79,14 @@ impl ProjectService {
         Ok(projects)
     }
 
-    pub fn update_project(&self, id: &str, req: UpdateProjectRequest) -> Result<Project, ProjectError> {
-        let mut project = self.project_repo.find_by_id(id)?
+    pub fn update_project(
+        &self,
+        id: &str,
+        req: UpdateProjectRequest,
+    ) -> Result<Project, ProjectError> {
+        let mut project = self
+            .project_repo
+            .find_by_id(id)?
             .ok_or_else(|| ProjectError::NotFound(id.to_string()))?;
 
         if let Some(name) = req.name {
@@ -110,9 +118,14 @@ impl ProjectService {
         Ok(deleted)
     }
 
-    pub async fn execute_project(&self, req: ExecuteProjectRequest) -> Result<ExecuteProjectResponse, ProjectError> {
+    pub async fn execute_project(
+        &self,
+        req: ExecuteProjectRequest,
+    ) -> Result<ExecuteProjectResponse, ProjectError> {
         // Load project
-        let project = self.project_repo.find_by_id(&req.project_id)?
+        let project = self
+            .project_repo
+            .find_by_id(&req.project_id)?
             .ok_or_else(|| ProjectError::NotFound(req.project_id.clone()))?;
 
         // Update project status to in progress
@@ -122,7 +135,9 @@ impl ProjectService {
         self.project_repo.update(&updating_project)?;
 
         // Get team info
-        let team = self.team_service.get_team(&project.team_id)
+        let team = self
+            .team_service
+            .get_team(&project.team_id)
             .map_err(|e| ProjectError::TeamNotFound(e.to_string()))?;
 
         // Build context with project variables
@@ -141,7 +156,9 @@ impl ProjectService {
             auto_confirm: false,
         };
 
-        let result = self.agent_team_service.execute_team_task(execute_req, None, None, false)
+        let result = self
+            .agent_team_service
+            .execute_team_task(execute_req, None, None, false)
             .await
             .map_err(|e| ProjectError::ExecutionError(e.to_string()))?;
 
@@ -156,24 +173,34 @@ impl ProjectService {
         self.project_repo.update(&final_project)?;
 
         // Get team with roles to map role_id to role_name
-        let team_with_roles = self.team_service.get_team_with_roles(&project.team_id)
+        let team_with_roles = self
+            .team_service
+            .get_team_with_roles(&project.team_id)
             .map_err(|e| ProjectError::ExecutionError(e.to_string()))?;
 
         // Convert messages
-        let messages: Vec<ProjectMessage> = result.messages.into_iter().map(|m| {
-            let role_name = m.role_id.as_ref().and_then(|rid| {
-                team_with_roles.roles.iter().find(|r| r.role.id == *rid).map(|r| r.role.name.clone())
-            });
-            ProjectMessage {
-                id: m.id,
-                project_id: project.id.clone(),
-                role_id: m.role_id,
-                role_name,
-                content: m.content,
-                message_type: m.message_type.as_str().to_string(),
-                created_at: m.created_at,
-            }
-        }).collect();
+        let messages: Vec<ProjectMessage> = result
+            .messages
+            .into_iter()
+            .map(|m| {
+                let role_name = m.role_id.as_ref().and_then(|rid| {
+                    team_with_roles
+                        .roles
+                        .iter()
+                        .find(|r| r.role.id == *rid)
+                        .map(|r| r.role.name.clone())
+                });
+                ProjectMessage {
+                    id: m.id,
+                    project_id: project.id.clone(),
+                    role_id: m.role_id,
+                    role_name,
+                    content: m.content,
+                    message_type: m.message_type.as_str().to_string(),
+                    created_at: m.created_at,
+                }
+            })
+            .collect();
 
         Ok(ExecuteProjectResponse {
             success: result.success,
@@ -186,14 +213,19 @@ impl ProjectService {
     }
 
     pub fn get_project_with_team(&self, id: &str) -> Result<Option<ProjectWithTeam>, ProjectError> {
-        let project = self.project_repo.find_by_id(id)?
+        let project = self
+            .project_repo
+            .find_by_id(id)?
             .ok_or_else(|| ProjectError::NotFound(id.to_string()))?;
 
-        let team = self.team_service.get_team(&project.team_id)
+        let team = self
+            .team_service
+            .get_team(&project.team_id)
             .map_err(|e| ProjectError::TeamNotFound(e.to_string()))?;
 
         // Get workspace info if workspace_id is set
-        let (workspace_name, workspace_path) = if let Some(ref workspace_id) = project.workspace_id {
+        let (workspace_name, workspace_path) = if let Some(ref workspace_id) = project.workspace_id
+        {
             match self.workspace_service.get_workspace(workspace_id) {
                 Ok(Some(workspace)) => (Some(workspace.name), workspace.root_path),
                 Ok(None) => (None, None),

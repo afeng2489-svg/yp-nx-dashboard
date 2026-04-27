@@ -52,7 +52,7 @@ pub struct Project {
     pub name: String,
     pub description: String,
     pub team_id: String,
-    pub workspace_id: Option<String>,  // Links to a workspace (folder)
+    pub workspace_id: Option<String>, // Links to a workspace (folder)
     pub workflow_id: Option<String>,
     pub variables: HashMap<String, String>,
     pub status: ProjectStatus,
@@ -121,7 +121,7 @@ pub struct CreateProjectRequest {
     pub name: String,
     pub description: String,
     pub team_id: String,
-    pub workspace_id: Option<String>,  // Optional workspace (folder) link
+    pub workspace_id: Option<String>, // Optional workspace (folder) link
     pub workflow_id: Option<String>,
 }
 

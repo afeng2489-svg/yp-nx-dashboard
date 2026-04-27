@@ -2,11 +2,11 @@
 //!
 //! 新表: role_snapshots, role_snapshot_history, project_progress
 
-use std::sync::Arc;
+use chrono::Utc;
 use parking_lot::Mutex;
 use rusqlite::Connection;
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use super::error::TeamEvolutionError;
 
@@ -123,7 +123,7 @@ impl SqliteSnapshotRepository {
                 last_activity TEXT DEFAULT '',
                 last_activity_at TEXT,
                 updated_at TEXT NOT NULL
-            );"
+            );",
         )?;
         Ok(())
     }
@@ -132,8 +132,8 @@ impl SqliteSnapshotRepository {
 
     pub fn upsert_snapshot(&self, snap: &RoleSnapshot) -> Result<(), TeamEvolutionError> {
         let conn = self.conn.lock();
-        let files_json = serde_json::to_string(&snap.files_touched)
-            .unwrap_or_else(|_| "[]".to_string());
+        let files_json =
+            serde_json::to_string(&snap.files_touched).unwrap_or_else(|_| "[]".to_string());
 
         conn.execute(
             "INSERT INTO role_snapshots
@@ -148,37 +148,57 @@ impl SqliteSnapshotRepository {
                 files_touched=excluded.files_touched, execution_count=excluded.execution_count,
                 checksum=excluded.checksum, updated_at=excluded.updated_at",
             rusqlite::params![
-                snap.id, snap.project_id, snap.team_id, snap.role_id, snap.role_name,
-                snap.phase, snap.progress_pct, snap.current_task, snap.summary,
-                snap.last_cli_output, files_json, snap.execution_count,
-                snap.checksum, snap.created_at, snap.updated_at,
+                snap.id,
+                snap.project_id,
+                snap.team_id,
+                snap.role_id,
+                snap.role_name,
+                snap.phase,
+                snap.progress_pct,
+                snap.current_task,
+                snap.summary,
+                snap.last_cli_output,
+                files_json,
+                snap.execution_count,
+                snap.checksum,
+                snap.created_at,
+                snap.updated_at,
             ],
         )?;
         Ok(())
     }
 
-    pub fn find_snapshots_by_project(&self, project_id: &str) -> Result<Vec<RoleSnapshot>, TeamEvolutionError> {
+    pub fn find_snapshots_by_project(
+        &self,
+        project_id: &str,
+    ) -> Result<Vec<RoleSnapshot>, TeamEvolutionError> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, project_id, team_id, role_id, role_name, phase, progress_pct,
                     current_task, summary, last_cli_output, files_touched, execution_count,
                     checksum, created_at, updated_at
-             FROM role_snapshots WHERE project_id = ?1 ORDER BY role_name"
+             FROM role_snapshots WHERE project_id = ?1 ORDER BY role_name",
         )?;
 
-        let rows = stmt.query_map(rusqlite::params![project_id], |row| {
-            Self::row_to_snapshot(row)
-        })?.collect::<Result<Vec<_>, _>>()?;
+        let rows = stmt
+            .query_map(rusqlite::params![project_id], |row| {
+                Self::row_to_snapshot(row)
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
     }
 
-    pub fn find_snapshot(&self, project_id: &str, role_id: &str) -> Result<Option<RoleSnapshot>, TeamEvolutionError> {
+    pub fn find_snapshot(
+        &self,
+        project_id: &str,
+        role_id: &str,
+    ) -> Result<Option<RoleSnapshot>, TeamEvolutionError> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, project_id, team_id, role_id, role_name, phase, progress_pct,
                     current_task, summary, last_cli_output, files_touched, execution_count,
                     checksum, created_at, updated_at
-             FROM role_snapshots WHERE project_id = ?1 AND role_id = ?2"
+             FROM role_snapshots WHERE project_id = ?1 AND role_id = ?2",
         )?;
         let result = stmt.query_row(rusqlite::params![project_id, role_id], |row| {
             Self::row_to_snapshot(row)
@@ -202,8 +222,14 @@ impl SqliteSnapshotRepository {
                 (id, snapshot_id, project_id, role_id, phase, progress_pct, summary, created_at)
              VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
             rusqlite::params![
-                hist_id, snap.id, snap.project_id, snap.role_id,
-                snap.phase, snap.progress_pct, snap.summary, now,
+                hist_id,
+                snap.id,
+                snap.project_id,
+                snap.role_id,
+                snap.phase,
+                snap.progress_pct,
+                snap.summary,
+                now,
             ],
         )?;
 
@@ -221,26 +247,32 @@ impl SqliteSnapshotRepository {
         Ok(())
     }
 
-    pub fn find_history(&self, project_id: &str, role_id: &str) -> Result<Vec<RoleSnapshotHistory>, TeamEvolutionError> {
+    pub fn find_history(
+        &self,
+        project_id: &str,
+        role_id: &str,
+    ) -> Result<Vec<RoleSnapshotHistory>, TeamEvolutionError> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, snapshot_id, project_id, role_id, phase, progress_pct, summary, created_at
              FROM role_snapshot_history
              WHERE project_id = ?1 AND role_id = ?2
-             ORDER BY created_at DESC LIMIT 10"
+             ORDER BY created_at DESC LIMIT 10",
         )?;
-        let rows = stmt.query_map(rusqlite::params![project_id, role_id], |row| {
-            Ok(RoleSnapshotHistory {
-                id: row.get(0)?,
-                snapshot_id: row.get(1)?,
-                project_id: row.get(2)?,
-                role_id: row.get(3)?,
-                phase: row.get(4)?,
-                progress_pct: row.get(5)?,
-                summary: row.get(6)?,
-                created_at: row.get(7)?,
-            })
-        })?.collect::<Result<Vec<_>, _>>()?;
+        let rows = stmt
+            .query_map(rusqlite::params![project_id, role_id], |row| {
+                Ok(RoleSnapshotHistory {
+                    id: row.get(0)?,
+                    snapshot_id: row.get(1)?,
+                    project_id: row.get(2)?,
+                    role_id: row.get(3)?,
+                    phase: row.get(4)?,
+                    progress_pct: row.get(5)?,
+                    summary: row.get(6)?,
+                    created_at: row.get(7)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
     }
 
@@ -262,23 +294,33 @@ impl SqliteSnapshotRepository {
                 last_activity=excluded.last_activity, last_activity_at=excluded.last_activity_at,
                 updated_at=excluded.updated_at",
             rusqlite::params![
-                progress.project_id, progress.team_id, progress.pipeline_id,
-                progress.overall_phase, progress.overall_pct,
-                progress.total_roles, progress.active_roles,
-                progress.completed_roles, progress.failed_roles,
-                progress.last_activity, progress.last_activity_at, progress.updated_at,
+                progress.project_id,
+                progress.team_id,
+                progress.pipeline_id,
+                progress.overall_phase,
+                progress.overall_pct,
+                progress.total_roles,
+                progress.active_roles,
+                progress.completed_roles,
+                progress.failed_roles,
+                progress.last_activity,
+                progress.last_activity_at,
+                progress.updated_at,
             ],
         )?;
         Ok(())
     }
 
-    pub fn find_progress(&self, project_id: &str) -> Result<Option<ProjectProgress>, TeamEvolutionError> {
+    pub fn find_progress(
+        &self,
+        project_id: &str,
+    ) -> Result<Option<ProjectProgress>, TeamEvolutionError> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT project_id, team_id, pipeline_id, overall_phase, overall_pct,
                     total_roles, active_roles, completed_roles, failed_roles,
                     last_activity, last_activity_at, updated_at
-             FROM project_progress WHERE project_id = ?1"
+             FROM project_progress WHERE project_id = ?1",
         )?;
         let result = stmt.query_row(rusqlite::params![project_id], |row| {
             Ok(ProjectProgress {

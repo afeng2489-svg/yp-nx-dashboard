@@ -166,16 +166,9 @@ impl SessionRepository for SqliteSessionRepository {
         });
 
         match result {
-            Ok((id, workflow_id, status, resume_key, created_at, updated_at)) => {
-                Ok(Some(Self::deserialize_row(
-                    id,
-                    workflow_id,
-                    status,
-                    resume_key,
-                    created_at,
-                    updated_at,
-                )?))
-            }
+            Ok((id, workflow_id, status, resume_key, created_at, updated_at)) => Ok(Some(
+                Self::deserialize_row(id, workflow_id, status, resume_key, created_at, updated_at)?,
+            )),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e.into()),
         }
@@ -200,16 +193,9 @@ impl SessionRepository for SqliteSessionRepository {
         });
 
         match result {
-            Ok((id, workflow_id, status, resume_key, created_at, updated_at)) => {
-                Ok(Some(Self::deserialize_row(
-                    id,
-                    workflow_id,
-                    status,
-                    resume_key,
-                    created_at,
-                    updated_at,
-                )?))
-            }
+            Ok((id, workflow_id, status, resume_key, created_at, updated_at)) => Ok(Some(
+                Self::deserialize_row(id, workflow_id, status, resume_key, created_at, updated_at)?,
+            )),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e.into()),
         }

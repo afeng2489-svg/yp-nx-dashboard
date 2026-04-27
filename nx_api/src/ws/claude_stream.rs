@@ -2,7 +2,7 @@
 //!
 //! 将 Claude CLI 的 stdout/stderr 实时流式传输到前端
 
-use axum::extract::ws::{WebSocket, Message as WsMessage};
+use axum::extract::ws::{Message as WsMessage, WebSocket};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::process::Command;
@@ -26,29 +26,18 @@ pub enum ClaudeStreamClientMsg {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClaudeStreamServerMsg {
     /// 开始执行
-    Started {
-        execution_id: String,
-    },
+    Started { execution_id: String },
     /// 输出行
-    Output {
-        execution_id: String,
-        line: String,
-    },
+    Output { execution_id: String, line: String },
     /// stderr 输出
-    Error {
-        execution_id: String,
-        line: String,
-    },
+    Error { execution_id: String, line: String },
     /// 执行完成
     Completed {
         execution_id: String,
         exit_code: i32,
     },
     /// 执行失败
-    Failed {
-        execution_id: String,
-        error: String,
-    },
+    Failed { execution_id: String, error: String },
 }
 
 impl ClaudeStreamServerMsg {
@@ -77,7 +66,11 @@ impl ClaudeStreamWsHandler {
         let started_msg = ClaudeStreamServerMsg::Started {
             execution_id: execution_id.clone(),
         };
-        if sender.send(WsMessage::Text(started_msg.to_json().unwrap())).await.is_err() {
+        if sender
+            .send(WsMessage::Text(started_msg.to_json().unwrap()))
+            .await
+            .is_err()
+        {
             return;
         }
 
@@ -187,7 +180,11 @@ impl ClaudeStreamWsHandler {
             cmd.current_dir(dir);
         }
 
-        tracing::info!("[Claude Stream] 开始执行: prompt={}, dir={:?}", prompt.chars().take(50).collect::<String>(), working_directory);
+        tracing::info!(
+            "[Claude Stream] 开始执行: prompt={}, dir={:?}",
+            prompt.chars().take(50).collect::<String>(),
+            working_directory
+        );
 
         match cmd.spawn() {
             Ok(mut child) => {

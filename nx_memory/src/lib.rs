@@ -26,15 +26,15 @@
 //! └─────────────────────────────────────────────────────────────┘
 //! ```
 
-pub mod types;
 pub mod bm25;
-pub mod storage;
 pub mod embedding;
 pub mod search;
+pub mod storage;
+pub mod types;
 
 // Re-exports
-pub use types::*;
 pub use bm25::Bm25Index;
-pub use storage::MemoryStore;
-pub use embedding::{EmbeddingProvider, EmbeddingResult, ClaudeEmbeddingProvider};
+pub use embedding::{ClaudeEmbeddingProvider, EmbeddingProvider, EmbeddingResult};
 pub use search::MemorySearch;
+pub use storage::MemoryStore;
+pub use types::*;

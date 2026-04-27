@@ -7,9 +7,9 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::routes::{AppState, resolve_project_id};
-use crate::services::team_evolution::process_lifecycle::{ProcessStats, ProcessLifecycleEvent};
+use crate::routes::{resolve_project_id, AppState};
 use crate::services::team_evolution::error::TeamEvolutionError;
+use crate::services::team_evolution::process_lifecycle::{ProcessLifecycleEvent, ProcessStats};
 
 fn map_tev_error(err: TeamEvolutionError) -> (StatusCode, Json<serde_json::Value>) {
     let msg = err.to_string();
@@ -26,8 +26,12 @@ fn map_tev_error(err: TeamEvolutionError) -> (StatusCode, Json<serde_json::Value
 pub async fn get_process_stats(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ProcessStats>, (StatusCode, Json<serde_json::Value>)> {
-    let manager = state.process_lifecycle.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Process lifecycle not available" }))))?;
+    let manager = state.process_lifecycle.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Process lifecycle not available" })),
+        )
+    })?;
     Ok(Json(manager.get_stats()))
 }
 
@@ -36,8 +40,12 @@ pub async fn cleanup_project_processes(
     State(state): State<Arc<AppState>>,
     Path(project_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let manager = state.process_lifecycle.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Process lifecycle not available" }))))?;
+    let manager = state.process_lifecycle.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Process lifecycle not available" })),
+        )
+    })?;
 
     let resolved_id = resolve_project_id(&state, &project_id);
     let terminated = manager.cleanup_project_processes(&resolved_id);
@@ -53,15 +61,21 @@ pub async fn hibernate_process(
     State(state): State<Arc<AppState>>,
     Path(execution_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let manager = state.process_lifecycle.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Process lifecycle not available" }))))?;
+    let manager = state.process_lifecycle.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Process lifecycle not available" })),
+        )
+    })?;
 
     // 发送 Hibernated 事件
     let event_tx = state.agent_execution_manager.event_sender();
-    let _ = event_tx.send(crate::ws::agent_execution::AgentExecutionEvent::Hibernated {
-        execution_id: execution_id.clone(),
-        idle_secs: 0,
-    });
+    let _ = event_tx.send(
+        crate::ws::agent_execution::AgentExecutionEvent::Hibernated {
+            execution_id: execution_id.clone(),
+            idle_secs: 0,
+        },
+    );
 
     manager.unregister_process(&execution_id);
     Ok(Json(serde_json::json!({ "hibernated": execution_id })))
@@ -72,8 +86,12 @@ pub async fn wake_process(
     State(state): State<Arc<AppState>>,
     Path(execution_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let manager = state.process_lifecycle.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Process lifecycle not available" }))))?;
+    let manager = state.process_lifecycle.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Process lifecycle not available" })),
+        )
+    })?;
 
     // Touch to reset idle timer
     manager.touch(&execution_id);

@@ -116,7 +116,11 @@ fn resolve_default_db_path() -> String {
             if is_workspace_root(ancestor) {
                 let db_path = ancestor.join(&db_subpath);
                 let _ = std::fs::create_dir_all(db_path.parent().unwrap());
-                eprintln!("[DB resolve] 策略1(exe): {} => {}", exe.display(), db_path.display());
+                eprintln!(
+                    "[DB resolve] 策略1(exe): {} => {}",
+                    exe.display(),
+                    db_path.display()
+                );
                 return db_path.to_string_lossy().to_string();
             }
         }
@@ -128,7 +132,11 @@ fn resolve_default_db_path() -> String {
             if is_workspace_root(ancestor) {
                 let db_path = ancestor.join(&db_subpath);
                 let _ = std::fs::create_dir_all(db_path.parent().unwrap());
-                eprintln!("[DB resolve] 策略2(cwd): {} => {}", cwd.display(), db_path.display());
+                eprintln!(
+                    "[DB resolve] 策略2(cwd): {} => {}",
+                    cwd.display(),
+                    db_path.display()
+                );
                 return db_path.to_string_lossy().to_string();
             }
         }
@@ -141,7 +149,11 @@ fn resolve_default_db_path() -> String {
         if is_workspace_root(parent) {
             let db_path = parent.join(&db_subpath);
             let _ = std::fs::create_dir_all(db_path.parent().unwrap());
-            eprintln!("[DB resolve] 策略3(compile-time): {} => {}", compile_time_root, db_path.display());
+            eprintln!(
+                "[DB resolve] 策略3(compile-time): {} => {}",
+                compile_time_root,
+                db_path.display()
+            );
             return db_path.to_string_lossy().to_string();
         }
     }

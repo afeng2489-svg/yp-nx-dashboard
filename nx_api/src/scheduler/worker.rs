@@ -231,7 +231,9 @@ impl TaskWorker {
             "Executing workflow"
         );
 
-        let exec_service = self.execution_service.as_ref()
+        let exec_service = self
+            .execution_service
+            .as_ref()
             .ok_or("ExecutionService not configured for this worker")?;
 
         exec_service
@@ -244,7 +246,10 @@ impl TaskWorker {
             )
             .await
             .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
-                Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    e.to_string(),
+                ))
             })?;
 
         Ok(TaskResult::Success)
@@ -317,7 +322,8 @@ impl TaskWorker {
         );
 
         // Clean up completed tasks older than the specified duration
-        self.queue.cleanup_completed(chrono::Duration::days(older_than_days));
+        self.queue
+            .cleanup_completed(chrono::Duration::days(older_than_days));
 
         Ok(TaskResult::Success)
     }

@@ -2,14 +2,16 @@
 //!
 //! 工作流的核心执行引擎。
 
-use std::sync::Arc;
-use std::process::Stdio;
 use parking_lot::RwLock;
+use std::process::Stdio;
+use std::sync::Arc;
 use tokio::process::Command;
 
-use crate::{WorkflowDefinition, WorkflowState, WorkflowStatus, StageOutput, AgentState, AgentStatus};
 use crate::events::{EventEmitter, WorkflowEvent};
-use crate::parser::{WorkflowError as ParserWorkflowError, StageType};
+use crate::parser::{StageType, WorkflowError as ParserWorkflowError};
+use crate::{
+    AgentState, AgentStatus, StageOutput, WorkflowDefinition, WorkflowState, WorkflowStatus,
+};
 use nexus_ai::ChatMessage;
 use regex::Regex;
 
@@ -37,7 +39,10 @@ impl WorkflowEngine {
     }
 
     /// 创建带工作目录的工作流引擎
-    pub fn with_working_directory(event_emitter: Arc<dyn EventEmitter>, working_directory: Option<String>) -> Self {
+    pub fn with_working_directory(
+        event_emitter: Arc<dyn EventEmitter>,
+        working_directory: Option<String>,
+    ) -> Self {
         Self {
             event_emitter,
             working_directory,
@@ -59,7 +64,10 @@ impl WorkflowEngine {
     }
 
     /// 执行工作流
-    pub async fn execute(&self, workflow: &WorkflowDefinition) -> Result<WorkflowResult, WorkflowError> {
+    pub async fn execute(
+        &self,
+        workflow: &WorkflowDefinition,
+    ) -> Result<WorkflowResult, WorkflowError> {
         let state: SharedState = Arc::new(RwLock::new(WorkflowState::new(&workflow.name)));
 
         {
@@ -91,9 +99,10 @@ impl WorkflowEngine {
             let stage = match stage_idx {
                 Some(idx) => workflow.stages[idx].clone(),
                 None => {
-                    return Err(WorkflowError::Execution(
-                        format!("找不到 stage: {}", stage_name)
-                    ));
+                    return Err(WorkflowError::Execution(format!(
+                        "找不到 stage: {}",
+                        stage_name
+                    )));
                 }
             };
 
@@ -117,7 +126,10 @@ impl WorkflowEngine {
                         execution_id: state.read().execution_id,
                         stage_name: stage.name.clone(),
                         question: question.clone(),
-                        options: options.iter().map(|o| (o.label.clone(), o.value.clone())).collect(),
+                        options: options
+                            .iter()
+                            .map(|o| (o.label.clone(), o.value.clone()))
+                            .collect(),
                     });
 
                     // 等待 resume_tx channel 收到用户选择
@@ -126,14 +138,17 @@ impl WorkflowEngine {
                         rx.recv().await.unwrap_or_default()
                     } else {
                         // 单元测试时没有 channel，用第一个选项的 value 作为默认
-                        stage.options.first().map(|o| o.value.clone()).unwrap_or_default()
+                        stage
+                            .options
+                            .first()
+                            .map(|o| o.value.clone())
+                            .unwrap_or_default()
                     };
 
                     if !output_var.is_empty() {
-                        state.write().set_var(
-                            &output_var,
-                            serde_json::Value::String(chosen_value.clone()),
-                        );
+                        state
+                            .write()
+                            .set_var(&output_var, serde_json::Value::String(chosen_value.clone()));
                     }
 
                     vec![StageOutput {
@@ -157,14 +172,22 @@ impl WorkflowEngine {
                         }
 
                         for body_stage_name in &stage.body_stages {
-                            let body_idx = workflow.stages.iter().position(|s| &s.name == body_stage_name);
+                            let body_idx = workflow
+                                .stages
+                                .iter()
+                                .position(|s| &s.name == body_stage_name);
                             let body_stage = match body_idx {
                                 Some(idx) => workflow.stages[idx].clone(),
-                                None => return Err(WorkflowError::Execution(
-                                    format!("Loop body 找不到 stage: {}", body_stage_name)
-                                )),
+                                None => {
+                                    return Err(WorkflowError::Execution(format!(
+                                        "Loop body 找不到 stage: {}",
+                                        body_stage_name
+                                    )))
+                                }
                             };
-                            let body_outputs = self.execute_stage(&state, &body_stage, &workflow.agents).await?;
+                            let body_outputs = self
+                                .execute_stage(&state, &body_stage, &workflow.agents)
+                                .await?;
                             loop_outputs.extend(body_outputs);
                         }
 
@@ -190,14 +213,21 @@ impl WorkflowEngine {
                                     for attempt in 1..=error_handler.max_retries {
                                         tracing::warn!(
                                             "Stage '{}' 失败，重试 {}/{}",
-                                            stage.name, attempt, error_handler.max_retries
+                                            stage.name,
+                                            attempt,
+                                            error_handler.max_retries
                                         );
-                                        match self.execute_stage(&state, &stage, &workflow.agents).await {
+                                        match self
+                                            .execute_stage(&state, &stage, &workflow.agents)
+                                            .await
+                                        {
                                             Ok(outputs) => {
                                                 retry_result = Some(outputs);
                                                 break;
                                             }
-                                            Err(e) => { last_err = e; }
+                                            Err(e) => {
+                                                last_err = e;
+                                            }
                                         }
                                     }
                                     match retry_result {
@@ -273,7 +303,8 @@ impl WorkflowEngine {
 
     /// 返回 stages 数组中 current_name 之后的下一个 stage 名（没有则 None 表示结束）
     fn next_after(stages: &[crate::parser::StageDefinition], current_name: &str) -> Option<String> {
-        stages.iter()
+        stages
+            .iter()
             .position(|s| s.name == current_name)
             .and_then(|idx| stages.get(idx + 1))
             .map(|s| s.name.clone())
@@ -290,7 +321,8 @@ impl WorkflowEngine {
         if let Some(idx) = cond.find(" == ") {
             let var_name = cond[..idx].trim();
             let expected = cond[idx + 4..].trim().trim_matches('\'').trim_matches('"');
-            return vars.get(var_name)
+            return vars
+                .get(var_name)
                 .and_then(|v| v.as_str())
                 .map(|v| v == expected)
                 .unwrap_or(false);
@@ -299,7 +331,8 @@ impl WorkflowEngine {
         if let Some(idx) = cond.find(" != ") {
             let var_name = cond[..idx].trim();
             let expected = cond[idx + 4..].trim().trim_matches('\'').trim_matches('"');
-            return vars.get(var_name)
+            return vars
+                .get(var_name)
                 .and_then(|v| v.as_str())
                 .map(|v| v != expected)
                 .unwrap_or(true);
@@ -308,9 +341,13 @@ impl WorkflowEngine {
         if let Some(idx) = cond.find(" >= ") {
             let var_name = cond[..idx].trim();
             let threshold: f64 = cond[idx + 4..].trim().parse().unwrap_or(0.0);
-            return vars.get(var_name)
-                .and_then(|v| v.as_str().and_then(|s| s.parse::<f64>().ok())
-                    .or_else(|| v.as_f64()))
+            return vars
+                .get(var_name)
+                .and_then(|v| {
+                    v.as_str()
+                        .and_then(|s| s.parse::<f64>().ok())
+                        .or_else(|| v.as_f64())
+                })
                 .map(|v| v >= threshold)
                 .unwrap_or(false);
         }
@@ -318,9 +355,13 @@ impl WorkflowEngine {
         if let Some(idx) = cond.find(" <= ") {
             let var_name = cond[..idx].trim();
             let threshold: f64 = cond[idx + 4..].trim().parse().unwrap_or(0.0);
-            return vars.get(var_name)
-                .and_then(|v| v.as_str().and_then(|s| s.parse::<f64>().ok())
-                    .or_else(|| v.as_f64()))
+            return vars
+                .get(var_name)
+                .and_then(|v| {
+                    v.as_str()
+                        .and_then(|s| s.parse::<f64>().ok())
+                        .or_else(|| v.as_f64())
+                })
                 .map(|v| v <= threshold)
                 .unwrap_or(false);
         }
@@ -344,8 +385,9 @@ impl WorkflowEngine {
             // 并行执行智能体
             let mut handles = Vec::new();
             for agent_id in &stage.agents {
-                let agent = agents.iter().find(|a| &a.id == agent_id)
-                    .ok_or_else(|| WorkflowError::Validation(format!("未找到智能体: {}", agent_id)))?;
+                let agent = agents.iter().find(|a| &a.id == agent_id).ok_or_else(|| {
+                    WorkflowError::Validation(format!("未找到智能体: {}", agent_id))
+                })?;
 
                 // 检查依赖
                 if !self.check_dependencies(agent, state)? {
@@ -380,8 +422,9 @@ impl WorkflowEngine {
             // 顺序执行智能体
             let mut outputs = Vec::new();
             for agent_id in &stage.agents {
-                let agent = agents.iter().find(|a| &a.id == agent_id)
-                    .ok_or_else(|| WorkflowError::Validation(format!("未找到智能体: {}", agent_id)))?;
+                let agent = agents.iter().find(|a| &a.id == agent_id).ok_or_else(|| {
+                    WorkflowError::Validation(format!("未找到智能体: {}", agent_id))
+                })?;
 
                 // 检查依赖
                 if !self.check_dependencies(agent, state)? {
@@ -405,7 +448,11 @@ impl WorkflowEngine {
     }
 
     /// 检查所有依赖是否满足
-    fn check_dependencies(&self, agent: &crate::parser::AgentDefinition, state: &SharedState) -> Result<bool, WorkflowError> {
+    fn check_dependencies(
+        &self,
+        agent: &crate::parser::AgentDefinition,
+        state: &SharedState,
+    ) -> Result<bool, WorkflowError> {
         if agent.depends_on.is_empty() {
             return Ok(true);
         }
@@ -483,11 +530,7 @@ impl WorkflowEngine {
                                     &extraction.name,
                                     serde_json::Value::String(val.as_str().to_string()),
                                 );
-                                tracing::debug!(
-                                    "变量提取: {} = {}",
-                                    extraction.name,
-                                    val.as_str()
-                                );
+                                tracing::debug!("变量提取: {} = {}", extraction.name, val.as_str());
                             }
                         }
                     }
@@ -521,15 +564,18 @@ impl WorkflowEngine {
                     error: e.to_string(),
                 });
 
-                Err(WorkflowError::Execution(format!("智能体 {} 失败: {}", agent.id, e)))
+                Err(WorkflowError::Execution(format!(
+                    "智能体 {} 失败: {}",
+                    agent.id, e
+                )))
             }
         }
     }
 
     /// 调用 Claude CLI
     async fn call_claude_cli(&self, prompt: &str) -> Result<String, WorkflowError> {
-        let claude_bin = std::env::var("CLAUDE_BIN")
-            .unwrap_or_else(|_| "/opt/homebrew/bin/claude".to_string());
+        let claude_bin =
+            std::env::var("CLAUDE_BIN").unwrap_or_else(|_| "/opt/homebrew/bin/claude".to_string());
         let mut cmd = Command::new(&claude_bin);
         cmd.args(["-p", "--dangerously-skip-permissions", prompt]);
 
@@ -545,12 +591,17 @@ impl WorkflowEngine {
             .spawn()
             .map_err(|e| WorkflowError::Execution(format!("Failed to spawn Claude CLI: {}", e)))?;
 
-        let output = child.wait_with_output().await
+        let output = child
+            .wait_with_output()
+            .await
             .map_err(|e| WorkflowError::Execution(format!("Claude CLI error: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(WorkflowError::Execution(format!("Claude CLI error: {}", stderr)));
+            return Err(WorkflowError::Execution(format!(
+                "Claude CLI error: {}",
+                stderr
+            )));
         }
 
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())

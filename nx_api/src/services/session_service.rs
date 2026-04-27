@@ -1,8 +1,8 @@
 //! 会话服务
 
-use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use super::session_repository::{RepositoryError, SessionRepository};
 
@@ -37,12 +37,19 @@ impl SessionService {
     }
 
     /// 通过 resume_key 获取会话
-    pub async fn get_session_by_resume_key(&self, resume_key: &str) -> Result<Option<Session>, RepositoryError> {
+    pub async fn get_session_by_resume_key(
+        &self,
+        resume_key: &str,
+    ) -> Result<Option<Session>, RepositoryError> {
         self.repo.find_by_resume_key(resume_key)
     }
 
     /// 更新会话状态
-    pub async fn update_status(&self, id: &str, status: SessionStatus) -> Result<(), RepositoryError> {
+    pub async fn update_status(
+        &self,
+        id: &str,
+        status: SessionStatus,
+    ) -> Result<(), RepositoryError> {
         let mut session = self.repo.find_by_id(id)?;
         if let Some(ref mut s) = session {
             s.status = status;
@@ -54,7 +61,9 @@ impl SessionService {
 
     /// 暂停会话
     pub async fn pause_session(&self, id: &str) -> Result<Session, RepositoryError> {
-        let mut session = self.repo.find_by_id(id)?
+        let mut session = self
+            .repo
+            .find_by_id(id)?
             .ok_or_else(|| RepositoryError::NotFound(id.to_string()))?;
 
         session.pause();
@@ -66,7 +75,9 @@ impl SessionService {
 
     /// 激活会话
     pub async fn activate_session(&self, id: &str) -> Result<Session, RepositoryError> {
-        let mut session = self.repo.find_by_id(id)?
+        let mut session = self
+            .repo
+            .find_by_id(id)?
             .ok_or_else(|| RepositoryError::NotFound(id.to_string()))?;
 
         session.activate();
@@ -78,15 +89,14 @@ impl SessionService {
 
     /// 恢复会话
     pub async fn resume_session(&self, resume_key: &str) -> Result<Session, RepositoryError> {
-        let mut session = self.repo.find_by_resume_key(resume_key)?
-            .ok_or_else(|| RepositoryError::NotFound(format!("No session with resume_key: {}", resume_key)))?;
+        let mut session = self.repo.find_by_resume_key(resume_key)?.ok_or_else(|| {
+            RepositoryError::NotFound(format!("No session with resume_key: {}", resume_key))
+        })?;
 
         if !session.can_resume() {
             return Err(RepositoryError::NotFound(format!(
                 "Session {} cannot be resumed (status: {}, resume_key: {:?})",
-                session.id,
-                session.status,
-                session.resume_key
+                session.id, session.status, session.resume_key
             )));
         }
 
@@ -99,7 +109,9 @@ impl SessionService {
 
     /// 同步会话状态
     pub async fn sync_session(&self, id: &str) -> Result<Session, RepositoryError> {
-        let session = self.repo.find_by_id(id)?
+        let session = self
+            .repo
+            .find_by_id(id)?
             .ok_or_else(|| RepositoryError::NotFound(id.to_string()))?;
 
         tracing::debug!("同步会话状态: {} (status: {})", id, session.status);
@@ -221,7 +233,10 @@ mod tests {
         let repo = SqliteSessionRepository::in_memory().unwrap();
         let service = SessionService::new(Arc::new(repo));
 
-        let session = service.create_session("workflow-1".to_string()).await.unwrap();
+        let session = service
+            .create_session("workflow-1".to_string())
+            .await
+            .unwrap();
         assert_eq!(session.workflow_id, "workflow-1");
         assert_eq!(session.status, SessionStatus::Pending);
 
@@ -235,8 +250,14 @@ mod tests {
         let repo = SqliteSessionRepository::in_memory().unwrap();
         let service = SessionService::new(Arc::new(repo));
 
-        service.create_session("workflow-1".to_string()).await.unwrap();
-        service.create_session("workflow-2".to_string()).await.unwrap();
+        service
+            .create_session("workflow-1".to_string())
+            .await
+            .unwrap();
+        service
+            .create_session("workflow-2".to_string())
+            .await
+            .unwrap();
 
         let sessions = service.list_sessions().await.unwrap();
         assert_eq!(sessions.len(), 2);
@@ -247,7 +268,10 @@ mod tests {
         let repo = SqliteSessionRepository::in_memory().unwrap();
         let service = SessionService::new(Arc::new(repo));
 
-        let session = service.create_session("workflow-1".to_string()).await.unwrap();
+        let session = service
+            .create_session("workflow-1".to_string())
+            .await
+            .unwrap();
         let deleted = service.delete_session(&session.id).await.unwrap();
         assert!(deleted);
 
@@ -260,8 +284,14 @@ mod tests {
         let repo = SqliteSessionRepository::in_memory().unwrap();
         let service = SessionService::new(Arc::new(repo));
 
-        let session = service.create_session("workflow-1".to_string()).await.unwrap();
-        service.update_status(&session.id, SessionStatus::Active).await.unwrap();
+        let session = service
+            .create_session("workflow-1".to_string())
+            .await
+            .unwrap();
+        service
+            .update_status(&session.id, SessionStatus::Active)
+            .await
+            .unwrap();
 
         let found = service.get_session(&session.id).await.unwrap().unwrap();
         assert_eq!(found.status, SessionStatus::Active);

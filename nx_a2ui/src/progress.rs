@@ -1,7 +1,7 @@
 //! A2UI 进度回调
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// 进度状态
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -184,7 +184,11 @@ impl ProgressTracker {
     }
 
     /// 创建进度更新
-    pub fn create_update(&self, task_name: impl Into<String>, total_steps: usize) -> ProgressUpdate {
+    pub fn create_update(
+        &self,
+        task_name: impl Into<String>,
+        total_steps: usize,
+    ) -> ProgressUpdate {
         ProgressUpdate::new(uuid::Uuid::new_v4().to_string(), task_name, total_steps)
     }
 }
@@ -231,7 +235,10 @@ impl ProgressCallback for ProgressTracker {
             update.updated_at = Utc::now();
             Ok(())
         } else {
-            Err(crate::A2uiError::InvalidOperation(format!("进度 {} 不存在", id)))
+            Err(crate::A2uiError::InvalidOperation(format!(
+                "进度 {} 不存在",
+                id
+            )))
         }
     }
 
@@ -243,7 +250,10 @@ impl ProgressCallback for ProgressTracker {
             update.updated_at = Utc::now();
             Ok(())
         } else {
-            Err(crate::A2uiError::InvalidOperation(format!("进度 {} 不存在", id)))
+            Err(crate::A2uiError::InvalidOperation(format!(
+                "进度 {} 不存在",
+                id
+            )))
         }
     }
 
@@ -254,7 +264,10 @@ impl ProgressCallback for ProgressTracker {
             update.updated_at = Utc::now();
             Ok(())
         } else {
-            Err(crate::A2uiError::InvalidOperation(format!("进度 {} 不存在", id)))
+            Err(crate::A2uiError::InvalidOperation(format!(
+                "进度 {} 不存在",
+                id
+            )))
         }
     }
 
@@ -265,7 +278,8 @@ impl ProgressCallback for ProgressTracker {
 
     async fn list_active(&self) -> Result<Vec<ProgressUpdate>, crate::A2uiError> {
         let updates = self.updates.read().unwrap();
-        let active: Vec<ProgressUpdate> = updates.values()
+        let active: Vec<ProgressUpdate> = updates
+            .values()
             .filter(|u| u.state == ProgressState::Started || u.state == ProgressState::InProgress)
             .cloned()
             .collect();

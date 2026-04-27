@@ -1,7 +1,7 @@
 //! A2UI 确认对话框
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// 对话框选项
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -147,7 +147,11 @@ pub struct ConfirmationDialog {
 
 impl ConfirmationDialog {
     /// 创建新的确认对话框
-    pub fn new(options: DialogOptions, source: impl Into<String>, session_id: impl Into<String>) -> Self {
+    pub fn new(
+        options: DialogOptions,
+        source: impl Into<String>,
+        session_id: impl Into<String>,
+    ) -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             options,
@@ -159,30 +163,33 @@ impl ConfirmationDialog {
     }
 
     /// 创建标准确认对话框
-    pub fn confirm(title: impl Into<String>, content: impl Into<String>, source: impl Into<String>, session_id: impl Into<String>) -> Self {
-        Self::new(
-            DialogOptions::new(title, content),
-            source,
-            session_id,
-        )
+    pub fn confirm(
+        title: impl Into<String>,
+        content: impl Into<String>,
+        source: impl Into<String>,
+        session_id: impl Into<String>,
+    ) -> Self {
+        Self::new(DialogOptions::new(title, content), source, session_id)
     }
 
     /// 创建警告确认对话框
-    pub fn warn(title: impl Into<String>, content: impl Into<String>, source: impl Into<String>, session_id: impl Into<String>) -> Self {
-        Self::new(
-            DialogOptions::warning(title, content),
-            source,
-            session_id,
-        )
+    pub fn warn(
+        title: impl Into<String>,
+        content: impl Into<String>,
+        source: impl Into<String>,
+        session_id: impl Into<String>,
+    ) -> Self {
+        Self::new(DialogOptions::warning(title, content), source, session_id)
     }
 
     /// 创建危险操作确认对话框
-    pub fn danger(title: impl Into<String>, content: impl Into<String>, source: impl Into<String>, session_id: impl Into<String>) -> Self {
-        Self::new(
-            DialogOptions::danger(title, content),
-            source,
-            session_id,
-        )
+    pub fn danger(
+        title: impl Into<String>,
+        content: impl Into<String>,
+        source: impl Into<String>,
+        session_id: impl Into<String>,
+    ) -> Self {
+        Self::new(DialogOptions::danger(title, content), source, session_id)
     }
 }
 
@@ -280,7 +287,10 @@ pub trait DialogHandler: Send + Sync {
     async fn send(&self, dialog: ConfirmationDialog) -> Result<(), crate::A2uiError>;
 
     /// 获取对话框响应（轮询）
-    async fn get_response(&self, dialog_id: &str) -> Result<Option<DialogResponse>, crate::A2uiError>;
+    async fn get_response(
+        &self,
+        dialog_id: &str,
+    ) -> Result<Option<DialogResponse>, crate::A2uiError>;
 
     /// 取消对话框
     async fn cancel(&self, dialog_id: &str) -> Result<(), crate::A2uiError>;
@@ -332,7 +342,10 @@ impl DialogHandler for InMemoryDialogHandler {
         Ok(())
     }
 
-    async fn get_response(&self, dialog_id: &str) -> Result<Option<DialogResponse>, crate::A2uiError> {
+    async fn get_response(
+        &self,
+        dialog_id: &str,
+    ) -> Result<Option<DialogResponse>, crate::A2uiError> {
         let responses = self.responses.read().unwrap();
         Ok(responses.get(dialog_id).cloned())
     }
@@ -343,7 +356,10 @@ impl DialogHandler for InMemoryDialogHandler {
             dialog.status = DialogStatus::Cancelled;
             Ok(())
         } else {
-            Err(crate::A2uiError::InvalidOperation(format!("对话框 {} 不存在", dialog_id)))
+            Err(crate::A2uiError::InvalidOperation(format!(
+                "对话框 {} 不存在",
+                dialog_id
+            )))
         }
     }
 }

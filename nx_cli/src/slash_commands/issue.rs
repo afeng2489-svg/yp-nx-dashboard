@@ -6,8 +6,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Command, CommandArgument, CommandCategory, CommandHandler, CommandOutput, Args,
-    SubCommand,
+    Args, Command, CommandArgument, CommandCategory, CommandHandler, CommandOutput, SubCommand,
 };
 
 /// Issue data structure
@@ -74,22 +73,37 @@ impl IssueCommands {
             .with_subcommand(
                 SubCommand::new("new", "Create a new issue")
                     .with_arg(CommandArgument::new("title", "Issue title", true))
-                    .with_arg(CommandArgument::new("description", "Issue description", false))
-                    .with_arg(CommandArgument::new("priority", "Priority (low, medium, high, critical)", false).with_default("medium"))
+                    .with_arg(CommandArgument::new(
+                        "description",
+                        "Issue description",
+                        false,
+                    ))
+                    .with_arg(
+                        CommandArgument::new(
+                            "priority",
+                            "Priority (low, medium, high, critical)",
+                            false,
+                        )
+                        .with_default("medium"),
+                    )
                     .with_arg(CommandArgument::new("assignee", "Assignee username", false)),
             )
             .with_subcommand(
-                SubCommand::new("discover", "Discover issues in the codebase")
-                    .with_arg(CommandArgument::new("path", "Path to scan", false).with_default(".")),
+                SubCommand::new("discover", "Discover issues in the codebase").with_arg(
+                    CommandArgument::new("path", "Path to scan", false).with_default("."),
+                ),
             )
             .with_subcommand(
                 SubCommand::new("plan", "Create a plan for resolving an issue")
                     .with_arg(CommandArgument::new("id", "Issue ID (e.g., ISS-001)", true)),
             )
-            .with_subcommand(
-                SubCommand::new("list", "List all issues")
-                    .with_arg(CommandArgument::new("status", "Filter by status (open, in_progress, closed)", false)),
-            )
+            .with_subcommand(SubCommand::new("list", "List all issues").with_arg(
+                CommandArgument::new(
+                    "status",
+                    "Filter by status (open, in_progress, closed)",
+                    false,
+                ),
+            ))
             .with_subcommand(
                 SubCommand::new("get", "Get issue details")
                     .with_arg(CommandArgument::new("id", "Issue ID", true)),
@@ -198,9 +212,7 @@ impl CommandHandler for IssueDiscoverCommand {
     }
 
     fn arguments(&self) -> Vec<CommandArgument> {
-        vec![
-            CommandArgument::new("path", "Path to scan", false).with_default("."),
-        ]
+        vec![CommandArgument::new("path", "Path to scan", false).with_default(".")]
     }
 
     async fn execute(&self, args: Args) -> CommandOutput {
@@ -254,9 +266,7 @@ impl CommandHandler for IssuePlanCommand {
     }
 
     fn arguments(&self) -> Vec<CommandArgument> {
-        vec![
-            CommandArgument::new("id", "Issue ID (e.g., ISS-001)", true),
-        ]
+        vec![CommandArgument::new("id", "Issue ID (e.g., ISS-001)", true)]
     }
 
     async fn execute(&self, args: Args) -> CommandOutput {
@@ -299,10 +309,7 @@ impl CommandHandler for IssuePlanCommand {
             "total_estimated_time": "2 hours 15 minutes"
         });
 
-        CommandOutput::success_with_data(
-            format!("Plan created for issue {}", issue_id),
-            plan,
-        )
+        CommandOutput::success_with_data(format!("Plan created for issue {}", issue_id), plan)
     }
 }
 

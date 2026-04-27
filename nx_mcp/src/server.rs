@@ -45,8 +45,14 @@ impl McpServer {
     }
 
     /// 调用工具
-    pub async fn call_tool(&self, name: &str, input: serde_json::Value) -> Result<serde_json::Value, McpError> {
-        let handler = self.tool_handlers.get(name)
+    pub async fn call_tool(
+        &self,
+        name: &str,
+        input: serde_json::Value,
+    ) -> Result<serde_json::Value, McpError> {
+        let handler = self
+            .tool_handlers
+            .get(name)
             .ok_or_else(|| McpError::ToolNotFound(name.to_string()))?;
 
         handler.handle(input).await
@@ -100,15 +106,11 @@ pub enum McpMessage {
         client_info: ClientInfo,
     },
     /// 初始化响应
-    Initialized {
-        server_info: ServerInfo,
-    },
+    Initialized { server_info: ServerInfo },
     /// 列出工具请求
     ListTools {},
     /// 列出工具响应
-    ListToolsResult {
-        tools: Vec<Tool>,
-    },
+    ListToolsResult { tools: Vec<Tool> },
     /// 调用工具请求
     CallTool {
         name: String,
@@ -122,9 +124,7 @@ pub enum McpMessage {
     /// 资源列表请求
     ListResources {},
     /// 资源列表响应
-    ListResourcesResult {
-        resources: Vec<Resource>,
-    },
+    ListResourcesResult { resources: Vec<Resource> },
 }
 
 /// 客户端信息

@@ -5,7 +5,7 @@
 use crate::services::workflow_service::Workflow;
 use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use std::path::Path;
 use std::sync::Arc;
 use thiserror::Error;

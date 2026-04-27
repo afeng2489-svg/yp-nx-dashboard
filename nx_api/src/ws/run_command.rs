@@ -100,7 +100,12 @@ impl RunCommandWsHandler {
         let dir = std::path::Path::new(&working_directory);
         if !dir.is_absolute() || !dir.exists() || !dir.is_dir() {
             output_tx
-                .send(RunCommandServerMsg::Error { message: format!("无效的工作目录: {}", working_directory) }.to_json())
+                .send(
+                    RunCommandServerMsg::Error {
+                        message: format!("无效的工作目录: {}", working_directory),
+                    }
+                    .to_json(),
+                )
                 .await
                 .ok();
             return;
@@ -118,7 +123,10 @@ impl RunCommandWsHandler {
         match cmd.spawn() {
             Ok(mut child) => {
                 let pid = child.id().unwrap_or(0);
-                output_tx.send(RunCommandServerMsg::Started { pid }.to_json()).await.ok();
+                output_tx
+                    .send(RunCommandServerMsg::Started { pid }.to_json())
+                    .await
+                    .ok();
 
                 let stdout = child.stdout.take();
                 let stderr = child.stderr.take();
@@ -129,7 +137,11 @@ impl RunCommandWsHandler {
                         use tokio::io::AsyncBufReadExt;
                         let mut lines = tokio::io::BufReader::new(stdout).lines();
                         while let Ok(Some(line)) = lines.next_line().await {
-                            if out_tx1.send(RunCommandServerMsg::Stdout { data: line }.to_json()).await.is_err() {
+                            if out_tx1
+                                .send(RunCommandServerMsg::Stdout { data: line }.to_json())
+                                .await
+                                .is_err()
+                            {
                                 break;
                             }
                         }
@@ -144,7 +156,11 @@ impl RunCommandWsHandler {
                         use tokio::io::AsyncBufReadExt;
                         let mut lines = tokio::io::BufReader::new(stderr).lines();
                         while let Ok(Some(line)) = lines.next_line().await {
-                            if out_tx2.send(RunCommandServerMsg::Stderr { data: line }.to_json()).await.is_err() {
+                            if out_tx2
+                                .send(RunCommandServerMsg::Stderr { data: line }.to_json())
+                                .await
+                                .is_err()
+                            {
                                 break;
                             }
                         }
@@ -169,7 +185,12 @@ impl RunCommandWsHandler {
             }
             Err(e) => {
                 output_tx
-                    .send(RunCommandServerMsg::Error { message: format!("启动命令失败: {}", e) }.to_json())
+                    .send(
+                        RunCommandServerMsg::Error {
+                            message: format!("启动命令失败: {}", e),
+                        }
+                        .to_json(),
+                    )
                     .await
                     .ok();
             }

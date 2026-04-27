@@ -3,10 +3,10 @@
 //! 支持会话状态保存到 SQLite 数据库。
 
 use chrono::{DateTime, Utc};
-use rusqlite::{Connection, params};
+use parking_lot::Mutex;
+use rusqlite::{params, Connection};
 use std::path::Path;
 use std::sync::Arc;
-use parking_lot::Mutex;
 use thiserror::Error;
 
 use super::{Session, SessionId, SessionMetadata, SessionStatus};
@@ -52,7 +52,7 @@ impl SessionStore {
 
             CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
             CREATE INDEX IF NOT EXISTS idx_sessions_updated_at ON sessions(updated_at);
-            "
+            ",
         )?;
 
         Ok(Self {
@@ -74,7 +74,7 @@ impl SessionStore {
                 updated_at TEXT NOT NULL,
                 terminated_at TEXT
             );
-            "
+            ",
         )?;
 
         Ok(Self {
@@ -112,7 +112,7 @@ impl SessionStore {
 
         let mut stmt = conn.prepare(
             "SELECT id, status, metadata, created_at, updated_at, terminated_at
-             FROM sessions WHERE id = ?1"
+             FROM sessions WHERE id = ?1",
         )?;
 
         let session = stmt.query_row(params![id.0], |row| {
@@ -123,10 +123,18 @@ impl SessionStore {
             let updated_at_str: String = row.get(4)?;
             let terminated_at_str: Option<String> = row.get(5)?;
 
-            Ok((id_str, status_str, metadata_json, created_at_str, updated_at_str, terminated_at_str))
+            Ok((
+                id_str,
+                status_str,
+                metadata_json,
+                created_at_str,
+                updated_at_str,
+                terminated_at_str,
+            ))
         })?;
 
-        let (id_str, status_str, metadata_json, created_at_str, updated_at_str, terminated_at_str) = session;
+        let (id_str, status_str, metadata_json, created_at_str, updated_at_str, terminated_at_str) =
+            session;
 
         let metadata: SessionMetadata = serde_json::from_str(&metadata_json)
             .map_err(|e| PersistenceError::Serialization(e.to_string()))?;
@@ -149,11 +157,11 @@ impl SessionStore {
             .map(|dt| dt.with_timezone(&Utc))
             .unwrap_or_else(|_| Utc::now());
 
-        let terminated_at = terminated_at_str.and_then(|s|
+        let terminated_at = terminated_at_str.and_then(|s| {
             DateTime::parse_from_rfc3339(&s)
                 .map(|dt| dt.with_timezone(&Utc))
                 .ok()
-        );
+        });
 
         Ok(Session {
             id: SessionId(id_str),
@@ -169,10 +177,7 @@ impl SessionStore {
     pub fn delete(&self, id: &SessionId) -> Result<bool, PersistenceError> {
         let conn = self.conn.lock();
 
-        let affected = conn.execute(
-            "DELETE FROM sessions WHERE id = ?1",
-            params![id.0],
-        )?;
+        let affected = conn.execute("DELETE FROM sessions WHERE id = ?1", params![id.0])?;
 
         Ok(affected > 0)
     }
@@ -183,7 +188,7 @@ impl SessionStore {
 
         let mut stmt = conn.prepare(
             "SELECT id, status, metadata, created_at, updated_at, terminated_at
-             FROM sessions ORDER BY updated_at DESC"
+             FROM sessions ORDER BY updated_at DESC",
         )?;
 
         let sessions = stmt.query_map([], |row| {
@@ -194,13 +199,26 @@ impl SessionStore {
             let updated_at_str: String = row.get(4)?;
             let terminated_at_str: Option<String> = row.get(5)?;
 
-            Ok((id_str, status_str, metadata_json, created_at_str, updated_at_str, terminated_at_str))
+            Ok((
+                id_str,
+                status_str,
+                metadata_json,
+                created_at_str,
+                updated_at_str,
+                terminated_at_str,
+            ))
         })?;
 
         let mut result = Vec::new();
         for session_result in sessions {
-            let (id_str, status_str, metadata_json, created_at_str, updated_at_str, terminated_at_str) =
-                session_result?;
+            let (
+                id_str,
+                status_str,
+                metadata_json,
+                created_at_str,
+                updated_at_str,
+                terminated_at_str,
+            ) = session_result?;
 
             if let Ok(session) = self.deserialize_session(
                 &id_str,
@@ -223,7 +241,7 @@ impl SessionStore {
 
         let mut stmt = conn.prepare(
             "SELECT id, status, metadata, created_at, updated_at, terminated_at
-             FROM sessions WHERE status = ?1 ORDER BY updated_at DESC"
+             FROM sessions WHERE status = ?1 ORDER BY updated_at DESC",
         )?;
 
         let sessions = stmt.query_map(params![status.to_string()], |row| {
@@ -234,13 +252,26 @@ impl SessionStore {
             let updated_at_str: String = row.get(4)?;
             let terminated_at_str: Option<String> = row.get(5)?;
 
-            Ok((id_str, status_str, metadata_json, created_at_str, updated_at_str, terminated_at_str))
+            Ok((
+                id_str,
+                status_str,
+                metadata_json,
+                created_at_str,
+                updated_at_str,
+                terminated_at_str,
+            ))
         })?;
 
         let mut result = Vec::new();
         for session_result in sessions {
-            let (id_str, status_str, metadata_json, created_at_str, updated_at_str, terminated_at_str) =
-                session_result?;
+            let (
+                id_str,
+                status_str,
+                metadata_json,
+                created_at_str,
+                updated_at_str,
+                terminated_at_str,
+            ) = session_result?;
 
             if let Ok(session) = self.deserialize_session(
                 &id_str,
@@ -275,11 +306,7 @@ impl SessionStore {
     pub fn count(&self) -> Result<usize, PersistenceError> {
         let conn = self.conn.lock();
 
-        let count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM sessions",
-            [],
-            |row| row.get(0),
-        )?;
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))?;
 
         Ok(count as usize)
     }
@@ -314,11 +341,11 @@ impl SessionStore {
             .map(|dt| dt.with_timezone(&Utc))
             .unwrap_or_else(|_| Utc::now());
 
-        let terminated_at = terminated_at_str.and_then(|s|
+        let terminated_at = terminated_at_str.and_then(|s| {
             DateTime::parse_from_rfc3339(s)
                 .map(|dt| dt.with_timezone(&Utc))
                 .ok()
-        );
+        });
 
         Ok(Session {
             id: SessionId(id_str.to_string()),

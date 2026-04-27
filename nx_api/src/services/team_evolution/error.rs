@@ -30,11 +30,17 @@ pub enum TeamEvolutionError {
     /// [TEV-6002] Pipeline already running
     PipelineAlreadyRunning(String),
     /// [TEV-6003] Pipeline step not found
-    StepNotFound { pipeline_id: String, step_id: String },
+    StepNotFound {
+        pipeline_id: String,
+        step_id: String,
+    },
     /// [TEV-6004] Phase gate not satisfied
     PhaseGateBlocked { phase: String, reason: String },
     /// [TEV-6005] Step dependencies not met
-    DependenciesNotMet { step_id: String, blocked_by: Vec<String> },
+    DependenciesNotMet {
+        step_id: String,
+        blocked_by: Vec<String>,
+    },
     /// [TEV-6006] Pipeline is paused
     PipelinePaused(String),
     /// [TEV-6007] Step cannot be retried
@@ -75,26 +81,49 @@ impl fmt::Display for TeamEvolutionError {
             // Feature Flag
             Self::FlagNotFound(key) => write!(f, "[TEV-4001] Feature flag not found: {key}"),
             Self::FeatureDisabled(key) => write!(f, "[TEV-4002] Feature is disabled: {key}"),
-            Self::FeatureReadOnly(key) => write!(f, "[TEV-4003] Feature is in readonly mode: {key}"),
+            Self::FeatureReadOnly(key) => {
+                write!(f, "[TEV-4003] Feature is in readonly mode: {key}")
+            }
             Self::CircuitBreakerTripped { key, error_count } => {
-                write!(f, "[TEV-4004] Circuit breaker tripped for '{key}' after {error_count} errors")
+                write!(
+                    f,
+                    "[TEV-4004] Circuit breaker tripped for '{key}' after {error_count} errors"
+                )
             }
 
             // Pipeline
             Self::PipelineNotFound(id) => write!(f, "[TEV-6001] Pipeline not found: {id}"),
-            Self::PipelineAlreadyRunning(id) => write!(f, "[TEV-6002] Pipeline already running: {id}"),
-            Self::StepNotFound { pipeline_id, step_id } => {
-                write!(f, "[TEV-6003] Step '{step_id}' not found in pipeline '{pipeline_id}'")
+            Self::PipelineAlreadyRunning(id) => {
+                write!(f, "[TEV-6002] Pipeline already running: {id}")
+            }
+            Self::StepNotFound {
+                pipeline_id,
+                step_id,
+            } => {
+                write!(
+                    f,
+                    "[TEV-6003] Step '{step_id}' not found in pipeline '{pipeline_id}'"
+                )
             }
             Self::PhaseGateBlocked { phase, reason } => {
                 write!(f, "[TEV-6004] Phase gate blocked at '{phase}': {reason}")
             }
-            Self::DependenciesNotMet { step_id, blocked_by } => {
-                write!(f, "[TEV-6005] Step '{step_id}' blocked by: {}", blocked_by.join(", "))
+            Self::DependenciesNotMet {
+                step_id,
+                blocked_by,
+            } => {
+                write!(
+                    f,
+                    "[TEV-6005] Step '{step_id}' blocked by: {}",
+                    blocked_by.join(", ")
+                )
             }
             Self::PipelinePaused(id) => write!(f, "[TEV-6006] Pipeline is paused: {id}"),
             Self::StepNotRetriable { step_id, status } => {
-                write!(f, "[TEV-6007] Step '{step_id}' cannot be retried (status: {status})")
+                write!(
+                    f,
+                    "[TEV-6007] Step '{step_id}' cannot be retried (status: {status})"
+                )
             }
 
             // Snapshot

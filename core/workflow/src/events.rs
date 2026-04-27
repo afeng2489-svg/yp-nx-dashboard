@@ -2,8 +2,8 @@
 //!
 //! 工作流执行通知的事件系统。
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// 工作流事件类型
@@ -57,14 +57,9 @@ pub enum WorkflowEvent {
         final_state: String,
     },
     /// 工作流失败
-    WorkflowFailed {
-        execution_id: Uuid,
-        error: String,
-    },
+    WorkflowFailed { execution_id: Uuid, error: String },
     /// 工作流已取消
-    WorkflowCancelled {
-        execution_id: Uuid,
-    },
+    WorkflowCancelled { execution_id: Uuid },
     /// 变量已设置
     VariableSet {
         execution_id: Uuid,
@@ -162,8 +157,8 @@ impl EventEmitter for InMemoryEventEmitter {
     }
 }
 
-use std::sync::Arc;
 use parking_lot::RwLock;
+use std::sync::Arc;
 
 /// 用于测试和调试的事件收集器
 pub struct EventCollector {

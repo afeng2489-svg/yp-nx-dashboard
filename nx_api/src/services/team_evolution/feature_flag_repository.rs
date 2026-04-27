@@ -2,13 +2,13 @@
 //!
 //! 新表 `feature_flags`，独立于核心表。
 
-use std::sync::Arc;
+use chrono::Utc;
 use parking_lot::Mutex;
 use rusqlite::Connection;
-use chrono::Utc;
+use std::sync::Arc;
 
-use crate::models::feature_flag::{FeatureFlag, FeatureFlagState};
 use super::error::TeamEvolutionError;
+use crate::models::feature_flag::{FeatureFlag, FeatureFlagState};
 
 pub struct SqliteFeatureFlagRepository {
     conn: Arc<Mutex<Connection>>,
@@ -32,7 +32,7 @@ impl SqliteFeatureFlagRepository {
                 error_threshold INTEGER NOT NULL DEFAULT 5,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
-            );"
+            );",
         )?;
         Ok(())
     }
@@ -99,22 +99,24 @@ impl SqliteFeatureFlagRepository {
              FROM feature_flags ORDER BY key"
         )?;
 
-        let flags = stmt.query_map([], |row| {
-            Ok(FeatureFlag {
-                key: row.get(0)?,
-                state: FeatureFlagState::from_str(&row.get::<_, String>(1)?)
-                    .unwrap_or(FeatureFlagState::Off),
-                circuit_breaker: row.get::<_, i32>(2)? != 0,
-                error_count: row.get(3)?,
-                error_threshold: row.get(4)?,
-                created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
-                    .map(|dt| dt.with_timezone(&Utc))
-                    .unwrap_or_else(|_| Utc::now()),
-                updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(6)?)
-                    .map(|dt| dt.with_timezone(&Utc))
-                    .unwrap_or_else(|_| Utc::now()),
-            })
-        })?.collect::<Result<Vec<_>, _>>()?;
+        let flags = stmt
+            .query_map([], |row| {
+                Ok(FeatureFlag {
+                    key: row.get(0)?,
+                    state: FeatureFlagState::from_str(&row.get::<_, String>(1)?)
+                        .unwrap_or(FeatureFlagState::Off),
+                    circuit_breaker: row.get::<_, i32>(2)? != 0,
+                    error_count: row.get(3)?,
+                    error_threshold: row.get(4)?,
+                    created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
+                        .map(|dt| dt.with_timezone(&Utc))
+                        .unwrap_or_else(|_| Utc::now()),
+                    updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(6)?)
+                        .map(|dt| dt.with_timezone(&Utc))
+                        .unwrap_or_else(|_| Utc::now()),
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(flags)
     }
@@ -134,22 +136,24 @@ impl SqliteFeatureFlagRepository {
              FROM feature_flags WHERE key = ?1"
         )?;
 
-        let flag = stmt.query_row(rusqlite::params![key], |row| {
-            Ok(FeatureFlag {
-                key: row.get(0)?,
-                state: FeatureFlagState::from_str(&row.get::<_, String>(1)?)
-                    .unwrap_or(FeatureFlagState::Off),
-                circuit_breaker: row.get::<_, i32>(2)? != 0,
-                error_count: row.get(3)?,
-                error_threshold: row.get(4)?,
-                created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
-                    .map(|dt| dt.with_timezone(&Utc))
-                    .unwrap_or_else(|_| Utc::now()),
-                updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(6)?)
-                    .map(|dt| dt.with_timezone(&Utc))
-                    .unwrap_or_else(|_| Utc::now()),
+        let flag = stmt
+            .query_row(rusqlite::params![key], |row| {
+                Ok(FeatureFlag {
+                    key: row.get(0)?,
+                    state: FeatureFlagState::from_str(&row.get::<_, String>(1)?)
+                        .unwrap_or(FeatureFlagState::Off),
+                    circuit_breaker: row.get::<_, i32>(2)? != 0,
+                    error_count: row.get(3)?,
+                    error_threshold: row.get(4)?,
+                    created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
+                        .map(|dt| dt.with_timezone(&Utc))
+                        .unwrap_or_else(|_| Utc::now()),
+                    updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(6)?)
+                        .map(|dt| dt.with_timezone(&Utc))
+                        .unwrap_or_else(|_| Utc::now()),
+                })
             })
-        }).map_err(|_| TeamEvolutionError::FlagNotFound(key.to_string()))?;
+            .map_err(|_| TeamEvolutionError::FlagNotFound(key.to_string()))?;
 
         // Auto-trip circuit breaker
         if flag.should_trip() && !flag.circuit_breaker {
@@ -180,7 +184,10 @@ impl SqliteFeatureFlagRepository {
 
     pub fn delete(&self, key: &str) -> Result<(), TeamEvolutionError> {
         let conn = self.conn.lock();
-        conn.execute("DELETE FROM feature_flags WHERE key = ?1", rusqlite::params![key])?;
+        conn.execute(
+            "DELETE FROM feature_flags WHERE key = ?1",
+            rusqlite::params![key],
+        )?;
         Ok(())
     }
 }

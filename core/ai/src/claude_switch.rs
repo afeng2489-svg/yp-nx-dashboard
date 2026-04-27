@@ -10,7 +10,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::{AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CompletionRequest, CompletionResponse, EmbedRequest, EmbedResponse, TokenUsage};
+use super::{
+    AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CompletionRequest,
+    CompletionResponse, EmbedRequest, EmbedResponse, TokenUsage,
+};
 
 /// Claude Switch 支持的后端提供商
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -133,7 +136,8 @@ impl ClaudeSwitchProvider {
 
     /// 添加可用的后端
     pub fn with_backend(mut self, config: BackendConfig) -> Self {
-        self.available_backends.insert(config.backend, config.clone());
+        self.available_backends
+            .insert(config.backend, config.clone());
         // 如果没有设置过后端，使用第一个
         if self.backend.api_key.is_empty() && !config.api_key.is_empty() {
             self.backend = config;
@@ -168,8 +172,13 @@ impl ClaudeSwitchProvider {
     }
 
     /// 发送请求到后端
-    async fn request(&self, path: &str, body: serde_json::Value) -> Result<serde_json::Value, AIError> {
-        let response = self.client
+    async fn request(
+        &self,
+        path: &str,
+        body: serde_json::Value,
+    ) -> Result<serde_json::Value, AIError> {
+        let response = self
+            .client
             .post(format!("{}{}", self.backend.base_url, path))
             .header("Authorization", format!("Bearer {}", self.backend.api_key))
             .header("Content-Type", "application/json")
@@ -188,7 +197,10 @@ impl ClaudeSwitchProvider {
             });
         }
 
-        response.json().await.map_err(|e| AIError::Parse(e.to_string()))
+        response
+            .json()
+            .await
+            .map_err(|e| AIError::Parse(e.to_string()))
     }
 
     /// 测试后端连接
@@ -208,12 +220,16 @@ impl ClaudeSwitchProvider {
         match self.backend.backend {
             SwitchBackend::MiniMax | SwitchBackend::OpenAI | SwitchBackend::DeepSeek => {
                 // OpenAI 兼容格式
-                let messages: Vec<serde_json::Value> = request.messages.iter().map(|m| {
-                    serde_json::json!({
-                        "role": m.role,
-                        "content": m.content
+                let messages: Vec<serde_json::Value> = request
+                    .messages
+                    .iter()
+                    .map(|m| {
+                        serde_json::json!({
+                            "role": m.role,
+                            "content": m.content
+                        })
                     })
-                }).collect();
+                    .collect();
 
                 serde_json::json!({
                     "model": &self.backend.model,
@@ -224,12 +240,16 @@ impl ClaudeSwitchProvider {
             }
             SwitchBackend::Zhipu => {
                 // 智谱格式
-                let messages: Vec<serde_json::Value> = request.messages.iter().map(|m| {
-                    serde_json::json!({
-                        "role": m.role,
-                        "content": m.content
+                let messages: Vec<serde_json::Value> = request
+                    .messages
+                    .iter()
+                    .map(|m| {
+                        serde_json::json!({
+                            "role": m.role,
+                            "content": m.content
+                        })
                     })
-                }).collect();
+                    .collect();
 
                 serde_json::json!({
                     "model": &self.backend.model,
@@ -240,7 +260,9 @@ impl ClaudeSwitchProvider {
             }
             SwitchBackend::Ollama => {
                 // Ollama 格式
-                let last_message = request.messages.last()
+                let last_message = request
+                    .messages
+                    .last()
                     .map(|m| m.content.as_str())
                     .unwrap_or("");
 
@@ -256,7 +278,10 @@ impl ClaudeSwitchProvider {
     /// 将后端响应转换为 Claude 格式
     fn convert_response(&self, response: serde_json::Value) -> Result<ChatResponse, AIError> {
         match self.backend.backend {
-            SwitchBackend::MiniMax | SwitchBackend::OpenAI | SwitchBackend::DeepSeek | SwitchBackend::Zhipu => {
+            SwitchBackend::MiniMax
+            | SwitchBackend::OpenAI
+            | SwitchBackend::DeepSeek
+            | SwitchBackend::Zhipu => {
                 // OpenAI/智谱兼容格式
                 #[derive(Deserialize)]
                 struct Choice {
@@ -286,7 +311,9 @@ impl ClaudeSwitchProvider {
                 let resp: OpenAIResponse = serde_json::from_value(response)
                     .map_err(|e| AIError::Parse(format!("解析响应失败: {}", e)))?;
 
-                let choice = resp.choices.into_iter()
+                let choice = resp
+                    .choices
+                    .into_iter()
                     .next()
                     .ok_or_else(|| AIError::Provider("后端返回空响应".to_string()))?;
 
@@ -382,7 +409,9 @@ impl AIProvider for ClaudeSwitchProvider {
     }
 
     async fn embed(&self, _request: EmbedRequest) -> Result<EmbedResponse, AIError> {
-        Err(AIError::Provider("Claude Switch 不支持嵌入 API".to_string()))
+        Err(AIError::Provider(
+            "Claude Switch 不支持嵌入 API".to_string(),
+        ))
     }
 }
 
@@ -392,9 +421,18 @@ mod tests {
 
     #[test]
     fn test_backend_from_str() {
-        assert_eq!(SwitchBackend::from_str("minimax"), Some(SwitchBackend::MiniMax));
-        assert_eq!(SwitchBackend::from_str("openai"), Some(SwitchBackend::OpenAI));
-        assert_eq!(SwitchBackend::from_str("deepseek"), Some(SwitchBackend::DeepSeek));
+        assert_eq!(
+            SwitchBackend::from_str("minimax"),
+            Some(SwitchBackend::MiniMax)
+        );
+        assert_eq!(
+            SwitchBackend::from_str("openai"),
+            Some(SwitchBackend::OpenAI)
+        );
+        assert_eq!(
+            SwitchBackend::from_str("deepseek"),
+            Some(SwitchBackend::DeepSeek)
+        );
         assert_eq!(SwitchBackend::from_str("unknown"), None);
     }
 

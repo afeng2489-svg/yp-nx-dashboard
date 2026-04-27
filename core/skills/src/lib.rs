@@ -2,22 +2,22 @@
 //!
 //! 提供 37+ 预定义技能，支持工作流规划、测试驱动开发、头脑风暴等场景。
 
-pub mod skill;
-pub mod registry;
-pub mod executor;
-pub mod core_skills;
-pub mod workflow_skills;
-pub mod planning_skills;
 pub mod collaboration_skills;
+pub mod core_skills;
 pub mod development_skills;
+pub mod executor;
+pub mod planning_skills;
+pub mod registry;
+pub mod skill;
+pub mod workflow_skills;
 
 // Re-export skill trait and types
+pub use executor::{ExecutionRecord, ExecutorError, ExecutorRegistry, SkillExecutionEngine};
+pub use registry::{RegistryError, SkillRegistry};
 pub use skill::{
-    Skill, SkillId, SkillCategory, SkillMetadata, SkillParameter, ParameterType,
-    SkillExecutor, SkillPhase, SkillContext, SkillExecutionResult, SkillError,
+    ParameterType, Skill, SkillCategory, SkillContext, SkillError, SkillExecutionResult,
+    SkillExecutor, SkillId, SkillMetadata, SkillParameter, SkillPhase,
 };
-pub use registry::{SkillRegistry, RegistryError};
-pub use executor::{SkillExecutionEngine, ExecutorRegistry, ExecutorError, ExecutionRecord};
 
 // Re-export core skills functions
 pub use core_skills::all_core_skills;

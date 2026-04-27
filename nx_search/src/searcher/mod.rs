@@ -3,7 +3,10 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use super::{embedding::{EmbeddingProvider, EmbeddingResult}, index::{VectorIndex, Chunk}};
+use super::{
+    embedding::{EmbeddingProvider, EmbeddingResult},
+    index::{Chunk, VectorIndex},
+};
 
 /// 搜索结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,10 +90,7 @@ impl CodeSearcher {
     }
 
     /// 使用 embedding 提供者创建代码搜索器
-    pub fn with_embedding_provider(
-        mut self,
-        provider: Arc<dyn EmbeddingProvider>,
-    ) -> Self {
+    pub fn with_embedding_provider(mut self, provider: Arc<dyn EmbeddingProvider>) -> Self {
         self.embedding_provider = Some(provider);
         self
     }

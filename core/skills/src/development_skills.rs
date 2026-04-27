@@ -2,7 +2,7 @@
 //!
 //! 提供软件开发相关的技能。
 
-use crate::{Skill, SkillCategory, SkillId, SkillMetadata, SkillParameter, ParameterType};
+use crate::{ParameterType, Skill, SkillCategory, SkillId, SkillMetadata, SkillParameter};
 
 // ============================================================================
 // 测试技能
@@ -13,7 +13,7 @@ pub fn unit_test() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("unit-test"),
         "unit-test",
-        "单元测试技能。为代码生成单元测试。"
+        "单元测试技能。为代码生成单元测试。",
     )
     .with_category(SkillCategory::Testing)
     .with_tag("testing")
@@ -33,11 +33,10 @@ pub fn unit_test() -> Skill {
         default: Some(serde_json::json!("default")),
     });
 
-    Skill::new(metadata, "unit_test")
-        .with_config(serde_json::json!({
-            "min_coverage": 80,
-            "mock_dependencies": true
-        }))
+    Skill::new(metadata, "unit_test").with_config(serde_json::json!({
+        "min_coverage": 80,
+        "mock_dependencies": true
+    }))
 }
 
 /// 创建集成测试技能
@@ -45,7 +44,7 @@ pub fn integration_test() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("integration-test"),
         "integration-test",
-        "集成测试技能。编写集成测试验证组件间的交互。"
+        "集成测试技能。编写集成测试验证组件间的交互。",
     )
     .with_category(SkillCategory::Testing)
     .with_tag("testing")
@@ -65,11 +64,10 @@ pub fn integration_test() -> Skill {
         default: None,
     });
 
-    Skill::new(metadata, "integration_test")
-        .with_config(serde_json::json!({
-            "use_test_db": true,
-            "cleanup_after": true
-        }))
+    Skill::new(metadata, "integration_test").with_config(serde_json::json!({
+        "use_test_db": true,
+        "cleanup_after": true
+    }))
 }
 
 /// 创建 E2E 测试技能
@@ -77,7 +75,7 @@ pub fn e2e_test() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("e2e-test"),
         "e2e-test",
-        "端到端测试技能。编写端到端测试验证完整用户流程。"
+        "端到端测试技能。编写端到端测试验证完整用户流程。",
     )
     .with_category(SkillCategory::Testing)
     .with_tag("testing")
@@ -98,11 +96,10 @@ pub fn e2e_test() -> Skill {
         default: Some(serde_json::json!("chromium")),
     });
 
-    Skill::new(metadata, "e2e_test")
-        .with_config(serde_json::json!({
-            "headless": true,
-            "screenshot_on_failure": true
-        }))
+    Skill::new(metadata, "e2e_test").with_config(serde_json::json!({
+        "headless": true,
+        "screenshot_on_failure": true
+    }))
 }
 
 /// 创建性能测试技能
@@ -110,7 +107,7 @@ pub fn performance_test() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("performance-test"),
         "performance-test",
-        "性能测试技能。进行性能基准测试和负载测试。"
+        "性能测试技能。进行性能基准测试和负载测试。",
     )
     .with_category(SkillCategory::Testing)
     .with_tag("testing")
@@ -131,11 +128,10 @@ pub fn performance_test() -> Skill {
         default: Some(serde_json::json!(100)),
     });
 
-    Skill::new(metadata, "performance_test")
-        .with_config(serde_json::json!({
-            "duration_seconds": 60,
-            "report_latency": true
-        }))
+    Skill::new(metadata, "performance_test").with_config(serde_json::json!({
+        "duration_seconds": 60,
+        "report_latency": true
+    }))
 }
 
 // ============================================================================
@@ -147,7 +143,7 @@ pub fn api_documentation() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("api-documentation"),
         "api-documentation",
-        "API 文档生成技能。从代码生成 API 文档。"
+        "API 文档生成技能。从代码生成 API 文档。",
     )
     .with_category(SkillCategory::Documentation)
     .with_tag("documentation")
@@ -167,11 +163,10 @@ pub fn api_documentation() -> Skill {
         default: Some(serde_json::json!("openapi")),
     });
 
-    Skill::new(metadata, "api_documentation")
-        .with_config(serde_json::json!({
-            "include_examples": true,
-            "include_errors": true
-        }))
+    Skill::new(metadata, "api_documentation").with_config(serde_json::json!({
+        "include_examples": true,
+        "include_errors": true
+    }))
 }
 
 /// 创建 README 生成技能
@@ -179,7 +174,7 @@ pub fn readme_generator() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("readme-generator"),
         "readme-generator",
-        "README 生成技能。生成项目 README 文档。"
+        "README 生成技能。生成项目 README 文档。",
     )
     .with_category(SkillCategory::Documentation)
     .with_tag("documentation")
@@ -197,14 +192,18 @@ pub fn readme_generator() -> Skill {
         description: "包含的章节".to_string(),
         param_type: ParameterType::Array,
         required: false,
-        default: Some(serde_json::json!(["installation", "usage", "examples", "license"])),
+        default: Some(serde_json::json!([
+            "installation",
+            "usage",
+            "examples",
+            "license"
+        ])),
     });
 
-    Skill::new(metadata, "readme_generator")
-        .with_config(serde_json::json!({
-            "badges": true,
-            "toc": true
-        }))
+    Skill::new(metadata, "readme_generator").with_config(serde_json::json!({
+        "badges": true,
+        "toc": true
+    }))
 }
 
 // ============================================================================
@@ -216,7 +215,7 @@ pub fn refactor() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("refactor"),
         "refactor",
-        "代码重构技能。分析代码并提出重构建议。"
+        "代码重构技能。分析代码并提出重构建议。",
     )
     .with_category(SkillCategory::Development)
     .with_tag("refactor")
@@ -236,11 +235,10 @@ pub fn refactor() -> Skill {
         default: Some(serde_json::json!("readability")),
     });
 
-    Skill::new(metadata, "refactor")
-        .with_config(serde_json::json!({
-            "preserve_behavior": true,
-            "incremental": true
-        }))
+    Skill::new(metadata, "refactor").with_config(serde_json::json!({
+        "preserve_behavior": true,
+        "incremental": true
+    }))
 }
 
 /// 创建死代码清理技能
@@ -248,7 +246,7 @@ pub fn dead_code_cleanup() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("dead-code-cleanup"),
         "dead-code-cleanup",
-        "死代码清理技能。识别并清理未使用的代码。"
+        "死代码清理技能。识别并清理未使用的代码。",
     )
     .with_category(SkillCategory::Development)
     .with_tag("cleanup")
@@ -269,11 +267,10 @@ pub fn dead_code_cleanup() -> Skill {
         default: None,
     });
 
-    Skill::new(metadata, "dead_code_cleanup")
-        .with_config(serde_json::json!({
-            "analyze_imports": true,
-            "analyze_symbols": true
-        }))
+    Skill::new(metadata, "dead_code_cleanup").with_config(serde_json::json!({
+        "analyze_imports": true,
+        "analyze_symbols": true
+    }))
 }
 
 // ============================================================================
@@ -285,7 +282,7 @@ pub fn security_scan() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("security-scan"),
         "security-scan",
-        "安全扫描技能。扫描代码中的安全漏洞。"
+        "安全扫描技能。扫描代码中的安全漏洞。",
     )
     .with_category(SkillCategory::Review)
     .with_tag("security")
@@ -306,11 +303,10 @@ pub fn security_scan() -> Skill {
         default: Some(serde_json::json!(["owasp", "cwe", "sql-injection", "xss"])),
     });
 
-    Skill::new(metadata, "security_scan")
-        .with_config(serde_json::json!({
-            "severity_threshold": "medium",
-            "include_remediation": true
-        }))
+    Skill::new(metadata, "security_scan").with_config(serde_json::json!({
+        "severity_threshold": "medium",
+        "include_remediation": true
+    }))
 }
 
 /// 创建依赖审计技能
@@ -318,7 +314,7 @@ pub fn dependency_audit() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("dependency-audit"),
         "dependency-audit",
-        "依赖审计技能。审计项目依赖的安全漏洞和许可证问题。"
+        "依赖审计技能。审计项目依赖的安全漏洞和许可证问题。",
     )
     .with_category(SkillCategory::Review)
     .with_tag("security")
@@ -339,11 +335,10 @@ pub fn dependency_audit() -> Skill {
         default: Some(serde_json::json!(true)),
     });
 
-    Skill::new(metadata, "dependency_audit")
-        .with_config(serde_json::json!({
-            "check_updates": true,
-            "auto_fix": false
-        }))
+    Skill::new(metadata, "dependency_audit").with_config(serde_json::json!({
+        "check_updates": true,
+        "auto_fix": false
+    }))
 }
 
 // ============================================================================
@@ -355,7 +350,7 @@ pub fn tech_research() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("tech-research"),
         "tech-research",
-        "技术调研技能。调研新技术并生成分析报告。"
+        "技术调研技能。调研新技术并生成分析报告。",
     )
     .with_category(SkillCategory::Research)
     .with_tag("research")
@@ -376,12 +371,11 @@ pub fn tech_research() -> Skill {
         default: Some(serde_json::json!("medium")),
     });
 
-    Skill::new(metadata, "tech_research")
-        .with_config(serde_json::json!({
-            "include_pros_cons": true,
-            "include_alternatives": true,
-            "include_use_cases": true
-        }))
+    Skill::new(metadata, "tech_research").with_config(serde_json::json!({
+        "include_pros_cons": true,
+        "include_alternatives": true,
+        "include_use_cases": true
+    }))
 }
 
 /// 创建竞品分析技能
@@ -389,7 +383,7 @@ pub fn competitor_analysis() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("competitor-analysis"),
         "competitor-analysis",
-        "竞品分析技能。分析竞争对手的产品和功能。"
+        "竞品分析技能。分析竞争对手的产品和功能。",
     )
     .with_category(SkillCategory::Research)
     .with_tag("research")
@@ -407,14 +401,18 @@ pub fn competitor_analysis() -> Skill {
         description: "分析维度".to_string(),
         param_type: ParameterType::Array,
         required: false,
-        default: Some(serde_json::json!(["features", "pricing", "ux", "performance"])),
+        default: Some(serde_json::json!([
+            "features",
+            "pricing",
+            "ux",
+            "performance"
+        ])),
     });
 
-    Skill::new(metadata, "competitor_analysis")
-        .with_config(serde_json::json!({
-            "comparison_table": true,
-            "recommendations": true
-        }))
+    Skill::new(metadata, "competitor_analysis").with_config(serde_json::json!({
+        "comparison_table": true,
+        "recommendations": true
+    }))
 }
 
 // ============================================================================
@@ -426,7 +424,7 @@ pub fn debug() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("debug"),
         "debug",
-        "调试技能。帮助诊断和修复代码问题。"
+        "调试技能。帮助诊断和修复代码问题。",
     )
     .with_category(SkillCategory::Development)
     .with_tag("debug")
@@ -447,11 +445,10 @@ pub fn debug() -> Skill {
         default: None,
     });
 
-    Skill::new(metadata, "debug")
-        .with_config(serde_json::json!({
-            "root_cause_analysis": true,
-            "suggest_fixes": true
-        }))
+    Skill::new(metadata, "debug").with_config(serde_json::json!({
+        "root_cause_analysis": true,
+        "suggest_fixes": true
+    }))
 }
 
 /// 创建日志分析技能
@@ -459,7 +456,7 @@ pub fn log_analysis() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("log-analysis"),
         "log-analysis",
-        "日志分析技能。分析应用日志定位问题。"
+        "日志分析技能。分析应用日志定位问题。",
     )
     .with_category(SkillCategory::Development)
     .with_tag("debug")
@@ -480,11 +477,10 @@ pub fn log_analysis() -> Skill {
         default: None,
     });
 
-    Skill::new(metadata, "log_analysis")
-        .with_config(serde_json::json!({
-            "parse_format": "auto",
-            "summarize": true
-        }))
+    Skill::new(metadata, "log_analysis").with_config(serde_json::json!({
+        "parse_format": "auto",
+        "summarize": true
+    }))
 }
 
 // ============================================================================
@@ -496,7 +492,7 @@ pub fn deployment_plan() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("deployment-plan"),
         "deployment-plan",
-        "部署规划技能。规划应用程序的部署策略。"
+        "部署规划技能。规划应用程序的部署策略。",
     )
     .with_category(SkillCategory::WorkflowPlanning)
     .with_tag("deployment")
@@ -517,12 +513,11 @@ pub fn deployment_plan() -> Skill {
         default: Some(serde_json::json!("production")),
     });
 
-    Skill::new(metadata, "deployment_plan")
-        .with_config(serde_json::json!({
-            "strategy": "blue_green",
-            "rollback_plan": true,
-            "health_checks": true
-        }))
+    Skill::new(metadata, "deployment_plan").with_config(serde_json::json!({
+        "strategy": "blue_green",
+        "rollback_plan": true,
+        "health_checks": true
+    }))
 }
 
 /// 创建容器化技能
@@ -530,7 +525,7 @@ pub fn containerize() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("containerize"),
         "containerize",
-        "应用容器化技能。为应用程序创建 Dockerfile 和容器配置。"
+        "应用容器化技能。为应用程序创建 Dockerfile 和容器配置。",
     )
     .with_category(SkillCategory::Development)
     .with_tag("docker")
@@ -551,11 +546,10 @@ pub fn containerize() -> Skill {
         default: None,
     });
 
-    Skill::new(metadata, "containerize")
-        .with_config(serde_json::json!({
-            "multi_stage": true,
-            "optimize_size": true
-        }))
+    Skill::new(metadata, "containerize").with_config(serde_json::json!({
+        "multi_stage": true,
+        "optimize_size": true
+    }))
 }
 
 // ============================================================================
@@ -567,7 +561,7 @@ pub fn db_migration() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("db-migration"),
         "db-migration",
-        "数据库迁移技能。生成和管理数据库迁移脚本。"
+        "数据库迁移技能。生成和管理数据库迁移脚本。",
     )
     .with_category(SkillCategory::Development)
     .with_tag("database")
@@ -588,11 +582,10 @@ pub fn db_migration() -> Skill {
         default: Some(serde_json::json!("up")),
     });
 
-    Skill::new(metadata, "db_migration")
-        .with_config(serde_json::json!({
-            "generate_rollback": true,
-            "seed_data": true
-        }))
+    Skill::new(metadata, "db_migration").with_config(serde_json::json!({
+        "generate_rollback": true,
+        "seed_data": true
+    }))
 }
 
 /// 创建查询优化技能
@@ -600,7 +593,7 @@ pub fn query_optimization() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("query-optimization"),
         "query-optimization",
-        "SQL 查询优化技能。分析和优化 SQL 查询性能。"
+        "SQL 查询优化技能。分析和优化 SQL 查询性能。",
     )
     .with_category(SkillCategory::Development)
     .with_tag("database")
@@ -621,11 +614,10 @@ pub fn query_optimization() -> Skill {
         default: Some(serde_json::json!("postgresql")),
     });
 
-    Skill::new(metadata, "query_optimization")
-        .with_config(serde_json::json!({
-            "explain_analyze": true,
-            "suggest_indexes": true
-        }))
+    Skill::new(metadata, "query_optimization").with_config(serde_json::json!({
+        "explain_analyze": true,
+        "suggest_indexes": true
+    }))
 }
 
 // ============================================================================
@@ -637,7 +629,7 @@ pub fn rest_api_design() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("rest-api-design"),
         "rest-api-design",
-        "REST API 设计技能。设计和文档化 RESTful API。"
+        "REST API 设计技能。设计和文档化 RESTful API。",
     )
     .with_category(SkillCategory::Development)
     .with_tag("api")
@@ -658,11 +650,10 @@ pub fn rest_api_design() -> Skill {
         default: Some(serde_json::json!("v1")),
     });
 
-    Skill::new(metadata, "rest_api_design")
-        .with_config(serde_json::json!({
-            "openapi_output": true,
-            "include_auth": true
-        }))
+    Skill::new(metadata, "rest_api_design").with_config(serde_json::json!({
+        "openapi_output": true,
+        "include_auth": true
+    }))
 }
 
 /// 创建 GraphQL 技能
@@ -670,7 +661,7 @@ pub fn graphql_schema_design() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("graphql-schema-design"),
         "graphql-schema-design",
-        "GraphQL Schema 设计技能。设计和生成 GraphQL Schema。"
+        "GraphQL Schema 设计技能。设计和生成 GraphQL Schema。",
     )
     .with_category(SkillCategory::Development)
     .with_tag("api")
@@ -691,11 +682,10 @@ pub fn graphql_schema_design() -> Skill {
         default: None,
     });
 
-    Skill::new(metadata, "graphql_schema_design")
-        .with_config(serde_json::json!({
-            "generate_resolvers": true,
-            "include_subscriptions": false
-        }))
+    Skill::new(metadata, "graphql_schema_design").with_config(serde_json::json!({
+        "generate_resolvers": true,
+        "include_subscriptions": false
+    }))
 }
 
 // ============================================================================
@@ -707,7 +697,7 @@ pub fn ci_config() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("ci-config"),
         "ci-config",
-        "CI 配置技能。生成持续集成配置文件。"
+        "CI 配置技能。生成持续集成配置文件。",
     )
     .with_category(SkillCategory::Development)
     .with_tag("ci")
@@ -728,12 +718,11 @@ pub fn ci_config() -> Skill {
         default: None,
     });
 
-    Skill::new(metadata, "ci_config")
-        .with_config(serde_json::json!({
-            "run_tests": true,
-            "run_lint": true,
-            "build_docker": false
-        }))
+    Skill::new(metadata, "ci_config").with_config(serde_json::json!({
+        "run_tests": true,
+        "run_lint": true,
+        "build_docker": false
+    }))
 }
 
 // ============================================================================
@@ -745,7 +734,7 @@ pub fn code_generator() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("code-generator"),
         "code-generator",
-        "代码生成技能。根据模板或规范生成代码。"
+        "代码生成技能。根据模板或规范生成代码。",
     )
     .with_category(SkillCategory::Development)
     .with_tag("generator")
@@ -766,11 +755,10 @@ pub fn code_generator() -> Skill {
         default: None,
     });
 
-    Skill::new(metadata, "code_generator")
-        .with_config(serde_json::json!({
-            "validate_output": true,
-            "format_code": true
-        }))
+    Skill::new(metadata, "code_generator").with_config(serde_json::json!({
+        "validate_output": true,
+        "format_code": true
+    }))
 }
 
 /// 创建代码翻译技能
@@ -778,7 +766,7 @@ pub fn code_translate() -> Skill {
     let metadata = SkillMetadata::new(
         SkillId::new("code-translate"),
         "code-translate",
-        "代码翻译技能。将代码从一种语言翻译到另一种语言。"
+        "代码翻译技能。将代码从一种语言翻译到另一种语言。",
     )
     .with_category(SkillCategory::Development)
     .with_tag("translate")
@@ -806,11 +794,10 @@ pub fn code_translate() -> Skill {
         default: None,
     });
 
-    Skill::new(metadata, "code_translate")
-        .with_config(serde_json::json!({
-            "preserve_comments": true,
-            "idiomatic_output": true
-        }))
+    Skill::new(metadata, "code_translate").with_config(serde_json::json!({
+        "preserve_comments": true,
+        "idiomatic_output": true
+    }))
 }
 
 /// 获取所有开发技能

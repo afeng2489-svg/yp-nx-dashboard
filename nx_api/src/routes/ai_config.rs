@@ -3,7 +3,7 @@
 //! API routes for multi-CLI AI provider management.
 
 use axum::{
-    extract::{State, Query},
+    extract::{Query, State},
     http::StatusCode,
     Json,
 };
@@ -12,12 +12,14 @@ use std::sync::Arc;
 
 use crate::routes::AppState;
 use crate::services::{
-    AIProvider as ProviderAIProvider, APIFormat, ConnectionTestResult, MappingType, ModelMapping, ProviderPreset,
     claude_cli::{call_claude_cli, messages_to_prompt},
+    AIProvider as ProviderAIProvider, APIFormat, ConnectionTestResult, MappingType, ModelMapping,
+    ProviderPreset,
 };
 use nexus_ai::{
-    AIModelManager, BackendConfig, ChatMessage, ChatResponse, CLI, CLIConfig, CLICapability, CLIContext,
-    CLIResponse, CLISelectionStrategy, ModelRefreshStatus, ProviderType, SwitchBackend, TokenUsage,
+    AIModelManager, BackendConfig, CLICapability, CLIConfig, CLIContext, CLIResponse,
+    CLISelectionStrategy, ChatMessage, ChatResponse, ModelRefreshStatus, ProviderType,
+    SwitchBackend, TokenUsage, CLI,
 };
 
 /// 请求：列出 AI 提供商
@@ -131,29 +133,32 @@ pub async fn list_providers(
     let all_models = manager.list_available_models();
 
     // 按 provider 分组
-    let mut provider_map: std::collections::HashMap<String, ProviderInfo> = std::collections::HashMap::new();
+    let mut provider_map: std::collections::HashMap<String, ProviderInfo> =
+        std::collections::HashMap::new();
 
     for model in &all_models {
-        let entry = provider_map.entry(model.provider.clone()).or_insert_with(|| {
-            let provider_type = match model.provider.as_str() {
-                "anthropic" => ProviderType::Anthropic,
-                "openai" => ProviderType::OpenAI,
-                "google" => ProviderType::Google,
-                "ollama" => ProviderType::Ollama,
-                "codex" => ProviderType::Codex,
-                "qwen" => ProviderType::Qwen,
-                "opencode" => ProviderType::OpenCode,
-                "minimax" => ProviderType::MiniMax,
-                _ => ProviderType::OpenAI, // fallback
-            };
-            ProviderInfo {
-                name: model.provider.clone(),
-                provider_type,
-                models: Vec::new(),
-                supported_clis: Vec::new(),
-                default_model: String::new(),
-            }
-        });
+        let entry = provider_map
+            .entry(model.provider.clone())
+            .or_insert_with(|| {
+                let provider_type = match model.provider.as_str() {
+                    "anthropic" => ProviderType::Anthropic,
+                    "openai" => ProviderType::OpenAI,
+                    "google" => ProviderType::Google,
+                    "ollama" => ProviderType::Ollama,
+                    "codex" => ProviderType::Codex,
+                    "qwen" => ProviderType::Qwen,
+                    "opencode" => ProviderType::OpenCode,
+                    "minimax" => ProviderType::MiniMax,
+                    _ => ProviderType::OpenAI, // fallback
+                };
+                ProviderInfo {
+                    name: model.provider.clone(),
+                    provider_type,
+                    models: Vec::new(),
+                    supported_clis: Vec::new(),
+                    default_model: String::new(),
+                }
+            });
         entry.models.push(model.model_id.clone());
         if model.is_default {
             entry.default_model = model.model_id.clone();
@@ -171,7 +176,8 @@ pub async fn list_providers(
 
     // Filter by provider type if requested
     let providers: Vec<ProviderInfo> = if let Some(ref filter_type) = params.provider_type {
-        provider_map.into_values()
+        provider_map
+            .into_values()
             .filter(|p| &p.provider_type == filter_type)
             .collect()
     } else {
@@ -188,7 +194,8 @@ pub async fn list_clis(
     let registry = state.ai_model_manager.cli_registry();
     let configs = registry.all_configs();
     let strategy = registry.get_selection_strategy();
-    let default_cli = registry.get_default_cli()
+    let default_cli = registry
+        .get_default_cli()
         .map(|c| c.identifier().to_string());
 
     let mut cli_infos = Vec::with_capacity(configs.len());
@@ -198,14 +205,14 @@ pub async fn list_clis(
         let cmd_name = config.cli.identifier();
         let (available, version) = detect_cli_availability(cmd_name).await;
 
-        let capability = registry.get_capability(config.cli).unwrap_or_else(|| {
-            CLICapability {
+        let capability = registry
+            .get_capability(config.cli)
+            .unwrap_or_else(|| CLICapability {
                 cli: config.cli,
                 available,
                 version: version.clone(),
                 features: default_features_for(config.cli),
-            }
-        });
+            });
 
         cli_infos.push(CLIInfo {
             cli: config.cli.identifier().to_string(),
@@ -239,7 +246,9 @@ async fn detect_cli_availability(cmd_name: &str) -> (bool, Option<String>) {
     {
         Ok(output) if output.status.success() => {
             let stdout = String::from_utf8_lossy(&output.stdout);
-            let version = stdout.lines().next()
+            let version = stdout
+                .lines()
+                .next()
                 .map(|l| l.trim().to_string())
                 .filter(|v| !v.is_empty());
             (true, version)
@@ -252,23 +261,29 @@ async fn detect_cli_availability(cmd_name: &str) -> (bool, Option<String>) {
 fn default_features_for(cli: CLI) -> Vec<String> {
     match cli {
         CLI::Claude => vec![
-            "Code Review".into(), "Debugging".into(),
-            "Explanation".into(), "Refactoring".into(),
+            "Code Review".into(),
+            "Debugging".into(),
+            "Explanation".into(),
+            "Refactoring".into(),
         ],
         CLI::Gemini => vec![
-            "Multimodal".into(), "Long Context".into(),
+            "Multimodal".into(),
+            "Long Context".into(),
             "Creative Tasks".into(),
         ],
         CLI::Codex => vec![
-            "Code Generation".into(), "Algorithm Implementation".into(),
+            "Code Generation".into(),
+            "Algorithm Implementation".into(),
             "Function Writing".into(),
         ],
         CLI::Qwen => vec![
-            "Chinese Language".into(), "Math Reasoning".into(),
+            "Chinese Language".into(),
+            "Math Reasoning".into(),
             "Logic".into(),
         ],
         CLI::OpenCode => vec![
-            "Open Source Projects".into(), "GitHub Integration".into(),
+            "Open Source Projects".into(),
+            "GitHub Integration".into(),
             "Popular Frameworks".into(),
         ],
     }
@@ -284,7 +299,9 @@ pub async fn execute_cli(
 
     // 优先使用请求中的 working_directory，否则使用当前设置的 workspace path
     let current_workspace = state.current_workspace_path.read().clone();
-    let working_dir = request.working_directory.as_deref()
+    let working_dir = request
+        .working_directory
+        .as_deref()
         .or_else(|| current_workspace.as_deref());
 
     let context = CLIContext {
@@ -341,7 +358,8 @@ pub async fn update_cli_config(
     let registry = state.ai_model_manager.cli_registry();
 
     // Get existing config or create default
-    let mut config = registry.get_config(request.cli)
+    let mut config = registry
+        .get_config(request.cli)
         .unwrap_or_else(|| CLIConfig::default_for(request.cli));
 
     // Apply updates
@@ -399,13 +417,13 @@ pub async fn update_selection_strategy(
 async fn persist_cli_config(registry: &nexus_ai::CLIRegistry) -> Result<(), String> {
     let config_dir = std::path::Path::new(".nexus");
     if !config_dir.exists() {
-        std::fs::create_dir_all(config_dir)
-            .map_err(|e| format!("创建 .nexus 目录失败: {}", e))?;
+        std::fs::create_dir_all(config_dir).map_err(|e| format!("创建 .nexus 目录失败: {}", e))?;
     }
 
     let configs = registry.all_configs();
     let strategy = registry.get_selection_strategy();
-    let default_cli = registry.get_default_cli()
+    let default_cli = registry
+        .get_default_cli()
         .map(|c| c.identifier().to_string());
 
     let data = serde_json::json!({
@@ -414,8 +432,8 @@ async fn persist_cli_config(registry: &nexus_ai::CLIRegistry) -> Result<(), Stri
         "default_cli": default_cli,
     });
 
-    let json_str = serde_json::to_string_pretty(&data)
-        .map_err(|e| format!("序列化配置失败: {}", e))?;
+    let json_str =
+        serde_json::to_string_pretty(&data).map_err(|e| format!("序列化配置失败: {}", e))?;
 
     tokio::fs::write(config_dir.join("cli_config.json"), json_str)
         .await
@@ -593,11 +611,13 @@ pub async fn set_selected_model(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let manager = &state.ai_model_manager;
 
-    manager.set_selected_model(&request.model_id)
-        .map_err(|e| {
-            tracing::error!("Failed to set selected model: {}", e);
-            (StatusCode::BAD_REQUEST, format!("Failed to set model: {}", e))
-        })?;
+    manager.set_selected_model(&request.model_id).map_err(|e| {
+        tracing::error!("Failed to set selected model: {}", e);
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Failed to set model: {}", e),
+        )
+    })?;
 
     Ok(Json(serde_json::json!({
         "success": true,
@@ -613,8 +633,9 @@ pub async fn list_models(
     let manager = &state.ai_model_manager;
     let models = manager.list_available_models();
 
-    let response: Vec<ModelInfoResponse> = models.into_iter().map(|m| {
-        ModelInfoResponse {
+    let response: Vec<ModelInfoResponse> = models
+        .into_iter()
+        .map(|m| ModelInfoResponse {
             model_id: m.model_id,
             provider: m.provider,
             display_name: m.display_name,
@@ -622,8 +643,8 @@ pub async fn list_models(
             supports_chat: m.supports_chat,
             supports_completion: m.supports_completion,
             is_default: m.is_default,
-        }
-    }).collect();
+        })
+        .collect();
 
     Ok(Json(response))
 }
@@ -657,7 +678,7 @@ pub async fn chat_with_selected(
                 },
                 model: "claude".to_string(), // Claude CLI 使用的模型由配置决定
                 usage: TokenUsage {
-                    input_tokens: 0,  // Claude CLI 不返回 token 使用量
+                    input_tokens: 0, // Claude CLI 不返回 token 使用量
                     output_tokens: 0,
                 },
                 stop_reason: "stop".to_string(),
@@ -665,7 +686,10 @@ pub async fn chat_with_selected(
         })
         .map_err(|e| {
             tracing::error!("Chat with Claude CLI failed: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Chat failed: {}", e))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Chat failed: {}", e),
+            )
         })
 }
 
@@ -689,7 +713,12 @@ pub async fn set_default_model(
         "codex" => nexus_ai::ProviderType::Codex,
         "qwen" => nexus_ai::ProviderType::Qwen,
         "opencode" => nexus_ai::ProviderType::OpenCode,
-        _ => return Err((StatusCode::BAD_REQUEST, format!("Unknown provider: {}", request.provider))),
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                format!("Unknown provider: {}", request.provider),
+            ))
+        }
     };
 
     // 更新默认模型
@@ -816,17 +845,28 @@ pub async fn list_api_keys(
 ) -> Result<Json<Vec<ApiKeyInfo>>, (StatusCode, String)> {
     use crate::services::ApiKeyRepository;
 
-    let providers = ["anthropic", "openai", "google", "ollama", "codex", "qwen", "opencode", "minimax"];
+    let providers = [
+        "anthropic",
+        "openai",
+        "google",
+        "ollama",
+        "codex",
+        "qwen",
+        "opencode",
+        "minimax",
+    ];
     let mut result = Vec::new();
 
     for provider in providers {
-        let has_key = state.api_key_repository
+        let has_key = state
+            .api_key_repository
             .exists(provider)
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
         let updated_at = if has_key {
             // 获取密钥以触发错误（如果需要），但不返回
-            state.api_key_repository
+            state
+                .api_key_repository
                 .get(provider)
                 .ok()
                 .map(|_| "configured".to_string())
@@ -852,13 +892,26 @@ pub async fn save_api_key(
     use crate::services::ApiKeyRepository;
 
     // 验证 provider
-    let valid_providers = ["anthropic", "openai", "google", "ollama", "codex", "qwen", "opencode", "minimax"];
+    let valid_providers = [
+        "anthropic",
+        "openai",
+        "google",
+        "ollama",
+        "codex",
+        "qwen",
+        "opencode",
+        "minimax",
+    ];
     if !valid_providers.contains(&request.provider.as_str()) {
-        return Err((StatusCode::BAD_REQUEST, format!("Invalid provider: {}", request.provider)));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("Invalid provider: {}", request.provider),
+        ));
     }
 
     // 保存密钥
-    state.api_key_repository
+    state
+        .api_key_repository
         .save(&request.provider, &request.api_key)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -881,12 +934,16 @@ pub async fn delete_api_key(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     use crate::services::ApiKeyRepository;
 
-    let deleted = state.api_key_repository
+    let deleted = state
+        .api_key_repository
         .delete(&provider)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if !deleted {
-        return Err((StatusCode::NOT_FOUND, format!("No API key found for provider: {}", provider)));
+        return Err((
+            StatusCode::NOT_FOUND,
+            format!("No API key found for provider: {}", provider),
+        ));
     }
 
     // 重新加载 AI 配置
@@ -904,7 +961,7 @@ pub async fn delete_api_key(
 /// 重新加载 AI 配置
 async fn reload_ai_config(state: &AppState) {
     use crate::services::ApiKeyRepository;
-    use nexus_ai::{AIModelManager, AIManagerConfig, APIConfig, ProviderType, ModelConfig};
+    use nexus_ai::{AIManagerConfig, AIModelManager, APIConfig, ModelConfig, ProviderType};
     use std::collections::HashMap;
 
     let mut api_config = HashMap::new();
@@ -925,12 +982,15 @@ async fn reload_ai_config(state: &AppState) {
     for (name, provider_type) in providers {
         if let Ok(Some(key)) = state.api_key_repository.get(name) {
             if !key.is_empty() {
-                api_config.insert(provider_type, APIConfig {
-                    api_key: key,
-                    base_url: String::new(),
-                    organization_id: String::new(),
-                    timeout_secs: 120,
-                });
+                api_config.insert(
+                    provider_type,
+                    APIConfig {
+                        api_key: key,
+                        base_url: String::new(),
+                        organization_id: String::new(),
+                        timeout_secs: 120,
+                    },
+                );
                 enabled_providers.push(provider_type);
             }
         }
@@ -941,12 +1001,15 @@ async fn reload_ai_config(state: &AppState) {
         // 尝试从环境变量加载
         if let Ok(key) = std::env::var("ANTHROPIC_API_KEY") {
             if !key.is_empty() {
-                api_config.insert(ProviderType::Anthropic, APIConfig {
-                    api_key: key,
-                    base_url: String::new(),
-                    organization_id: String::new(),
-                    timeout_secs: 120,
-                });
+                api_config.insert(
+                    ProviderType::Anthropic,
+                    APIConfig {
+                        api_key: key,
+                        base_url: String::new(),
+                        organization_id: String::new(),
+                        timeout_secs: 120,
+                    },
+                );
                 enabled_providers.push(ProviderType::Anthropic);
             }
         }
@@ -954,12 +1017,15 @@ async fn reload_ai_config(state: &AppState) {
         // 尝试从环境变量加载 MiniMax
         if let Ok(key) = std::env::var("MINIMAX_API_KEY") {
             if !key.is_empty() {
-                api_config.insert(ProviderType::MiniMax, APIConfig {
-                    api_key: key,
-                    base_url: String::new(),
-                    organization_id: String::new(),
-                    timeout_secs: 120,
-                });
+                api_config.insert(
+                    ProviderType::MiniMax,
+                    APIConfig {
+                        api_key: key,
+                        base_url: String::new(),
+                        organization_id: String::new(),
+                        timeout_secs: 120,
+                    },
+                );
                 enabled_providers.push(ProviderType::MiniMax);
             }
         }
@@ -990,7 +1056,8 @@ pub struct ProviderListV2Response {
 pub async fn list_providers_v2(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ProviderListV2Response>, (StatusCode, String)> {
-    let providers = state.provider_service
+    let providers = state
+        .provider_service
         .list_providers()
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -1003,7 +1070,8 @@ pub async fn get_provider(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<Json<ProviderAIProvider>, (StatusCode, String)> {
-    let provider = state.provider_service
+    let provider = state
+        .provider_service
         .get_provider(&id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
@@ -1051,7 +1119,8 @@ pub async fn create_provider(
     };
 
     // Create provider first
-    state.provider_service
+    state
+        .provider_service
         .create_provider(&provider)
         .await
         .map_err(|e| match e {
@@ -1063,7 +1132,8 @@ pub async fn create_provider(
 
     // Then save API key (if provided)
     if !request.api_key.is_empty() {
-        state.provider_service
+        state
+            .provider_service
             .save_api_key(&provider_id, &request.api_key)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -1093,7 +1163,8 @@ pub async fn update_provider(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(request): Json<UpdateProviderRequest>,
 ) -> Result<Json<ProviderAIProvider>, (StatusCode, String)> {
-    let existing = state.provider_service
+    let existing = state
+        .provider_service
         .get_provider(&id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
@@ -1102,7 +1173,8 @@ pub async fn update_provider(
     // Update API key if provided
     if let Some(ref api_key) = request.api_key {
         if !api_key.is_empty() {
-            state.provider_service
+            state
+                .provider_service
                 .save_api_key(&id, api_key)
                 .await
                 .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -1125,7 +1197,8 @@ pub async fn update_provider(
         updated_at: chrono::Utc::now(),
     };
 
-    let result = state.provider_service
+    let result = state
+        .provider_service
         .update_provider(&updated)
         .await
         .map_err(|e| match e {
@@ -1146,7 +1219,8 @@ pub async fn delete_provider(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let deleted = state.provider_service
+    let deleted = state
+        .provider_service
         .delete_provider(&id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -1166,7 +1240,8 @@ pub async fn get_provider_mappings(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(provider_id): axum::extract::Path<String>,
 ) -> Result<Json<Vec<ModelMapping>>, (StatusCode, String)> {
-    let mappings = state.provider_service
+    let mappings = state
+        .provider_service
         .get_model_mappings(&provider_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -1198,7 +1273,8 @@ pub async fn add_model_mapping(
         config_json: request.config_json,
     };
 
-    state.provider_service
+    state
+        .provider_service
         .add_model_mapping(&mapping)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -1214,7 +1290,8 @@ pub async fn remove_model_mapping(
     State(state): State<Arc<AppState>>,
     axum::extract::Path((provider_id, mapping_id)): axum::extract::Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    state.provider_service
+    state
+        .provider_service
         .delete_model_mapping(&mapping_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -1230,7 +1307,8 @@ pub async fn test_provider_connection(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(provider_id): axum::extract::Path<String>,
 ) -> Result<Json<ConnectionTestResult>, (StatusCode, String)> {
-    let result = state.provider_service
+    let result = state
+        .provider_service
         .test_provider_connection(&provider_id)
         .await
         .map_err(|e| match e {
@@ -1262,14 +1340,21 @@ pub async fn enable_provider(
     let manager = &state.ai_model_manager;
 
     // 获取提供商信息
-    let provider = state.provider_service
+    let provider = state
+        .provider_service
         .get_provider(&provider_id)
         .await
         .map_err(|e| -> (StatusCode, Json<serde_json::Value>) {
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() })))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
         })?
         .ok_or_else(|| -> (StatusCode, Json<serde_json::Value>) {
-            (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": format!("Provider {} not found", provider_id) })))
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": format!("Provider {} not found", provider_id) })),
+            )
         })?;
 
     // 获取 API key
@@ -1301,7 +1386,8 @@ pub async fn enable_provider(
             })?;
 
         // 优先使用 "main" 类型的映射
-        let model_id = mappings.iter()
+        let model_id = mappings
+            .iter()
             .find(|m| m.mapping_type == MappingType::Main)
             .or_else(|| mappings.first())
             .map(|m| m.model_id.clone());
@@ -1309,13 +1395,16 @@ pub async fn enable_provider(
         match model_id {
             Some(id) => id,
             None => {
-                return Err((StatusCode::BAD_REQUEST, Json(serde_json::json!({
-                    "error": format!(
-                        "❌ 模型映射未配置\n\n请先为 {} 添加模型映射：\nAI设置 → 选择 {} → 底部「模型映射」→ 添加模型 → 选择类型为 main → 输入模型ID\n\n提示：模型ID可以在提供商的官网或文档中找到，例如 MiniMax 的模型ID是 MiniMax-M2.7",
-                        provider.name,
-                        provider.name
-                    )
-                }))));
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({
+                        "error": format!(
+                            "❌ 模型映射未配置\n\n请先为 {} 添加模型映射：\nAI设置 → 选择 {} → 底部「模型映射」→ 添加模型 → 选择类型为 main → 输入模型ID\n\n提示：模型ID可以在提供商的官网或文档中找到，例如 MiniMax 的模型ID是 MiniMax-M2.7",
+                            provider.name,
+                            provider.name
+                        )
+                    })),
+                ));
             }
         }
     };
@@ -1329,17 +1418,12 @@ pub async fn enable_provider(
     // 创建后端配置
     let config = match backend_type {
         SwitchBackend::MiniMax => BackendConfig::minimax(api_key, &model),
-        SwitchBackend::OpenAI => BackendConfig::openai(
-            api_key,
-            &provider.base_url,
-            &model,
-        ),
+        SwitchBackend::OpenAI => BackendConfig::openai(api_key, &provider.base_url, &model),
         SwitchBackend::DeepSeek => BackendConfig::deepseek(api_key, &model),
         SwitchBackend::Zhipu => BackendConfig::zhipu(api_key, &model),
-        SwitchBackend::Ollama => BackendConfig::ollama(
-            provider.base_url.trim_end_matches('/'),
-            &model,
-        ),
+        SwitchBackend::Ollama => {
+            BackendConfig::ollama(provider.base_url.trim_end_matches('/'), &model)
+        }
     };
 
     // 检查 Claude Switch 是否已初始化
@@ -1350,58 +1434,81 @@ pub async fn enable_provider(
         // 添加并切换到该后端（在 spawn_blocking 中执行，避免阻塞 async runtime）
         let manager1 = manager.clone();
         let config_clone = config.clone();
-        let result = tokio::task::spawn_blocking(move || {
-            manager1.add_claude_switch_backend(config_clone)
-        })
-        .await;
+        let result =
+            tokio::task::spawn_blocking(move || manager1.add_claude_switch_backend(config_clone))
+                .await;
 
         if let Err(e) = result {
             tracing::error!("[EnableProvider] Join error: {}", e);
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": format!("Task join error: {}", e) }))));
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("Task join error: {}", e) })),
+            ));
         }
         if let Err(e) = result.unwrap() {
             tracing::error!("[EnableProvider] Add backend error: {}", e);
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))));
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            ));
         }
 
         let manager2 = manager.clone();
-        let result = tokio::task::spawn_blocking(move || {
-            manager2.switch_claude_backend(backend_type)
-        })
-        .await;
+        let result =
+            tokio::task::spawn_blocking(move || manager2.switch_claude_backend(backend_type)).await;
 
         if let Err(e) = result {
             tracing::error!("[EnableProvider] Join error: {}", e);
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": format!("Task join error: {}", e) }))));
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("Task join error: {}", e) })),
+            ));
         }
         if let Err(e) = result.unwrap() {
             tracing::error!("[EnableProvider] Switch backend error: {}", e);
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))));
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            ));
         }
     } else {
         // Claude Switch 未初始化，使用配置好的后端列表初始化
         let manager = manager.clone();
-        let result = tokio::task::spawn_blocking(move || {
-            manager.configure_claude_switch(vec![config])
-        })
-        .await;
+        let result =
+            tokio::task::spawn_blocking(move || manager.configure_claude_switch(vec![config]))
+                .await;
 
         if let Err(e) = result {
             tracing::error!("[EnableProvider] Join error: {}", e);
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": format!("Task join error: {}", e) }))));
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("Task join error: {}", e) })),
+            ));
         }
         if let Err(e) = result.unwrap() {
             tracing::error!("[EnableProvider] Configure switch error: {}", e);
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))));
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            ));
         }
     }
 
     // 关键：设置选中的模型为刚启用的后端
     if let Err(e) = manager.set_selected_model(&model_id) {
-        tracing::warn!("[EnableProvider] Failed to set selected model {}: {}", model_id, e);
+        tracing::warn!(
+            "[EnableProvider] Failed to set selected model {}: {}",
+            model_id,
+            e
+        );
     }
 
-    tracing::info!("[EnableProvider] Enabled provider {} with model {} (selected: {})", provider.name, model, model_id);
+    tracing::info!(
+        "[EnableProvider] Enabled provider {} with model {} (selected: {})",
+        provider.name,
+        model,
+        model_id
+    );
 
     Ok(Json(serde_json::json!({
         "success": true,
@@ -1420,13 +1527,20 @@ pub async fn disable_provider(
     // 切换回默认的 Claude Sonnet 模型
     let default_model = "claude-sonnet-4-5";
 
-    manager.set_selected_model(default_model)
-        .map_err(|e| -> (StatusCode, Json<serde_json::Value>) {
+    manager.set_selected_model(default_model).map_err(
+        |e| -> (StatusCode, Json<serde_json::Value>) {
             tracing::error!("Failed to disable provider (switch to default): {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": format!("Failed to disable: {}", e) })))
-        })?;
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("Failed to disable: {}", e) })),
+            )
+        },
+    )?;
 
-    tracing::info!("[DisableProvider] Switched back to default model: {}", default_model);
+    tracing::info!(
+        "[DisableProvider] Switched back to default model: {}",
+        default_model
+    );
 
     Ok(Json(serde_json::json!({
         "success": true,
@@ -1460,7 +1574,8 @@ pub async fn create_from_preset(
     State(state): State<Arc<AppState>>,
     Json(request): Json<CreateFromPresetRequest>,
 ) -> Result<Json<ProviderAIProvider>, (StatusCode, String)> {
-    let provider = state.provider_service
+    let provider = state
+        .provider_service
         .create_from_preset(&request.preset_key, &request.api_key)
         .await
         .map_err(|e| match e {
@@ -1522,7 +1637,8 @@ pub async fn configure_claude_switch(
     let manager = &state.ai_model_manager;
 
     // 转换后端配置
-    let backends: Result<Vec<BackendConfig>, String> = request.backends
+    let backends: Result<Vec<BackendConfig>, String> = request
+        .backends
         .iter()
         .map(|b| {
             let backend_type = SwitchBackend::from_str(&b.backend)
@@ -1548,7 +1664,8 @@ pub async fn configure_claude_switch(
 
     let backends = backends.map_err(|e| (StatusCode::BAD_REQUEST, e))?;
 
-    manager.configure_claude_switch(backends)
+    manager
+        .configure_claude_switch(backends)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(serde_json::json!({
@@ -1564,20 +1681,30 @@ pub async fn add_claude_switch_backend(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let manager = &state.ai_model_manager;
 
-    let backend_type = SwitchBackend::from_str(&request.backend)
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, format!("Unknown backend: {}", request.backend)))?;
+    let backend_type = SwitchBackend::from_str(&request.backend).ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Unknown backend: {}", request.backend),
+        )
+    })?;
 
     let config = match backend_type {
         SwitchBackend::MiniMax => BackendConfig::minimax(request.api_key.clone(), &request.model),
         SwitchBackend::OpenAI => BackendConfig::openai(
             request.api_key.clone(),
-            request.base_url.as_deref().unwrap_or("https://api.openai.com/v1"),
+            request
+                .base_url
+                .as_deref()
+                .unwrap_or("https://api.openai.com/v1"),
             &request.model,
         ),
         SwitchBackend::DeepSeek => BackendConfig::deepseek(request.api_key.clone(), &request.model),
         SwitchBackend::Zhipu => BackendConfig::zhipu(request.api_key.clone(), &request.model),
         SwitchBackend::Ollama => BackendConfig::ollama(
-            request.base_url.as_deref().unwrap_or("http://localhost:11434"),
+            request
+                .base_url
+                .as_deref()
+                .unwrap_or("http://localhost:11434"),
             &request.model,
         ),
     };
@@ -1589,28 +1716,36 @@ pub async fn add_claude_switch_backend(
         // Claude Switch 已初始化，添加新后端（在 spawn_blocking 中执行）
         let manager1 = manager.clone();
         let config_clone = config.clone();
-        let result = tokio::task::spawn_blocking(move || {
-            manager1.add_claude_switch_backend(config_clone)
-        })
-        .await;
+        let result =
+            tokio::task::spawn_blocking(move || manager1.add_claude_switch_backend(config_clone))
+                .await;
 
         match result {
-            Ok(Ok(())) => {},
+            Ok(Ok(())) => {}
             Ok(Err(e)) => return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-            Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Join error: {}", e))),
+            Err(e) => {
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Join error: {}", e),
+                ))
+            }
         }
     } else {
         // Claude Switch 未初始化，使用配置好的后端列表初始化
         let manager = manager.clone();
-        let result = tokio::task::spawn_blocking(move || {
-            manager.configure_claude_switch(vec![config])
-        })
-        .await;
+        let result =
+            tokio::task::spawn_blocking(move || manager.configure_claude_switch(vec![config]))
+                .await;
 
         match result {
-            Ok(Ok(())) => {},
+            Ok(Ok(())) => {}
             Ok(Err(e)) => return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-            Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Join error: {}", e))),
+            Err(e) => {
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Join error: {}", e),
+                ))
+            }
         }
     }
 
@@ -1627,19 +1762,25 @@ pub async fn switch_claude_switch_backend(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let manager = &state.ai_model_manager;
 
-    let backend = SwitchBackend::from_str(&request.backend)
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, format!("Unknown backend: {}", request.backend)))?;
+    let backend = SwitchBackend::from_str(&request.backend).ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Unknown backend: {}", request.backend),
+        )
+    })?;
 
     let manager1 = manager.clone();
-    let result = tokio::task::spawn_blocking(move || {
-        manager1.switch_claude_backend(backend)
-    })
-    .await;
+    let result = tokio::task::spawn_blocking(move || manager1.switch_claude_backend(backend)).await;
 
     match result {
-        Ok(Ok(())) => {},
+        Ok(Ok(())) => {}
         Ok(Err(e)) => return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
-        Err(e) => return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Join error: {}", e))),
+        Err(e) => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Join error: {}", e),
+            ))
+        }
     }
 
     Ok(Json(serde_json::json!({
@@ -1658,13 +1799,11 @@ pub async fn list_claude_switch_backends(
 
     let result: Vec<ClaudeSwitchBackendInfo> = backends
         .into_iter()
-        .map(|(backend, is_active)| {
-            ClaudeSwitchBackendInfo {
-                backend: backend.as_str().to_string(),
-                model: backend.as_str().to_string(),
-                base_url: String::new(),
-                is_active,
-            }
+        .map(|(backend, is_active)| ClaudeSwitchBackendInfo {
+            backend: backend.as_str().to_string(),
+            model: backend.as_str().to_string(),
+            base_url: String::new(),
+            is_active,
         })
         .collect();
 
@@ -1714,10 +1853,15 @@ pub async fn test_claude_switch_backend(
 ) -> Result<Json<ConnectionTestResult>, (StatusCode, String)> {
     use nexus_ai::SwitchBackend;
 
-    let backend = SwitchBackend::from_str(&request.backend)
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, format!("Unknown backend: {}", request.backend)))?;
+    let backend = SwitchBackend::from_str(&request.backend).ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Unknown backend: {}", request.backend),
+        )
+    })?;
 
-    let result = state.ai_model_manager
+    let result = state
+        .ai_model_manager
         .test_claude_switch_backend(backend, &request.api_key, &request.model)
         .await;
 

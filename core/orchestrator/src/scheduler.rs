@@ -16,7 +16,7 @@ use crate::TeamManager;
 use crate::WorkflowExecutor;
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 use parking_lot::RwLock;
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::collections::{BinaryHeap, HashMap};
 use std::sync::Arc;
@@ -65,9 +65,10 @@ impl CronSchedule {
     pub fn parse(expr: &str) -> Result<Self, SchedulerError> {
         let parts: Vec<&str> = expr.split_whitespace().collect();
         if parts.len() != 5 {
-            return Err(SchedulerError::ScheduleError(
-                format!("无效的 cron 表达式: {}", expr)
-            ));
+            return Err(SchedulerError::ScheduleError(format!(
+                "无效的 cron 表达式: {}",
+                expr
+            )));
         }
 
         Ok(Self {
@@ -89,9 +90,10 @@ impl CronSchedule {
             if part.contains('-') {
                 let range: Vec<&str> = part.split('-').collect();
                 if range.len() != 2 {
-                    return Err(SchedulerError::ScheduleError(
-                        format!("无效的范围: {}", part)
-                    ));
+                    return Err(SchedulerError::ScheduleError(format!(
+                        "无效的范围: {}",
+                        part
+                    )));
                 }
                 let start: u8 = range[0].parse().map_err(|_| {
                     SchedulerError::ScheduleError(format!("无效数字: {}", range[0]))
@@ -103,25 +105,29 @@ impl CronSchedule {
             } else if part.contains('/') {
                 let step_parts: Vec<&str> = part.split('/').collect();
                 if step_parts.len() != 2 {
-                    return Err(SchedulerError::ScheduleError(
-                        format!("无效的步长: {}", part)
-                    ));
+                    return Err(SchedulerError::ScheduleError(format!(
+                        "无效的步长: {}",
+                        part
+                    )));
                 }
                 let step: u8 = step_parts[1].parse().map_err(|_| {
                     SchedulerError::ScheduleError(format!("无效步长: {}", step_parts[1]))
                 })?;
-                let start = if step_parts[0] == "*" { min } else {
+                let start = if step_parts[0] == "*" {
+                    min
+                } else {
                     step_parts[0].parse().unwrap_or(min)
                 };
                 values.extend((start..=max).step_by(step as usize));
             } else {
-                let value: u8 = part.parse().map_err(|_| {
-                    SchedulerError::ScheduleError(format!("无效数字: {}", part))
-                })?;
+                let value: u8 = part
+                    .parse()
+                    .map_err(|_| SchedulerError::ScheduleError(format!("无效数字: {}", part)))?;
                 if value < min || value > max {
-                    return Err(SchedulerError::ScheduleError(
-                        format!("数字 {} 超出范围 [{}-{}]", value, min, max)
-                    ));
+                    return Err(SchedulerError::ScheduleError(format!(
+                        "数字 {} 超出范围 [{}-{}]",
+                        value, min, max
+                    )));
                 }
                 values.push(value);
             }
@@ -187,8 +193,8 @@ impl Default for RetryConfig {
 impl RetryConfig {
     /// 计算第 n 次重试的退避时间
     pub fn backoff_duration(&self, attempt: u32) -> StdDuration {
-        let backoff = self.initial_backoff_secs as f64
-            * self.backoff_multiplier.powi(attempt as i32);
+        let backoff =
+            self.initial_backoff_secs as f64 * self.backoff_multiplier.powi(attempt as i32);
         let backoff = backoff.min(self.max_backoff_secs as f64);
         StdDuration::from_secs(backoff as u64)
     }
@@ -220,9 +226,7 @@ impl Ord for PriorityTask {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         // BinaryHeap 是最大堆，所以我们要反转比较
         match self.priority.cmp(&other.priority) {
-            std::cmp::Ordering::Equal => {
-                self.scheduled_at.cmp(&other.scheduled_at)
-            }
+            std::cmp::Ordering::Equal => self.scheduled_at.cmp(&other.scheduled_at),
             other => other,
         }
     }
@@ -449,7 +453,7 @@ impl TaskScheduler {
             CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
             CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);
             CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_next_run ON scheduled_jobs(next_run);
-            "
+            ",
         )?;
 
         // 加载已有任务
@@ -465,7 +469,7 @@ impl TaskScheduler {
         let mut stmt = conn.prepare(
             "SELECT id, workflow, team_id, variables, priority, status, retry_count,
                     retry_config, timeout_secs, created_at, started_at, finished_at,
-                    result, error FROM tasks WHERE status IN ('queued', 'delayed')"
+                    result, error FROM tasks WHERE status IN ('queued', 'delayed')",
         )?;
 
         let tasks = stmt.query_map([], |row| {
@@ -609,7 +613,10 @@ impl TaskScheduler {
         let (priority, scheduled_at) = {
             let tasks = self.tasks.read();
             match tasks.get(&task_id) {
-                Some(task) => (task.priority, Utc::now() + Duration::from_std(delay).unwrap()),
+                Some(task) => (
+                    task.priority,
+                    Utc::now() + Duration::from_std(delay).unwrap(),
+                ),
                 None => return Err(SchedulerError::TaskNotFound(task_id)),
             }
         };
@@ -647,7 +654,8 @@ impl TaskScheduler {
         cron_expr: &str,
     ) -> Result<Uuid, SchedulerError> {
         let schedule = CronSchedule::parse(cron_expr)?;
-        let next_run = schedule.next_run(Utc::now())
+        let next_run = schedule
+            .next_run(Utc::now())
             .ok_or_else(|| SchedulerError::ScheduleError("无法计算下次执行时间".to_string()))?;
 
         let job = ScheduledJob {
@@ -871,7 +879,8 @@ impl TaskScheduler {
                 if let Some(job) = jobs.get_mut(&job_id) {
                     // 计算下次执行时间
                     if let Some(ref schedule) = job.schedule {
-                        job.next_run = schedule.next_run(now)
+                        job.next_run = schedule
+                            .next_run(now)
                             .unwrap_or_else(|| now + Duration::hours(1));
                     }
 
@@ -923,7 +932,8 @@ impl TaskScheduler {
             let timeout = timeout_secs.map(|s| StdDuration::from_secs(s));
 
             let result = if let Some(timeout) = timeout {
-                tokio::time::timeout(timeout, executor.execute(workflow, team_id)).await
+                tokio::time::timeout(timeout, executor.execute(workflow, team_id))
+                    .await
                     .map_err(|_| std::time::Duration::from_secs(u64::MAX))
             } else {
                 Ok(executor.execute(workflow, team_id).await)
@@ -939,7 +949,10 @@ impl TaskScheduler {
     }
 
     /// 处理任务结果
-    async fn handle_task_result(task_id: Uuid, result: Result<Result<ExecutionResult, OrchestratorError>, StdDuration>) {
+    async fn handle_task_result(
+        task_id: Uuid,
+        result: Result<Result<ExecutionResult, OrchestratorError>, StdDuration>,
+    ) {
         // 这个方法需要在静态上下文中调用，因为它不使用 self
         tracing::info!("任务 {} 完成", task_id);
     }
@@ -972,7 +985,12 @@ impl TaskScheduler {
         }
 
         let delay = retry_config.backoff_duration(retry_count);
-        tracing::info!("任务 {} 将在 {:?} 后重试 (尝试 {})", task_id, delay, retry_count + 1);
+        tracing::info!(
+            "任务 {} 将在 {:?} 后重试 (尝试 {})",
+            task_id,
+            delay,
+            retry_count + 1
+        );
 
         self.schedule_delayed(task_id, delay).ok();
         true
@@ -1002,7 +1020,9 @@ impl TaskScheduler {
                     task.created_at.to_rfc3339(),
                     task.started_at.map(|t| t.to_rfc3339()),
                     task.finished_at.map(|t| t.to_rfc3339()),
-                    task.result.as_ref().map(|r| serde_json::to_string(r).unwrap_or_default()),
+                    task.result
+                        .as_ref()
+                        .map(|r| serde_json::to_string(r).unwrap_or_default()),
                     task.error,
                 ],
             );

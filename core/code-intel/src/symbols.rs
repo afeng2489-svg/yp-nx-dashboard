@@ -104,8 +104,12 @@ fn map_node_kind_to_symbol(kind: &str) -> Option<SymbolKind> {
         // 常见函数模式
         "function_declaration" | "function_item" | "function" => Some(SymbolKind::Function),
         "method_declaration" | "method_definition" | "function_method" => Some(SymbolKind::Method),
-        "class_declaration" | "class_item" | "class" | "class_definition" => Some(SymbolKind::Class),
-        "struct_declaration" | "struct_item" | "struct" | "struct_definition" => Some(SymbolKind::Struct),
+        "class_declaration" | "class_item" | "class" | "class_definition" => {
+            Some(SymbolKind::Class)
+        }
+        "struct_declaration" | "struct_item" | "struct" | "struct_definition" => {
+            Some(SymbolKind::Struct)
+        }
         "enum_declaration" | "enum_item" | "enum" => Some(SymbolKind::Enum),
         "trait_declaration" | "trait_item" | "trait" => Some(SymbolKind::Trait),
         "module_declaration" | "module" | "namespace" => Some(SymbolKind::Module),
@@ -163,9 +167,18 @@ mod tests {
 
     #[test]
     fn test_symbol_kind_mapping() {
-        assert_eq!(map_node_kind_to_symbol("function_declaration"), Some(SymbolKind::Function));
-        assert_eq!(map_node_kind_to_symbol("class_declaration"), Some(SymbolKind::Class));
-        assert_eq!(map_node_kind_to_symbol("struct_declaration"), Some(SymbolKind::Struct));
+        assert_eq!(
+            map_node_kind_to_symbol("function_declaration"),
+            Some(SymbolKind::Function)
+        );
+        assert_eq!(
+            map_node_kind_to_symbol("class_declaration"),
+            Some(SymbolKind::Class)
+        );
+        assert_eq!(
+            map_node_kind_to_symbol("struct_declaration"),
+            Some(SymbolKind::Struct)
+        );
         assert_eq!(map_node_kind_to_symbol("unknown"), None);
     }
 }

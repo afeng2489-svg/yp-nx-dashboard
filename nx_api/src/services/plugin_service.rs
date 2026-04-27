@@ -2,9 +2,9 @@
 //!
 //! 管理插件的加载、卸载和查询。
 
-use std::sync::Arc;
-use nx_plugin::{PluginRegistry, Plugin, PluginMetadata};
 use nx_plugin::plugin_trait::PluginError;
+use nx_plugin::{Plugin, PluginMetadata, PluginRegistry};
+use std::sync::Arc;
 
 /// 插件服务
 pub struct PluginService {

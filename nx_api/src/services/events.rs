@@ -16,13 +16,26 @@ pub struct WorkflowOption {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ExecutionEvent {
     /// 执行开始
-    Started { execution_id: String, workflow_id: String },
+    Started {
+        execution_id: String,
+        workflow_id: String,
+    },
     /// 状态更新
-    StatusChanged { execution_id: String, status: ExecutionStatus },
+    StatusChanged {
+        execution_id: String,
+        status: ExecutionStatus,
+    },
     /// 阶段开始
-    StageStarted { execution_id: String, stage_name: String },
+    StageStarted {
+        execution_id: String,
+        stage_name: String,
+    },
     /// 阶段完成
-    StageCompleted { execution_id: String, stage_name: String, output: serde_json::Value },
+    StageCompleted {
+        execution_id: String,
+        stage_name: String,
+        output: serde_json::Value,
+    },
     /// 输出行
     Output { execution_id: String, line: String },
     /// 完成

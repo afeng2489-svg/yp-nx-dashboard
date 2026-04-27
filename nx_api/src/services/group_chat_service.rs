@@ -2,26 +2,28 @@
 //!
 //! Service layer for multi-agent group discussion orchestration.
 
+use parking_lot::RwLock as ParkingRwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use thiserror::Error;
-use parking_lot::RwLock as ParkingRwLock;
+use tokio::sync::RwLock;
 
 use nexus_ai::AIModelManager;
 
 use crate::models::group_chat::{
-    ConsensusStrategy, ConcludeDiscussionRequest, CreateGroupSessionRequest, DiscussionTurnInfo,
+    ConcludeDiscussionRequest, ConsensusStrategy, CreateGroupSessionRequest, DiscussionTurnInfo,
     GetMessagesRequest, GroupConclusion, GroupMessage, GroupParticipant, GroupSession,
     GroupSessionDetail, GroupStatus, SendMessageRequest, SpeakingStrategy, StartDiscussionRequest,
     ToolCall, UpdateGroupSessionRequest,
 };
 use crate::services::claude_cli;
-use crate::services::group_chat_repository::{GroupChatRepository, GroupChatRepositoryError, SqliteGroupChatRepository};
+use crate::services::group_chat_repository::{
+    GroupChatRepository, GroupChatRepositoryError, SqliteGroupChatRepository,
+};
 use crate::services::team_service::TeamService;
 
 /// 历史上下文优化配置
-const HISTORY_THRESHOLD: usize = 20;   // 超过此数量启用摘要
+const HISTORY_THRESHOLD: usize = 20; // 超过此数量启用摘要
 const RECENT_MESSAGE_COUNT: usize = 10; // 保留最近 N 条消息
 
 /// 优化后的历史上下文
@@ -72,7 +74,8 @@ impl HistoryContext {
             let speaker = &msg.role_name;
 
             // 检测决策性语句
-            if content.contains("决定") || content.contains("采用") || content.contains("共识") {
+            if content.contains("决定") || content.contains("采用") || content.contains("共识")
+            {
                 decisions.push(format!("[{}]: {}", speaker, Self::truncate(content, 100)));
             }
 
@@ -100,7 +103,10 @@ impl HistoryContext {
             }
         }
 
-        summary.push_str(&format!("\n（共 {} 条早期消息已省略）", early_messages.len()));
+        summary.push_str(&format!(
+            "\n（共 {} 条早期消息已省略）",
+            early_messages.len()
+        ));
         summary
     }
 
@@ -172,7 +178,7 @@ pub struct GroupChatService {
 /// Active session state (in-memory)
 struct ActiveSessionState {
     session_id: String,
-    speaking_order: Vec<String>,  // 发言顺序
+    speaking_order: Vec<String>, // 发言顺序
     current_speaker_index: usize,
     last_turn: u32,
 }
@@ -221,7 +227,10 @@ impl GroupChatService {
     }
 
     /// Get sessions by team ID
-    pub async fn get_sessions_by_team(&self, team_id: &str) -> Result<Vec<GroupSession>, GroupChatServiceError> {
+    pub async fn get_sessions_by_team(
+        &self,
+        team_id: &str,
+    ) -> Result<Vec<GroupSession>, GroupChatServiceError> {
         Ok(self.repo.get_sessions_by_team(team_id)?)
     }
 
@@ -231,7 +240,10 @@ impl GroupChatService {
     }
 
     /// Get session detail with participants and conclusion
-    pub async fn get_session_detail(&self, id: &str) -> Result<GroupSessionDetail, GroupChatServiceError> {
+    pub async fn get_session_detail(
+        &self,
+        id: &str,
+    ) -> Result<GroupSessionDetail, GroupChatServiceError> {
         let session = self.get_session(id).await?;
         let participants = self.repo.get_participants(id)?;
         let message_count = self.repo.get_message_count(id)?;
@@ -285,7 +297,9 @@ impl GroupChatService {
         let mut session = self.get_session(session_id).await?;
 
         if session.status != GroupStatus::Pending {
-            return Err(GroupChatServiceError::SessionNotActive(session_id.to_string()));
+            return Err(GroupChatServiceError::SessionNotActive(
+                session_id.to_string(),
+            ));
         }
 
         // Add participants — fetch actual role names from team service
@@ -312,9 +326,7 @@ impl GroupChatService {
 
         // Initialize speaking order
         let speaking_order = match session.speaking_strategy {
-            SpeakingStrategy::RoundRobin => {
-                request.participant_role_ids.clone()
-            }
+            SpeakingStrategy::RoundRobin => request.participant_role_ids.clone(),
             SpeakingStrategy::Moderator => {
                 // Moderator speaks first
                 if let Some(ref mod_id) = session.moderator_role_id {
@@ -341,9 +353,7 @@ impl GroupChatService {
                 }
                 order
             }
-            SpeakingStrategy::Free => {
-                request.participant_role_ids.clone()
-            }
+            SpeakingStrategy::Free => request.participant_role_ids.clone(),
         };
 
         let state = ActiveSessionState {
@@ -378,17 +388,23 @@ impl GroupChatService {
         let session = self.get_session(session_id).await?;
 
         if session.status != GroupStatus::Active {
-            return Err(GroupChatServiceError::SessionNotActive(session_id.to_string()));
+            return Err(GroupChatServiceError::SessionNotActive(
+                session_id.to_string(),
+            ));
         }
 
         // Build prompt for Claude CLI with optimized history
         let history_ctx = self.get_optimized_history(session_id).await?;
-        let prompt = self.build_discussion_prompt_with_context(&session, &history_ctx, &request.content);
+        let prompt =
+            self.build_discussion_prompt_with_context(&session, &history_ctx, &request.content);
 
         // 获取当前工作区路径
         let working_dir = self.current_workspace_path.read().clone();
         let working_dir_ref = working_dir.as_deref();
-        tracing::info!("[GroupChat] 调用 Claude CLI，当前工作区路径: {:?}", working_dir_ref);
+        tracing::info!(
+            "[GroupChat] 调用 Claude CLI，当前工作区路径: {:?}",
+            working_dir_ref
+        );
 
         // Call Claude CLI
         let response = claude_cli::call_claude_cli(&prompt, working_dir_ref)
@@ -406,7 +422,7 @@ impl GroupChatService {
             request.role_id.clone(),
             role_name,
             response,
-            vec![],  // TODO: parse tool calls if any
+            vec![], // TODO: parse tool calls if any
             request.reply_to,
             turn_number,
         );
@@ -414,7 +430,8 @@ impl GroupChatService {
         self.repo.create_message(&message)?;
 
         // Update participant stats
-        self.update_participant_stats(session_id, &request.role_id).await?;
+        self.update_participant_stats(session_id, &request.role_id)
+            .await?;
 
         Ok(message)
     }
@@ -428,7 +445,9 @@ impl GroupChatService {
         let session = self.get_session(session_id).await?;
 
         if session.status != GroupStatus::Active {
-            return Err(GroupChatServiceError::SessionNotActive(session_id.to_string()));
+            return Err(GroupChatServiceError::SessionNotActive(
+                session_id.to_string(),
+            ));
         }
 
         // Get optimized conversation history (with summarization if needed)
@@ -440,7 +459,10 @@ impl GroupChatService {
         // 获取当前工作区路径
         let working_dir = self.current_workspace_path.read().clone();
         let working_dir_ref = working_dir.as_deref();
-        tracing::info!("[GroupChat] 执行角色 turn，当前工作区路径: {:?}", working_dir_ref);
+        tracing::info!(
+            "[GroupChat] 执行角色 turn，当前工作区路径: {:?}",
+            working_dir_ref
+        );
 
         // Execute with Claude CLI
         let response = claude_cli::call_claude_cli(&prompt, working_dir_ref)
@@ -479,7 +501,10 @@ impl GroupChatService {
     }
 
     /// Get next speaker based on strategy
-    pub async fn get_next_speaker(&self, session_id: &str) -> Result<Option<(String, String)>, GroupChatServiceError> {
+    pub async fn get_next_speaker(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<(String, String)>, GroupChatServiceError> {
         let session = self.get_session(session_id).await?;
 
         if session.status != GroupStatus::Active {
@@ -527,7 +552,9 @@ impl GroupChatService {
         let mut session = self.get_session(session_id).await?;
 
         if request.force != Some(true) && session.status != GroupStatus::Active {
-            return Err(GroupChatServiceError::SessionNotActive(session_id.to_string()));
+            return Err(GroupChatServiceError::SessionNotActive(
+                session_id.to_string(),
+            ));
         }
 
         // Get all messages
@@ -542,7 +569,8 @@ impl GroupChatService {
             .unwrap_or_else(|_| "讨论已结束，未能生成结论。".to_string());
 
         // Calculate consensus (simplified: based on agreement)
-        let participant_ids: Vec<String> = messages.iter()
+        let participant_ids: Vec<String> = messages
+            .iter()
             .map(|m| m.role_id.clone())
             .collect::<std::collections::HashSet<_>>()
             .into_iter()
@@ -551,7 +579,7 @@ impl GroupChatService {
         let conclusion = GroupConclusion::new(
             session_id.to_string(),
             conclusion_content,
-            0.8,  // TODO: calculate actual consensus
+            0.8, // TODO: calculate actual consensus
             HashMap::new(),
             participant_ids,
         );
@@ -599,19 +627,32 @@ impl GroupChatService {
     // ============== Helper Methods ==============
 
     /// Get conversation history
-    async fn get_conversation_history(&self, session_id: &str, limit: u32) -> Result<Vec<GroupMessage>, GroupChatServiceError> {
-        Ok(self.repo.get_messages_by_session(session_id, Some(limit), None)?)
+    async fn get_conversation_history(
+        &self,
+        session_id: &str,
+        limit: u32,
+    ) -> Result<Vec<GroupMessage>, GroupChatServiceError> {
+        Ok(self
+            .repo
+            .get_messages_by_session(session_id, Some(limit), None)?)
     }
 
     /// Get optimized conversation history with summarization
-    async fn get_optimized_history(&self, session_id: &str) -> Result<HistoryContext, GroupChatServiceError> {
+    async fn get_optimized_history(
+        &self,
+        session_id: &str,
+    ) -> Result<HistoryContext, GroupChatServiceError> {
         // 获取足够多的历史消息用于摘要
         let all_messages = self.repo.get_messages_by_session(session_id, None, None)?;
         Ok(HistoryContext::from_messages(&all_messages))
     }
 
     /// Update participant stats
-    async fn update_participant_stats(&self, session_id: &str, role_id: &str) -> Result<(), GroupChatServiceError> {
+    async fn update_participant_stats(
+        &self,
+        session_id: &str,
+        role_id: &str,
+    ) -> Result<(), GroupChatServiceError> {
         let participants = self.repo.get_participants(session_id)?;
         if let Some(mut p) = participants.into_iter().find(|p| p.role_id == role_id) {
             p.message_count += 1;
@@ -622,7 +663,12 @@ impl GroupChatService {
     }
 
     /// Build discussion prompt using optimized history context
-    fn build_discussion_prompt_with_context(&self, session: &GroupSession, history_ctx: &HistoryContext, new_input: &str) -> String {
+    fn build_discussion_prompt_with_context(
+        &self,
+        session: &GroupSession,
+        history_ctx: &HistoryContext,
+        new_input: &str,
+    ) -> String {
         let history = history_ctx.render();
 
         let mut prompt = format!(
@@ -634,9 +680,7 @@ impl GroupChatService {
 【对话历史】
 {}
 </system>"#,
-            session.topic,
-            session.name,
-            history
+            session.topic, session.name, history
         );
 
         prompt.push_str(&format!(
@@ -647,13 +691,23 @@ impl GroupChatService {
     }
 
     /// Build discussion prompt (legacy, for backwards compatibility)
-    fn build_discussion_prompt(&self, session: &GroupSession, messages: &[GroupMessage], new_input: &str) -> String {
+    fn build_discussion_prompt(
+        &self,
+        session: &GroupSession,
+        messages: &[GroupMessage],
+        new_input: &str,
+    ) -> String {
         let history_ctx = HistoryContext::from_messages(messages);
         self.build_discussion_prompt_with_context(session, &history_ctx, new_input)
     }
 
     /// Build role-specific prompt using optimized history context
-    fn build_role_prompt_with_context(&self, session: &GroupSession, role_id: &str, history_ctx: &HistoryContext) -> String {
+    fn build_role_prompt_with_context(
+        &self,
+        session: &GroupSession,
+        role_id: &str,
+        history_ctx: &HistoryContext,
+    ) -> String {
         let history = history_ctx.render();
 
         format!(
@@ -669,23 +723,25 @@ impl GroupChatService {
 <user>
 请继续基于以上对话历史，以角色 {} 的身份回复。保持对话的连贯性，记住之前讨论过的内容，继续推进讨论。
 </user>"#,
-            role_id,
-            session.topic,
-            session.name,
-            history,
-            role_id
+            role_id, session.topic, session.name, history, role_id
         )
     }
 
     /// Build role-specific prompt (legacy, for backwards compatibility)
-    fn build_role_prompt(&self, session: &GroupSession, role_id: &str, messages: &[GroupMessage]) -> String {
+    fn build_role_prompt(
+        &self,
+        session: &GroupSession,
+        role_id: &str,
+        messages: &[GroupMessage],
+    ) -> String {
         let history_ctx = HistoryContext::from_messages(messages);
         self.build_role_prompt_with_context(session, role_id, &history_ctx)
     }
 
     /// Build conclusion prompt
     fn build_conclusion_prompt(&self, session: &GroupSession, messages: &[GroupMessage]) -> String {
-        let all_content = messages.iter()
+        let all_content = messages
+            .iter()
             .map(|m| format!("{}: {}", m.role_name, m.content))
             .collect::<Vec<_>>()
             .join("\n\n");
@@ -701,9 +757,7 @@ impl GroupChatService {
 请总结本次讨论的主要观点和建议，并给出一个最终的结论或建议方案。
 结论应该简洁明了，便于决策。
 </system>"#,
-            session.topic,
-            session.name,
-            all_content
+            session.topic, session.name, all_content
         )
     }
 }
@@ -735,15 +789,17 @@ mod tests {
 
     fn make_messages(count: usize) -> Vec<GroupMessage> {
         (0..count)
-            .map(|i| GroupMessage::new(
-                "session-1".to_string(),
-                "role-1".to_string(),
-                "Speaker".to_string(),
-                format!("Message {}", i),
-                vec![],
-                None,
-                i as u32,
-            ))
+            .map(|i| {
+                GroupMessage::new(
+                    "session-1".to_string(),
+                    "role-1".to_string(),
+                    "Speaker".to_string(),
+                    format!("Message {}", i),
+                    vec![],
+                    None,
+                    i as u32,
+                )
+            })
             .collect()
     }
 
@@ -761,7 +817,10 @@ mod tests {
         let messages = make_messages(HISTORY_THRESHOLD + 5);
         let ctx = HistoryContext::from_messages(&messages);
 
-        assert!(ctx.summary.is_some(), "summary should be present over threshold");
+        assert!(
+            ctx.summary.is_some(),
+            "summary should be present over threshold"
+        );
         assert_eq!(ctx.recent_messages.len(), RECENT_MESSAGE_COUNT);
     }
 

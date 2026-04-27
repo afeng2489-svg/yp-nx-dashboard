@@ -8,9 +8,8 @@ use serde::Serialize;
 use std::time::Instant;
 
 use super::{
-    AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CLI, CLIContext,
-    CLIResponse, CompletionRequest, CompletionResponse, EmbedRequest, EmbedResponse,
-    TokenUsage,
+    AIError, AIProvider, CLIContext, CLIResponse, ChatMessage, ChatRequest, ChatResponse,
+    CompletionRequest, CompletionResponse, EmbedRequest, EmbedResponse, TokenUsage, CLI,
 };
 
 /// 默认 API 基础 URL (OpenAI 兼容)
@@ -61,8 +60,13 @@ impl OpenCodeProvider {
     }
 
     /// 发送 HTTP 请求
-    async fn request(&self, path: &str, body: serde_json::Value) -> Result<serde_json::Value, AIError> {
-        let response = self.client
+    async fn request(
+        &self,
+        path: &str,
+        body: serde_json::Value,
+    ) -> Result<serde_json::Value, AIError> {
+        let response = self
+            .client
             .post(format!("{}{}", self.base_url, path))
             .header("authorization", format!("Bearer {}", self.api_key))
             .header("content-type", "application/json")
@@ -81,7 +85,10 @@ impl OpenCodeProvider {
             });
         }
 
-        response.json().await.map_err(|e| AIError::Parse(e.to_string()))
+        response
+            .json()
+            .await
+            .map_err(|e| AIError::Parse(e.to_string()))
     }
 }
 
@@ -134,7 +141,9 @@ impl AIProvider for OpenCodeProvider {
             temperature: request.temperature,
         };
 
-        let response = self.request("/chat/completions", serde_json::to_value(body).unwrap()).await?;
+        let response = self
+            .request("/chat/completions", serde_json::to_value(body).unwrap())
+            .await?;
 
         #[derive(serde::Deserialize)]
         struct ApiResponse {
@@ -161,10 +170,12 @@ impl AIProvider for OpenCodeProvider {
             completion_tokens: usize,
         }
 
-        let resp: ApiResponse = serde_json::from_value(response)
-            .map_err(|e| AIError::Parse(e.to_string()))?;
+        let resp: ApiResponse =
+            serde_json::from_value(response).map_err(|e| AIError::Parse(e.to_string()))?;
 
-        let choice = resp.choices.first()
+        let choice = resp
+            .choices
+            .first()
             .ok_or_else(|| AIError::Provider("响应中没有选项".to_string()))?;
 
         Ok(ChatResponse {
@@ -177,7 +188,10 @@ impl AIProvider for OpenCodeProvider {
                 input_tokens: resp.usage.prompt_tokens,
                 output_tokens: resp.usage.completion_tokens,
             },
-            stop_reason: choice.finish_reason.clone().unwrap_or_else(|| "stop".to_string()),
+            stop_reason: choice
+                .finish_reason
+                .clone()
+                .unwrap_or_else(|| "stop".to_string()),
         })
     }
 
@@ -231,7 +245,8 @@ mod tests {
 
     #[test]
     fn test_opencode_with_base_url() {
-        let provider = OpenCodeProvider::with_base_url("key".to_string(), "http://localhost:8080/v1");
+        let provider =
+            OpenCodeProvider::with_base_url("key".to_string(), "http://localhost:8080/v1");
         assert_eq!(provider.base_url, "http://localhost:8080/v1");
     }
 }

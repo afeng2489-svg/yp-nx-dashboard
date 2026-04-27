@@ -5,9 +5,9 @@
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-use crate::ws::agent_execution::AgentExecutionEvent;
-use super::resume_service::ResumeService;
 use super::error::TeamEvolutionError;
+use super::resume_service::ResumeService;
+use crate::ws::agent_execution::AgentExecutionEvent;
 
 pub struct CrashDetector {
     resume_service: Arc<ResumeService>,
@@ -19,7 +19,10 @@ impl CrashDetector {
         resume_service: Arc<ResumeService>,
         event_tx: broadcast::Sender<AgentExecutionEvent>,
     ) -> Self {
-        Self { resume_service, event_tx }
+        Self {
+            resume_service,
+            event_tx,
+        }
     }
 
     /// 启动时检测崩溃：查找所有 interrupted checkpoint 并广播事件

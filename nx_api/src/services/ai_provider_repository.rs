@@ -292,21 +292,35 @@ pub trait ProviderRepository: Send + Sync {
     // Provider CRUD
     fn create_provider(&self, provider: &AIProvider) -> Result<(), ProviderRepositoryError>;
     fn get_provider(&self, id: &str) -> Result<Option<AIProvider>, ProviderRepositoryError>;
-    fn get_provider_by_key(&self, provider_key: &str) -> Result<Option<AIProvider>, ProviderRepositoryError>;
+    fn get_provider_by_key(
+        &self,
+        provider_key: &str,
+    ) -> Result<Option<AIProvider>, ProviderRepositoryError>;
     fn list_providers(&self) -> Result<Vec<AIProvider>, ProviderRepositoryError>;
     fn update_provider(&self, provider: &AIProvider) -> Result<(), ProviderRepositoryError>;
     fn delete_provider(&self, id: &str) -> Result<bool, ProviderRepositoryError>;
 
     // Model Mappings
     fn create_model_mapping(&self, mapping: &ModelMapping) -> Result<(), ProviderRepositoryError>;
-    fn get_model_mappings(&self, provider_id: &str) -> Result<Vec<ModelMapping>, ProviderRepositoryError>;
-    fn get_model_mapping_by_type(&self, provider_id: &str, mapping_type: &MappingType) -> Result<Option<ModelMapping>, ProviderRepositoryError>;
+    fn get_model_mappings(
+        &self,
+        provider_id: &str,
+    ) -> Result<Vec<ModelMapping>, ProviderRepositoryError>;
+    fn get_model_mapping_by_type(
+        &self,
+        provider_id: &str,
+        mapping_type: &MappingType,
+    ) -> Result<Option<ModelMapping>, ProviderRepositoryError>;
     fn update_model_mapping(&self, mapping: &ModelMapping) -> Result<(), ProviderRepositoryError>;
     fn delete_model_mapping(&self, id: &str) -> Result<bool, ProviderRepositoryError>;
-    fn delete_model_mappings_by_provider(&self, provider_id: &str) -> Result<(), ProviderRepositoryError>;
+    fn delete_model_mappings_by_provider(
+        &self,
+        provider_id: &str,
+    ) -> Result<(), ProviderRepositoryError>;
 
     // Encryption helpers
-    fn save_api_key(&self, provider_id: &str, api_key: &str) -> Result<(), ProviderRepositoryError>;
+    fn save_api_key(&self, provider_id: &str, api_key: &str)
+        -> Result<(), ProviderRepositoryError>;
     fn get_api_key(&self, provider_id: &str) -> Result<Option<String>, ProviderRepositoryError>;
     fn delete_api_key(&self, provider_id: &str) -> Result<bool, ProviderRepositoryError>;
 }
@@ -563,7 +577,10 @@ impl ProviderRepository for SqliteProviderRepository {
         Ok(result)
     }
 
-    fn get_provider_by_key(&self, provider_key: &str) -> Result<Option<AIProvider>, ProviderRepositoryError> {
+    fn get_provider_by_key(
+        &self,
+        provider_key: &str,
+    ) -> Result<Option<AIProvider>, ProviderRepositoryError> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, provider_key, name, description, website, encrypted_api_key, base_url, api_format, auth_field, enabled, config_json, created_at, updated_at
@@ -600,11 +617,16 @@ impl ProviderRepository for SqliteProviderRepository {
             Some(simple_encrypt(&self.encryption_key, key)?)
         } else {
             // Keep existing API key - fetch it from DB
-            let existing_key: Option<String> = self.conn.lock().query_row(
-                "SELECT encrypted_api_key FROM ai_providers WHERE id = ?1",
-                params![provider.id],
-                |row| row.get(0),
-            ).ok().flatten();
+            let existing_key: Option<String> = self
+                .conn
+                .lock()
+                .query_row(
+                    "SELECT encrypted_api_key FROM ai_providers WHERE id = ?1",
+                    params![provider.id],
+                    |row| row.get(0),
+                )
+                .ok()
+                .flatten();
             existing_key
         };
 
@@ -640,10 +662,10 @@ impl ProviderRepository for SqliteProviderRepository {
         // Delete model mappings first (foreign key)
         self.delete_model_mappings_by_provider(id)?;
 
-        let affected = self.conn.lock().execute(
-            "DELETE FROM ai_providers WHERE id = ?1",
-            params![id],
-        )?;
+        let affected = self
+            .conn
+            .lock()
+            .execute("DELETE FROM ai_providers WHERE id = ?1", params![id])?;
 
         Ok(affected > 0)
     }
@@ -667,7 +689,10 @@ impl ProviderRepository for SqliteProviderRepository {
         Ok(())
     }
 
-    fn get_model_mappings(&self, provider_id: &str) -> Result<Vec<ModelMapping>, ProviderRepositoryError> {
+    fn get_model_mappings(
+        &self,
+        provider_id: &str,
+    ) -> Result<Vec<ModelMapping>, ProviderRepositoryError> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, provider_id, mapping_type, model_id, display_name, config_json
@@ -681,7 +706,11 @@ impl ProviderRepository for SqliteProviderRepository {
         Ok(mappings)
     }
 
-    fn get_model_mapping_by_type(&self, provider_id: &str, mapping_type: &MappingType) -> Result<Option<ModelMapping>, ProviderRepositoryError> {
+    fn get_model_mapping_by_type(
+        &self,
+        provider_id: &str,
+        mapping_type: &MappingType,
+    ) -> Result<Option<ModelMapping>, ProviderRepositoryError> {
         let conn = self.conn.lock();
         let mapping_type_str = mapping_type.to_string();
 
@@ -721,15 +750,18 @@ impl ProviderRepository for SqliteProviderRepository {
     }
 
     fn delete_model_mapping(&self, id: &str) -> Result<bool, ProviderRepositoryError> {
-        let affected = self.conn.lock().execute(
-            "DELETE FROM ai_model_mappings WHERE id = ?1",
-            params![id],
-        )?;
+        let affected = self
+            .conn
+            .lock()
+            .execute("DELETE FROM ai_model_mappings WHERE id = ?1", params![id])?;
 
         Ok(affected > 0)
     }
 
-    fn delete_model_mappings_by_provider(&self, provider_id: &str) -> Result<(), ProviderRepositoryError> {
+    fn delete_model_mappings_by_provider(
+        &self,
+        provider_id: &str,
+    ) -> Result<(), ProviderRepositoryError> {
         self.conn.lock().execute(
             "DELETE FROM ai_model_mappings WHERE provider_id = ?1",
             params![provider_id],
@@ -738,19 +770,34 @@ impl ProviderRepository for SqliteProviderRepository {
         Ok(())
     }
 
-    fn save_api_key(&self, provider_id: &str, api_key: &str) -> Result<(), ProviderRepositoryError> {
-        tracing::info!("[save_api_key] provider_id={}, api_key_len={}", provider_id, api_key.len());
+    fn save_api_key(
+        &self,
+        provider_id: &str,
+        api_key: &str,
+    ) -> Result<(), ProviderRepositoryError> {
+        tracing::info!(
+            "[save_api_key] provider_id={}, api_key_len={}",
+            provider_id,
+            api_key.len()
+        );
 
         // First check if provider exists
         let exists = self.get_provider(provider_id)?.is_some();
         if !exists {
-            return Err(ProviderRepositoryError::NotFound(format!("Provider {} not found", provider_id)));
+            return Err(ProviderRepositoryError::NotFound(format!(
+                "Provider {} not found",
+                provider_id
+            )));
         }
 
         let encrypted = simple_encrypt(&self.encryption_key, api_key)?;
         let now = Utc::now().to_rfc3339();
 
-        tracing::info!("[save_api_key] encrypted len={}, encrypted value={}", encrypted.len(), encrypted);
+        tracing::info!(
+            "[save_api_key] encrypted len={}, encrypted value={}",
+            encrypted.len(),
+            encrypted
+        );
 
         // Use parameterized query to avoid SQL injection and quoting issues
         let mut conn = self.conn.lock();
@@ -761,7 +808,10 @@ impl ProviderRepository for SqliteProviderRepository {
         tracing::info!("[save_api_key] rows_updated={}", rows_updated);
 
         if rows_updated == 0 {
-            tracing::warn!("[save_api_key] No rows updated for provider_id={}", provider_id);
+            tracing::warn!(
+                "[save_api_key] No rows updated for provider_id={}",
+                provider_id
+            );
         }
 
         Ok(())
@@ -769,15 +819,17 @@ impl ProviderRepository for SqliteProviderRepository {
 
     fn get_api_key(&self, provider_id: &str) -> Result<Option<String>, ProviderRepositoryError> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
-            "SELECT encrypted_api_key FROM ai_providers WHERE id = ?1",
-        )?;
+        let mut stmt = conn.prepare("SELECT encrypted_api_key FROM ai_providers WHERE id = ?1")?;
 
         let result = stmt
             .query_row(params![provider_id], |row| row.get::<_, Option<String>>(0))
             .optional()?;
 
-        tracing::info!("[get_api_key] provider_id={}, result={:?}", provider_id, result);
+        tracing::info!(
+            "[get_api_key] provider_id={}, result={:?}",
+            provider_id,
+            result
+        );
 
         match result {
             Some(Some(encrypted)) => {
@@ -822,7 +874,10 @@ mod tests {
     fn test_api_format() {
         assert_eq!(APIFormat::from("openai"), APIFormat::OpenAI);
         assert_eq!(APIFormat::from("anthropic"), APIFormat::Anthropic);
-        assert_eq!(APIFormat::from("custom:test"), APIFormat::Custom("test".to_string()));
+        assert_eq!(
+            APIFormat::from("custom:test"),
+            APIFormat::Custom("test".to_string())
+        );
     }
 
     #[test]

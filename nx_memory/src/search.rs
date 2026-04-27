@@ -76,7 +76,9 @@ impl MemorySearch {
 
         // 构建 BM25 索引
         let mut bm25_indexes = self.bm25_indexes.write().unwrap();
-        let bm25_index = bm25_indexes.entry(team_id.to_string()).or_insert_with(Bm25Index::new);
+        let bm25_index = bm25_indexes
+            .entry(team_id.to_string())
+            .or_insert_with(Bm25Index::new);
 
         for (chunk_id, content, metadata) in &bm25_data {
             bm25_index.add_document(chunk_id, content, Some(metadata.clone()));
@@ -102,7 +104,9 @@ impl MemorySearch {
         // 1. 添加到 BM25 索引（内存）
         {
             let mut bm25_indexes = self.bm25_indexes.write().unwrap();
-            let bm25_index = bm25_indexes.entry(team_id.to_string()).or_insert_with(Bm25Index::new);
+            let bm25_index = bm25_indexes
+                .entry(team_id.to_string())
+                .or_insert_with(Bm25Index::new);
             bm25_index.add_document(chunk_id, content, Some(metadata.clone()));
         }
 
@@ -113,7 +117,10 @@ impl MemorySearch {
 
         // 3. 生成并存储向量（如果提供了 embedding provider）
         if let Some(provider) = &self.embedding_provider {
-            let embedding_result = provider.embed(content).await.map_err(|e| SearchError::Embedding(e.to_string()))?;
+            let embedding_result = provider
+                .embed(content)
+                .await
+                .map_err(|e| SearchError::Embedding(e.to_string()))?;
 
             // 存储向量到内存
             {
@@ -167,7 +174,9 @@ impl MemorySearch {
         let team_id = request.team_id.as_deref().unwrap_or("");
         let top_k = request.top_k.unwrap_or(self.default_top_k);
         let vector_weight = request.vector_weight.unwrap_or(self.default_vector_weight);
-        let keyword_weight = request.keyword_weight.unwrap_or(self.default_keyword_weight);
+        let keyword_weight = request
+            .keyword_weight
+            .unwrap_or(self.default_keyword_weight);
 
         // 1. BM25 搜索（获取更多候选用于重排序）
         let bm25_results = {
@@ -196,8 +205,7 @@ impl MemorySearch {
                 let vector_score = vectors
                     .get(&result.id)
                     .map(|stored_vec| {
-                        query_embedding
-                            .map_or(0.0, |qe| cosine_similarity(qe, stored_vec))
+                        query_embedding.map_or(0.0, |qe| cosine_similarity(qe, stored_vec))
                     })
                     .unwrap_or(0.0);
                 (result, vector_score)
@@ -213,8 +221,7 @@ impl MemorySearch {
                 let vector_score = vectors
                     .get(&bm25_result.id)
                     .map(|stored_vec| {
-                        query_embedding
-                            .map_or(0.0, |qe| cosine_similarity(qe, stored_vec))
+                        query_embedding.map_or(0.0, |qe| cosine_similarity(qe, stored_vec))
                     })
                     .unwrap_or(0.0);
 
@@ -231,7 +238,9 @@ impl MemorySearch {
             scored.sort_by(|a, b| {
                 let score_a = keyword_weight * a.2 + vector_weight * a.3;
                 let score_b = keyword_weight * b.2 + vector_weight * b.3;
-                score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+                score_b
+                    .partial_cmp(&score_a)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             });
 
             // 取 top_k 并转换
@@ -293,10 +302,7 @@ impl MemorySearch {
         }
 
         // 相关性阈值过滤：去除低质量匹配
-        let max_score = final_results
-            .iter()
-            .map(|r| r.score)
-            .fold(0.0f32, f32::max);
+        let max_score = final_results.iter().map(|r| r.score).fold(0.0f32, f32::max);
 
         if max_score > 0.0 {
             const MIN_ABSOLUTE_SCORE: f32 = 0.5;
@@ -392,11 +398,18 @@ mod tests {
 
         // 手动添加 BM25 数据（不生成向量）
         search
-            .index_chunk("team1", "chunk1", "PostgreSQL is a database", serde_json::json!({}))
+            .index_chunk(
+                "team1",
+                "chunk1",
+                "PostgreSQL is a database",
+                serde_json::json!({}),
+            )
             .await
             .unwrap();
 
-        let result = search.search(&SearchRequest::new("team1", "database"), None).unwrap();
+        let result = search
+            .search(&SearchRequest::new("team1", "database"), None)
+            .unwrap();
         assert!(!result.results.is_empty());
     }
 }

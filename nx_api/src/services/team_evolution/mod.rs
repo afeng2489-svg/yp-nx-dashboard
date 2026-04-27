@@ -37,8 +37,8 @@ pub mod process_isolation;
 pub mod process_lifecycle;
 
 // P4: Breakpoint Resume + Crash Recovery
-pub mod resume_service;
 pub mod crash_detector;
+pub mod resume_service;
 pub mod temp_cleaner;
 
 // P5: File Watch + Error Layering
@@ -48,14 +48,16 @@ pub mod file_watcher;
 pub mod integration;
 
 // Re-exports
+pub use crash_detector::CrashDetector;
 pub use error::TeamEvolutionError;
 pub use feature_flag_service::FeatureFlagService;
-pub use pipeline_service::PipelineService;
-pub use snapshot_service::SnapshotService;
-pub use process_isolation::{ProcessRegistry, IsolatedProcess, ProcessType, infer_process_type};
-pub use process_lifecycle::{ProcessLifecycleManager, LifecycleConfig, ProcessStats, ProcessLifecycleEvent};
-pub use resume_service::ResumeService;
-pub use crash_detector::CrashDetector;
-pub use temp_cleaner::TempCleaner;
 pub use file_watcher::FileWatcher;
 pub use integration::TeamEvolutionEventHandler;
+pub use pipeline_service::PipelineService;
+pub use process_isolation::{infer_process_type, IsolatedProcess, ProcessRegistry, ProcessType};
+pub use process_lifecycle::{
+    LifecycleConfig, ProcessLifecycleEvent, ProcessLifecycleManager, ProcessStats,
+};
+pub use resume_service::ResumeService;
+pub use snapshot_service::SnapshotService;
+pub use temp_cleaner::TempCleaner;

@@ -6,8 +6,8 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use crate::models::team::{
-    CreateRoleRequest, CreateTeamRequest, ModelConfig, RoleSkill, SkillPriority, Team,
-    TeamMessage, TeamRole, TelegramBotConfig, UpdateRoleRequest, UpdateTeamRequest,
+    CreateRoleRequest, CreateTeamRequest, ModelConfig, RoleSkill, SkillPriority, Team, TeamMessage,
+    TeamRole, TelegramBotConfig, UpdateRoleRequest, UpdateTeamRequest,
 };
 
 use super::team_repository::{TeamRepository, TeamRepositoryError};
@@ -81,7 +81,10 @@ impl TeamService {
         let roles_with_skills: Vec<RoleWithSkills> = roles
             .into_iter()
             .map(|role| {
-                let skills = self.repository.find_skills_by_role(&role.id).unwrap_or_default();
+                let skills = self
+                    .repository
+                    .find_skills_by_role(&role.id)
+                    .unwrap_or_default();
                 RoleWithSkills { role, skills }
             })
             .collect();
@@ -131,7 +134,7 @@ impl TeamService {
         // Role will be associated with team via junction table
         let trigger_keywords = request.trigger_keywords.clone().unwrap_or_default();
         let role = TeamRole::new(
-            None,  // team_id is NULL - role is global
+            None, // team_id is NULL - role is global
             request.name,
             request.description,
             model_config,
@@ -142,7 +145,8 @@ impl TeamService {
         self.repository.create_role(&role)?;
 
         // Associate role with team via junction table
-        self.repository.add_role_to_team(&role.id, team_id)
+        self.repository
+            .add_role_to_team(&role.id, team_id)
             .map_err(|e| TeamServiceError::Repository(e))?;
 
         Ok(role)
@@ -163,7 +167,9 @@ impl TeamService {
     pub fn list_roles(&self, team_id: &str) -> Result<Vec<TeamRole>, TeamServiceError> {
         // Verify team exists
         let _ = self.get_team(team_id)?;
-        self.repository.find_roles_by_team(team_id).map_err(Into::into)
+        self.repository
+            .find_roles_by_team(team_id)
+            .map_err(Into::into)
     }
 
     pub fn list_all_roles(&self) -> Result<Vec<TeamRole>, TeamServiceError> {
@@ -201,25 +207,35 @@ impl TeamService {
         self.repository.delete_role(id).map_err(Into::into)
     }
 
-    pub fn assign_role_to_team(&self, role_id: &str, team_id: &str) -> Result<TeamRole, TeamServiceError> {
+    pub fn assign_role_to_team(
+        &self,
+        role_id: &str,
+        team_id: &str,
+    ) -> Result<TeamRole, TeamServiceError> {
         // Verify team exists
         let _ = self.get_team(team_id)?;
         // Verify role exists
         let _ = self.get_role(role_id)?;
         // Add role to team via junction table
-        self.repository.add_role_to_team(role_id, team_id)
+        self.repository
+            .add_role_to_team(role_id, team_id)
             .map_err(|e| TeamServiceError::Repository(e))?;
         // Return the updated role
         self.get_role(role_id)
     }
 
-    pub fn remove_role_from_team(&self, team_id: &str, role_id: &str) -> Result<bool, TeamServiceError> {
+    pub fn remove_role_from_team(
+        &self,
+        team_id: &str,
+        role_id: &str,
+    ) -> Result<bool, TeamServiceError> {
         // Verify team exists
         let _ = self.get_team(team_id)?;
         // Verify role exists
         let _ = self.get_role(role_id)?;
         // Remove role from team via junction table (only removes assignment, doesn't delete the role)
-        self.repository.remove_role_from_team(role_id, team_id)
+        self.repository
+            .remove_role_from_team(role_id, team_id)
             .map_err(|e| TeamServiceError::Repository(e))
     }
 
@@ -234,8 +250,7 @@ impl TeamService {
         let _ = self.get_role(role_id)?;
 
         let priority = priority.unwrap_or(SkillPriority::Medium);
-        self.repository
-            .assign_skill(role_id, skill_id, priority)?;
+        self.repository.assign_skill(role_id, skill_id, priority)?;
 
         Ok(RoleSkill {
             role_id: role_id.to_string(),
@@ -335,7 +350,11 @@ impl TeamService {
             .ok_or_else(|| TeamServiceError::TelegramConfigNotFound(role_id.to_string()))
     }
 
-    pub fn enable_telegram(&self, role_id: &str, enabled: bool) -> Result<TelegramBotConfig, TeamServiceError> {
+    pub fn enable_telegram(
+        &self,
+        role_id: &str,
+        enabled: bool,
+    ) -> Result<TelegramBotConfig, TeamServiceError> {
         let mut config = self.get_telegram_config(role_id)?;
         config.enabled = enabled;
         self.repository.upsert_telegram_config(&config)?;

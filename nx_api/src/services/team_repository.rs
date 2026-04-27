@@ -11,8 +11,8 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use crate::models::team::{
-    ModelConfig, RoleSkill, SkillPriority, Team, TeamMessage, TeamRole, TelegramBotConfig,
-    MessageType,
+    MessageType, ModelConfig, RoleSkill, SkillPriority, Team, TeamMessage, TeamRole,
+    TelegramBotConfig,
 };
 
 /// Repository error
@@ -53,22 +53,43 @@ pub trait TeamRepository: Send + Sync {
     fn find_all_roles(&self) -> Result<Vec<TeamRole>, TeamRepositoryError>;
     fn update_role(&self, role: &TeamRole) -> Result<(), TeamRepositoryError>;
     fn add_role_to_team(&self, role_id: &str, team_id: &str) -> Result<(), TeamRepositoryError>;
-    fn remove_role_from_team(&self, role_id: &str, team_id: &str) -> Result<bool, TeamRepositoryError>;
+    fn remove_role_from_team(
+        &self,
+        role_id: &str,
+        team_id: &str,
+    ) -> Result<bool, TeamRepositoryError>;
     fn delete_role(&self, id: &str) -> Result<bool, TeamRepositoryError>;
 
     // Skill assignment
-    fn assign_skill(&self, role_id: &str, skill_id: &str, priority: SkillPriority) -> Result<(), TeamRepositoryError>;
+    fn assign_skill(
+        &self,
+        role_id: &str,
+        skill_id: &str,
+        priority: SkillPriority,
+    ) -> Result<(), TeamRepositoryError>;
     fn remove_skill(&self, role_id: &str, skill_id: &str) -> Result<bool, TeamRepositoryError>;
     fn find_skills_by_role(&self, role_id: &str) -> Result<Vec<RoleSkill>, TeamRepositoryError>;
 
     // Messages
     fn create_message(&self, message: &TeamMessage) -> Result<(), TeamRepositoryError>;
-    fn find_messages_by_team(&self, team_id: &str, limit: Option<usize>) -> Result<Vec<TeamMessage>, TeamRepositoryError>;
-    fn find_messages_by_role(&self, role_id: &str, limit: Option<usize>) -> Result<Vec<TeamMessage>, TeamRepositoryError>;
+    fn find_messages_by_team(
+        &self,
+        team_id: &str,
+        limit: Option<usize>,
+    ) -> Result<Vec<TeamMessage>, TeamRepositoryError>;
+    fn find_messages_by_role(
+        &self,
+        role_id: &str,
+        limit: Option<usize>,
+    ) -> Result<Vec<TeamMessage>, TeamRepositoryError>;
 
     // Telegram config
-    fn upsert_telegram_config(&self, config: &TelegramBotConfig) -> Result<(), TeamRepositoryError>;
-    fn find_telegram_config_by_role(&self, role_id: &str) -> Result<Option<TelegramBotConfig>, TeamRepositoryError>;
+    fn upsert_telegram_config(&self, config: &TelegramBotConfig)
+        -> Result<(), TeamRepositoryError>;
+    fn find_telegram_config_by_role(
+        &self,
+        role_id: &str,
+    ) -> Result<Option<TelegramBotConfig>, TeamRepositoryError>;
     fn delete_telegram_config(&self, role_id: &str) -> Result<bool, TeamRepositoryError>;
 }
 
@@ -276,7 +297,8 @@ impl SqliteTeamRepository {
             .map(|dt| dt.with_timezone(&Utc))
             .unwrap_or_else(|_| Utc::now());
         let model_config = Self::deserialize_model_config(&model_config);
-        let trigger_keywords: Vec<String> = serde_json::from_str(&trigger_keywords).unwrap_or_default();
+        let trigger_keywords: Vec<String> =
+            serde_json::from_str(&trigger_keywords).unwrap_or_default();
 
         Ok(TeamRole {
             id,
@@ -304,8 +326,7 @@ impl SqliteTeamRepository {
             .map(|dt| dt.with_timezone(&Utc))
             .unwrap_or_else(|_| Utc::now());
         let message_type = MessageType::from_str(&message_type);
-        let metadata: HashMap<String, String> =
-            serde_json::from_str(&metadata).unwrap_or_default();
+        let metadata: HashMap<String, String> = serde_json::from_str(&metadata).unwrap_or_default();
 
         Ok(TeamMessage {
             id,
@@ -390,11 +411,9 @@ impl TeamRepository for SqliteTeamRepository {
         });
 
         match result {
-            Ok((id, name, description, created_at, updated_at)) => {
-                Ok(Some(Self::deserialize_team(
-                    id, name, description, created_at, updated_at,
-                )?))
-            }
+            Ok((id, name, description, created_at, updated_at)) => Ok(Some(
+                Self::deserialize_team(id, name, description, created_at, updated_at)?,
+            )),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e.into()),
         }
@@ -419,7 +438,11 @@ impl TeamRepository for SqliteTeamRepository {
         for row in rows {
             let (id, name, description, created_at, updated_at) = row?;
             teams.push(Self::deserialize_team(
-                id, name, description, created_at, updated_at,
+                id,
+                name,
+                description,
+                created_at,
+                updated_at,
             )?);
         }
         Ok(teams)
@@ -491,11 +514,27 @@ impl TeamRepository for SqliteTeamRepository {
         });
 
         match result {
-            Ok((id, team_id, name, description, model_config, system_prompt, trigger_keywords, created_at, updated_at)) => {
-                Ok(Some(Self::deserialize_role(
-                    id, team_id, name, description, model_config, system_prompt, trigger_keywords, created_at, updated_at,
-                )?))
-            }
+            Ok((
+                id,
+                team_id,
+                name,
+                description,
+                model_config,
+                system_prompt,
+                trigger_keywords,
+                created_at,
+                updated_at,
+            )) => Ok(Some(Self::deserialize_role(
+                id,
+                team_id,
+                name,
+                description,
+                model_config,
+                system_prompt,
+                trigger_keywords,
+                created_at,
+                updated_at,
+            )?)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e.into()),
         }
@@ -529,9 +568,27 @@ impl TeamRepository for SqliteTeamRepository {
 
         let mut roles = Vec::new();
         for row in rows {
-            let (id, team_id, name, description, model_config, system_prompt, trigger_keywords, created_at, updated_at) = row?;
+            let (
+                id,
+                team_id,
+                name,
+                description,
+                model_config,
+                system_prompt,
+                trigger_keywords,
+                created_at,
+                updated_at,
+            ) = row?;
             roles.push(Self::deserialize_role(
-                id, team_id, name, description, model_config, system_prompt, trigger_keywords, created_at, updated_at,
+                id,
+                team_id,
+                name,
+                description,
+                model_config,
+                system_prompt,
+                trigger_keywords,
+                created_at,
+                updated_at,
             )?);
         }
         Ok(roles)
@@ -560,9 +617,27 @@ impl TeamRepository for SqliteTeamRepository {
 
         let mut roles = Vec::new();
         for row in rows {
-            let (id, team_id, name, description, model_config, system_prompt, trigger_keywords, created_at, updated_at) = row?;
+            let (
+                id,
+                team_id,
+                name,
+                description,
+                model_config,
+                system_prompt,
+                trigger_keywords,
+                created_at,
+                updated_at,
+            ) = row?;
             roles.push(Self::deserialize_role(
-                id, team_id, name, description, model_config, system_prompt, trigger_keywords, created_at, updated_at,
+                id,
+                team_id,
+                name,
+                description,
+                model_config,
+                system_prompt,
+                trigger_keywords,
+                created_at,
+                updated_at,
             )?);
         }
         Ok(roles)
@@ -578,7 +653,11 @@ impl TeamRepository for SqliteTeamRepository {
         Ok(())
     }
 
-    fn remove_role_from_team(&self, role_id: &str, team_id: &str) -> Result<bool, TeamRepositoryError> {
+    fn remove_role_from_team(
+        &self,
+        role_id: &str,
+        team_id: &str,
+    ) -> Result<bool, TeamRepositoryError> {
         let conn = self.conn.lock();
         let affected = conn.execute(
             "DELETE FROM team_role_members WHERE team_id = ?1 AND role_id = ?2",
@@ -615,7 +694,12 @@ impl TeamRepository for SqliteTeamRepository {
     }
 
     // Skill assignment
-    fn assign_skill(&self, role_id: &str, skill_id: &str, priority: SkillPriority) -> Result<(), TeamRepositoryError> {
+    fn assign_skill(
+        &self,
+        role_id: &str,
+        skill_id: &str,
+        priority: SkillPriority,
+    ) -> Result<(), TeamRepositoryError> {
         let conn = self.conn.lock();
         conn.execute(
             "INSERT OR REPLACE INTO team_role_skills (role_id, skill_id, priority)
@@ -663,8 +747,8 @@ impl TeamRepository for SqliteTeamRepository {
     // Messages
     fn create_message(&self, message: &TeamMessage) -> Result<(), TeamRepositoryError> {
         let conn = self.conn.lock();
-        let metadata_json = serde_json::to_string(&message.metadata)
-            .unwrap_or_else(|_| "{}".to_string());
+        let metadata_json =
+            serde_json::to_string(&message.metadata).unwrap_or_else(|_| "{}".to_string());
         conn.execute(
             "INSERT INTO team_messages (id, team_id, role_id, content, message_type, metadata, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
@@ -711,7 +795,13 @@ impl TeamRepository for SqliteTeamRepository {
         for row in rows {
             let (id, team_id, role_id, content, message_type, metadata, created_at) = row?;
             messages.push(Self::deserialize_message(
-                id, team_id, role_id, content, message_type, metadata, created_at,
+                id,
+                team_id,
+                role_id,
+                content,
+                message_type,
+                metadata,
+                created_at,
             )?);
         }
         Ok(messages)
@@ -747,14 +837,23 @@ impl TeamRepository for SqliteTeamRepository {
         for row in rows {
             let (id, team_id, role_id, content, message_type, metadata, created_at) = row?;
             messages.push(Self::deserialize_message(
-                id, team_id, role_id, content, message_type, metadata, created_at,
+                id,
+                team_id,
+                role_id,
+                content,
+                message_type,
+                metadata,
+                created_at,
             )?);
         }
         Ok(messages)
     }
 
     // Telegram config
-    fn upsert_telegram_config(&self, config: &TelegramBotConfig) -> Result<(), TeamRepositoryError> {
+    fn upsert_telegram_config(
+        &self,
+        config: &TelegramBotConfig,
+    ) -> Result<(), TeamRepositoryError> {
         let conn = self.conn.lock();
         conn.execute(
             "INSERT OR REPLACE INTO telegram_bot_configs
@@ -796,17 +895,23 @@ impl TeamRepository for SqliteTeamRepository {
         });
 
         match result {
-            Ok((id, role_id, bot_token, chat_id, enabled, notifications_enabled, conversation_enabled)) => {
-                Ok(Some(TelegramBotConfig {
-                    id,
-                    role_id,
-                    bot_token,
-                    chat_id,
-                    enabled: enabled != 0,
-                    notifications_enabled: notifications_enabled != 0,
-                    conversation_enabled: conversation_enabled != 0,
-                }))
-            }
+            Ok((
+                id,
+                role_id,
+                bot_token,
+                chat_id,
+                enabled,
+                notifications_enabled,
+                conversation_enabled,
+            )) => Ok(Some(TelegramBotConfig {
+                id,
+                role_id,
+                bot_token,
+                chat_id,
+                enabled: enabled != 0,
+                notifications_enabled: notifications_enabled != 0,
+                conversation_enabled: conversation_enabled != 0,
+            })),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e.into()),
         }
@@ -892,7 +997,8 @@ mod tests {
         );
         repo.create_role(&role).unwrap();
 
-        repo.assign_skill(&role.id, "skill-1", SkillPriority::High).unwrap();
+        repo.assign_skill(&role.id, "skill-1", SkillPriority::High)
+            .unwrap();
         let skills = repo.find_skills_by_role(&role.id).unwrap();
         assert_eq!(skills.len(), 1);
         assert_eq!(skills[0].skill_id, "skill-1");

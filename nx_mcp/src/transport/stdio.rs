@@ -2,8 +2,8 @@
 //!
 //! 通过 stdin/stdout 与 MCP 客户端通信。
 
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, stdin, stdout, BufReader};
 use serde_json::Value;
+use tokio::io::{stdin, stdout, AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 use crate::server::{McpMessage, McpServer};
 
@@ -120,7 +120,7 @@ impl StdioTransport {
                             "code": -32603,
                             "message": e.to_string()
                         }
-                    }))
+                    })),
                 }
             }
             _ => {

@@ -26,9 +26,7 @@ pub struct ProcessInfo {
 }
 
 /// List all running processes
-pub async fn list_processes(
-    State(state): State<Arc<AppState>>,
-) -> Json<Vec<ProcessInfo>> {
+pub async fn list_processes(State(state): State<Arc<AppState>>) -> Json<Vec<ProcessInfo>> {
     let processes = state.teams_state.agent_team_service.get_processes();
 
     let infos: Vec<ProcessInfo> = processes
@@ -59,7 +57,11 @@ pub async fn kill_process(
     Path(execution_id): Path<String>,
 ) -> Result<Json<KillResponse>, AppError> {
     // Try to kill the process
-    if let Err(e) = state.teams_state.agent_team_service.kill_process(&execution_id) {
+    if let Err(e) = state
+        .teams_state
+        .agent_team_service
+        .kill_process(&execution_id)
+    {
         return Err(AppError {
             status: StatusCode::NOT_FOUND,
             message: e,
@@ -87,6 +89,10 @@ pub struct AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
-        (self.status, Json(serde_json::json!({ "error": self.message }))).into_response()
+        (
+            self.status,
+            Json(serde_json::json!({ "error": self.message })),
+        )
+            .into_response()
     }
 }

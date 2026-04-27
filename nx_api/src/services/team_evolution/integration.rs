@@ -5,20 +5,17 @@
 //! 2. AgentExecutionEvent 旁路订阅 → 自动更新快照 + checkpoint
 //! 3. 定时任务 → lifecycle scan / temp clean / dispatch loop
 
+use parking_lot::RwLock;
 use std::sync::Arc;
 use std::time::Duration;
-use parking_lot::RwLock;
 use tokio::sync::broadcast;
 
-use crate::ws::agent_execution::AgentExecutionEvent;
 use crate::services::team_evolution::{
-    pipeline_service::PipelineService,
-    snapshot_service::SnapshotService,
-    resume_service::ResumeService,
-    process_lifecycle::ProcessLifecycleManager,
-    temp_cleaner::TempCleaner,
-    error::TeamEvolutionError,
+    error::TeamEvolutionError, pipeline_service::PipelineService,
+    process_lifecycle::ProcessLifecycleManager, resume_service::ResumeService,
+    snapshot_service::SnapshotService, temp_cleaner::TempCleaner,
 };
+use crate::ws::agent_execution::AgentExecutionEvent;
 
 /// Pipeline 步骤 dispatch 请求 — 由 route 层消费后调用实际 CLI
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -107,7 +104,9 @@ impl TeamEvolutionEventHandler {
             loop {
                 match rx.recv().await {
                     Ok(event) => {
-                        Self::handle_event(&event, &pipeline, &snapshot, &resume, &lifecycle, &mapping);
+                        Self::handle_event(
+                            &event, &pipeline, &snapshot, &resume, &lifecycle, &mapping,
+                        );
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         tracing::warn!("[TeamEvolution] Event listener lagged {n} frames");
@@ -153,7 +152,12 @@ impl TeamEvolutionEventHandler {
                         .get_status(&sm.pipeline_id)
                         .map(|(_, steps)| {
                             let total = steps.len().max(1);
-                            let completed = steps.iter().filter(|s| s.status == crate::models::pipeline::StepStatus::Completed).count();
+                            let completed = steps
+                                .iter()
+                                .filter(|s| {
+                                    s.status == crate::models::pipeline::StepStatus::Completed
+                                })
+                                .count();
                             (completed * 100 / total) as u32
                         })
                         .unwrap_or(0);
@@ -310,7 +314,10 @@ impl TeamEvolutionEventHandler {
                         for pipeline in &pipelines {
                             // Check for steps that need phase advance
                             if let Err(e) = ps.try_advance_phase_pub(&pipeline.id) {
-                                tracing::debug!("[TeamEvolution] Phase advance check failed for {}: {e}", pipeline.id);
+                                tracing::debug!(
+                                    "[TeamEvolution] Phase advance check failed for {}: {e}",
+                                    pipeline.id
+                                );
                             }
 
                             // Check for dispatchable steps and mark them ready
@@ -318,14 +325,18 @@ impl TeamEvolutionEventHandler {
                                 Ok(steps) if !steps.is_empty() => {
                                     tracing::debug!(
                                         "[TeamEvolution] Pipeline {} has {} dispatchable steps",
-                                        pipeline.id, steps.len()
+                                        pipeline.id,
+                                        steps.len()
                                     );
                                     // Steps are marked Running by the dispatch API endpoint.
                                     // The auto-dispatch loop identifies ready steps for monitoring.
                                 }
                                 Ok(_) => {}
                                 Err(e) => {
-                                    tracing::debug!("[TeamEvolution] Dispatch check failed for {}: {e}", pipeline.id);
+                                    tracing::debug!(
+                                        "[TeamEvolution] Dispatch check failed for {}: {e}",
+                                        pipeline.id
+                                    );
                                 }
                             }
                         }

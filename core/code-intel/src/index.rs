@@ -1,11 +1,11 @@
 //! 用于快速符号查找的代码索引
 
-use std::collections::HashMap;
-use std::path::PathBuf;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::path::PathBuf;
 
-use super::{Symbol, Reference, ReferenceFinder};
+use super::{Reference, ReferenceFinder, Symbol};
 
 /// 索引中的文件
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -163,21 +163,19 @@ mod tests {
     fn test_index_operations() {
         let index = CodeIndex::new(PathBuf::from("/test"));
 
-        let symbols = vec![
-            Symbol {
-                name: "test_func".to_string(),
-                kind: super::super::SymbolKind::Function,
-                kind_detail: "function".to_string(),
-                file: "/test/mod.rs".to_string(),
-                line: 1,
-                column: 0,
-                end_line: 1,
-                end_column: 10,
-                signature: None,
-                doc_comment: None,
-                visibility: None,
-            },
-        ];
+        let symbols = vec![Symbol {
+            name: "test_func".to_string(),
+            kind: super::super::SymbolKind::Function,
+            kind_detail: "function".to_string(),
+            file: "/test/mod.rs".to_string(),
+            line: 1,
+            column: 0,
+            end_line: 1,
+            end_column: 10,
+            signature: None,
+            doc_comment: None,
+            visibility: None,
+        }];
 
         let path = PathBuf::from("/test/mod.rs");
         index.index_file(path.clone(), symbols);

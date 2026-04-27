@@ -6,8 +6,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Command, CommandArgument, CommandCategory, CommandHandler, CommandOutput, Args,
-    SubCommand,
+    Args, Command, CommandArgument, CommandCategory, CommandHandler, CommandOutput, SubCommand,
 };
 
 /// Session data structure
@@ -42,26 +41,40 @@ impl SessionCommands {
     }
 
     pub fn command_definition() -> Command {
-        Command::new("session", "Session management commands", CommandCategory::Session)
-            .with_subcommand(
-                SubCommand::new("resume", "Resume a paused session")
-                    .with_arg(CommandArgument::new("key", "Session key", true)),
-            )
-            .with_subcommand(
-                SubCommand::new("pause", "Pause the current session")
-                    .with_arg(CommandArgument::new("key", "Session key (omit for current)", false)),
-            )
-            .with_subcommand(
-                SubCommand::new("list", "List all sessions"),
-            )
-            .with_subcommand(
-                SubCommand::new("get", "Get session details")
-                    .with_arg(CommandArgument::new("key", "Session key", true)),
-            )
-            .with_subcommand(
-                SubCommand::new("delete", "Delete a session")
-                    .with_arg(CommandArgument::new("key", "Session key", true)),
-            )
+        Command::new(
+            "session",
+            "Session management commands",
+            CommandCategory::Session,
+        )
+        .with_subcommand(
+            SubCommand::new("resume", "Resume a paused session").with_arg(CommandArgument::new(
+                "key",
+                "Session key",
+                true,
+            )),
+        )
+        .with_subcommand(
+            SubCommand::new("pause", "Pause the current session").with_arg(CommandArgument::new(
+                "key",
+                "Session key (omit for current)",
+                false,
+            )),
+        )
+        .with_subcommand(SubCommand::new("list", "List all sessions"))
+        .with_subcommand(
+            SubCommand::new("get", "Get session details").with_arg(CommandArgument::new(
+                "key",
+                "Session key",
+                true,
+            )),
+        )
+        .with_subcommand(
+            SubCommand::new("delete", "Delete a session").with_arg(CommandArgument::new(
+                "key",
+                "Session key",
+                true,
+            )),
+        )
     }
 }
 
@@ -104,9 +117,7 @@ impl CommandHandler for SessionResumeCommand {
     }
 
     fn arguments(&self) -> Vec<CommandArgument> {
-        vec![
-            CommandArgument::new("key", "Session key", true),
-        ]
+        vec![CommandArgument::new("key", "Session key", true)]
     }
 
     async fn execute(&self, args: Args) -> CommandOutput {
@@ -128,10 +139,7 @@ impl CommandHandler for SessionResumeCommand {
             "agents": ["reviewer-1", "analyzer-1"]
         });
 
-        CommandOutput::success_with_data(
-            format!("Session '{}' resumed", key),
-            session,
-        )
+        CommandOutput::success_with_data(format!("Session '{}' resumed", key), session)
     }
 }
 
@@ -149,9 +157,11 @@ impl CommandHandler for SessionPauseCommand {
     }
 
     fn arguments(&self) -> Vec<CommandArgument> {
-        vec![
-            CommandArgument::new("key", "Session key (omit for current session)", false),
-        ]
+        vec![CommandArgument::new(
+            "key",
+            "Session key (omit for current session)",
+            false,
+        )]
     }
 
     async fn execute(&self, args: Args) -> CommandOutput {
@@ -173,10 +183,7 @@ impl CommandHandler for SessionPauseCommand {
             "saved_state": true
         });
 
-        CommandOutput::success_with_data(
-            format!("Session '{}' paused", key),
-            result,
-        )
+        CommandOutput::success_with_data(format!("Session '{}' paused", key), result)
     }
 }
 
@@ -251,9 +258,7 @@ impl CommandHandler for SessionGetCommand {
     }
 
     fn arguments(&self) -> Vec<CommandArgument> {
-        vec![
-            CommandArgument::new("key", "Session key", true),
-        ]
+        vec![CommandArgument::new("key", "Session key", true)]
     }
 
     async fn execute(&self, args: Args) -> CommandOutput {
@@ -289,10 +294,7 @@ impl CommandHandler for SessionGetCommand {
             }
         });
 
-        CommandOutput::success_with_data(
-            format!("Session '{}' details", key),
-            session,
-        )
+        CommandOutput::success_with_data(format!("Session '{}' details", key), session)
     }
 }
 
@@ -310,9 +312,7 @@ impl CommandHandler for SessionDeleteCommand {
     }
 
     fn arguments(&self) -> Vec<CommandArgument> {
-        vec![
-            CommandArgument::new("key", "Session key", true),
-        ]
+        vec![CommandArgument::new("key", "Session key", true)]
     }
 
     async fn execute(&self, args: Args) -> CommandOutput {
@@ -334,10 +334,7 @@ impl CommandHandler for SessionDeleteCommand {
             }
         });
 
-        CommandOutput::success_with_data(
-            format!("Session '{}' deleted", key),
-            result,
-        )
+        CommandOutput::success_with_data(format!("Session '{}' deleted", key), result)
     }
 }
 

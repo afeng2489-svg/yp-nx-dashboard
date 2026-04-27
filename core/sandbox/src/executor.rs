@@ -2,12 +2,12 @@
 //!
 //! 在具有资源限制的隔离环境中执行代码。
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
-use tokio::process::Command;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use serde::{Deserialize, Serialize};
+use tokio::process::Command;
 
 /// 执行请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,9 +37,15 @@ pub struct ExecuteRequest {
     pub cpu_time_secs: u64,
 }
 
-fn default_timeout() -> u64 { 30 }
-fn default_memory() -> u64 { 256 * 1024 * 1024 } // 256MB
-fn default_cpu_time() -> u64 { 10 }
+fn default_timeout() -> u64 {
+    30
+}
+fn default_memory() -> u64 {
+    256 * 1024 * 1024
+} // 256MB
+fn default_cpu_time() -> u64 {
+    10
+}
 
 /// 执行响应
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -152,7 +158,9 @@ impl SandboxExecutor {
         let child_result = tokio::time::timeout(
             std::time::Duration::from_secs(request.timeout_secs),
             async {
-                let mut child = cmd.spawn().map_err(|e| SandboxError::Execution(e.to_string()))?;
+                let mut child = cmd
+                    .spawn()
+                    .map_err(|e| SandboxError::Execution(e.to_string()))?;
                 // 如果提供了标准输入则写入
                 if let Some(ref stdin_data) = request.stdin {
                     if let Some(ref mut child_stdin) = child.stdin {
@@ -160,11 +168,14 @@ impl SandboxExecutor {
                     }
                 }
                 // 等待完成
-                let output = child.wait_with_output().await
+                let output = child
+                    .wait_with_output()
+                    .await
                     .map_err(|e| SandboxError::Execution(e.to_string()))?;
                 Ok::<_, SandboxError>(output)
-            }
-        ).await;
+            },
+        )
+        .await;
 
         let timed_out = matches!(child_result, Err(tokio::time::error::Elapsed { .. }));
 
@@ -181,9 +192,7 @@ impl SandboxExecutor {
                     memory_used_bytes: None,
                 })
             }
-            Ok(Err(e)) => {
-                Err(e)
-            }
+            Ok(Err(e)) => Err(e),
             Err(_) => {
                 // 超时
                 Ok(ExecuteResponse {
@@ -264,7 +273,8 @@ impl SandboxExecutor {
             program: "/bin/sh".to_string(),
             args: vec!["-c".to_string(), command.to_string()],
             ..Default::default()
-        }).await
+        })
+        .await
     }
 }
 
@@ -323,12 +333,15 @@ mod tests {
     #[tokio::test]
     async fn test_timeout() {
         let sandbox = SandboxExecutor::new();
-        let result = sandbox.execute(ExecuteRequest {
-            program: "sleep".to_string(),
-            args: vec!["10".to_string()],
-            timeout_secs: 1,
-            ..Default::default()
-        }).await.unwrap();
+        let result = sandbox
+            .execute(ExecuteRequest {
+                program: "sleep".to_string(),
+                args: vec!["10".to_string()],
+                timeout_secs: 1,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
         assert!(result.timed_out);
     }
 }

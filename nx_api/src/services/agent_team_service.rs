@@ -2,25 +2,25 @@
 //!
 //! Multi-agent orchestration for team collaboration.
 
+use parking_lot::RwLock as ParkingRwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use thiserror::Error;
 use tokio::sync::broadcast;
-use parking_lot::RwLock as ParkingRwLock;
 
 use nexus_ai::AIModelManager;
-use nx_memory::types::{MessageRole, Transcript, MemoryChunk};
+use nx_memory::types::{MemoryChunk, MessageRole, Transcript};
 
 use crate::models::team::{
     ExecuteRoleTaskRequest, ExecuteRoleTaskResponse, ExecuteTeamTaskRequest,
     ExecuteTeamTaskResponse, RoleSkill, SkillPriority, TeamMessage, TeamRole,
 };
 use crate::routes::memory::MemoryState;
-use crate::services::skill_service::SkillService;
-use crate::services::telegram_service::{InboundTelegramMessage, TelegramService};
-use crate::services::team_service::TeamService;
 use crate::services::ai_provider_service::ProviderService;
+use crate::services::skill_service::SkillService;
+use crate::services::team_service::TeamService;
+use crate::services::telegram_service::{InboundTelegramMessage, TelegramService};
 
 /// Strip ANSI escape codes from a string (for clean card display).
 pub fn strip_ansi(s: &str) -> String {
@@ -32,16 +32,22 @@ pub fn strip_ansi(s: &str) -> String {
                 Some(&'[') => {
                     iter.next();
                     for ch in iter.by_ref() {
-                        if ch.is_ascii_alphabetic() { break; }
+                        if ch.is_ascii_alphabetic() {
+                            break;
+                        }
                     }
                 }
                 Some(&']') => {
                     iter.next();
                     for ch in iter.by_ref() {
-                        if ch == '\x07' || ch == '\x1b' { break; }
+                        if ch == '\x07' || ch == '\x1b' {
+                            break;
+                        }
                     }
                 }
-                _ => { iter.next(); }
+                _ => {
+                    iter.next();
+                }
             }
         } else if c != '\r' {
             out.push(c);
@@ -57,7 +63,10 @@ pub fn strip_ansi(s: &str) -> String {
 async fn run_claude_interactive(
     args: &[&str],
     working_dir: Option<&str>,
-    stream_tx: &Option<(broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>, String)>,
+    stream_tx: &Option<(
+        broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>,
+        String,
+    )>,
     confirm_rx: Option<tokio::sync::oneshot::Receiver<String>>,
     auto_confirm: bool,
     timeout_secs: u64,
@@ -74,7 +83,9 @@ async fn run_claude_interactive(
         cmd.current_dir(dir);
     }
 
-    let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn Claude CLI: {}", e))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to spawn Claude CLI: {}", e))?;
     let pid = child.id();
 
     let stdout = child.stdout.take().unwrap();
@@ -125,7 +136,10 @@ async fn run_claude_interactive(
         "[yes/no]",
     ];
 
-    let exec_id = stream_tx.as_ref().map(|(_, id)| id.clone()).unwrap_or_default();
+    let exec_id = stream_tx
+        .as_ref()
+        .map(|(_, id)| id.clone())
+        .unwrap_or_default();
 
     let timed_out = tokio::time::timeout(Duration::from_secs(timeout_secs), async {
         while let Ok(Some(line)) = stdout_lines.next_line().await {
@@ -159,12 +173,14 @@ async fn run_claude_interactive(
                 // Send confirmation required event
                 if let Some((ref tx, ref id)) = stdout_sender {
                     let question = strip_ansi(&line).trim().to_string();
-                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::ConfirmationRequired {
-                        execution_id: id.clone(),
-                        question: question.clone(),
-                        options: vec!["y".to_string(), "n".to_string()],
-                        needs_input: false,
-                    });
+                    let _ = tx.send(
+                        crate::ws::agent_execution::AgentExecutionEvent::ConfirmationRequired {
+                            execution_id: id.clone(),
+                            question: question.clone(),
+                            options: vec!["y".to_string(), "n".to_string()],
+                            needs_input: false,
+                        },
+                    );
                 }
 
                 // Wait for user confirmation response (only once)
@@ -195,7 +211,9 @@ async fn run_claude_interactive(
             full_output.push_str(&line);
             full_output.push('\n');
         }
-    }).await.is_err();
+    })
+    .await
+    .is_err();
 
     // Kill BEFORE wait
     if timed_out {
@@ -208,7 +226,10 @@ async fn run_claude_interactive(
     // Process exited (stdout EOF) — give stderr task up to 2s to flush remaining lines
     let _ = tokio::time::timeout(Duration::from_secs(2), stderr_handle).await;
 
-    let status = child.wait().await.map_err(|e| format!("wait failed: {}", e))?;
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("wait failed: {}", e))?;
     Ok((pid, status.success(), full_output.trim().to_string()))
 }
 
@@ -341,7 +362,14 @@ impl AgentTeamService {
     // ==================== Process Tracking ====================
 
     /// Register a new running process
-    pub fn register_process(&self, execution_id: &str, role_id: &str, role_name: &str, team_id: &str, task: &str) {
+    pub fn register_process(
+        &self,
+        execution_id: &str,
+        role_id: &str,
+        role_name: &str,
+        team_id: &str,
+        task: &str,
+    ) {
         let process = RunningProcess {
             pid: None,
             role_id: role_id.to_string(),
@@ -352,7 +380,9 @@ impl AgentTeamService {
             status: ProcessStatus::Running,
             output: String::new(),
         };
-        self.processes.write().insert(execution_id.to_string(), process);
+        self.processes
+            .write()
+            .insert(execution_id.to_string(), process);
     }
 
     /// Update process PID
@@ -507,7 +537,10 @@ impl AgentTeamService {
     pub async fn execute_team_task(
         &self,
         request: ExecuteTeamTaskRequest,
-        stream_tx: Option<(broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>, String)>,
+        stream_tx: Option<(
+            broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>,
+            String,
+        )>,
         confirm_rx: Option<tokio::sync::oneshot::Receiver<String>>,
         auto_confirm: bool,
     ) -> Result<ExecuteTeamTaskResponse, AgentTeamServiceError> {
@@ -538,7 +571,11 @@ impl AgentTeamService {
         let _ = self.team_service.add_message(user_msg.clone());
 
         // 提取记忆上下文
-        let memory_context = request.context.get("memory_context").cloned().unwrap_or_default();
+        let memory_context = request
+            .context
+            .get("memory_context")
+            .cloned()
+            .unwrap_or_default();
 
         // Build team context for Claude
         let team_context = Self::build_team_context(&team, &team_with_roles.roles);
@@ -601,9 +638,14 @@ IMPORTANT: When asked to generate documents, reports, or design files, write the
         let proc_exec_id = format!("team-{}", uuid::Uuid::new_v4());
         self.register_process(&proc_exec_id, &team.id, &team.name, &team.id, &request.task);
 
-// Single Claude CLI call — 600s timeout for long-running tasks
+        // Single Claude CLI call — 600s timeout for long-running tasks
         let args = if auto_confirm {
-            vec!["-p", "--dangerously-skip-permissions", "--no-session-persistence", &full_prompt]
+            vec![
+                "-p",
+                "--dangerously-skip-permissions",
+                "--no-session-persistence",
+                &full_prompt,
+            ]
         } else {
             vec!["-p", "--no-session-persistence", &full_prompt]
         };
@@ -614,7 +656,8 @@ IMPORTANT: When asked to generate documents, reports, or design files, write the
             confirm_rx,
             auto_confirm,
             1800, // 30 min — complex coding tasks can take 25+ min
-        ).await;
+        )
+        .await;
         let (pid, success, response) = match pty_result {
             Err(e) => {
                 self.set_process_status(&proc_exec_id, ProcessStatus::Failed);
@@ -629,13 +672,20 @@ IMPORTANT: When asked to generate documents, reports, or design files, write the
 
         if !success {
             self.set_process_status(&proc_exec_id, ProcessStatus::Failed);
-            return Err(AgentTeamServiceError::AiError("Claude CLI exited with error".to_string()));
+            return Err(AgentTeamServiceError::AiError(
+                "Claude CLI exited with error".to_string(),
+            ));
         }
         self.complete_process(&proc_exec_id, &response);
 
         // Save assistant message (use first role as responder if skill was used)
-        let responder_id = team_with_roles.roles.first().map(|r| r.role.id.clone()).unwrap_or_default();
-        let assistant_msg = TeamMessage::assistant_message(team.id.clone(), responder_id, response.clone());
+        let responder_id = team_with_roles
+            .roles
+            .first()
+            .map(|r| r.role.id.clone())
+            .unwrap_or_default();
+        let assistant_msg =
+            TeamMessage::assistant_message(team.id.clone(), responder_id, response.clone());
         let _ = self.team_service.add_message(assistant_msg);
 
         // Return the actual response
@@ -744,7 +794,6 @@ IMPORTANT: When asked to generate documents, reports, or design files, write the
 }
 
 impl AgentTeamService {
-
     /// Build skill contexts for a role (static version for background tasks)
     async fn build_skill_contexts_for_role_static(skills: &[RoleSkill]) -> Vec<String> {
         let mut contexts = Vec::new();
@@ -762,9 +811,15 @@ impl AgentTeamService {
     pub async fn execute_role_task(
         &self,
         request: ExecuteRoleTaskRequest,
-        stream_tx: Option<(broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>, String)>,
+        stream_tx: Option<(
+            broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>,
+            String,
+        )>,
     ) -> Result<ExecuteRoleTaskResponse, AgentTeamServiceError> {
-        tracing::info!("[AgentTeamService] execute_role_task called, role_id: {}", request.role_id);
+        tracing::info!(
+            "[AgentTeamService] execute_role_task called, role_id: {}",
+            request.role_id
+        );
 
         // Load role with skills
         let role_with_skills = self
@@ -775,7 +830,13 @@ impl AgentTeamService {
         // Register process for monitoring
         let execution_id = role_with_skills.role.id.clone();
         let team_id = role_with_skills.role.team_id.clone().unwrap_or_default();
-        self.register_process(&execution_id, &request.role_id, &role_with_skills.role.name, &team_id, &request.task);
+        self.register_process(
+            &execution_id,
+            &request.role_id,
+            &role_with_skills.role.name,
+            &team_id,
+            &request.task,
+        );
         tracing::info!("[AgentTeamService-3] Got role_with_skills");
 
         let role = role_with_skills.role.clone();
@@ -800,14 +861,25 @@ impl AgentTeamService {
         let auto_yes_prefix = "You are operating in auto-yes mode. If you ask any question requiring confirmation (yes/no, continue?, proceed?, etc.), always assume the answer is YES and proceed automatically. Never ask for confirmation.";
 
         // 构建最终 prompt（包含记忆上下文）
-        let memory_context = request.context.get("memory_context").cloned().unwrap_or_default();
-        tracing::info!("[AgentTeam] role_id: {}, task: {}, memory_context length: {}",
-            request.role_id, request.task, memory_context.len());
+        let memory_context = request
+            .context
+            .get("memory_context")
+            .cloned()
+            .unwrap_or_default();
+        tracing::info!(
+            "[AgentTeam] role_id: {}, task: {}, memory_context length: {}",
+            request.role_id,
+            request.task,
+            memory_context.len()
+        );
         tracing::debug!("[AgentTeam] memory_context: {}", memory_context);
 
         // 获取当前工作区路径
         let working_dir = self.current_workspace_path.read().clone();
-        tracing::info!("[AgentTeamService] Working dir: {:?}, spawning Claude CLI...", working_dir);
+        tracing::info!(
+            "[AgentTeamService] Working dir: {:?}, spawning Claude CLI...",
+            working_dir
+        );
 
         // Build the full prompt
         let workspace_note = if let Some(ref dir) = working_dir {
@@ -828,16 +900,26 @@ impl AgentTeamService {
             )
         };
 
-        tracing::info!("[AgentTeam] Full prompt length: {}, memory_context included: {}", full_prompt.len(), !memory_context.is_empty());
+        tracing::info!(
+            "[AgentTeam] Full prompt length: {}, memory_context included: {}",
+            full_prompt.len(),
+            !memory_context.is_empty()
+        );
 
         let pty_result = run_claude_interactive(
-            &["-p", "--dangerously-skip-permissions", "--no-session-persistence", &full_prompt],
+            &[
+                "-p",
+                "--dangerously-skip-permissions",
+                "--no-session-persistence",
+                &full_prompt,
+            ],
             working_dir.as_deref(),
             &stream_tx,
-            None, // execute_role_task doesn't support confirmations yet
+            None,  // execute_role_task doesn't support confirmations yet
             false, // auto_confirm
-            1800, // 30 min — complex coding tasks can take 25+ min
-        ).await;
+            1800,  // 30 min — complex coding tasks can take 25+ min
+        )
+        .await;
 
         let (pid, success, response) = match pty_result {
             Err(e) => {
@@ -854,18 +936,17 @@ impl AgentTeamService {
 
         if !success {
             self.set_process_status(&execution_id, ProcessStatus::Failed);
-            return Err(AgentTeamServiceError::AiError("Claude CLI exited with error".to_string()));
+            return Err(AgentTeamServiceError::AiError(
+                "Claude CLI exited with error".to_string(),
+            ));
         }
 
         tracing::info!("[AgentTeam] Claude CLI success");
         self.complete_process(&execution_id, &response);
 
         // Save assistant message
-        let assistant_msg = TeamMessage::assistant_message(
-            team_id.clone(),
-            role.id.clone(),
-            response.clone(),
-        );
+        let assistant_msg =
+            TeamMessage::assistant_message(team_id.clone(), role.id.clone(), response.clone());
         let _ = self.team_service.add_message(assistant_msg);
 
         // Return the actual response
@@ -888,7 +969,11 @@ impl AgentTeamService {
         let mut contexts = Vec::new();
         for skill in skills {
             let priority_str = skill.priority.as_str();
-            let context = format!("[{}] skill: {}", priority_str.to_uppercase(), skill.skill_id);
+            let context = format!(
+                "[{}] skill: {}",
+                priority_str.to_uppercase(),
+                skill.skill_id
+            );
             contexts.push(context);
         }
         contexts
@@ -920,14 +1005,10 @@ impl AgentTeamService {
         let role = &role_with_skills.role;
 
         // Build skill context
-        let skill_contexts = self
-            .build_skill_contexts(&role_with_skills.skills)
-            .await;
+        let skill_contexts = self.build_skill_contexts(&role_with_skills.skills).await;
 
         // Build system prompt
-        let system_prompt = self
-            .build_system_prompt(role, &skill_contexts)
-            .await;
+        let system_prompt = self.build_system_prompt(role, &skill_contexts).await;
 
         // Execute AI
         let response = self
@@ -936,10 +1017,8 @@ impl AgentTeamService {
             .map_err(|e| AgentTeamServiceError::AiError(e.to_string()))?;
 
         // Save conversation
-        let user_msg = TeamMessage::user_message(
-            role.team_id.clone().unwrap_or_default(),
-            message.text
-        );
+        let user_msg =
+            TeamMessage::user_message(role.team_id.clone().unwrap_or_default(), message.text);
         let _ = self.team_service.add_message(user_msg);
 
         let assistant_msg = TeamMessage::assistant_message(
@@ -952,12 +1031,7 @@ impl AgentTeamService {
         // Send response via Telegram (reply to the original message in groups)
         if let Some(chat_id) = &config.chat_id {
             self.telegram_service
-                .send_message_with_reply(
-                    &config.bot_token,
-                    chat_id,
-                    &response,
-                    message.message_id,
-                )
+                .send_message_with_reply(&config.bot_token, chat_id, &response, message.message_id)
                 .await
                 .map_err(|e| AgentTeamServiceError::Telegram(e.to_string()))?;
         } else {
@@ -1014,11 +1088,7 @@ impl AgentTeamService {
     }
 
     /// Build system prompt including skill context
-    async fn build_system_prompt(
-        &self,
-        role: &TeamRole,
-        skill_contexts: &[String],
-    ) -> String {
+    async fn build_system_prompt(&self, role: &TeamRole, skill_contexts: &[String]) -> String {
         let mut prompt = role.system_prompt.clone();
 
         if !skill_contexts.is_empty() {
@@ -1060,11 +1130,14 @@ impl AgentTeamService {
         cmd.kill_on_drop(true);
         if let Some(ref dir) = working_dir {
             cmd.current_dir(dir);
-            tracing::info!("[AgentTeam] execute_role_ai 执行 Claude CLI，当前目录: {}", dir);
+            tracing::info!(
+                "[AgentTeam] execute_role_ai 执行 Claude CLI，当前目录: {}",
+                dir
+            );
         }
-        let output = cmd.output()
-            .await
-            .map_err(|e| AgentTeamServiceError::AiError(format!("Failed to execute Claude CLI: {}", e)))?;
+        let output = cmd.output().await.map_err(|e| {
+            AgentTeamServiceError::AiError(format!("Failed to execute Claude CLI: {}", e))
+        })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1094,7 +1167,10 @@ impl AgentTeamService {
 
         // Collect enabled telegram configs
         for role_with_skills in roles {
-            if let Ok(config) = self.team_service.get_telegram_config(&role_with_skills.role.id) {
+            if let Ok(config) = self
+                .team_service
+                .get_telegram_config(&role_with_skills.role.id)
+            {
                 if config.enabled && config.notifications_enabled {
                     if let Some(chat_id) = &config.chat_id {
                         let _ = self

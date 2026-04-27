@@ -8,9 +8,8 @@ use serde::Serialize;
 use std::time::Instant;
 
 use super::{
-    AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CLI, CLIContext,
-    CLIResponse, CompletionRequest, CompletionResponse, EmbedRequest, EmbedResponse,
-    TokenUsage,
+    AIError, AIProvider, CLIContext, CLIResponse, ChatMessage, ChatRequest, ChatResponse,
+    CompletionRequest, CompletionResponse, EmbedRequest, EmbedResponse, TokenUsage, CLI,
 };
 
 /// Qwen API 基础 URL (OpenAI 兼容模式)
@@ -51,8 +50,13 @@ impl QwenProvider {
     }
 
     /// 发送 HTTP 请求到 Qwen API
-    async fn request(&self, path: &str, body: serde_json::Value) -> Result<serde_json::Value, AIError> {
-        let response = self.client
+    async fn request(
+        &self,
+        path: &str,
+        body: serde_json::Value,
+    ) -> Result<serde_json::Value, AIError> {
+        let response = self
+            .client
             .post(format!("{}{}", self.base_url, path))
             .header("authorization", format!("Bearer {}", self.api_key))
             .header("content-type", "application/json")
@@ -71,7 +75,10 @@ impl QwenProvider {
             });
         }
 
-        response.json().await.map_err(|e| AIError::Parse(e.to_string()))
+        response
+            .json()
+            .await
+            .map_err(|e| AIError::Parse(e.to_string()))
     }
 }
 
@@ -82,12 +89,7 @@ impl AIProvider for QwenProvider {
     }
 
     fn supported_models(&self) -> Vec<&str> {
-        vec![
-            "qwen-turbo",
-            "qwen-plus",
-            "qwen-max",
-            "qwen-math-plus",
-        ]
+        vec!["qwen-turbo", "qwen-plus", "qwen-max", "qwen-math-plus"]
     }
 
     fn default_model(&self) -> &str {
@@ -129,7 +131,9 @@ impl AIProvider for QwenProvider {
             temperature: request.temperature,
         };
 
-        let response = self.request("/chat/completions", serde_json::to_value(body).unwrap()).await?;
+        let response = self
+            .request("/chat/completions", serde_json::to_value(body).unwrap())
+            .await?;
 
         #[derive(serde::Deserialize)]
         struct QwenResponse {
@@ -156,10 +160,12 @@ impl AIProvider for QwenProvider {
             completion_tokens: usize,
         }
 
-        let resp: QwenResponse = serde_json::from_value(response)
-            .map_err(|e| AIError::Parse(e.to_string()))?;
+        let resp: QwenResponse =
+            serde_json::from_value(response).map_err(|e| AIError::Parse(e.to_string()))?;
 
-        let choice = resp.choices.first()
+        let choice = resp
+            .choices
+            .first()
             .ok_or_else(|| AIError::Provider("响应中没有选项".to_string()))?;
 
         Ok(ChatResponse {
@@ -172,7 +178,10 @@ impl AIProvider for QwenProvider {
                 input_tokens: resp.usage.prompt_tokens,
                 output_tokens: resp.usage.completion_tokens,
             },
-            stop_reason: choice.finish_reason.clone().unwrap_or_else(|| "stop".to_string()),
+            stop_reason: choice
+                .finish_reason
+                .clone()
+                .unwrap_or_else(|| "stop".to_string()),
         })
     }
 
@@ -188,7 +197,9 @@ impl AIProvider for QwenProvider {
             input: request.texts,
         };
 
-        let response = self.request("/embeddings", serde_json::to_value(body).unwrap()).await?;
+        let response = self
+            .request("/embeddings", serde_json::to_value(body).unwrap())
+            .await?;
 
         #[derive(serde::Deserialize)]
         struct QwenResponse {
@@ -208,8 +219,8 @@ impl AIProvider for QwenProvider {
             total_tokens: usize,
         }
 
-        let resp: QwenResponse = serde_json::from_value(response)
-            .map_err(|e| AIError::Parse(e.to_string()))?;
+        let resp: QwenResponse =
+            serde_json::from_value(response).map_err(|e| AIError::Parse(e.to_string()))?;
 
         Ok(EmbedResponse {
             embeddings: resp.data.into_iter().map(|d| d.embedding).collect(),

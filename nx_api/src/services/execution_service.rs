@@ -1,15 +1,18 @@
 //! 执行服务
 
+use chrono::{DateTime, Utc};
+use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use tokio::sync::broadcast;
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use parking_lot::Mutex;
+use tokio::sync::RwLock;
 
-use nexus_workflow::{WorkflowDefinition, WorkflowEngine, InMemoryEventEmitter};
-use nexus_ai::{AIProviderRegistry, AIModelManager, AIManagerConfig as NexusAIManagerConfig, ProviderType, APIConfig as NexusAPIConfig, ModelConfig};
+use nexus_ai::{
+    AIManagerConfig as NexusAIManagerConfig, AIModelManager, AIProviderRegistry,
+    APIConfig as NexusAPIConfig, ModelConfig, ProviderType,
+};
+use nexus_workflow::{InMemoryEventEmitter, WorkflowDefinition, WorkflowEngine};
 
 pub use crate::services::events::{ExecutionEvent, ExecutionStatus};
 
@@ -20,36 +23,45 @@ fn load_ai_config_from_env() -> NexusAIManagerConfig {
     // 加载 Anthropic API 配置
     if let Ok(api_key) = std::env::var("ANTHROPIC_API_KEY") {
         if !api_key.is_empty() {
-            api_config.insert(ProviderType::Anthropic, NexusAPIConfig {
-                api_key,
-                base_url: String::new(),
-                organization_id: String::new(),
-                timeout_secs: 120,
-            });
+            api_config.insert(
+                ProviderType::Anthropic,
+                NexusAPIConfig {
+                    api_key,
+                    base_url: String::new(),
+                    organization_id: String::new(),
+                    timeout_secs: 120,
+                },
+            );
         }
     }
 
     // 加载 OpenAI API 配置
     if let Ok(api_key) = std::env::var("OPENAI_API_KEY") {
         if !api_key.is_empty() {
-            api_config.insert(ProviderType::OpenAI, NexusAPIConfig {
-                api_key,
-                base_url: String::new(),
-                organization_id: String::new(),
-                timeout_secs: 120,
-            });
+            api_config.insert(
+                ProviderType::OpenAI,
+                NexusAPIConfig {
+                    api_key,
+                    base_url: String::new(),
+                    organization_id: String::new(),
+                    timeout_secs: 120,
+                },
+            );
         }
     }
 
     // 加载 Google API 配置
     if let Ok(api_key) = std::env::var("GOOGLE_API_KEY") {
         if !api_key.is_empty() {
-            api_config.insert(ProviderType::Google, NexusAPIConfig {
-                api_key,
-                base_url: String::new(),
-                organization_id: String::new(),
-                timeout_secs: 120,
-            });
+            api_config.insert(
+                ProviderType::Google,
+                NexusAPIConfig {
+                    api_key,
+                    base_url: String::new(),
+                    organization_id: String::new(),
+                    timeout_secs: 120,
+                },
+            );
         }
     }
 
@@ -128,7 +140,10 @@ impl ExecutionService {
                     }
                 }
             }
-            ExecutionEvent::StageStarted { execution_id, stage_name } => {
+            ExecutionEvent::StageStarted {
+                execution_id,
+                stage_name,
+            } => {
                 let mut executions = self.executions.lock();
                 if let Some(ex) = executions.get_mut(execution_id.as_str()) {
                     ex.current_stage = Some(stage_name.clone());
@@ -146,7 +161,12 @@ impl ExecutionService {
                     ex.current_stage = None;
                 }
             }
-            ExecutionEvent::WorkflowPaused { execution_id, stage_name, question, options } => {
+            ExecutionEvent::WorkflowPaused {
+                execution_id,
+                stage_name,
+                question,
+                options,
+            } => {
                 let mut executions = self.executions.lock();
                 if let Some(ex) = executions.get_mut(execution_id.as_str()) {
                     ex.pending_pause = Some(PendingPause {
@@ -389,7 +409,8 @@ impl ExecutionService {
         let (resume_tx, resume_rx) = tokio::sync::mpsc::channel::<String>(1);
 
         // 6. 创建工作流引擎（使用 Claude CLI，附带 resume channel）
-        let engine = WorkflowEngine::with_resume_channel(event_emitter, working_directory, resume_rx);
+        let engine =
+            WorkflowEngine::with_resume_channel(event_emitter, working_directory, resume_rx);
 
         // 7. 注册 resume channel
         {
@@ -406,7 +427,8 @@ impl ExecutionService {
                 Ok(result) => {
                     tracing::info!(
                         "工作流执行完成: execution_id={}, status={:?}",
-                        result.execution_id, result.status
+                        result.execution_id,
+                        result.status
                     );
                     exec_service.resume_channels.lock().remove(&exec_id);
                     exec_service.update_status(&exec_id, ExecutionStatus::Completed);
@@ -540,7 +562,10 @@ mod tests {
 
     #[test]
     fn test_execution_new() {
-        let execution = Execution::new("workflow-1".to_string(), serde_json::json!({"key": "value"}));
+        let execution = Execution::new(
+            "workflow-1".to_string(),
+            serde_json::json!({"key": "value"}),
+        );
         assert_eq!(execution.workflow_id, "workflow-1");
         assert_eq!(execution.status, ExecutionStatus::Pending);
         assert_eq!(execution.variables, serde_json::json!({"key": "value"}));
@@ -603,7 +628,8 @@ mod tests {
     #[test]
     fn test_start_execution() {
         let service = ExecutionService::new();
-        let execution = service.start_execution("workflow-1".to_string(), serde_json::json!({"var": 123}));
+        let execution =
+            service.start_execution("workflow-1".to_string(), serde_json::json!({"var": 123}));
 
         assert_eq!(execution.workflow_id, "workflow-1");
         assert_eq!(execution.status, ExecutionStatus::Running);

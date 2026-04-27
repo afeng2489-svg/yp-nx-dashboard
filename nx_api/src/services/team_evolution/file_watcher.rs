@@ -3,11 +3,11 @@
 //! 使用 notify crate 监控工作区文件变更，黑白名单过滤，
 //! debounce 后广播变更事件，快照服务订阅更新 files_touched。
 
-use std::sync::Arc;
-use std::path::PathBuf;
-use std::time::Duration;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
 
 use super::error::TeamEvolutionError;
 use super::feature_flag_service::FeatureFlagService;
@@ -92,7 +92,9 @@ impl FileWatcher {
 
     /// 检查是否启用
     pub fn is_enabled(&self) -> bool {
-        self.feature_flags.is_enabled(keys::FILE_WATCH).unwrap_or(false)
+        self.feature_flags
+            .is_enabled(keys::FILE_WATCH)
+            .unwrap_or(false)
     }
 
     /// 检查文件路径是否应该被监控（白名单+黑名单过滤）
@@ -157,7 +159,9 @@ impl FileWatcher {
                             }
 
                             // Skip non-whitelisted paths (if whitelist is non-empty)
-                            if !config.whitelist.is_empty() && !glob_match_any(&config.whitelist, &path_str) {
+                            if !config.whitelist.is_empty()
+                                && !glob_match_any(&config.whitelist, &path_str)
+                            {
                                 continue;
                             }
 
@@ -206,8 +210,12 @@ impl FileWatcher {
                     )));
                 }
 
-                self.watchers.write().insert(project_id.to_string(), watcher);
-                tracing::info!("[FileWatcher] Started watching {workspace_path} for project {project_id}");
+                self.watchers
+                    .write()
+                    .insert(project_id.to_string(), watcher);
+                tracing::info!(
+                    "[FileWatcher] Started watching {workspace_path} for project {project_id}"
+                );
                 Ok(())
             }
             Err(e) => {
@@ -241,7 +249,8 @@ impl FileWatcher {
 
     /// 获取项目的最近变更
     pub fn get_recent_changes(&self, project_id: &str) -> Vec<FileChangeEvent> {
-        self.recent_changes.read()
+        self.recent_changes
+            .read()
             .get(project_id)
             .cloned()
             .unwrap_or_default()

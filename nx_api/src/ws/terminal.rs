@@ -2,7 +2,7 @@
 //!
 //! 桥接前端 xterm 和后端 PTY
 
-use axum::extract::ws::{WebSocket, Message as WsMessage};
+use axum::extract::ws::{Message as WsMessage, WebSocket};
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use nx_session::pty::PtyManager;
 use tokio::sync::{mpsc, oneshot};
@@ -60,21 +60,19 @@ impl TerminalWsHandler {
                             tracing::error!("调整 PTY 大小失败: {}", e);
                         }
                     }
-                    Some(PtyCommand::Read { tx }) => {
-                        match pty_manager.read(&pty_session_id, 50) {
-                            Ok(outputs) => {
-                                for output in outputs {
-                                    let data = String::from_utf8_lossy(&output.data).to_string();
-                                    if tx.blocking_send(data).is_err() {
-                                        break;
-                                    }
+                    Some(PtyCommand::Read { tx }) => match pty_manager.read(&pty_session_id, 50) {
+                        Ok(outputs) => {
+                            for output in outputs {
+                                let data = String::from_utf8_lossy(&output.data).to_string();
+                                if tx.blocking_send(data).is_err() {
+                                    break;
                                 }
                             }
-                            Err(e) => {
-                                tracing::error!("读取 PTY 输出失败: {}", e);
-                            }
                         }
-                    }
+                        Err(e) => {
+                            tracing::error!("读取 PTY 输出失败: {}", e);
+                        }
+                    },
                     Some(PtyCommand::Terminate) => {
                         let _ = pty_manager.terminate(&pty_session_id);
                         break;
@@ -91,7 +89,11 @@ impl TerminalWsHandler {
 
         // 发送欢迎消息
         let welcome = "\x1b[36m[NexusFlow]\x1b[0m 终端已连接\r\n\r\n";
-        if sender.send(WsMessage::Text(welcome.to_string())).await.is_err() {
+        if sender
+            .send(WsMessage::Text(welcome.to_string()))
+            .await
+            .is_err()
+        {
             let _ = cmd_tx.send(PtyCommand::Terminate).await;
             return;
         }

@@ -88,10 +88,18 @@ pub struct SandboxConfig {
     pub timeout: u64,
 }
 
-fn default_true() -> bool { true }
-fn default_memory_limit() -> u64 { 256 * 1024 * 1024 }
-fn default_cpu_limit() -> u64 { 10 }
-fn default_timeout() -> u64 { 30 }
+fn default_true() -> bool {
+    true
+}
+fn default_memory_limit() -> u64 {
+    256 * 1024 * 1024
+}
+fn default_cpu_limit() -> u64 {
+    10
+}
+fn default_timeout() -> u64 {
+    30
+}
 
 impl Default for SandboxConfig {
     fn default() -> Self {
@@ -142,7 +150,7 @@ fn expand_env_vars(mut config: Config) -> Config {
     for (_, provider) in &mut config.providers {
         if let Some(ref api_key) = provider.api_key {
             if api_key.starts_with("${") && api_key.ends_with("}") {
-                let var_name = &api_key[2..api_key.len()-1];
+                let var_name = &api_key[2..api_key.len() - 1];
                 if let Ok(value) = std::env::var(var_name) {
                     provider.api_key = Some(value);
                 }
@@ -150,7 +158,7 @@ fn expand_env_vars(mut config: Config) -> Config {
         }
         if let Some(ref base_url) = provider.base_url {
             if base_url.starts_with("${") && base_url.ends_with("}") {
-                let var_name = &base_url[2..base_url.len()-1];
+                let var_name = &base_url[2..base_url.len() - 1];
                 if let Ok(value) = std::env::var(var_name) {
                     provider.base_url = Some(value);
                 }

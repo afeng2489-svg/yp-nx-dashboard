@@ -42,10 +42,7 @@ pub trait WisdomStore: Send + Sync {
     fn count(&self, request: &QueryWisdomRequest) -> Result<usize, StorageError>;
 
     /// Get entries by category
-    fn find_by_category(
-        &self,
-        category: WisdomCategory,
-    ) -> Result<Vec<WisdomEntry>, StorageError>;
+    fn find_by_category(&self, category: WisdomCategory) -> Result<Vec<WisdomEntry>, StorageError>;
 
     /// Get category counts
     fn category_counts(&self) -> Result<Vec<CategorySummary>, StorageError>;
@@ -244,7 +241,8 @@ impl WisdomStore for SqliteWisdomStore {
         sql.push_str(" ORDER BY created_at DESC");
         sql.push_str(&format!(" LIMIT {} OFFSET {}", limit, offset));
 
-        let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+        let params_refs: Vec<&dyn rusqlite::ToSql> =
+            params_vec.iter().map(|p| p.as_ref()).collect();
 
         let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map(params_refs.as_slice(), |row| {
@@ -281,7 +279,9 @@ impl WisdomStore for SqliteWisdomStore {
             entries.retain(|e| {
                 e.title.to_lowercase().contains(&query_lower)
                     || e.content.to_lowercase().contains(&query_lower)
-                    || e.tags.iter().any(|t| t.to_lowercase().contains(&query_lower))
+                    || e.tags
+                        .iter()
+                        .any(|t| t.to_lowercase().contains(&query_lower))
             });
         }
 
@@ -293,10 +293,7 @@ impl WisdomStore for SqliteWisdomStore {
         Ok(entries.len())
     }
 
-    fn find_by_category(
-        &self,
-        category: WisdomCategory,
-    ) -> Result<Vec<WisdomEntry>, StorageError> {
+    fn find_by_category(&self, category: WisdomCategory) -> Result<Vec<WisdomEntry>, StorageError> {
         let request = QueryWisdomRequest {
             category: Some(category),
             ..Default::default()

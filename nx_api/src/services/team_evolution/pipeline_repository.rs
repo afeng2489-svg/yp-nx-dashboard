@@ -2,15 +2,15 @@
 //!
 //! 新表 `pipelines` + `pipeline_steps`，独立于核心表。
 
-use std::sync::Arc;
+use chrono::Utc;
 use parking_lot::Mutex;
 use rusqlite::Connection;
-use chrono::Utc;
+use std::sync::Arc;
 
-use crate::models::pipeline::{
-    Pipeline, PipelinePhase, PipelineStatus, PipelineStep, StepStatus, PhaseGatePolicy,
-};
 use super::error::TeamEvolutionError;
+use crate::models::pipeline::{
+    PhaseGatePolicy, Pipeline, PipelinePhase, PipelineStatus, PipelineStep, StepStatus,
+};
 
 pub struct SqlitePipelineRepository {
     conn: Arc<Mutex<Connection>>,
@@ -55,7 +55,7 @@ impl SqlitePipelineRepository {
                 completed_at TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_steps_pipeline ON pipeline_steps(pipeline_id);
-            CREATE INDEX IF NOT EXISTS idx_steps_status ON pipeline_steps(pipeline_id, status);"
+            CREATE INDEX IF NOT EXISTS idx_steps_status ON pipeline_steps(pipeline_id, status);",
         )?;
         Ok(())
     }
@@ -91,9 +91,7 @@ impl SqlitePipelineRepository {
              FROM pipelines WHERE id = ?1"
         )?;
 
-        let result = stmt.query_row(rusqlite::params![id], |row| {
-            Self::row_to_pipeline(row)
-        });
+        let result = stmt.query_row(rusqlite::params![id], |row| Self::row_to_pipeline(row));
 
         match result {
             Ok(pipeline) => Ok(Some(pipeline)),
@@ -102,7 +100,10 @@ impl SqlitePipelineRepository {
         }
     }
 
-    pub fn find_pipeline_by_project(&self, project_id: &str) -> Result<Option<Pipeline>, TeamEvolutionError> {
+    pub fn find_pipeline_by_project(
+        &self,
+        project_id: &str,
+    ) -> Result<Option<Pipeline>, TeamEvolutionError> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, project_id, team_id, current_phase, status, phase_gate_policy, created_at, updated_at
@@ -128,14 +129,18 @@ impl SqlitePipelineRepository {
              FROM pipelines WHERE status = 'running'"
         )?;
 
-        let pipelines = stmt.query_map([], |row| {
-            Self::row_to_pipeline(row)
-        })?.collect::<Result<Vec<_>, _>>()?;
+        let pipelines = stmt
+            .query_map([], |row| Self::row_to_pipeline(row))?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(pipelines)
     }
 
-    pub fn update_pipeline_status(&self, id: &str, status: &PipelineStatus) -> Result<(), TeamEvolutionError> {
+    pub fn update_pipeline_status(
+        &self,
+        id: &str,
+        status: &PipelineStatus,
+    ) -> Result<(), TeamEvolutionError> {
         let conn = self.conn.lock();
         let now = Utc::now().to_rfc3339();
         conn.execute(
@@ -145,7 +150,11 @@ impl SqlitePipelineRepository {
         Ok(())
     }
 
-    pub fn update_pipeline_phase(&self, id: &str, phase: &PipelinePhase) -> Result<(), TeamEvolutionError> {
+    pub fn update_pipeline_phase(
+        &self,
+        id: &str,
+        phase: &PipelinePhase,
+    ) -> Result<(), TeamEvolutionError> {
         let conn = self.conn.lock();
         let now = Utc::now().to_rfc3339();
         conn.execute(
@@ -187,7 +196,8 @@ impl SqlitePipelineRepository {
 
     pub fn create_steps_batch(&self, steps: &[PipelineStep]) -> Result<(), TeamEvolutionError> {
         let conn = self.conn.lock();
-        let tx = conn.unchecked_transaction()
+        let tx = conn
+            .unchecked_transaction()
             .map_err(|e| TeamEvolutionError::Database(e.to_string()))?;
 
         for step in steps {
@@ -216,34 +226,43 @@ impl SqlitePipelineRepository {
             )?;
         }
 
-        tx.commit().map_err(|e| TeamEvolutionError::Database(e.to_string()))?;
+        tx.commit()
+            .map_err(|e| TeamEvolutionError::Database(e.to_string()))?;
         Ok(())
     }
 
-    pub fn find_steps_by_pipeline(&self, pipeline_id: &str) -> Result<Vec<PipelineStep>, TeamEvolutionError> {
+    pub fn find_steps_by_pipeline(
+        &self,
+        pipeline_id: &str,
+    ) -> Result<Vec<PipelineStep>, TeamEvolutionError> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, pipeline_id, task_id, phase, role_id, instruction, depends_on, status, output, retry_count, max_retries, created_at, started_at, completed_at
              FROM pipeline_steps WHERE pipeline_id = ?1 ORDER BY created_at"
         )?;
 
-        let steps = stmt.query_map(rusqlite::params![pipeline_id], |row| {
-            Self::row_to_step(row)
-        })?.collect::<Result<Vec<_>, _>>()?;
+        let steps = stmt
+            .query_map(rusqlite::params![pipeline_id], |row| Self::row_to_step(row))?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(steps)
     }
 
     /// Get all steps that are Ready to execute (dependencies all Completed)
-    pub fn get_ready_steps(&self, pipeline_id: &str) -> Result<Vec<PipelineStep>, TeamEvolutionError> {
+    pub fn get_ready_steps(
+        &self,
+        pipeline_id: &str,
+    ) -> Result<Vec<PipelineStep>, TeamEvolutionError> {
         let all_steps = self.find_steps_by_pipeline(pipeline_id)?;
 
-        let completed_ids: std::collections::HashSet<String> = all_steps.iter()
+        let completed_ids: std::collections::HashSet<String> = all_steps
+            .iter()
             .filter(|s| s.status == StepStatus::Completed)
             .map(|s| s.id.clone())
             .collect();
 
-        let ready_steps: Vec<PipelineStep> = all_steps.into_iter()
+        let ready_steps: Vec<PipelineStep> = all_steps
+            .into_iter()
             .filter(|s| {
                 s.status == StepStatus::Pending
                     && s.depends_on.iter().all(|dep| completed_ids.contains(dep))
@@ -314,8 +333,8 @@ impl SqlitePipelineRepository {
 
     fn row_to_pipeline(row: &rusqlite::Row<'_>) -> rusqlite::Result<Pipeline> {
         let policy_str: String = row.get(5)?;
-        let phase_gate_policy: PhaseGatePolicy = serde_json::from_str(&policy_str)
-            .unwrap_or_default();
+        let phase_gate_policy: PhaseGatePolicy =
+            serde_json::from_str(&policy_str).unwrap_or_default();
 
         Ok(Pipeline {
             id: row.get(0)?,
@@ -337,8 +356,7 @@ impl SqlitePipelineRepository {
 
     fn row_to_step(row: &rusqlite::Row<'_>) -> rusqlite::Result<PipelineStep> {
         let depends_str: String = row.get(6)?;
-        let depends_on: Vec<String> = serde_json::from_str(&depends_str)
-            .unwrap_or_default();
+        let depends_on: Vec<String> = serde_json::from_str(&depends_str).unwrap_or_default();
 
         let parse_optional_dt = |val: Option<String>| -> Option<chrono::DateTime<Utc>> {
             val.and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
@@ -354,8 +372,7 @@ impl SqlitePipelineRepository {
             role_id: row.get(4)?,
             instruction: row.get(5)?,
             depends_on,
-            status: StepStatus::from_str(&row.get::<_, String>(7)?)
-                .unwrap_or(StepStatus::Pending),
+            status: StepStatus::from_str(&row.get::<_, String>(7)?).unwrap_or(StepStatus::Pending),
             output: row.get(8)?,
             retry_count: row.get(9)?,
             max_retries: row.get(10)?,

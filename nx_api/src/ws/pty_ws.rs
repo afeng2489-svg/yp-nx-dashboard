@@ -43,11 +43,7 @@ enum PtyServerMessage {
 /// 1. 订阅该会话的终端输出，以 Binary 帧推送给前端
 /// 2. 将前端的 Binary 帧（键盘输入）写入 PTY stdin
 /// 3. 将前端的 Text 帧（控制消息）解析处理（派发任务、resize 等）
-pub async fn handle_pty_ws(
-    socket: WebSocket,
-    session_id: String,
-    manager: ClaudeTerminalManager,
-) {
+pub async fn handle_pty_ws(socket: WebSocket, session_id: String, manager: ClaudeTerminalManager) {
     let (mut sender, mut receiver) = socket.split();
 
     // 获取会话
@@ -56,7 +52,8 @@ pub async fn handle_pty_ws(
         None => {
             let msg = serde_json::to_string(&PtyServerMessage::Error {
                 message: format!("Session {} not found", session_id),
-            }).unwrap_or_default();
+            })
+            .unwrap_or_default();
             let _ = sender.send(AxumMessage::Text(msg)).await;
             return;
         }
@@ -67,7 +64,8 @@ pub async fn handle_pty_ws(
     // 发送就绪消息
     let ready_msg = serde_json::to_string(&PtyServerMessage::Ready {
         session_id: session_id.clone(),
-    }).unwrap_or_default();
+    })
+    .unwrap_or_default();
     if sender.send(AxumMessage::Text(ready_msg)).await.is_err() {
         return;
     }

@@ -20,22 +20,13 @@ pub enum ClientMessage {
         variables: Option<serde_json::Value>,
     },
     /// 取消执行
-    CancelExecution {
-        execution_id: String,
-    },
+    CancelExecution { execution_id: String },
     /// 订阅执行事件
-    Subscribe {
-        execution_id: String,
-    },
+    Subscribe { execution_id: String },
     /// 取消订阅
-    Unsubscribe {
-        execution_id: String,
-    },
+    Unsubscribe { execution_id: String },
     /// 恢复暂停的工作流
-    ResumeWorkflow {
-        execution_id: String,
-        value: String,
-    },
+    ResumeWorkflow { execution_id: String, value: String },
 }
 
 /// WebSocket 消息协议（服务端 -> 客户端）
@@ -64,23 +55,13 @@ pub enum ServerMessage {
         output: serde_json::Value,
     },
     /// 输出行
-    Output {
-        execution_id: String,
-        line: String,
-    },
+    Output { execution_id: String, line: String },
     /// 执行完成
-    Completed {
-        execution_id: String,
-    },
+    Completed { execution_id: String },
     /// 执行失败
-    Failed {
-        execution_id: String,
-        error: String,
-    },
+    Failed { execution_id: String, error: String },
     /// 错误消息
-    Error {
-        message: String,
-    },
+    Error { message: String },
     /// 工作流暂停，等待用户选择
     WorkflowPaused {
         execution_id: String,
@@ -229,24 +210,27 @@ impl WebSocketHandler {
     /// 将执行事件转换为 WebSocket 消息
     fn event_to_message(event: ExecutionEvent) -> Option<ServerMessage> {
         match event {
-            ExecutionEvent::Started { execution_id, workflow_id } => {
-                Some(ServerMessage::ExecutionStarted {
-                    execution_id,
-                    workflow_id,
-                })
-            }
-            ExecutionEvent::StatusChanged { execution_id, status } => {
-                Some(ServerMessage::StatusChanged {
-                    execution_id,
-                    status: format!("{:?}", status),
-                })
-            }
-            ExecutionEvent::StageStarted { execution_id, stage_name } => {
-                Some(ServerMessage::StageStarted {
-                    execution_id,
-                    stage_name,
-                })
-            }
+            ExecutionEvent::Started {
+                execution_id,
+                workflow_id,
+            } => Some(ServerMessage::ExecutionStarted {
+                execution_id,
+                workflow_id,
+            }),
+            ExecutionEvent::StatusChanged {
+                execution_id,
+                status,
+            } => Some(ServerMessage::StatusChanged {
+                execution_id,
+                status: format!("{:?}", status),
+            }),
+            ExecutionEvent::StageStarted {
+                execution_id,
+                stage_name,
+            } => Some(ServerMessage::StageStarted {
+                execution_id,
+                stage_name,
+            }),
             ExecutionEvent::StageCompleted {
                 execution_id,
                 stage_name,
@@ -256,32 +240,39 @@ impl WebSocketHandler {
                 stage_name,
                 output,
             }),
-            ExecutionEvent::Output { execution_id, line } => Some(ServerMessage::Output {
+            ExecutionEvent::Output { execution_id, line } => {
+                Some(ServerMessage::Output { execution_id, line })
+            }
+            ExecutionEvent::Completed { execution_id } => {
+                Some(ServerMessage::Completed { execution_id })
+            }
+            ExecutionEvent::Failed {
                 execution_id,
-                line,
-            }),
-            ExecutionEvent::Completed { execution_id } => Some(ServerMessage::Completed {
-                execution_id,
-            }),
-            ExecutionEvent::Failed { execution_id, error } => Some(ServerMessage::Failed {
+                error,
+            } => Some(ServerMessage::Failed {
                 execution_id,
                 error,
             }),
-            ExecutionEvent::WorkflowPaused { execution_id, stage_name, question, options } => {
-                Some(ServerMessage::WorkflowPaused {
-                    execution_id,
-                    stage_name,
-                    question,
-                    options,
-                })
-            }
-            ExecutionEvent::WorkflowResumed { execution_id, stage_name, chosen_value } => {
-                Some(ServerMessage::WorkflowResumed {
-                    execution_id,
-                    stage_name,
-                    chosen_value,
-                })
-            }
+            ExecutionEvent::WorkflowPaused {
+                execution_id,
+                stage_name,
+                question,
+                options,
+            } => Some(ServerMessage::WorkflowPaused {
+                execution_id,
+                stage_name,
+                question,
+                options,
+            }),
+            ExecutionEvent::WorkflowResumed {
+                execution_id,
+                stage_name,
+                chosen_value,
+            } => Some(ServerMessage::WorkflowResumed {
+                execution_id,
+                stage_name,
+                chosen_value,
+            }),
         }
     }
 
@@ -339,7 +330,10 @@ impl WebSocketHandler {
                 session.subscriptions.remove(&execution_id);
             }
 
-            ClientMessage::ResumeWorkflow { execution_id, value } => {
+            ClientMessage::ResumeWorkflow {
+                execution_id,
+                value,
+            } => {
                 tracing::info!("Resume workflow: {} with value: {}", execution_id, value);
                 if !execution_service.resume_execution(&execution_id, value) {
                     let response = ServerMessage::Error {

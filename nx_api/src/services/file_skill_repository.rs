@@ -2,9 +2,9 @@
 //!
 //! 直接从 `.claude/agents/*.md` 文件读写技能，支持创建、更新、删除操作。
 
+use parking_lot::RwLock;
 use std::path::PathBuf;
 use std::sync::Arc;
-use parking_lot::RwLock;
 
 use crate::models::skill::{CreateSkillRequest, SkillRecord, UpdateSkillRequest};
 
@@ -90,7 +90,11 @@ impl FileSkillRepository {
     }
 
     /// 解析 md 文件内容
-    pub fn parse_content(&self, content: &str, fallback_id: &str) -> Result<SkillRecord, FileSkillRepositoryError> {
+    pub fn parse_content(
+        &self,
+        content: &str,
+        fallback_id: &str,
+    ) -> Result<SkillRecord, FileSkillRepositoryError> {
         // 解析 frontmatter
         let mut name = fallback_id.to_string();
         let mut description = String::new();
@@ -116,7 +120,8 @@ impl FileSkillRepository {
                         found_closing_delimiter = true;
                         frontmatter_content = frontmatter_content.trim().to_string();
                         // 解析 frontmatter（包括 multiline instruction）
-                        let (n, d, c, t, inst) = Self::parse_frontmatter_with_instruction(&frontmatter_content);
+                        let (n, d, c, t, inst) =
+                            Self::parse_frontmatter_with_instruction(&frontmatter_content);
                         name = n;
                         description = d;
                         category = c;
@@ -150,7 +155,8 @@ impl FileSkillRepository {
 
             if has_name {
                 // 把它当作 frontmatter 来解析（即使没有 closing ---）
-                let (n, d, c, t, inst) = Self::parse_frontmatter_with_instruction(&frontmatter_content);
+                let (n, d, c, t, inst) =
+                    Self::parse_frontmatter_with_instruction(&frontmatter_content);
                 name = n;
                 description = d;
                 category = c;
@@ -165,7 +171,9 @@ impl FileSkillRepository {
         }
 
         if name.is_empty() {
-            return Err(FileSkillRepositoryError::ParseError("技能名称不能为空".to_string()));
+            return Err(FileSkillRepositoryError::ParseError(
+                "技能名称不能为空".to_string(),
+            ));
         }
 
         // 将 name 转换为 id（filename 作为 id）
@@ -196,7 +204,9 @@ impl FileSkillRepository {
 
     /// 解析 frontmatter 内容，提取 name, description, category, tags
     /// 同时返回 instruction 的 multiline 内容（如果存在）
-    fn parse_frontmatter_with_instruction(content: &str) -> (String, String, String, Vec<String>, String) {
+    fn parse_frontmatter_with_instruction(
+        content: &str,
+    ) -> (String, String, String, Vec<String>, String) {
         let mut name = String::new();
         let mut description = String::new();
         let mut category = "general".to_string();
@@ -297,7 +307,13 @@ impl FileSkillRepository {
     }
 
     /// 解析 frontmatter 内容（兼容版本）
-    fn parse_frontmatter(content: &str, name: &mut String, description: &mut String, category: &mut String, tags: &mut Vec<String>) {
+    fn parse_frontmatter(
+        content: &str,
+        name: &mut String,
+        description: &mut String,
+        category: &mut String,
+        tags: &mut Vec<String>,
+    ) {
         let (n, d, c, t, _) = Self::parse_frontmatter_with_instruction(content);
         *name = n;
         *description = d;
@@ -311,7 +327,12 @@ impl FileSkillRepository {
     }
 
     /// 生成 frontmatter
-    fn generate_frontmatter(name: &str, description: &str, category: &str, tags: &[String]) -> String {
+    fn generate_frontmatter(
+        name: &str,
+        description: &str,
+        category: &str,
+        tags: &[String],
+    ) -> String {
         let tags_json = serde_json::to_string(tags).unwrap_or_else(|_| "[\"agent\"]".to_string());
         format!(
             "---\nname: {}\ndescription: {}\ncategory: {}\ntags: {}\ninstruction: |\n",
@@ -339,15 +360,20 @@ impl FileSkillRepository {
 
         std::fs::write(&file_path, content)?;
 
-        let record = self.parse_file(&file_path)
-            .ok_or_else(|| FileSkillRepositoryError::ParseError("Failed to parse created file".to_string()))?;
+        let record = self.parse_file(&file_path).ok_or_else(|| {
+            FileSkillRepositoryError::ParseError("Failed to parse created file".to_string())
+        })?;
 
         self.reload_cache()?;
         Ok(record)
     }
 
     /// 更新技能（写文件）
-    pub fn update(&self, id: &str, req: UpdateSkillRequest) -> Result<SkillRecord, FileSkillRepositoryError> {
+    pub fn update(
+        &self,
+        id: &str,
+        req: UpdateSkillRequest,
+    ) -> Result<SkillRecord, FileSkillRepositoryError> {
         let file_path = self.get_file_path(id);
 
         if !file_path.exists() {
@@ -355,8 +381,9 @@ impl FileSkillRepository {
         }
 
         // 读取现有内容
-        let existing = self.parse_file(&file_path)
-            .ok_or_else(|| FileSkillRepositoryError::ParseError("Failed to parse existing file".to_string()))?;
+        let existing = self.parse_file(&file_path).ok_or_else(|| {
+            FileSkillRepositoryError::ParseError("Failed to parse existing file".to_string())
+        })?;
 
         let name = req.name.as_ref().unwrap_or(&existing.name);
         let description = req.description.as_ref().unwrap_or(&existing.description);
@@ -370,8 +397,9 @@ impl FileSkillRepository {
 
         std::fs::write(&file_path, content)?;
 
-        let record = self.parse_file(&file_path)
-            .ok_or_else(|| FileSkillRepositoryError::ParseError("Failed to parse updated file".to_string()))?;
+        let record = self.parse_file(&file_path).ok_or_else(|| {
+            FileSkillRepositoryError::ParseError("Failed to parse updated file".to_string())
+        })?;
 
         self.reload_cache()?;
         Ok(record)
@@ -410,8 +438,14 @@ impl FileSkillRepository {
     }
 
     /// 按类别获取
-    pub fn list_by_category(&self, category: &str) -> Result<Vec<SkillRecord>, FileSkillRepositoryError> {
-        Ok(self.cache.read().iter()
+    pub fn list_by_category(
+        &self,
+        category: &str,
+    ) -> Result<Vec<SkillRecord>, FileSkillRepositoryError> {
+        Ok(self
+            .cache
+            .read()
+            .iter()
             .filter(|r| r.category == category)
             .cloned()
             .collect())
@@ -419,7 +453,10 @@ impl FileSkillRepository {
 
     /// 按标签获取
     pub fn list_by_tag(&self, tag: &str) -> Result<Vec<SkillRecord>, FileSkillRepositoryError> {
-        Ok(self.cache.read().iter()
+        Ok(self
+            .cache
+            .read()
+            .iter()
             .filter(|r| r.tags.contains(&tag.to_string()))
             .cloned()
             .collect())
@@ -428,18 +465,27 @@ impl FileSkillRepository {
     /// 搜索技能
     pub fn search(&self, query: &str) -> Result<Vec<SkillRecord>, FileSkillRepositoryError> {
         let query_lower = query.to_lowercase();
-        Ok(self.cache.read().iter()
+        Ok(self
+            .cache
+            .read()
+            .iter()
             .filter(|r| {
-                r.name.to_lowercase().contains(&query_lower) ||
-                r.description.to_lowercase().contains(&query_lower) ||
-                r.tags.iter().any(|t| t.to_lowercase().contains(&query_lower))
+                r.name.to_lowercase().contains(&query_lower)
+                    || r.description.to_lowercase().contains(&query_lower)
+                    || r.tags
+                        .iter()
+                        .any(|t| t.to_lowercase().contains(&query_lower))
             })
             .cloned()
             .collect())
     }
 
     /// 从原始 .md 内容导入技能
-    pub fn import_from_content(&self, content: &str, fallback_id: &str) -> Result<SkillRecord, FileSkillRepositoryError> {
+    pub fn import_from_content(
+        &self,
+        content: &str,
+        fallback_id: &str,
+    ) -> Result<SkillRecord, FileSkillRepositoryError> {
         let record = self.parse_content(content, fallback_id)?;
 
         let file_path = self.get_file_path(&record.id);
@@ -453,10 +499,14 @@ impl FileSkillRepository {
         self.reload_cache()?;
 
         // 从缓存中获取最终结果
-        self.cache.read().iter()
+        self.cache
+            .read()
+            .iter()
             .find(|r| r.id == record.id)
             .cloned()
-            .ok_or_else(|| FileSkillRepositoryError::ParseError("导入后缓存中未找到技能".to_string()))
+            .ok_or_else(|| {
+                FileSkillRepositoryError::ParseError("导入后缓存中未找到技能".to_string())
+            })
     }
 
     /// 检查技能是否存在
@@ -475,7 +525,8 @@ impl FileSkillRepository {
                 continue;
             }
 
-            let file_stem = path.file_stem()
+            let file_stem = path
+                .file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or("")
                 .to_string();
@@ -483,7 +534,8 @@ impl FileSkillRepository {
             // 读取文件获取 name
             let name = if let Ok(content) = std::fs::read_to_string(&path) {
                 // 简单解析 name
-                content.lines()
+                content
+                    .lines()
                     .find(|l| l.starts_with("name:"))
                     .and_then(|l| l.split(':').nth(1))
                     .map(|s| s.trim().to_string())
@@ -530,7 +582,11 @@ This is the instruction body.
         assert_eq!(record.category, "development");
         assert!(record.tags.contains(&"rust".to_string()));
         assert!(record.tags.contains(&"testing".to_string()));
-        assert!(record.code.as_deref().unwrap_or("").contains("instruction body"));
+        assert!(record
+            .code
+            .as_deref()
+            .unwrap_or("")
+            .contains("instruction body"));
     }
 
     #[test]
@@ -541,7 +597,11 @@ This is the instruction body.
         let md = "Just raw instructions with no frontmatter.\n";
         let record = repo.parse_content(md, "raw-skill").unwrap();
         assert_eq!(record.id, "raw-skill");
-        assert!(record.code.as_deref().unwrap_or("").contains("raw instructions"));
+        assert!(record
+            .code
+            .as_deref()
+            .unwrap_or("")
+            .contains("raw instructions"));
     }
 
     #[test]
@@ -577,7 +637,10 @@ This is the instruction body.
         repo.create(req).unwrap();
 
         let all = repo.list().unwrap();
-        assert!(all.iter().any(|s| s.id == "test-skill"), "skill should be in list");
+        assert!(
+            all.iter().any(|s| s.id == "test-skill"),
+            "skill should be in list"
+        );
     }
 
     #[test]
@@ -600,7 +663,10 @@ This is the instruction body.
 
         repo.create(req.clone()).unwrap();
         let result = repo.create(req);
-        assert!(matches!(result, Err(FileSkillRepositoryError::AlreadyExists(_))));
+        assert!(matches!(
+            result,
+            Err(FileSkillRepositoryError::AlreadyExists(_))
+        ));
     }
 
     #[test]

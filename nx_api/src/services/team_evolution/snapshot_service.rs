@@ -2,16 +2,16 @@
 //!
 //! 订阅 AgentExecutionEvent（旁路监听），自动更新角色快照和项目总进度。
 
-use std::sync::Arc;
 use chrono::Utc;
+use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::models::feature_flag::keys;
 use super::error::TeamEvolutionError;
 use super::feature_flag_service::FeatureFlagService;
 use super::snapshot_repository::{
-    SqliteSnapshotRepository, RoleSnapshot, RoleSnapshotHistory, ProjectProgress,
+    ProjectProgress, RoleSnapshot, RoleSnapshotHistory, SqliteSnapshotRepository,
 };
+use crate::models::feature_flag::keys;
 
 pub struct SnapshotService {
     repo: Arc<SqliteSnapshotRepository>,
@@ -23,7 +23,10 @@ impl SnapshotService {
         repo: Arc<SqliteSnapshotRepository>,
         feature_flags: Arc<FeatureFlagService>,
     ) -> Self {
-        Self { repo, feature_flags }
+        Self {
+            repo,
+            feature_flags,
+        }
     }
 
     // ── 角色快照操作 ──────────────────────────────────────────
@@ -42,8 +45,14 @@ impl SnapshotService {
         cli_output: &str,
         files: &[String],
     ) -> Result<RoleSnapshot, TeamEvolutionError> {
-        if !self.feature_flags.is_enabled(keys::SNAPSHOT).unwrap_or(false) {
-            return Err(TeamEvolutionError::FeatureDisabled(keys::SNAPSHOT.to_string()));
+        if !self
+            .feature_flags
+            .is_enabled(keys::SNAPSHOT)
+            .unwrap_or(false)
+        {
+            return Err(TeamEvolutionError::FeatureDisabled(
+                keys::SNAPSHOT.to_string(),
+            ));
         }
 
         let now = Utc::now().to_rfc3339();
@@ -156,22 +165,36 @@ impl SnapshotService {
 
     // ── 查询 ──────────────────────────────────────────────────
 
-    pub fn get_project_progress(&self, project_id: &str) -> Result<Option<ProjectProgress>, TeamEvolutionError> {
+    pub fn get_project_progress(
+        &self,
+        project_id: &str,
+    ) -> Result<Option<ProjectProgress>, TeamEvolutionError> {
         self.feature_flags.require_readable(keys::SNAPSHOT)?;
         self.repo.find_progress(project_id)
     }
 
-    pub fn get_role_snapshots(&self, project_id: &str) -> Result<Vec<RoleSnapshot>, TeamEvolutionError> {
+    pub fn get_role_snapshots(
+        &self,
+        project_id: &str,
+    ) -> Result<Vec<RoleSnapshot>, TeamEvolutionError> {
         self.feature_flags.require_readable(keys::SNAPSHOT)?;
         self.repo.find_snapshots_by_project(project_id)
     }
 
-    pub fn get_role_snapshot(&self, project_id: &str, role_id: &str) -> Result<Option<RoleSnapshot>, TeamEvolutionError> {
+    pub fn get_role_snapshot(
+        &self,
+        project_id: &str,
+        role_id: &str,
+    ) -> Result<Option<RoleSnapshot>, TeamEvolutionError> {
         self.feature_flags.require_readable(keys::SNAPSHOT)?;
         self.repo.find_snapshot(project_id, role_id)
     }
 
-    pub fn get_role_history(&self, project_id: &str, role_id: &str) -> Result<Vec<RoleSnapshotHistory>, TeamEvolutionError> {
+    pub fn get_role_history(
+        &self,
+        project_id: &str,
+        role_id: &str,
+    ) -> Result<Vec<RoleSnapshotHistory>, TeamEvolutionError> {
         self.feature_flags.require_readable(keys::SNAPSHOT)?;
         self.repo.find_history(project_id, role_id)
     }
@@ -187,9 +210,15 @@ impl SnapshotService {
         let snapshots = self.repo.find_snapshots_by_project(project_id)?;
 
         let total = snapshots.len() as u32;
-        let active = snapshots.iter().filter(|s| {
-            s.phase != "idle" && s.phase != "done" && s.phase != "failed" && s.phase != "hibernated"
-        }).count() as u32;
+        let active = snapshots
+            .iter()
+            .filter(|s| {
+                s.phase != "idle"
+                    && s.phase != "done"
+                    && s.phase != "failed"
+                    && s.phase != "hibernated"
+            })
+            .count() as u32;
         let completed = snapshots.iter().filter(|s| s.phase == "done").count() as u32;
         let failed = snapshots.iter().filter(|s| s.phase == "failed").count() as u32;
 
@@ -206,7 +235,8 @@ impl SnapshotService {
         } else if failed > 0 && active == 0 {
             "failed".to_string()
         } else {
-            snapshots.iter()
+            snapshots
+                .iter()
                 .filter(|s| s.phase != "idle" && s.phase != "done")
                 .map(|s| s.phase.as_str())
                 .next()
@@ -215,8 +245,7 @@ impl SnapshotService {
         };
 
         // Last activity
-        let last = snapshots.iter()
-            .max_by_key(|s| &s.updated_at);
+        let last = snapshots.iter().max_by_key(|s| &s.updated_at);
         let (last_activity, last_activity_at) = match last {
             Some(s) => (
                 format!("{}: {}", s.role_name, s.current_task),

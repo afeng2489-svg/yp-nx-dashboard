@@ -2,15 +2,15 @@
 //!
 //! 支持 PTY (Pseudo-Terminal) 用于交互式终端会话。
 
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::Arc;
-use parking_lot::RwLock;
 use thiserror::Error;
 use uuid::Uuid;
 
 #[cfg(unix)]
-use portable_pty::{native_pty_system, CommandBuilder, PtySize, PtyPair, MasterPty, Child};
+use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtyPair, PtySize};
 
 /// PTY 错误类型
 #[derive(Error, Debug)]
@@ -184,7 +184,9 @@ impl PtyManager {
             }
         }
 
-        let child = pair.slave.spawn_command(cmd)
+        let child = pair
+            .slave
+            .spawn_command(cmd)
             .map_err(|e| PtyError::ProcessStartFailed(e.to_string()))?;
 
         session.state = PtySessionState::Running;
@@ -235,13 +237,13 @@ impl PtyManager {
         let mut masters = self.masters.write();
 
         if let Some(pair) = masters.get_mut(session_id) {
-            let mut writer = pair.master.take_writer()
-                .map_err(|e| PtyError::IoError(std::io::Error::new(
+            let mut writer = pair.master.take_writer().map_err(|e| {
+                PtyError::IoError(std::io::Error::new(
                     std::io::ErrorKind::NotFound,
-                    format!("writer not available: {}", e)
-                )))?;
-            writer.write_all(data)
-                .map_err(|e| PtyError::IoError(e))?;
+                    format!("writer not available: {}", e),
+                ))
+            })?;
+            writer.write_all(data).map_err(|e| PtyError::IoError(e))?;
 
             // 更新活动时间
             let mut sessions = self.sessions.write();
@@ -468,9 +470,7 @@ impl PtyManager {
 
         sessions
             .values()
-            .filter(|s| {
-                s.is_running() && now.duration_since(s.last_activity).as_secs() > 300
-            })
+            .filter(|s| s.is_running() && now.duration_since(s.last_activity).as_secs() > 300)
             .count()
     }
 }

@@ -5,8 +5,8 @@
 //! BM25 (Best Matching 25) 是一种经典的文本检索算法，
 //! 用于衡量文档与查询之间的相关性评分。
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// BM25 配置参数
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -182,8 +182,9 @@ impl Bm25Index {
                 // BM25 公式
                 let numerator = tf as f32 * (self.config.k1 + 1.0);
                 let denominator = tf as f32
-                    + self.config.k1 * (1.0 - self.config.b
-                        + self.config.b * doc.term_count as f32 / self.config.avg_doc_len);
+                    + self.config.k1
+                        * (1.0 - self.config.b
+                            + self.config.b * doc.term_count as f32 / self.config.avg_doc_len);
 
                 score += idf * numerator / denominator;
             }

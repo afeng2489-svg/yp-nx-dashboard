@@ -39,8 +39,8 @@ pub enum AgentExecutionEvent {
     /// 结构化进度事件（claude 动作检测）
     Progress {
         execution_id: String,
-        action: String,          // reading / editing / writing / running / thinking / searching
-        detail: String,          // 具体描述，如文件路径、命令名
+        action: String, // reading / editing / writing / running / thinking / searching
+        detail: String, // 具体描述，如文件路径、命令名
     },
     /// 任务完成
     Completed {
@@ -49,20 +49,15 @@ pub enum AgentExecutionEvent {
         duration_ms: u64,
     },
     /// 任务失败
-    Failed {
-        execution_id: String,
-        error: String,
-    },
+    Failed { execution_id: String, error: String },
     /// 任务已取消
-    Cancelled {
-        execution_id: String,
-    },
+    Cancelled { execution_id: String },
     /// 需要用户确认（CLI 遇到需要确认的情况）
     ConfirmationRequired {
         execution_id: String,
         question: String,
-        options: Vec<String>,    // e.g. ["y", "n", "yes", "no"]
-        needs_input: bool,        // true 表示需要用户输入文本，false 表示选择选项
+        options: Vec<String>, // e.g. ["y", "n", "yes", "no"]
+        needs_input: bool,    // true 表示需要用户输入文本，false 表示选择选项
     },
     /// 进程因闲置进入休眠 (team_evolution)
     Hibernated {
@@ -120,11 +115,17 @@ pub struct AgentExecutionManager {
     /// 事件广播通道发送端
     event_tx: broadcast::Sender<AgentExecutionEvent>,
     /// 取消令牌注册表
-    cancel_tokens: std::sync::Arc<parking_lot::RwLock<std::collections::HashMap<String, CancellationToken>>>,
+    cancel_tokens:
+        std::sync::Arc<parking_lot::RwLock<std::collections::HashMap<String, CancellationToken>>>,
     /// 已完成执行的最终事件缓存（供晚连接的 WS 客户端回放）
-    terminal_events: std::sync::Arc<parking_lot::RwLock<std::collections::HashMap<String, AgentExecutionEvent>>>,
+    terminal_events:
+        std::sync::Arc<parking_lot::RwLock<std::collections::HashMap<String, AgentExecutionEvent>>>,
     /// 确认响应等待器：execution_id -> channel to send confirmation response
-    confirmations: std::sync::Arc<parking_lot::RwLock<std::collections::HashMap<String, tokio::sync::oneshot::Sender<String>>>>,
+    confirmations: std::sync::Arc<
+        parking_lot::RwLock<
+            std::collections::HashMap<String, tokio::sync::oneshot::Sender<String>>,
+        >,
+    >,
 }
 
 impl AgentExecutionManager {
@@ -133,9 +134,15 @@ impl AgentExecutionManager {
         let (event_tx, _) = broadcast::channel(256);
         Self {
             event_tx,
-            cancel_tokens: std::sync::Arc::new(parking_lot::RwLock::new(std::collections::HashMap::new())),
-            terminal_events: std::sync::Arc::new(parking_lot::RwLock::new(std::collections::HashMap::new())),
-            confirmations: std::sync::Arc::new(parking_lot::RwLock::new(std::collections::HashMap::new())),
+            cancel_tokens: std::sync::Arc::new(parking_lot::RwLock::new(
+                std::collections::HashMap::new(),
+            )),
+            terminal_events: std::sync::Arc::new(parking_lot::RwLock::new(
+                std::collections::HashMap::new(),
+            )),
+            confirmations: std::sync::Arc::new(parking_lot::RwLock::new(
+                std::collections::HashMap::new(),
+            )),
         }
     }
 
@@ -151,7 +158,9 @@ impl AgentExecutionManager {
 
     /// 注册取消令牌
     pub fn register_cancel_token(&self, execution_id: &str, token: CancellationToken) {
-        self.cancel_tokens.write().insert(execution_id.to_string(), token);
+        self.cancel_tokens
+            .write()
+            .insert(execution_id.to_string(), token);
     }
 
     /// 取消指定执行
@@ -182,9 +191,14 @@ impl AgentExecutionManager {
 
     /// 注册确认响应等待器，返回 channel 接收端
     /// 调用方通过 receiver 等待用户确认响应
-    pub fn register_confirmation(&self, execution_id: &str) -> tokio::sync::oneshot::Receiver<String> {
+    pub fn register_confirmation(
+        &self,
+        execution_id: &str,
+    ) -> tokio::sync::oneshot::Receiver<String> {
         let (tx, rx) = tokio::sync::oneshot::channel();
-        self.confirmations.write().insert(execution_id.to_string(), tx);
+        self.confirmations
+            .write()
+            .insert(execution_id.to_string(), tx);
         rx
     }
 
@@ -215,7 +229,10 @@ pub async fn handle_agent_execution_ws(
     let (mut sender, mut receiver) = socket.split();
     let mut event_rx = manager.subscribe();
 
-    tracing::info!("[AgentExecWS] 客户端连接，订阅 execution_id: {}", execution_id);
+    tracing::info!(
+        "[AgentExecWS] 客户端连接，订阅 execution_id: {}",
+        execution_id
+    );
 
     // 晚连接回放：若执行已完成，直接发送缓存的终态事件并关闭
     if let Some(cached_event) = manager.get_terminal_event(&execution_id) {

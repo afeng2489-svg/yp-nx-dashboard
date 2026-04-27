@@ -1,14 +1,14 @@
 //! 测试生成路由
 
 use axum::{
-    extract::{State, Query},
+    extract::{Query, State},
     http::StatusCode,
     Json,
 };
 use std::sync::Arc;
 
 use crate::routes::AppState;
-use crate::services::{Language, TestFramework, GenerateTestsRequest};
+use crate::services::{GenerateTestsRequest, Language, TestFramework};
 
 /// 生成测试
 pub async fn generate_tests(
@@ -17,7 +17,8 @@ pub async fn generate_tests(
 ) -> Result<Json<crate::services::GenerateTestsResponse>, (StatusCode, String)> {
     tracing::info!("生成测试: language={:?}", request.language);
 
-    state.test_generator
+    state
+        .test_generator
         .generate_tests(request)
         .await
         .map(Json)
@@ -34,7 +35,8 @@ pub async fn generate_unit_tests(
 ) -> Result<Json<crate::services::GenerateTestsResponse>, (StatusCode, String)> {
     tracing::info!("生成单元测试: language={:?}", request.language);
 
-    state.test_generator
+    state
+        .test_generator
         .generate_unit_tests(&request.source_code, request.language)
         .await
         .map(Json)
@@ -51,7 +53,8 @@ pub async fn generate_integration_tests(
 ) -> Result<Json<crate::services::GenerateTestsResponse>, (StatusCode, String)> {
     tracing::info!("生成集成测试: language={:?}", request.language);
 
-    state.test_generator
+    state
+        .test_generator
         .generate_integration_tests(&request.source_code, request.language)
         .await
         .map(Json)

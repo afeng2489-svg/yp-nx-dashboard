@@ -3,14 +3,12 @@
 //! 提供技能的持久化存储，支持 SQLite 数据库操作。
 
 use chrono::Utc;
+use parking_lot::Mutex;
 use rusqlite::{params, Connection, Result as SqliteResult};
 use std::path::Path;
 use std::sync::Arc;
-use parking_lot::Mutex;
 
-use crate::models::skill::{
-    CreateSkillRequest, SkillParameter, SkillRecord, UpdateSkillRequest,
-};
+use crate::models::skill::{CreateSkillRequest, SkillParameter, SkillRecord, UpdateSkillRequest};
 
 /// SQLite 技能仓储错误
 #[derive(Debug, thiserror::Error)]
@@ -31,7 +29,11 @@ pub enum SkillRepositoryError {
 /// 技能仓储 trait - 支持内存和持久化实现
 pub trait SkillRepository: Send + Sync {
     fn create(&self, req: CreateSkillRequest) -> Result<SkillRecord, SkillRepositoryError>;
-    fn update(&self, id: &str, req: UpdateSkillRequest) -> Result<SkillRecord, SkillRepositoryError>;
+    fn update(
+        &self,
+        id: &str,
+        req: UpdateSkillRequest,
+    ) -> Result<SkillRecord, SkillRepositoryError>;
     fn delete(&self, id: &str) -> Result<(), SkillRepositoryError>;
     fn get(&self, id: &str) -> Result<Option<SkillRecord>, SkillRepositoryError>;
     fn list(&self) -> Result<Vec<SkillRecord>, SkillRepositoryError>;
@@ -163,7 +165,11 @@ impl SkillRepository for SqliteSkillRepository {
         Ok(record)
     }
 
-    fn update(&self, id: &str, req: UpdateSkillRequest) -> Result<SkillRecord, SkillRepositoryError> {
+    fn update(
+        &self,
+        id: &str,
+        req: UpdateSkillRequest,
+    ) -> Result<SkillRecord, SkillRepositoryError> {
         let conn = self.conn.lock();
 
         // 先获取现有记录
@@ -171,9 +177,17 @@ impl SkillRepository for SqliteSkillRepository {
             let mut stmt = conn.prepare(
                 "SELECT id, name, description, category, version, author, tags, parameters, code, is_preset, enabled, created_at, updated_at FROM skills WHERE id = ?"
             )?;
-            let row = stmt.query_row(params![id], |row| {
-                Ok(SkillRecord::from_row(row).map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Null, Box::new(e)))?)
-            }).map_err(|_| SkillRepositoryError::NotFound(id.to_string()))?;
+            let row = stmt
+                .query_row(params![id], |row| {
+                    Ok(SkillRecord::from_row(row).map_err(|e| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            0,
+                            rusqlite::types::Type::Null,
+                            Box::new(e),
+                        )
+                    })?)
+                })
+                .map_err(|_| SkillRepositoryError::NotFound(id.to_string()))?;
             row
         };
 
@@ -243,7 +257,13 @@ impl SkillRepository for SqliteSkillRepository {
         )?;
 
         let result = stmt.query_row(params![id], |row| {
-            SkillRecord::from_row(row).map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Null, Box::new(e)))
+            SkillRecord::from_row(row).map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Null,
+                    Box::new(e),
+                )
+            })
         });
 
         match result {
@@ -259,9 +279,17 @@ impl SkillRepository for SqliteSkillRepository {
             "SELECT id, name, description, category, version, author, tags, parameters, code, is_preset, enabled, created_at, updated_at FROM skills ORDER BY name"
         )?;
 
-        let records = stmt.query_map([], |row| {
-            SkillRecord::from_row(row).map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Null, Box::new(e)))
-        })?.collect::<Result<Vec<_>, _>>()?;
+        let records = stmt
+            .query_map([], |row| {
+                SkillRecord::from_row(row).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Null,
+                        Box::new(e),
+                    )
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(records)
     }
@@ -272,9 +300,17 @@ impl SkillRepository for SqliteSkillRepository {
             "SELECT id, name, description, category, version, author, tags, parameters, code, is_preset, enabled, created_at, updated_at FROM skills WHERE category = ? ORDER BY name"
         )?;
 
-        let records = stmt.query_map(params![category], |row| {
-            SkillRecord::from_row(row).map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Null, Box::new(e)))
-        })?.collect::<Result<Vec<_>, _>>()?;
+        let records = stmt
+            .query_map(params![category], |row| {
+                SkillRecord::from_row(row).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Null,
+                        Box::new(e),
+                    )
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(records)
     }
@@ -286,9 +322,17 @@ impl SkillRepository for SqliteSkillRepository {
             "SELECT id, name, description, category, version, author, tags, parameters, code, is_preset, enabled, created_at, updated_at FROM skills WHERE tags LIKE ? ORDER BY name"
         )?;
 
-        let records = stmt.query_map(params![pattern], |row| {
-            SkillRecord::from_row(row).map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Null, Box::new(e)))
-        })?.collect::<Result<Vec<_>, _>>()?;
+        let records = stmt
+            .query_map(params![pattern], |row| {
+                SkillRecord::from_row(row).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Null,
+                        Box::new(e),
+                    )
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(records)
     }
@@ -305,9 +349,17 @@ impl SkillRepository for SqliteSkillRepository {
             "#
         )?;
 
-        let records = stmt.query_map(params![&pattern, &pattern, &pattern], |row| {
-            SkillRecord::from_row(row).map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Null, Box::new(e)))
-        })?.collect::<Result<Vec<_>, _>>()?;
+        let records = stmt
+            .query_map(params![&pattern, &pattern, &pattern], |row| {
+                SkillRecord::from_row(row).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Null,
+                        Box::new(e),
+                    )
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(records)
     }
@@ -402,19 +454,25 @@ mod tests {
             tags: None,
             parameters: None,
             code: None,
-        }).unwrap();
+        })
+        .unwrap();
 
-        let updated = repo.update("test-skill", UpdateSkillRequest {
-            name: Some("新名称".to_string()),
-            description: None,
-            category: None,
-            version: None,
-            author: None,
-            tags: None,
-            parameters: None,
-            code: None,
-            enabled: None,
-        }).unwrap();
+        let updated = repo
+            .update(
+                "test-skill",
+                UpdateSkillRequest {
+                    name: Some("新名称".to_string()),
+                    description: None,
+                    category: None,
+                    version: None,
+                    author: None,
+                    tags: None,
+                    parameters: None,
+                    code: None,
+                    enabled: None,
+                },
+            )
+            .unwrap();
 
         assert_eq!(updated.name, "新名称");
         assert_eq!(updated.description, "原始描述");
@@ -434,7 +492,8 @@ mod tests {
             tags: None,
             parameters: None,
             code: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         repo.delete("to-delete").unwrap();
         assert!(repo.get("to-delete").unwrap().is_none());
@@ -454,7 +513,8 @@ mod tests {
             tags: None,
             parameters: None,
             code: None,
-        }).unwrap();
+        })
+        .unwrap();
 
         let result = repo.create(CreateSkillRequest {
             id: "dup".to_string(),

@@ -1,10 +1,10 @@
 //! 进程生命周期管理 — 闲置休眠 + 自动回收 + 资源限制 + 项目关闭清理
 
+use parking_lot::RwLock;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use serde::{Deserialize, Serialize};
-use parking_lot::RwLock;
-use std::collections::HashMap;
 use std::time::Instant;
 
 use super::error::TeamEvolutionError;
@@ -58,10 +58,7 @@ pub enum ProcessLifecycleEvent {
         idle_secs: u64,
     },
     /// 进程被回收
-    Reclaimed {
-        role_id: String,
-        idle_secs: u64,
-    },
+    Reclaimed { role_id: String, idle_secs: u64 },
     /// 资源限制达到
     ResourceLimitReached {
         current_processes: usize,
@@ -100,16 +97,23 @@ impl ProcessLifecycleManager {
         role_id: &str,
         pid: Option<u32>,
     ) -> Result<(), TeamEvolutionError> {
-        if !self.feature_flags.is_enabled(keys::PROCESS_LIFECYCLE).unwrap_or(false) {
+        if !self
+            .feature_flags
+            .is_enabled(keys::PROCESS_LIFECYCLE)
+            .unwrap_or(false)
+        {
             // Feature disabled, still register but skip limit checks
             let mut activities = self.activities.write();
-            activities.insert(execution_id.to_string(), ProcessActivity {
-                last_active: Instant::now(),
-                pid,
-                project_id: project_id.to_string(),
-                role_id: role_id.to_string(),
-                memory_bytes: 0,
-            });
+            activities.insert(
+                execution_id.to_string(),
+                ProcessActivity {
+                    last_active: Instant::now(),
+                    pid,
+                    project_id: project_id.to_string(),
+                    role_id: role_id.to_string(),
+                    memory_bytes: 0,
+                },
+            );
             return Ok(());
         }
 
@@ -123,13 +127,16 @@ impl ProcessLifecycleManager {
         }
 
         let mut activities = self.activities.write();
-        activities.insert(execution_id.to_string(), ProcessActivity {
-            last_active: Instant::now(),
-            pid,
-            project_id: project_id.to_string(),
-            role_id: role_id.to_string(),
-            memory_bytes: 0,
-        });
+        activities.insert(
+            execution_id.to_string(),
+            ProcessActivity {
+                last_active: Instant::now(),
+                pid,
+                project_id: project_id.to_string(),
+                role_id: role_id.to_string(),
+                memory_bytes: 0,
+            },
+        );
 
         Ok(())
     }
@@ -148,7 +155,11 @@ impl ProcessLifecycleManager {
 
     /// 检查是否可以启动新进程
     pub fn can_start_process(&self) -> Result<bool, TeamEvolutionError> {
-        if !self.feature_flags.is_enabled(keys::PROCESS_LIFECYCLE).unwrap_or(false) {
+        if !self
+            .feature_flags
+            .is_enabled(keys::PROCESS_LIFECYCLE)
+            .unwrap_or(false)
+        {
             return Ok(true);
         }
 
@@ -200,7 +211,11 @@ impl ProcessLifecycleManager {
     /// 扫描并返回需要休眠/回收的进程事件
     /// 由外部定时器调用
     pub fn scan_lifecycle_events(&self) -> Vec<ProcessLifecycleEvent> {
-        if !self.feature_flags.is_enabled(keys::PROCESS_LIFECYCLE).unwrap_or(false) {
+        if !self
+            .feature_flags
+            .is_enabled(keys::PROCESS_LIFECYCLE)
+            .unwrap_or(false)
+        {
             return vec![];
         }
 
@@ -231,7 +246,8 @@ impl ProcessLifecycleManager {
     /// 清理项目相关的所有进程
     pub fn cleanup_project_processes(&self, project_id: &str) -> Vec<String> {
         let mut activities = self.activities.write();
-        let to_remove: Vec<String> = activities.iter()
+        let to_remove: Vec<String> = activities
+            .iter()
             .filter(|(_, a)| a.project_id == project_id)
             .map(|(id, _)| id.clone())
             .collect();

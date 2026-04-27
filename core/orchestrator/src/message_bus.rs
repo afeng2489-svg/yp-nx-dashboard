@@ -76,30 +76,75 @@ pub enum MessageSource {
 #[serde(tag = "type", content = "data")]
 pub enum MessagePayload {
     // Agent events
-    AgentStarted { agent_id: AgentId },
-    AgentCompleted { agent_id: AgentId, outputs: Vec<String> },
-    AgentFailed { agent_id: AgentId, error: String },
-    AgentWaiting { agent_id: AgentId, reason: String },
+    AgentStarted {
+        agent_id: AgentId,
+    },
+    AgentCompleted {
+        agent_id: AgentId,
+        outputs: Vec<String>,
+    },
+    AgentFailed {
+        agent_id: AgentId,
+        error: String,
+    },
+    AgentWaiting {
+        agent_id: AgentId,
+        reason: String,
+    },
 
     // Task events
-    TaskAssigned { task_id: Uuid, agent_id: AgentId },
-    TaskProgress { task_id: Uuid, progress: f32 },
-    TaskCompleted { task_id: Uuid, result: String },
-    TaskFailed { task_id: Uuid, error: String },
+    TaskAssigned {
+        task_id: Uuid,
+        agent_id: AgentId,
+    },
+    TaskProgress {
+        task_id: Uuid,
+        progress: f32,
+    },
+    TaskCompleted {
+        task_id: Uuid,
+        result: String,
+    },
+    TaskFailed {
+        task_id: Uuid,
+        error: String,
+    },
 
     // Inter-agent messages
-    Delegation { from: AgentId, to: AgentId, task: String },
-    Request { request_type: String, data: serde_json::Value },
-    Response { request_id: Uuid, data: serde_json::Value },
-    Broadcast { message: String },
+    Delegation {
+        from: AgentId,
+        to: AgentId,
+        task: String,
+    },
+    Request {
+        request_type: String,
+        data: serde_json::Value,
+    },
+    Response {
+        request_id: Uuid,
+        data: serde_json::Value,
+    },
+    Broadcast {
+        message: String,
+    },
 
     // Context sharing
-    ContextUpdate { agent_id: AgentId, variables: HashMap<String, serde_json::Value> },
-    ArtifactCreated { path: String, created_by: AgentId },
+    ContextUpdate {
+        agent_id: AgentId,
+        variables: HashMap<String, serde_json::Value>,
+    },
+    ArtifactCreated {
+        path: String,
+        created_by: AgentId,
+    },
 
     // System events
-    TeamCreated { team_id: TeamId },
-    TeamDissolved { team_id: TeamId },
+    TeamCreated {
+        team_id: TeamId,
+    },
+    TeamDissolved {
+        team_id: TeamId,
+    },
     Shutdown,
 }
 
@@ -142,7 +187,8 @@ impl MessageBus {
         let sender = self.subscribers.read().get(&channel).cloned();
         match sender {
             Some(tx) => {
-                tx.send(message).map_err(|e| BusError::SendFailed(e.to_string()))?;
+                tx.send(message)
+                    .map_err(|e| BusError::SendFailed(e.to_string()))?;
             }
             None => {
                 tracing::warn!("No subscribers for channel {:?}", channel);

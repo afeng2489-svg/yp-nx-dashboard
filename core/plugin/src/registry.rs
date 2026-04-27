@@ -4,7 +4,7 @@ use parking_lot::RwLock;
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{info, error};
+use tracing::{error, info};
 
 /// Global registries for plugin context
 static GLOBAL_SKILL_REGISTRY: OnceCell<Arc<nexus_skills::SkillRegistry>> = OnceCell::new();
@@ -75,10 +75,7 @@ impl PluginRegistry {
     }
 
     /// Load a plugin into the registry
-    pub async fn load_plugin(
-        &self,
-        plugin: Arc<dyn Plugin>,
-    ) -> Result<(), PluginError> {
+    pub async fn load_plugin(&self, plugin: Arc<dyn Plugin>) -> Result<(), PluginError> {
         let id = plugin.metadata().id.clone();
 
         // Check if already loaded
@@ -106,7 +103,9 @@ impl PluginRegistry {
     pub async fn unload(&self, id: &str) -> Result<(), PluginError> {
         let plugin = {
             let mut plugins = self.plugins.write();
-            let loaded = plugins.get_mut(id).ok_or_else(|| PluginError::NotFound(id.to_string()))?;
+            let loaded = plugins
+                .get_mut(id)
+                .ok_or_else(|| PluginError::NotFound(id.to_string()))?;
 
             // Transition to shutting down
             loaded.state = PluginState::ShuttingDown;
@@ -145,7 +144,10 @@ impl PluginRegistry {
     /// Get all plugins
     pub fn plugins(&self) -> Vec<Arc<dyn Plugin>> {
         let plugins = self.plugins.read();
-        plugins.values().map(|loaded| loaded.plugin.clone()).collect()
+        plugins
+            .values()
+            .map(|loaded| loaded.plugin.clone())
+            .collect()
     }
 
     /// Get the state of a plugin
@@ -187,9 +189,8 @@ impl PluginRegistry {
             .unwrap_or_else(|| Arc::new(nexus_ai::AIProviderRegistry::new()));
 
         // Create a default config provider
-        let config: Arc<dyn crate::plugin_trait::ConfigProvider> = Arc::new(
-            std::collections::HashMap::new()
-        );
+        let config: Arc<dyn crate::plugin_trait::ConfigProvider> =
+            Arc::new(std::collections::HashMap::new());
 
         Ok(PluginContext {
             skill_registry,
@@ -202,7 +203,7 @@ impl PluginRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::plugin_trait::{PluginMetadata, PluginContext};
+    use crate::plugin_trait::{PluginContext, PluginMetadata};
     use async_trait::async_trait;
     use std::any::Any;
 
@@ -229,12 +230,14 @@ mod tests {
         }
 
         async fn initialize(&self, _context: &PluginContext) -> Result<(), PluginError> {
-            self.initialized.store(true, std::sync::atomic::Ordering::SeqCst);
+            self.initialized
+                .store(true, std::sync::atomic::Ordering::SeqCst);
             Ok(())
         }
 
         async fn shutdown(&self) -> Result<(), PluginError> {
-            self.shutdown.store(true, std::sync::atomic::Ordering::SeqCst);
+            self.shutdown
+                .store(true, std::sync::atomic::Ordering::SeqCst);
             Ok(())
         }
 

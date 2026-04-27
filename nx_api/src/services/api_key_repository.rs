@@ -240,13 +240,9 @@ impl ApiKeyRepository for SqliteApiKeyRepository {
 
     fn get(&self, provider: &str) -> Result<Option<String>, ApiKeyRepositoryError> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
-            "SELECT encrypted_key FROM api_keys WHERE provider = ?1",
-        )?;
+        let mut stmt = conn.prepare("SELECT encrypted_key FROM api_keys WHERE provider = ?1")?;
 
-        let result = stmt.query_row(params![provider], |row| {
-            Ok(row.get::<_, String>(0)?)
-        });
+        let result = stmt.query_row(params![provider], |row| Ok(row.get::<_, String>(0)?));
 
         match result {
             Ok(encrypted) => {

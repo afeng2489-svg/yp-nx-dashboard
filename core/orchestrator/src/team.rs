@@ -139,7 +139,11 @@ impl TeamMember {
     fn capabilities_for_role(role: AgentRole) -> Vec<Capability> {
         match role {
             AgentRole::Leader => vec![Capability::Planning, Capability::Analysis],
-            AgentRole::Architect => vec![Capability::Planning, Capability::Analysis, Capability::Documentation],
+            AgentRole::Architect => vec![
+                Capability::Planning,
+                Capability::Analysis,
+                Capability::Documentation,
+            ],
             AgentRole::Developer => vec![Capability::CodeGeneration, Capability::Refactoring],
             AgentRole::Reviewer => vec![Capability::CodeReview, Capability::Analysis],
             AgentRole::Tester => vec![Capability::TestGeneration, Capability::Documentation],
@@ -273,7 +277,9 @@ impl TeamManager {
     /// Add a member to a team
     pub fn add_member(&self, team_id: TeamId, member: TeamMember) -> Result<(), TeamError> {
         let mut teams = self.teams.write();
-        let team = teams.get_mut(&team_id).ok_or(TeamError::TeamNotFound(team_id))?;
+        let team = teams
+            .get_mut(&team_id)
+            .ok_or(TeamError::TeamNotFound(team_id))?;
         team.add_member(member.clone());
         self.agents.write().insert(member.id, AgentStatus::Idle);
         Ok(())
@@ -341,7 +347,9 @@ impl TeamManager {
     /// Dissolve a team
     pub fn dissolve_team(&self, team_id: TeamId) -> Result<(), TeamError> {
         let mut teams = self.teams.write();
-        teams.remove(&team_id).ok_or(TeamError::TeamNotFound(team_id))?;
+        teams
+            .remove(&team_id)
+            .ok_or(TeamError::TeamNotFound(team_id))?;
         let _ = self.message_bus.publish(
             Channel::SystemEvents,
             MessagePayload::TeamDissolved { team_id },

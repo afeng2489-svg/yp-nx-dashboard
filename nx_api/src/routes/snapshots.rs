@@ -8,7 +8,7 @@ use axum::{
 use serde::Serialize;
 use std::sync::Arc;
 
-use crate::routes::{AppState, resolve_project_id};
+use crate::routes::{resolve_project_id, AppState};
 use crate::services::team_evolution::error::TeamEvolutionError;
 use crate::services::team_evolution::snapshot_repository::{
     ProjectProgress, RoleSnapshot, RoleSnapshotHistory,
@@ -29,10 +29,16 @@ pub async fn get_project_progress(
     State(state): State<Arc<AppState>>,
     Path(project_id): Path<String>,
 ) -> Result<Json<Option<ProjectProgress>>, (StatusCode, Json<serde_json::Value>)> {
-    let service = state.snapshot_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Snapshot service not available" }))))?;
+    let service = state.snapshot_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Snapshot service not available" })),
+        )
+    })?;
     let resolved_id = resolve_project_id(&state, &project_id);
-    let progress = service.get_project_progress(&resolved_id).map_err(map_tev_error)?;
+    let progress = service
+        .get_project_progress(&resolved_id)
+        .map_err(map_tev_error)?;
     Ok(Json(progress))
 }
 
@@ -41,10 +47,16 @@ pub async fn get_role_snapshots(
     State(state): State<Arc<AppState>>,
     Path(project_id): Path<String>,
 ) -> Result<Json<Vec<RoleSnapshot>>, (StatusCode, Json<serde_json::Value>)> {
-    let service = state.snapshot_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Snapshot service not available" }))))?;
+    let service = state.snapshot_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Snapshot service not available" })),
+        )
+    })?;
     let resolved_id = resolve_project_id(&state, &project_id);
-    let snaps = service.get_role_snapshots(&resolved_id).map_err(map_tev_error)?;
+    let snaps = service
+        .get_role_snapshots(&resolved_id)
+        .map_err(map_tev_error)?;
     Ok(Json(snaps))
 }
 
@@ -53,10 +65,16 @@ pub async fn get_role_snapshot(
     State(state): State<Arc<AppState>>,
     Path((project_id, role_id)): Path<(String, String)>,
 ) -> Result<Json<Option<RoleSnapshot>>, (StatusCode, Json<serde_json::Value>)> {
-    let service = state.snapshot_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Snapshot service not available" }))))?;
+    let service = state.snapshot_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Snapshot service not available" })),
+        )
+    })?;
     let resolved_id = resolve_project_id(&state, &project_id);
-    let snap = service.get_role_snapshot(&resolved_id, &role_id).map_err(map_tev_error)?;
+    let snap = service
+        .get_role_snapshot(&resolved_id, &role_id)
+        .map_err(map_tev_error)?;
     Ok(Json(snap))
 }
 
@@ -65,9 +83,15 @@ pub async fn get_role_snapshot_history(
     State(state): State<Arc<AppState>>,
     Path((project_id, role_id)): Path<(String, String)>,
 ) -> Result<Json<Vec<RoleSnapshotHistory>>, (StatusCode, Json<serde_json::Value>)> {
-    let service = state.snapshot_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Snapshot service not available" }))))?;
-    let history = service.get_role_history(&resolve_project_id(&state, &project_id), &role_id).map_err(map_tev_error)?;
+    let service = state.snapshot_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Snapshot service not available" })),
+        )
+    })?;
+    let history = service
+        .get_role_history(&resolve_project_id(&state, &project_id), &role_id)
+        .map_err(map_tev_error)?;
     Ok(Json(history))
 }
 
@@ -76,9 +100,15 @@ pub async fn snapshot_all_active(
     State(state): State<Arc<AppState>>,
     Path(project_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let service = state.snapshot_service.as_ref()
-        .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Snapshot service not available" }))))?;
+    let service = state.snapshot_service.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "Snapshot service not available" })),
+        )
+    })?;
     let resolved_id = resolve_project_id(&state, &project_id);
-    let count = service.snapshot_all_active(&resolved_id).map_err(map_tev_error)?;
+    let count = service
+        .snapshot_all_active(&resolved_id)
+        .map_err(map_tev_error)?;
     Ok(Json(serde_json::json!({ "saved": count })))
 }

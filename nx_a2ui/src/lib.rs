@@ -2,16 +2,16 @@
 //!
 //! 智能体到用户通信接口,提供实时消息流、通知、确认对话框和进度回调。
 
+pub mod dialog;
 pub mod message;
 pub mod notification;
-pub mod dialog;
 pub mod progress;
 pub mod streaming;
 
-pub use message::{A2UMessage, MessageType, MessagePriority};
-pub use notification::{Notification, NotificationLevel, NotificationId};
-pub use dialog::{ConfirmationDialog, DialogResponse, DialogOptions};
-pub use progress::{ProgressCallback, ProgressUpdate, ProgressState};
+pub use dialog::{ConfirmationDialog, DialogOptions, DialogResponse};
+pub use message::{A2UMessage, MessagePriority, MessageType};
+pub use notification::{Notification, NotificationId, NotificationLevel};
+pub use progress::{ProgressCallback, ProgressState, ProgressUpdate};
 pub use streaming::{MessageStream, StreamConfig, StreamError};
 
 use serde::{Deserialize, Serialize};

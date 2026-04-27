@@ -2,13 +2,13 @@
 //!
 //! 直接从 `.claude/agents/*.md` 文件读写技能，数据库仅用于备份。
 
-use std::sync::Arc;
 use std::path::PathBuf;
-use tokio::sync::RwLock as TokioRwLock;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tokio::sync::RwLock as TokioRwLock;
 
-use crate::services::file_skill_repository::{FileSkillRepository, FileSkillRepositoryError};
 use crate::models::skill::{CreateSkillRequest, SkillRecord, UpdateSkillRequest};
+use crate::services::file_skill_repository::{FileSkillRepository, FileSkillRepositoryError};
 
 /// 技能服务错误
 #[derive(Debug, thiserror::Error)]
@@ -172,7 +172,11 @@ impl SkillService {
     }
 
     /// 更新技能（写文件）
-    pub fn update_skill(&self, id: &str, req: UpdateSkillRequest) -> Result<SkillDetail, SkillServiceError> {
+    pub fn update_skill(
+        &self,
+        id: &str,
+        req: UpdateSkillRequest,
+    ) -> Result<SkillDetail, SkillServiceError> {
         let record = self.file_repo.update(id, req)?;
         Ok(self.record_to_detail(&record))
     }
@@ -185,7 +189,8 @@ impl SkillService {
 
     /// 获取所有技能摘要
     pub fn list_skills(&self) -> Vec<SkillSummary> {
-        self.file_repo.list()
+        self.file_repo
+            .list()
             .map(|records| records.iter().map(|r| self.record_to_summary(r)).collect())
             .unwrap_or_default()
     }
@@ -198,21 +203,25 @@ impl SkillService {
 
     /// 按标签获取技能
     pub fn list_by_tag(&self, tag: &str) -> Vec<SkillSummary> {
-        self.file_repo.list_by_tag(tag)
+        self.file_repo
+            .list_by_tag(tag)
             .map(|records| records.iter().map(|r| self.record_to_summary(r)).collect())
             .unwrap_or_default()
     }
 
     /// 获取技能详情
     pub fn get_skill(&self, id: &str) -> Result<SkillDetail, SkillServiceError> {
-        let record = self.file_repo.get(id)?
+        let record = self
+            .file_repo
+            .get(id)?
             .ok_or_else(|| SkillServiceError::SkillNotFound(id.to_string()))?;
         Ok(self.record_to_detail(&record))
     }
 
     /// 搜索技能
     pub fn search_skills(&self, query: &str) -> Vec<SkillSummary> {
-        self.file_repo.search(query)
+        self.file_repo
+            .search(query)
             .map(|records| records.iter().map(|r| self.record_to_summary(r)).collect())
             .unwrap_or_default()
     }
@@ -243,12 +252,14 @@ impl SkillService {
     pub fn get_stats(&self) -> SkillStats {
         let records = self.file_repo.list().unwrap_or_default();
 
-        let mut category_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        let mut category_counts: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
         for record in &records {
             *category_counts.entry(record.category.clone()).or_insert(0) += 1;
         }
 
-        let mut tag_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        let mut tag_counts: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
         for record in &records {
             for tag in &record.tags {
                 *tag_counts.entry(tag.clone()).or_insert(0) += 1;
@@ -257,10 +268,12 @@ impl SkillService {
 
         SkillStats {
             total_skills: records.len(),
-            by_category: category_counts.into_iter()
+            by_category: category_counts
+                .into_iter()
                 .map(|(category, count)| CategoryCount { category, count })
                 .collect(),
-            by_tag: tag_counts.into_iter()
+            by_tag: tag_counts
+                .into_iter()
                 .map(|(tag, count)| TagCount { tag, count })
                 .collect(),
         }
@@ -274,7 +287,9 @@ impl SkillService {
         params: serde_json::Value,
         working_dir: Option<String>,
     ) -> Result<ExecuteSkillResponse, SkillServiceError> {
-        let record = self.file_repo.get(skill_id)?
+        let record = self
+            .file_repo
+            .get(skill_id)?
             .ok_or_else(|| SkillServiceError::SkillNotFound(skill_id.to_string()))?;
 
         let start = std::time::Instant::now();
@@ -297,7 +312,8 @@ impl SkillService {
         );
 
         let dir_ref = working_dir.as_deref();
-        match crate::services::claude_cli::call_claude_cli_with_timeout(&prompt, 120, dir_ref).await {
+        match crate::services::claude_cli::call_claude_cli_with_timeout(&prompt, 120, dir_ref).await
+        {
             Ok(cli_output) => {
                 let duration_ms = start.elapsed().as_millis() as u64;
                 Ok(ExecuteSkillResponse {
@@ -325,40 +341,60 @@ impl SkillService {
 
     /// 从 agents 目录重新加载技能（扫描文件变化）
     pub fn reload_skills(&self) -> Result<usize, SkillServiceError> {
-        self.file_repo.reload_cache()
+        self.file_repo
+            .reload_cache()
             .map_err(|e| SkillServiceError::FileError(e.to_string()))?;
         let count = self.file_repo.list().map(|v| v.len()).unwrap_or(0);
         Ok(count)
     }
 
     /// 导入技能（从 URL、文件内容或粘贴文本）
-    pub async fn import_skill(&self, source: &str, content: &str, filename: Option<&str>) -> Result<SkillDetail, SkillServiceError> {
+    pub async fn import_skill(
+        &self,
+        source: &str,
+        content: &str,
+        filename: Option<&str>,
+    ) -> Result<SkillDetail, SkillServiceError> {
         let (md_content, fallback_id) = match source {
             "url" => {
                 // 从 URL 下载内容
                 let url = content.trim();
                 if url.is_empty() {
-                    return Err(SkillServiceError::ValidationFailed("URL 不能为空".to_string()));
+                    return Err(SkillServiceError::ValidationFailed(
+                        "URL 不能为空".to_string(),
+                    ));
                 }
-                let response = reqwest::get(url).await
+                let response = reqwest::get(url)
+                    .await
                     .map_err(|e| SkillServiceError::FileError(format!("下载失败: {}", e)))?;
                 if !response.status().is_success() {
-                    return Err(SkillServiceError::FileError(format!("下载失败: HTTP {}", response.status())));
+                    return Err(SkillServiceError::FileError(format!(
+                        "下载失败: HTTP {}",
+                        response.status()
+                    )));
                 }
-                let body = response.text().await
+                let body = response
+                    .text()
+                    .await
                     .map_err(|e| SkillServiceError::FileError(format!("读取内容失败: {}", e)))?;
                 if body.len() > 1_048_576 {
-                    return Err(SkillServiceError::ValidationFailed("文件大小超过 1MB 限制".to_string()));
+                    return Err(SkillServiceError::ValidationFailed(
+                        "文件大小超过 1MB 限制".to_string(),
+                    ));
                 }
                 // 从 URL 路径提取文件名
-                let url_filename = url.rsplit('/').next()
+                let url_filename = url
+                    .rsplit('/')
+                    .next()
                     .unwrap_or("imported-skill")
                     .trim_end_matches(".md");
                 (body, url_filename.to_string())
             }
             "file" | "paste" => {
                 if content.trim().is_empty() {
-                    return Err(SkillServiceError::ValidationFailed("内容不能为空".to_string()));
+                    return Err(SkillServiceError::ValidationFailed(
+                        "内容不能为空".to_string(),
+                    ));
                 }
                 let id = filename
                     .map(|f| f.trim_end_matches(".md").to_string())
@@ -366,17 +402,25 @@ impl SkillService {
                 (content.to_string(), id)
             }
             _ => {
-                return Err(SkillServiceError::ValidationFailed(format!("不支持的来源类型: {}", source)));
+                return Err(SkillServiceError::ValidationFailed(format!(
+                    "不支持的来源类型: {}",
+                    source
+                )));
             }
         };
 
-        let record = self.file_repo.import_from_content(&md_content, &fallback_id)?;
+        let record = self
+            .file_repo
+            .import_from_content(&md_content, &fallback_id)?;
         Ok(self.record_to_detail(&record))
     }
 
     /// 获取所有技能文件信息
-    pub fn list_skill_files(&self) -> Result<Vec<crate::services::file_skill_repository::SkillFileInfo>, SkillServiceError> {
-        self.file_repo.list_files()
+    pub fn list_skill_files(
+        &self,
+    ) -> Result<Vec<crate::services::file_skill_repository::SkillFileInfo>, SkillServiceError> {
+        self.file_repo
+            .list_files()
             .map_err(|e| SkillServiceError::FileError(e.to_string()))
     }
 
@@ -390,13 +434,17 @@ impl SkillService {
             version: record.version.clone(),
             author: record.author.clone(),
             tags: record.tags.clone(),
-            parameters: record.parameters.iter().map(|p| SkillParameterInfo {
-                name: p.name.clone(),
-                description: p.description.clone(),
-                param_type: format!("{:?}", p.param_type).to_lowercase(),
-                required: p.required,
-                default: p.default.clone(),
-            }).collect(),
+            parameters: record
+                .parameters
+                .iter()
+                .map(|p| SkillParameterInfo {
+                    name: p.name.clone(),
+                    description: p.description.clone(),
+                    param_type: format!("{:?}", p.param_type).to_lowercase(),
+                    required: p.required,
+                    default: p.default.clone(),
+                })
+                .collect(),
             code: record.code.clone(),
             is_preset: record.is_preset,
             enabled: record.enabled,
@@ -429,7 +477,9 @@ impl Default for SkillService {
         Self::with_agents_dir(agents_dir).unwrap_or_else(|_| {
             // 创建一个临时服务
             Self {
-                file_repo: Arc::new(FileSkillRepository::new(PathBuf::from("/tmp/agents")).unwrap()),
+                file_repo: Arc::new(
+                    FileSkillRepository::new(PathBuf::from("/tmp/agents")).unwrap(),
+                ),
                 last_sync: Arc::new(TokioRwLock::new(None)),
                 sync_interval_secs: 300,
                 syncing: Arc::new(AtomicBool::new(false)),

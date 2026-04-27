@@ -1,11 +1,11 @@
 //! Feature Flag Service — 三态切换 + 熔断器逻辑
 
-use std::sync::Arc;
 use chrono::Utc;
+use std::sync::Arc;
 
-use crate::models::feature_flag::{FeatureFlag, FeatureFlagState, keys};
 use super::error::TeamEvolutionError;
 use super::feature_flag_repository::SqliteFeatureFlagRepository;
+use crate::models::feature_flag::{keys, FeatureFlag, FeatureFlagState};
 
 pub struct FeatureFlagService {
     repo: Arc<SqliteFeatureFlagRepository>,
@@ -78,8 +78,14 @@ impl FeatureFlagService {
     }
 
     /// Switch feature flag state
-    pub fn set_state(&self, key: &str, state: FeatureFlagState) -> Result<FeatureFlag, TeamEvolutionError> {
-        let mut flag = self.repo.find_by_key(key)?
+    pub fn set_state(
+        &self,
+        key: &str,
+        state: FeatureFlagState,
+    ) -> Result<FeatureFlag, TeamEvolutionError> {
+        let mut flag = self
+            .repo
+            .find_by_key(key)?
             .ok_or_else(|| TeamEvolutionError::FlagNotFound(key.to_string()))?;
 
         flag.state = state;
@@ -96,7 +102,9 @@ impl FeatureFlagService {
     /// Reset circuit breaker and error count
     pub fn reset(&self, key: &str) -> Result<FeatureFlag, TeamEvolutionError> {
         self.repo.reset_error_count(key)?;
-        let mut flag = self.repo.find_by_key(key)?
+        let mut flag = self
+            .repo
+            .find_by_key(key)?
             .ok_or_else(|| TeamEvolutionError::FlagNotFound(key.to_string()))?;
         flag.state = FeatureFlagState::On;
         flag.updated_at = Utc::now();
@@ -111,7 +119,8 @@ impl FeatureFlagService {
 
     /// Get a single feature flag
     pub fn get(&self, key: &str) -> Result<FeatureFlag, TeamEvolutionError> {
-        self.repo.find_by_key(key)?
+        self.repo
+            .find_by_key(key)?
             .ok_or_else(|| TeamEvolutionError::FlagNotFound(key.to_string()))
     }
 }

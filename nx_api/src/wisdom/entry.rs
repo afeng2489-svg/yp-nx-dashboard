@@ -209,7 +209,10 @@ mod tests {
     #[test]
     fn test_category_conversion() {
         assert_eq!(WisdomCategory::Learning.as_str(), "learning");
-        assert_eq!(WisdomCategory::from_str("learning"), Some(WisdomCategory::Learning));
+        assert_eq!(
+            WisdomCategory::from_str("learning"),
+            Some(WisdomCategory::Learning)
+        );
         assert_eq!(WisdomCategory::from_str("unknown"), None);
     }
 

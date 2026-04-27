@@ -2,12 +2,12 @@
 //!
 //! Manages interactive sessions for Agent-to-User communication.
 
-use std::collections::HashMap;
-use parking_lot::RwLock;
-use tokio::sync::broadcast;
 use chrono::{DateTime, Utc};
+use parking_lot::RwLock;
+use std::collections::HashMap;
+use tokio::sync::broadcast;
 
-use super::message::{InteractiveMessage, U2AMessage, A2UIMessage};
+use super::message::{A2UIMessage, InteractiveMessage, U2AMessage};
 
 /// Session state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,10 +88,7 @@ impl A2UISession {
 
     /// Get pending messages
     pub fn get_pending_messages(&self) -> Vec<&InteractiveMessage> {
-        self.messages
-            .iter()
-            .filter(|m| m.pending)
-            .collect()
+        self.messages.iter().filter(|m| m.pending).collect()
     }
 
     /// Check if session has pending messages
@@ -100,7 +97,11 @@ impl A2UISession {
     }
 
     /// Handle user response
-    pub fn respond(&mut self, message_id: &str, response: U2AMessage) -> Option<&InteractiveMessage> {
+    pub fn respond(
+        &mut self,
+        message_id: &str,
+        response: U2AMessage,
+    ) -> Option<&InteractiveMessage> {
         // Find and update the pending message
         for msg in &mut self.messages {
             if msg.id == message_id && msg.pending {
@@ -228,7 +229,12 @@ impl A2UISessionManager {
     }
 
     /// Handle user response
-    pub fn respond(&self, session_id: &str, message_id: &str, response: U2AMessage) -> Option<InteractiveMessage> {
+    pub fn respond(
+        &self,
+        session_id: &str,
+        message_id: &str,
+        response: U2AMessage,
+    ) -> Option<InteractiveMessage> {
         let mut sessions = self.sessions.write();
         if let Some(session) = sessions.get_mut(session_id) {
             if let Some(message) = session.respond(message_id, response.clone()) {
@@ -236,10 +242,13 @@ impl A2UISessionManager {
                 drop(sessions);
 
                 // Broadcast the response
-                self.broadcast(session_id, A2UISessionEvent::UserResponse {
-                    message_id: message_id.to_string(),
-                    response,
-                });
+                self.broadcast(
+                    session_id,
+                    A2UISessionEvent::UserResponse {
+                        message_id: message_id.to_string(),
+                        response,
+                    },
+                );
                 return Some(msg_clone);
             }
         }
@@ -265,9 +274,7 @@ impl A2UISessionManager {
     /// Subscribe to session events
     pub fn subscribe(&self, session_id: &str) -> Option<broadcast::Receiver<A2UISessionEvent>> {
         let broadcasters = self.broadcasters.read();
-        broadcasters
-            .get(session_id)
-            .map(|tx| tx.subscribe())
+        broadcasters.get(session_id).map(|tx| tx.subscribe())
     }
 
     /// Broadcast an event
@@ -281,7 +288,11 @@ impl A2UISessionManager {
     /// List all active sessions
     pub fn list_sessions(&self) -> Vec<A2UISession> {
         let sessions = self.sessions.read();
-        sessions.values().filter(|s| s.state != SessionState::Ended).cloned().collect()
+        sessions
+            .values()
+            .filter(|s| s.state != SessionState::Ended)
+            .cloned()
+            .collect()
     }
 }
 
@@ -304,9 +315,7 @@ pub enum A2UISessionEvent {
         response: U2AMessage,
     },
     /// Session ended
-    SessionEnded {
-        execution_id: String,
-    },
+    SessionEnded { execution_id: String },
 }
 
 impl A2UISessionEvent {

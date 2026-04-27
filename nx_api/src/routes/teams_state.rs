@@ -2,16 +2,16 @@
 //!
 //! Shared state for team routes.
 
-use std::sync::Arc;
-use std::path::PathBuf;
 use parking_lot::RwLock as ParkingRwLock;
+use std::path::PathBuf;
+use std::sync::Arc;
 
 use crate::config::ApiConfig;
 use crate::services::agent_team_service::AgentTeamService;
+use crate::services::ai_provider_service::ProviderService;
 use crate::services::team_repository::SqliteTeamRepository;
 use crate::services::team_service::TeamService;
 use crate::services::telegram_service::TelegramService;
-use crate::services::ai_provider_service::ProviderService;
 
 /// Teams application state
 #[derive(Clone)]

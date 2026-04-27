@@ -39,21 +39,14 @@ impl IntoResponse for ApiError {
         let (status, error_message) = match &self {
             ApiError::NotFound(msg) => (axum::http::StatusCode::NOT_FOUND, msg.clone()),
             ApiError::BadRequest(msg) => (axum::http::StatusCode::BAD_REQUEST, msg.clone()),
-            ApiError::Internal(msg) => {
-                (axum::http::StatusCode::INTERNAL_SERVER_ERROR, msg.clone())
-            }
-            ApiError::Unauthorized => {
-                (axum::http::StatusCode::UNAUTHORIZED, "Unauthorized".to_string())
-            }
-            ApiError::Forbidden => {
-                (axum::http::StatusCode::FORBIDDEN, "Forbidden".to_string())
-            }
-            ApiError::SessionNotFound(msg) => {
-                (axum::http::StatusCode::NOT_FOUND, msg.clone())
-            }
-            ApiError::MessageNotFound(msg) => {
-                (axum::http::StatusCode::NOT_FOUND, msg.clone())
-            }
+            ApiError::Internal(msg) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
+            ApiError::Unauthorized => (
+                axum::http::StatusCode::UNAUTHORIZED,
+                "Unauthorized".to_string(),
+            ),
+            ApiError::Forbidden => (axum::http::StatusCode::FORBIDDEN, "Forbidden".to_string()),
+            ApiError::SessionNotFound(msg) => (axum::http::StatusCode::NOT_FOUND, msg.clone()),
+            ApiError::MessageNotFound(msg) => (axum::http::StatusCode::NOT_FOUND, msg.clone()),
         };
 
         let body = Json(json!({

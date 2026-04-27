@@ -108,8 +108,12 @@ pub struct CompletionRequest {
     pub system_prompt: Option<String>,
 }
 
-fn default_max_tokens() -> usize { 4096 }
-fn default_temperature() -> f32 { 0.7 }
+fn default_max_tokens() -> usize {
+    4096
+}
+fn default_temperature() -> f32 {
+    0.7
+}
 
 /// 文本补全响应
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -283,6 +287,10 @@ impl AIError {
 use std::fmt;
 impl fmt::Display for CompletionRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CompletionRequest(model={}, max_tokens={})", self.model, self.max_tokens)
+        write!(
+            f,
+            "CompletionRequest(model={}, max_tokens={})",
+            self.model, self.max_tokens
+        )
     }
 }

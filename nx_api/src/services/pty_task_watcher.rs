@@ -10,8 +10,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
-use crate::services::claude_terminal::ClaudeTerminalSession;
 use crate::services::agent_team_service::strip_ansi;
+use crate::services::claude_terminal::ClaudeTerminalSession;
 use crate::ws::agent_execution::AgentExecutionEvent;
 
 /// Maximum execution time (30 minutes)
@@ -194,38 +194,86 @@ fn clean_tui_output(raw: &str) -> String {
 
     for line in &lines {
         let trimmed = line.trim();
-        if trimmed.is_empty() { continue; }
+        if trimmed.is_empty() {
+            continue;
+        }
 
-        if is_decoration_line(trimmed) { continue; }
+        if is_decoration_line(trimmed) {
+            continue;
+        }
 
-        if trimmed.contains("Claude Code") && trimmed.contains("Opus") { continue; }
-        if trimmed.contains("API Usage Billing") { continue; }
-        if trimmed.contains("is now available") && trimmed.contains("/model") { continue; }
+        if trimmed.contains("Claude Code") && trimmed.contains("Opus") {
+            continue;
+        }
+        if trimmed.contains("API Usage Billing") {
+            continue;
+        }
+        if trimmed.contains("is now available") && trimmed.contains("/model") {
+            continue;
+        }
 
-        if trimmed.contains("Quick safety check") || trimmed.contains("Accessing workspace") { continue; }
-        if trimmed.contains("Enter to confirm") || trimmed.contains("Esc to cancel") { continue; }
-        if trimmed.contains("I trust this folder") { continue; }
+        if trimmed.contains("Quick safety check") || trimmed.contains("Accessing workspace") {
+            continue;
+        }
+        if trimmed.contains("Enter to confirm") || trimmed.contains("Esc to cancel") {
+            continue;
+        }
+        if trimmed.contains("I trust this folder") {
+            continue;
+        }
 
-        if trimmed.contains("stop hook") || trimmed.contains("Stop hook") { continue; }
-        if trimmed.contains("Ran") && trimmed.contains("hooks") { continue; }
+        if trimmed.contains("stop hook") || trimmed.contains("Stop hook") {
+            continue;
+        }
+        if trimmed.contains("Ran") && trimmed.contains("hooks") {
+            continue;
+        }
 
-        if is_thinking_indicator(trimmed) { continue; }
+        if is_thinking_indicator(trimmed) {
+            continue;
+        }
 
-        if trimmed.contains('\u{23F5}') { continue; }
-        if trimmed.contains("bypass permissions") { continue; }
-        if trimmed.contains("shift+tab") { continue; }
-        if trimmed.contains("ctrl+o") { continue; }
+        if trimmed.contains('\u{23F5}') {
+            continue;
+        }
+        if trimmed.contains("bypass permissions") {
+            continue;
+        }
+        if trimmed.contains("shift+tab") {
+            continue;
+        }
+        if trimmed.contains("ctrl+o") {
+            continue;
+        }
 
-        if trimmed.contains("nexusflow: command not found") { continue; }
-        if trimmed.contains("UserPromptSubmit hook") { continue; }
-        if trimmed.contains("Failed with non-blocking") { continue; }
+        if trimmed.contains("nexusflow: command not found") {
+            continue;
+        }
+        if trimmed.contains("UserPromptSubmit hook") {
+            continue;
+        }
+        if trimmed.contains("Failed with non-blocking") {
+            continue;
+        }
 
-        if trimmed.contains("You are the team dispatcher") { continue; }
-        if trimmed.contains("## Team Context") || trimmed.contains("## User Message") { continue; }
-        if trimmed.contains("## Your Decision") || trimmed.contains("## Output Format") { continue; }
-        if trimmed.contains("IMPORTANT: You MUST end your response") { continue; }
-        if trimmed.contains("Available Skills") { continue; }
-        if trimmed.contains("skill:") && trimmed.contains("-") { continue; }
+        if trimmed.contains("You are the team dispatcher") {
+            continue;
+        }
+        if trimmed.contains("## Team Context") || trimmed.contains("## User Message") {
+            continue;
+        }
+        if trimmed.contains("## Your Decision") || trimmed.contains("## Output Format") {
+            continue;
+        }
+        if trimmed.contains("IMPORTANT: You MUST end your response") {
+            continue;
+        }
+        if trimmed.contains("Available Skills") {
+            continue;
+        }
+        if trimmed.contains("skill:") && trimmed.contains("-") {
+            continue;
+        }
 
         result_lines.push(trimmed);
     }
@@ -234,15 +282,50 @@ fn clean_tui_output(raw: &str) -> String {
 }
 
 fn is_decoration_line(s: &str) -> bool {
-    if s.is_empty() { return false; }
+    if s.is_empty() {
+        return false;
+    }
     s.chars().all(|c| {
-        matches!(c,
-            '─' | '━' | '═' | '│' | '┃' | '║' |
-            '┌' | '┐' | '└' | '┘' | '├' | '┤' | '┬' | '┴' | '┼' |
-            '╔' | '╗' | '╚' | '╝' | '╠' | '╣' | '╦' | '╩' | '╬' |
-            '▐' | '▌' | '▛' | '▜' | '▝' | '▘' | '▗' | '▖' |
-            '⎿' | '⏺' |
-            ' ' | '\t' | '-' | '=' | '~'
+        matches!(
+            c,
+            '─' | '━'
+                | '═'
+                | '│'
+                | '┃'
+                | '║'
+                | '┌'
+                | '┐'
+                | '└'
+                | '┘'
+                | '├'
+                | '┤'
+                | '┬'
+                | '┴'
+                | '┼'
+                | '╔'
+                | '╗'
+                | '╚'
+                | '╝'
+                | '╠'
+                | '╣'
+                | '╦'
+                | '╩'
+                | '╬'
+                | '▐'
+                | '▌'
+                | '▛'
+                | '▜'
+                | '▝'
+                | '▘'
+                | '▗'
+                | '▖'
+                | '⎿'
+                | '⏺'
+                | ' '
+                | '\t'
+                | '-'
+                | '='
+                | '~'
         )
     })
 }
@@ -265,7 +348,9 @@ fn detect_claude_action(output: &str) -> Option<(String, String)> {
 
     for line in last_lines {
         let trimmed = line.trim();
-        if trimmed.is_empty() { continue; }
+        if trimmed.is_empty() {
+            continue;
+        }
 
         if let Some(rest) = try_strip_prefix(trimmed, &["Reading:", "Reading file:", "Reading "]) {
             return Some(("reading".into(), rest.trim().into()));
@@ -282,7 +367,9 @@ fn detect_claude_action(output: &str) -> Option<(String, String)> {
         if trimmed.starts_with("$ ") {
             return Some(("running".into(), trimmed[2..].into()));
         }
-        if let Some(rest) = try_strip_prefix(trimmed, &["Searching:", "Searching for:", "Searching "]) {
+        if let Some(rest) =
+            try_strip_prefix(trimmed, &["Searching:", "Searching for:", "Searching "])
+        {
             return Some(("searching".into(), rest.trim().into()));
         }
         if trimmed.contains("Thinking") || trimmed.contains("Let me think") {

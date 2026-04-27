@@ -1,8 +1,8 @@
 //! Tree-sitter 代码解析包装器
 
-use tree_sitter::{Parser, Tree, Language as TsLanguage, Node, Query};
-use std::path::Path;
 use parking_lot::RwLock;
+use std::path::Path;
+use tree_sitter::{Language as TsLanguage, Node, Parser, Query, Tree};
 
 /// 支持的代码语言
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,7 +75,10 @@ impl TreeSitterParser {
             CodeLanguage::JavaScript => Some(tree_sitter_javascript::language()),
             CodeLanguage::Python => Some(tree_sitter_python::language()),
             _ => {
-                tracing::debug!("No grammar loaded for {:?}, falling back to raw parser", language);
+                tracing::debug!(
+                    "No grammar loaded for {:?}, falling back to raw parser",
+                    language
+                );
                 None
             }
         };
@@ -88,12 +91,9 @@ impl TreeSitterParser {
 
     /// 解析文件
     pub fn parse_file(&self, path: &Path) -> Result<ParseResult, ParseError> {
-        let source = std::fs::read(path)
-            .map_err(|e| ParseError::Io(e.to_string()))?;
+        let source = std::fs::read(path).map_err(|e| ParseError::Io(e.to_string()))?;
 
-        let ext = path.extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("");
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
         let language = CodeLanguage::from_extension(ext)
             .ok_or_else(|| ParseError::UnsupportedLanguage(ext.to_string()))?;
@@ -126,7 +126,11 @@ impl TreeSitterParser {
     }
 
     /// 解析字符串
-    pub fn parse_str(&self, source: &str, language: CodeLanguage) -> Result<ParseResult, ParseError> {
+    pub fn parse_str(
+        &self,
+        source: &str,
+        language: CodeLanguage,
+    ) -> Result<ParseResult, ParseError> {
         self.parse_with_language(source.as_bytes(), "<string>", language)
     }
 }
@@ -199,8 +203,14 @@ mod tests {
     #[test]
     fn test_language_detection() {
         assert_eq!(CodeLanguage::from_extension("rs"), Some(CodeLanguage::Rust));
-        assert_eq!(CodeLanguage::from_extension("ts"), Some(CodeLanguage::TypeScript));
-        assert_eq!(CodeLanguage::from_extension("py"), Some(CodeLanguage::Python));
+        assert_eq!(
+            CodeLanguage::from_extension("ts"),
+            Some(CodeLanguage::TypeScript)
+        );
+        assert_eq!(
+            CodeLanguage::from_extension("py"),
+            Some(CodeLanguage::Python)
+        );
         assert_eq!(CodeLanguage::from_extension("unknown"), None);
     }
 

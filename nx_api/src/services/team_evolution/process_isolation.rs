@@ -41,7 +41,10 @@ impl ProcessRegistry {
 
         // 检查同 role_id 是否已注册
         if processes.iter().any(|p| p.role_id == process.role_id) {
-            return Err(format!("Role {} already has a registered process", process.role_id));
+            return Err(format!(
+                "Role {} already has a registered process",
+                process.role_id
+            ));
         }
 
         // 校验无同目录争抢
@@ -76,7 +79,8 @@ impl ProcessRegistry {
 
     /// 按类型筛选
     pub fn list_by_type(&self, process_type: &ProcessType) -> Vec<IsolatedProcess> {
-        self.processes.read()
+        self.processes
+            .read()
             .iter()
             .filter(|p| &p.role_type == process_type)
             .cloned()
@@ -110,8 +114,7 @@ impl ProcessRegistry {
         new_process: &IsolatedProcess,
     ) -> Option<&'a IsolatedProcess> {
         existing.iter().find(|p| {
-            p.workspace_path == new_process.workspace_path
-                && p.role_id != new_process.role_id
+            p.workspace_path == new_process.workspace_path && p.role_id != new_process.role_id
         })
     }
 }
@@ -119,9 +122,19 @@ impl ProcessRegistry {
 /// 根据 role_name 猜测进程类型
 pub fn infer_process_type(role_name: &str) -> ProcessType {
     let lower = role_name.to_lowercase();
-    if lower.contains("前端") || lower.contains("frontend") || lower.contains("front-end") || lower.contains("react") || lower.contains("vue") {
+    if lower.contains("前端")
+        || lower.contains("frontend")
+        || lower.contains("front-end")
+        || lower.contains("react")
+        || lower.contains("vue")
+    {
         ProcessType::Frontend
-    } else if lower.contains("后端") || lower.contains("backend") || lower.contains("back-end") || lower.contains("rust") || lower.contains("api") {
+    } else if lower.contains("后端")
+        || lower.contains("backend")
+        || lower.contains("back-end")
+        || lower.contains("rust")
+        || lower.contains("api")
+    {
         ProcessType::Backend
     } else {
         ProcessType::General

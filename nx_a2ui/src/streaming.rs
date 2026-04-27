@@ -1,14 +1,14 @@
 //! A2UI 消息流
 
-use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc, broadcast};
-use tokio_stream::wrappers::BroadcastStream;
-use futures_util::{Stream, StreamExt};
 use chrono::{DateTime, Utc};
+use futures_util::{Stream, StreamExt};
+use serde::{Deserialize, Serialize};
+use tokio::sync::{broadcast, mpsc};
+use tokio_stream::wrappers::BroadcastStream;
 
-use crate::message::{A2UMessage, MessageType, MessagePriority};
-use crate::notification::Notification;
 use crate::dialog::ConfirmationDialog;
+use crate::message::{A2UMessage, MessagePriority, MessageType};
+use crate::notification::Notification;
 use crate::progress::ProgressUpdate;
 
 /// 流配置
@@ -200,24 +200,24 @@ impl MessageStream {
 
     /// 获取消息流（只接收消息）
     pub fn message_stream(&self) -> impl Stream<Item = A2UMessage> {
-        self.stream()
-            .filter_map(|event| async move {
-                match event {
-                    Ok(A2uiStreamEvent::Message(msg)) => Some(msg),
-                    Ok(A2uiStreamEvent::Notification(_))
-                    | Ok(A2uiStreamEvent::Dialog(_))
-                    | Ok(A2uiStreamEvent::Progress(_))
-                    | Ok(A2uiStreamEvent::Heartbeat { .. })
-                    | Ok(A2uiStreamEvent::Error { .. }) => None,
-                    Err(_) => None,
-                }
-            })
+        self.stream().filter_map(|event| async move {
+            match event {
+                Ok(A2uiStreamEvent::Message(msg)) => Some(msg),
+                Ok(A2uiStreamEvent::Notification(_))
+                | Ok(A2uiStreamEvent::Dialog(_))
+                | Ok(A2uiStreamEvent::Progress(_))
+                | Ok(A2uiStreamEvent::Heartbeat { .. })
+                | Ok(A2uiStreamEvent::Error { .. }) => None,
+                Err(_) => None,
+            }
+        })
     }
 
     /// 获取历史消息
     pub fn get_history(&self) -> Vec<A2UMessage> {
         let history = self.history.read().unwrap();
-        history.iter()
+        history
+            .iter()
             .filter_map(|e| match e {
                 A2uiStreamEvent::Message(msg) => Some(msg.clone()),
                 _ => None,
@@ -243,9 +243,18 @@ impl MessageStream {
             session_id: self.config.session_id.clone(),
             history_size: history.len(),
             max_history: self.config.max_history,
-            message_count: history.iter().filter(|e| matches!(e, A2uiStreamEvent::Message(_))).count(),
-            notification_count: history.iter().filter(|e| matches!(e, A2uiStreamEvent::Notification(_))).count(),
-            progress_count: history.iter().filter(|e| matches!(e, A2uiStreamEvent::Progress(_))).count(),
+            message_count: history
+                .iter()
+                .filter(|e| matches!(e, A2uiStreamEvent::Message(_)))
+                .count(),
+            notification_count: history
+                .iter()
+                .filter(|e| matches!(e, A2uiStreamEvent::Notification(_)))
+                .count(),
+            progress_count: history
+                .iter()
+                .filter(|e| matches!(e, A2uiStreamEvent::Progress(_)))
+                .count(),
         }
     }
 }
@@ -291,7 +300,10 @@ impl StreamManager {
     }
 
     /// 创建会话流
-    pub fn create_stream(&self, session_id: impl Into<String>) -> Result<MessageStream, StreamError> {
+    pub fn create_stream(
+        &self,
+        session_id: impl Into<String>,
+    ) -> Result<MessageStream, StreamError> {
         let session_id = session_id.into();
 
         let stream = {
@@ -309,7 +321,10 @@ impl StreamManager {
     }
 
     /// 获取或创建会话流
-    pub fn get_or_create(&self, session_id: impl Into<String>) -> Result<MessageStream, StreamError> {
+    pub fn get_or_create(
+        &self,
+        session_id: impl Into<String>,
+    ) -> Result<MessageStream, StreamError> {
         let session_id = session_id.into();
 
         // 先尝试获取

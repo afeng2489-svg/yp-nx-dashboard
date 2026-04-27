@@ -3,8 +3,8 @@
 //! 展示如何配置和使用 AI 模型管理器
 
 use nexus_ai::{
-    AIModelManager, AIManagerConfig, AIRequestParams, APIConfig,
-    ModelConfig, ProviderType, AIResponse,
+    AIManagerConfig, AIModelManager, AIRequestParams, AIResponse, APIConfig, ModelConfig,
+    ProviderType,
 };
 
 #[tokio::main]
@@ -14,12 +14,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 配置 API 密钥
     let mut api_config = std::collections::HashMap::new();
-    api_config.insert(ProviderType::Anthropic, APIConfig {
-        api_key: "sk-ant-xxxxx".to_string(),
-        base_url: "".to_string(),
-        organization_id: "".to_string(),
-        timeout_secs: 120,
-    });
+    api_config.insert(
+        ProviderType::Anthropic,
+        APIConfig {
+            api_key: "sk-ant-xxxxx".to_string(),
+            base_url: "".to_string(),
+            organization_id: "".to_string(),
+            timeout_secs: 120,
+        },
+    );
 
     // 创建默认模型配置
     let default_model = ModelConfig {
@@ -75,10 +78,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== 3. AI 调用示例 ===");
 
     // 简单补全调用
-    let response = manager.call(
-        "claude-sonnet-4-5",
-        "解释什么是机器学习".to_string()
-    ).await;
+    let response = manager
+        .call("claude-sonnet-4-5", "解释什么是机器学习".to_string())
+        .await;
 
     match response {
         Ok(result) => {
@@ -96,13 +98,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ========== 4. 聊天请求 ==========
     println!("\n=== 4. 聊天请求示例 ===");
 
-    let chat_response = manager.chat(
-        AIRequestParams::chat(
-            manager.get_model_config("claude-sonnet-4-5").unwrap(),
-            "给我写一个 Rust 语言的 hello world 程序".to_string()
+    let chat_response = manager
+        .chat(
+            AIRequestParams::chat(
+                manager.get_model_config("claude-sonnet-4-5").unwrap(),
+                "给我写一个 Rust 语言的 hello world 程序".to_string(),
+            )
+            .with_system_prompt("你是一个专业的编程助手".to_string()),
         )
-        .with_system_prompt("你是一个专业的编程助手".to_string())
-    ).await;
+        .await;
 
     match chat_response {
         Ok(result) => {
@@ -141,9 +145,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let loaded_config: AIManagerConfig = serde_json::from_str(json_config)?;
     println!("成功从 JSON 加载配置");
-    println!("默认模型: {} ({})",
-        loaded_config.default_model.model_id,
-        loaded_config.default_model.provider
+    println!(
+        "默认模型: {} ({})",
+        loaded_config.default_model.model_id, loaded_config.default_model.provider
     );
 
     Ok(())

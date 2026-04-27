@@ -6,15 +6,18 @@ use axum::{
 };
 use std::sync::Arc;
 
+use super::AppState;
 use crate::routes::executions::ExecutionResponse;
 use crate::services::workflow_service::WorkflowServiceError;
-use super::AppState;
 
 /// 列出工作流
 pub async fn list_workflows(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<WorkflowSummary>>, AppError> {
-    let workflows = state.workflow_service.list_workflows().map_err(AppError::from)?;
+    let workflows = state
+        .workflow_service
+        .list_workflows()
+        .map_err(AppError::from)?;
     let summaries = workflows
         .into_iter()
         .map(|w| WorkflowSummary {
@@ -158,7 +161,8 @@ pub async fn execute_workflow(
 
     // 5. 真正启动执行
     let variables = payload.variables.unwrap_or(serde_json::json!({}));
-    let execution_id = state.execution_service
+    let execution_id = state
+        .execution_service
         .execute_workflow(
             workflow.id.clone(),
             &workflow_yaml,
@@ -240,7 +244,10 @@ impl IntoResponse for AppError {
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Internal(msg) => {
                 tracing::error!("内部错误: {}", msg);
-                (StatusCode::INTERNAL_SERVER_ERROR, "内部服务器错误".to_string())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "内部服务器错误".to_string(),
+                )
             }
         };
 

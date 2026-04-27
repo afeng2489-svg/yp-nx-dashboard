@@ -30,10 +30,7 @@ impl WisdomQueryService {
     }
 
     /// Get entries by category
-    pub fn by_category(
-        &self,
-        category: WisdomCategory,
-    ) -> Result<Vec<WisdomEntry>, StorageError> {
+    pub fn by_category(&self, category: WisdomCategory) -> Result<Vec<WisdomEntry>, StorageError> {
         self.store.find_by_category(category)
     }
 

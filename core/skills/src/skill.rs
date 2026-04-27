@@ -397,14 +397,10 @@ mod tests {
 
     #[test]
     fn test_skill_metadata() {
-        let metadata = SkillMetadata::new(
-            SkillId::new("test"),
-            "测试技能",
-            "这是一个测试技能"
-        )
-        .with_category(SkillCategory::Development)
-        .with_tag("test")
-        .with_tag("example");
+        let metadata = SkillMetadata::new(SkillId::new("test"), "测试技能", "这是一个测试技能")
+            .with_category(SkillCategory::Development)
+            .with_tag("test")
+            .with_tag("example");
 
         assert_eq!(metadata.name, "测试技能");
         assert_eq!(metadata.category, SkillCategory::Development);
@@ -413,11 +409,7 @@ mod tests {
 
     #[test]
     fn test_skill_creation() {
-        let metadata = SkillMetadata::new(
-            SkillId::new("my-skill"),
-            "我的技能",
-            "技能描述"
-        );
+        let metadata = SkillMetadata::new(SkillId::new("my-skill"), "我的技能", "技能描述");
 
         let skill = Skill::new(metadata, "builtin");
 
