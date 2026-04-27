@@ -1,5 +1,6 @@
 {
   "bundle": {
+    "targets": ["nsis"],
     "resources": {
       "../../target/release/nx_api.exe": "nx_api.exe",
       "../../.claude/agents": "skills",
