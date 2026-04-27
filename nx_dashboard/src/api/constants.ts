@@ -1,7 +1,22 @@
 // API configuration
-// Use relative URLs - in dev mode Vite proxy handles /api -> http://localhost:8080
-// In Tauri production, the API server runs on localhost:8080
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+// - 开发模式 (port 5173)：走 Vite proxy（相对路径），规避 WKWebView 跨端口限制
+// - 生产模式（Tauri bundle）：webview origin 是 tauri://localhost，必须用绝对地址直连 nx_api
+function buildApiBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
+  if (envUrl) return envUrl;
+
+  if (typeof window !== 'undefined') {
+    const { port } = window.location;
+    if (port === '5173') {
+      // Vite dev server — 用相对路径走 proxy
+      return '';
+    }
+  }
+  // 生产环境 — 直连后端
+  return 'http://localhost:8080';
+}
+
+export const API_BASE_URL = buildApiBaseUrl();
 
 // WebSocket URL 策略：
 // - 开发模式 (port 5173)：走 Vite proxy（同源），避免 WKWebView 跨端口限制

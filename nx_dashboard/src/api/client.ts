@@ -1,6 +1,6 @@
-// Use relative URLs - in dev mode Vite proxy handles /api -> http://localhost:8080
-// In Tauri production, the API server should be accessible directly
-const API_BASE = '';
+// Use API_BASE_URL from constants.ts which handles dev (relative) vs production (absolute) correctly
+import { API_BASE_URL } from './constants';
+const API_BASE = API_BASE_URL;
 
 class ApiClient {
   private baseUrl: string;
@@ -136,6 +136,23 @@ class ApiClient {
 
   async getClaudeCliModel() {
     return this.request<ClaudeCliModelResponse>('/api/v1/ai/cli-model');
+  }
+
+  async getClaudeCliConfig() {
+    return this.request<ClaudeCliConfigResponse>('/api/v1/ai/claude-cli-config');
+  }
+
+  async setClaudeCliPath(path: string | null) {
+    return this.request<ClaudeCliConfigResponse>('/api/v1/ai/claude-cli-config', {
+      method: 'PUT',
+      body: JSON.stringify({ path }),
+    });
+  }
+
+  async detectClaudeCli() {
+    return this.request<ClaudeCliConfigResponse>('/api/v1/ai/claude-cli-config/detect', {
+      method: 'POST',
+    });
   }
 
   async setSelectedModel(modelId: string) {
@@ -413,6 +430,17 @@ export interface ClaudeCliModelResponse {
   haiku_model: string;
   opus_model: string;
   base_url: string | null;
+}
+
+export type ClaudeCliSource = 'user' | 'auto' | 'none';
+
+export interface ClaudeCliConfigResponse {
+  /** 当前生效路径，null = 未找到 */
+  path: string | null;
+  /** 路径来源：用户配置 / 自动检测 / 未找到 */
+  source: ClaudeCliSource;
+  /** 安装提示，仅 source=none 时有值 */
+  install_hint: string | null;
 }
 
 export interface ProviderInfo {

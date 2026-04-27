@@ -161,7 +161,20 @@ impl ClaudeStreamWsHandler {
         output_tx: mpsc::Sender<String>,
         _executing_tx: mpsc::Sender<()>,
     ) {
-        let mut cmd = Command::new("claude");
+        let cli_path = match crate::services::claude_cli::get_claude_cli_path() {
+            Some(p) => p,
+            None => {
+                let msg = ClaudeStreamServerMsg::Failed {
+                    execution_id,
+                    error: "Claude CLI not found. Please install: npm install -g @anthropic-ai/claude-code".to_string(),
+                };
+                if let Ok(json) = msg.to_json() {
+                    output_tx.send(json).await.ok();
+                }
+                return;
+            }
+        };
+        let mut cmd = Command::new(&cli_path);
         cmd.args(["-p", "--no-session-persistence", &prompt])
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());

@@ -10,6 +10,7 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { Allotment } from 'allotment';
 import 'allotment/dist/style.css';
 import { GlobalOpsOverlay } from '@/components/global/GlobalOpsOverlay';
+import { ClaudeCliMissingBanner } from '@/components/global/ClaudeCliMissingBanner';
 
 export function Dashboard() {
   const [showFileSidebar, setShowFileSidebar] = useState(true);
@@ -40,6 +41,9 @@ export function Dashboard() {
             </button>
           </div>
         </header>
+
+        {/* Claude CLI 缺失警告（仅未检测到时显示） */}
+        <ClaudeCliMissingBanner />
 
         {/* Main content area with optional file sidebar */}
         <div className="flex-1 flex overflow-hidden">

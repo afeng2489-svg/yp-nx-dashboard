@@ -17,6 +17,7 @@ import {
   PauseCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { WS_BASE_URL } from '@/api/constants';
 
 // 工作流操作说明
 const WORKFLOW_OPERATIONS = [
@@ -337,7 +338,7 @@ function ExecutionLogs({ executionId }: { executionId: string }) {
     setCurrentStage(null);
     setPauseState(null);
 
-    const ws = new WebSocket(`/ws/executions/${executionId}`);
+    const ws = new WebSocket(`${WS_BASE_URL}/ws/executions/${executionId}`);
     wsRef.current = ws;
 
     ws.onopen = () => {

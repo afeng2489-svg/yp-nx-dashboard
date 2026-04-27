@@ -571,8 +571,27 @@ impl WorkflowEngine {
 
     /// 调用 Claude CLI
     async fn call_claude_cli(&self, prompt: &str) -> Result<String, WorkflowError> {
-        let claude_bin =
-            std::env::var("CLAUDE_BIN").unwrap_or_else(|_| "/opt/homebrew/bin/claude".to_string());
+        let claude_bin = std::env::var("CLAUDE_BIN")
+            .or_else(|_| std::env::var("CLAUDE_CLI_PATH_OVERRIDE"))
+            .or_else(|_| {
+                // Try common paths as fallback
+                let candidates = if cfg!(target_os = "windows") {
+                    vec!["claude.exe".to_string()]
+                } else {
+                    vec![
+                        "/opt/homebrew/bin/claude".to_string(),
+                        "/usr/local/bin/claude".to_string(),
+                        "claude".to_string(),
+                    ]
+                };
+                for c in &candidates {
+                    if std::path::Path::new(c).exists() {
+                        return Ok(c.clone());
+                    }
+                }
+                Err(std::env::VarError::NotPresent)
+            })
+            .unwrap_or_else(|_| "claude".to_string());
         let mut cmd = Command::new(&claude_bin);
         cmd.args(["-p", "--dangerously-skip-permissions", prompt]);
 
@@ -584,9 +603,19 @@ impl WorkflowEngine {
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
 
-        let child = cmd
-            .spawn()
-            .map_err(|e| WorkflowError::Execution(format!("Failed to spawn Claude CLI: {}", e)))?;
+        let child = cmd.spawn().map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                WorkflowError::Execution(format!(
+                    "未找到 Claude Code CLI 可执行文件 (路径: {}).\n\
+                    请先安装：npm install -g @anthropic-ai/claude-code\n\
+                    或在「AI 设置」页面手动指定 Claude CLI 路径。\n\
+                    底层错误: {}",
+                    claude_bin, e
+                ))
+            } else {
+                WorkflowError::Execution(format!("启动 Claude CLI 失败 ({}): {}", claude_bin, e))
+            }
+        })?;
 
         let output = child
             .wait_with_output()

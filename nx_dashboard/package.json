@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:backend": "cargo build --release --bin nx_api --manifest-path ../Cargo.toml",
+    "build:all": "npm run build && npm run build:backend",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

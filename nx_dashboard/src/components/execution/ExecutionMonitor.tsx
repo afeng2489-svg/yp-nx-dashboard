@@ -30,8 +30,7 @@ function useLogStream(executionId: string | undefined) {
   const connect = useCallback(() => {
     if (!executionId) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${WS_BASE_URL}/ws/executions/${executionId}`;
+    const wsUrl = `${WS_BASE_URL}/ws/executions/${executionId}`;
 
     try {
       const ws = new WebSocket(wsUrl);

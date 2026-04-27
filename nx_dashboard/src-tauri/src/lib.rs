@@ -172,9 +172,35 @@ pub fn run() {
             let resource_dir = app.path().resource_dir()
                 .expect("failed to resolve resource directory");
 
+            // Resolve Claude CLI path and pass to nx_api as env var
+            let claude_cli_env = if cfg!(debug_assertions) {
+                // Debug: let nx_api find it from shell PATH
+                None
+            } else {
+                // Release: resolve from Tauri shell and pass directly
+                let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+                let output = Command::new(&shell)
+                    .args(["-l", "-c", "which claude 2>/dev/null || echo ''"])
+                    .output();
+                if let Ok(out) = output {
+                    if out.status.success() {
+                        let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                        if !path.is_empty() && path != "''" {
+                            Some(path)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            };
+
             // Start nx_api in background
             thread::spawn(move || {
-                if let Err(e) = start_nx_api(&resource_dir) {
+                if let Err(e) = start_nx_api(&resource_dir, claude_cli_env.as_deref()) {
                     eprintln!("[ERROR] Failed to start nx_api: {}", e);
                 }
             });
@@ -187,8 +213,37 @@ pub fn run() {
 
 // ── nx_api Subprocess ───────────────────────────────────────────────────────
 
-fn start_nx_api(resource_dir: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+fn kill_stale_nx_api() {
+    // Kill any previous nx_api process occupying port 8080
+    // This prevents "Address already in use" when relaunching the app
+    let port = 8080;
+    if cfg!(target_os = "windows") {
+        let _ = Command::new("powershell")
+            .args(["-NoProfile", "-Command",
+                &format!("Get-NetTCPConnection -LocalPort {} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess | ForEach-Object {{ Stop-Process -Id $_ -Force }}", port)])
+            .output();
+    } else {
+        let output = Command::new("lsof")
+            .args(["-i", &format!(":{}", port), "-t"])
+            .output();
+        if let Ok(out) = output {
+            if out.status.success() {
+                let pids = String::from_utf8_lossy(&out.stdout);
+                for pid in pids.lines().filter(|l| !l.trim().is_empty()) {
+                    let _ = Command::new("kill").args(["-9", pid.trim()]).output();
+                    eprintln!("[NX Dashboard] Killed stale process {} on port {}", pid.trim(), port);
+                }
+            }
+        }
+    }
+}
+
+fn start_nx_api(resource_dir: &std::path::Path, claude_cli_path: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
     let _ = std::fs::write(std::env::temp_dir().join("nx_start_called.txt"), "start_nx_api called");
+
+    // Kill any stale nx_api on port 8080 before starting
+    kill_stale_nx_api();
+    std::thread::sleep(std::time::Duration::from_millis(500));
 
     let (nx_api_path, skills_path, resources_dir) = if cfg!(debug_assertions) {
         let root = PathBuf::from("/Users/Zhuanz/Desktop/yp-nx-dashboard");
@@ -248,11 +303,20 @@ fn start_nx_api(resource_dir: &std::path::Path) -> Result<(), Box<dyn std::error
         .map_err(|e| format!("Failed to open log file: {}", e))?;
     let log_file2 = log_file.try_clone()?;
 
-    let mut child = Command::new(&nx_api_path)
+    let mut child_cmd = Command::new(&nx_api_path);
+    child_cmd
         .env("AGENTS_DIR", &skills_path)
         .env("NEXUS_DB_PATH", &db_path)
         .env("NEXUS_ALLOWED_ORIGINS", "tauri://localhost,http://localhost:5173,http://localhost:3000")
-        .env("RUST_LOG", "info")
+        .env("RUST_LOG", "info");
+
+    // Pass resolved Claude CLI path to nx_api
+    if let Some(cli_path) = claude_cli_path {
+        eprintln!("[NX Dashboard] Claude CLI path: {}", cli_path);
+        child_cmd.env("CLAUDE_CLI_PATH_OVERRIDE", cli_path);
+    }
+
+    let mut child = child_cmd
         .stdout(log_file)
         .stderr(log_file2)
         .spawn()

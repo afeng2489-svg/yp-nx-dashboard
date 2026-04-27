@@ -63,6 +63,10 @@ export function usePtySession({
                 setIsConnected(false);
               } else if (msg.type === 'error') {
                 terminal.write(`\r\n\x1b[31m[错误] ${msg.message ?? '未知错误'}\x1b[0m\r\n`);
+                // 如果是 session 不存在（重启后 localStorage 缓存了旧 ID），清掉 stale 记录让上层重建
+                if (msg.message?.includes('not found') || msg.message?.includes('Session')) {
+                  onSessionLostRef.current?.();
+                }
               }
             } catch {
               /* ignore non-JSON */
@@ -110,6 +114,10 @@ export function usePtySession({
               setIsConnected(false);
             } else if (msg.type === 'error') {
               terminal.write(`\r\n\x1b[31m[错误] ${msg.message ?? '未知错误'}\x1b[0m\r\n`);
+              // session 不存在（nx_api 重启后 localStorage 缓存的旧 ID 已失效），清掉让上层重建
+              if (msg.message?.includes('not found') || msg.message?.includes('Session')) {
+                onSessionLostRef.current?.();
+              }
             }
           } catch {
             terminal.write(evt.data);

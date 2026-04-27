@@ -57,11 +57,32 @@ function CliModelDisplay() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api
-      .getClaudeCliModel()
-      .then(setCliModel)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    let attempt = 0;
+    const maxAttempts = 30; // 最多重试 30 次（约 30 秒，等 nx_api 起来）
+
+    const tryFetch = async () => {
+      while (!cancelled && attempt < maxAttempts) {
+        attempt += 1;
+        try {
+          const data = await api.getClaudeCliModel();
+          if (!cancelled) {
+            setCliModel(data);
+            setLoading(false);
+          }
+          return;
+        } catch {
+          // nx_api 可能还没起来，等一秒重试
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+      }
+      if (!cancelled) setLoading(false);
+    };
+
+    void tryFetch();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (loading) {

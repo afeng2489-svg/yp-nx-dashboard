@@ -1951,7 +1951,13 @@ pub struct ClaudeCliModelResponse {
 
 /// 获取 Claude Code CLI 实际使用的模型
 pub async fn get_claude_cli_model() -> Json<ClaudeCliModelResponse> {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
+    let home = if cfg!(target_os = "windows") {
+        std::env::var("USERPROFILE")
+            .or_else(|_| std::env::var("HOME"))
+            .unwrap_or_else(|_| r"C:\Users\Default".to_string())
+    } else {
+        std::env::var("HOME").unwrap_or_else(|_| "/root".to_string())
+    };
     let settings_path = std::path::Path::new(&home).join(".claude/settings.json");
 
     let (sonnet, haiku, opus, base_url) = if settings_path.exists() {
@@ -2003,4 +2009,76 @@ pub async fn get_claude_cli_model() -> Json<ClaudeCliModelResponse> {
         opus_model: opus,
         base_url,
     })
+}
+
+// ── Claude CLI Path Configuration ───────────────────────────────────────────
+
+#[derive(Debug, serde::Serialize)]
+pub struct ClaudeCliConfigResponse {
+    /// 当前生效的 claude 二进制路径（null 表示未找到）
+    pub path: Option<String>,
+    /// 路径来源：user / auto / none
+    pub source: String,
+    /// 可读的安装提示（仅 source=none 时有意义）
+    pub install_hint: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SetClaudeCliPathRequest {
+    /// null 或空字符串 = 清除用户配置，回退到自动检测
+    pub path: Option<String>,
+}
+
+fn install_hint() -> Option<String> {
+    Some(
+        "未检测到 Claude Code CLI。请安装：npm install -g @anthropic-ai/claude-code，\
+         或在 https://claude.ai/code 下载官方安装器。安装后可在此页面手动指定路径。"
+            .to_string(),
+    )
+}
+
+fn resolution_to_response(
+    r: crate::services::claude_cli::ClaudeCliResolution,
+) -> ClaudeCliConfigResponse {
+    use crate::services::claude_cli::ClaudeCliSource;
+    let source = match r.source {
+        ClaudeCliSource::User => "user",
+        ClaudeCliSource::Auto => "auto",
+        ClaudeCliSource::None => "none",
+    }
+    .to_string();
+    let install_hint = if matches!(r.source, ClaudeCliSource::None) {
+        install_hint()
+    } else {
+        None
+    };
+    ClaudeCliConfigResponse {
+        path: r.path,
+        source,
+        install_hint,
+    }
+}
+
+/// 获取 Claude CLI 当前配置
+pub async fn get_claude_cli_config() -> Json<ClaudeCliConfigResponse> {
+    Json(resolution_to_response(
+        crate::services::claude_cli::get_resolution_status(),
+    ))
+}
+
+/// 设置 Claude CLI 路径（用户手动配置）
+pub async fn set_claude_cli_config(
+    Json(req): Json<SetClaudeCliPathRequest>,
+) -> Result<Json<ClaudeCliConfigResponse>, (StatusCode, String)> {
+    match crate::services::claude_cli::set_user_path(req.path) {
+        Ok(r) => Ok(Json(resolution_to_response(r))),
+        Err(e) => Err((StatusCode::BAD_REQUEST, e)),
+    }
+}
+
+/// 重新触发自动检测
+pub async fn redetect_claude_cli() -> Json<ClaudeCliConfigResponse> {
+    Json(resolution_to_response(
+        crate::services::claude_cli::redetect(),
+    ))
 }

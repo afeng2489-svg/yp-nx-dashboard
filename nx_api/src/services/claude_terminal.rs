@@ -117,7 +117,18 @@ fn run_pty_session(
         }
     };
 
-    let mut cmd = CommandBuilder::new("/opt/homebrew/bin/claude");
+    let cli_path = match crate::services::claude_cli::get_claude_cli_path() {
+        Some(p) => p,
+        None => {
+            tracing::error!("[PTY] 未找到 Claude Code CLI");
+            let msg = "\r\n[错误] 未找到 Claude Code CLI，请先安装 claude (npm install -g @anthropic-ai/claude-code)\r\n".to_string();
+            let _ = output_tx.send(msg.into_bytes());
+            return;
+        }
+    };
+    tracing::info!("[PTY] 使用 Claude CLI: {}", cli_path);
+
+    let mut cmd = CommandBuilder::new(&cli_path);
     cmd.args(["--dangerously-skip-permissions"]);
     if let Some(ref dir) = working_dir {
         cmd.cwd(dir);
@@ -126,7 +137,7 @@ fn run_pty_session(
     let _child = match pair.slave.spawn_command(cmd) {
         Ok(c) => c,
         Err(e) => {
-            tracing::error!("[PTY] 启动 claude 失败: {}", e);
+            tracing::error!("[PTY] 启动 claude 失败: {} (path: {})", e, cli_path);
             let msg = format!("\r\n[错误] 无法启动 claude: {}\r\n", e);
             let _ = output_tx.send(msg.into_bytes());
             return;

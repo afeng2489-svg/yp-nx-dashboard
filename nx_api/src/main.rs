@@ -20,6 +20,10 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("启动 NexusFlow API 服务器...");
     println!("[STARTUP] NexusFlow API 服务器已启动 (debug logs enabled)"); // NEXUS-DEBUG
 
+    // 启动早期解析 Claude CLI 路径：
+    // 用户配置（最高优先级）→ 智能搜索 → 写入 CLAUDE_CLI_PATH_OVERRIDE 让 engine.rs 也能读到
+    nx_api::services::claude_cli::init_at_startup();
+
     // 加载配置
     let config = ApiConfig::load();
 

@@ -50,6 +50,9 @@ parking_lot.workspace = true
 once_cell = "1.19"
 portable-pty.workspace = true
 
+# Cross-platform user dirs (for Claude CLI config persistence)
+dirs = "5"
+
 # File watching
 notify = "7"
 

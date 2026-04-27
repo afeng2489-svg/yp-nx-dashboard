@@ -4,11 +4,170 @@ import {
   ClaudeSwitchBackendInfo,
   ClaudeSwitchBackendConfig,
 } from '@/stores/aiConfigStore';
-import { AddModelMappingRequest, api } from '@/api/client';
+import { AddModelMappingRequest, ClaudeCliConfigResponse, api } from '@/api/client';
 import { ProviderGrid } from '@/components/provider/ProviderGrid';
 import { showSuccess, showError } from '@/lib/toast';
-import { Loader2, Plus, Check, X, Bot, ArrowRightLeft } from 'lucide-react';
+import {
+  Loader2,
+  Plus,
+  Check,
+  X,
+  Bot,
+  ArrowRightLeft,
+  Terminal,
+  AlertTriangle,
+  RefreshCw,
+  Save,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// ── Claude CLI 路径配置 ────────────────────────────────────────────────────
+
+function ClaudeCliPathSection() {
+  const [config, setConfig] = useState<ClaudeCliConfigResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [detecting, setDetecting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [inputPath, setInputPath] = useState('');
+
+  const refresh = async () => {
+    try {
+      const data = await api.getClaudeCliConfig();
+      setConfig(data);
+      setInputPath(data.path ?? '');
+    } catch (e) {
+      showError(`获取 Claude CLI 配置失败: ${(e as Error).message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const handleDetect = async () => {
+    setDetecting(true);
+    try {
+      const data = await api.detectClaudeCli();
+      setConfig(data);
+      setInputPath(data.path ?? '');
+      if (data.path) {
+        showSuccess(`检测到 Claude CLI: ${data.path}`);
+      } else {
+        showError('未检测到 Claude CLI，请手动指定路径或先安装');
+      }
+    } catch (e) {
+      showError(`自动检测失败: ${(e as Error).message}`);
+    } finally {
+      setDetecting(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const trimmed = inputPath.trim();
+      const data = await api.setClaudeCliPath(trimmed === '' ? null : trimmed);
+      setConfig(data);
+      setInputPath(data.path ?? '');
+      showSuccess(trimmed ? '已保存自定义路径' : '已清除自定义路径，回退到自动检测');
+    } catch (e) {
+      showError(`保存失败: ${(e as Error).message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border bg-card p-6 flex items-center gap-2 text-muted-foreground">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        <span className="text-sm">加载 Claude CLI 配置...</span>
+      </div>
+    );
+  }
+
+  const sourceLabel =
+    config?.source === 'user' ? '用户配置' : config?.source === 'auto' ? '自动检测' : '未找到';
+  const sourceColor =
+    config?.source === 'none'
+      ? 'text-red-500 bg-red-500/10 border-red-500/30'
+      : config?.source === 'user'
+        ? 'text-blue-500 bg-blue-500/10 border-blue-500/30'
+        : 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30';
+
+  return (
+    <div className="rounded-xl border bg-card p-6">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500/10 to-purple-500/10 flex items-center justify-center">
+          <Terminal className="w-5 h-5 text-indigo-500" />
+        </div>
+        <div className="flex-1">
+          <h2 className="text-lg font-semibold">Claude Code CLI 路径</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            工作流和团队对话依赖本地 Claude CLI；优先使用此处配置，否则自动从系统 PATH 搜索
+          </p>
+        </div>
+        <span className={cn('px-2.5 py-1 rounded-full text-xs font-medium border', sourceColor)}>
+          {sourceLabel}
+        </span>
+      </div>
+
+      {config?.source === 'none' && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-amber-700 dark:text-amber-300">
+            {config.install_hint || '未检测到 Claude Code CLI'}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1 block">
+            可执行文件路径（留空 = 使用自动检测）
+          </label>
+          <input
+            type="text"
+            value={inputPath}
+            onChange={(e) => setInputPath(e.target.value)}
+            placeholder="/opt/homebrew/bin/claude 或 ~/.npm-global/bin/claude"
+            className="w-full px-3 py-2 rounded-lg border bg-background text-sm font-mono focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
+          />
+          {config?.source === 'auto' && config.path && (
+            <p className="text-xs text-muted-foreground mt-1">
+              当前自动检测到：<span className="font-mono">{config.path}</span>
+            </p>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-2 rounded-lg bg-indigo-500 text-white text-sm font-medium hover:bg-indigo-600 disabled:opacity-50 flex items-center gap-2"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            保存
+          </button>
+          <button
+            onClick={handleDetect}
+            disabled={detecting}
+            className="px-4 py-2 rounded-lg border bg-background text-sm font-medium hover:bg-accent disabled:opacity-50 flex items-center gap-2"
+          >
+            {detecting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            自动检测
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const CLAUDE_SWITCH_BACKENDS = [
   {
@@ -348,6 +507,11 @@ export function AISettingsPage() {
         <p className="text-sm text-muted-foreground mt-1">
           管理 AI 服务提供商，配置 API 密钥和模型映射
         </p>
+      </div>
+
+      {/* Claude CLI 路径配置（最重要，放最前） */}
+      <div className="mb-6">
+        <ClaudeCliPathSection />
       </div>
 
       {/* Claude Switch Section */}

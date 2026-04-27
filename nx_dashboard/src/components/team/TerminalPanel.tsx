@@ -75,6 +75,7 @@ function SingleTerminal({ teamId, roleId, sessionId, visible, onClose }: SingleT
     term.loadAddon(fitAddon);
     term.open(containerRef.current);
     fitAddon.fit();
+    term.focus();
 
     terminalRef.current = term;
     fitAddonRef.current = fitAddon;
@@ -88,7 +89,7 @@ function SingleTerminal({ teamId, roleId, sessionId, visible, onClose }: SingleT
     };
   }, []);
 
-  // 可见时 fit
+  // 可见时 fit + 取回焦点（让用户能直接按 ↑↓Enter）
   useEffect(() => {
     if (!visible) return;
     const id = requestAnimationFrame(() => {
@@ -96,9 +97,17 @@ function SingleTerminal({ teamId, roleId, sessionId, visible, onClose }: SingleT
       if (!fitAddonRef.current || !term) return;
       fitAddonRef.current.fit();
       resize(term.rows, term.cols);
+      term.focus();
     });
     return () => cancelAnimationFrame(id);
   }, [visible, resize]);
+
+  // 连接成功后 focus（避免 isConnected false→true 切换时按键不响应）
+  useEffect(() => {
+    if (isConnected && terminalRef.current) {
+      terminalRef.current.focus();
+    }
+  }, [isConnected]);
 
   // 窗口大小变化时 fit
   useEffect(() => {

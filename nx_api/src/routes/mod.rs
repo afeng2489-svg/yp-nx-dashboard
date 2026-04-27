@@ -937,6 +937,18 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route("/api/v1/ai/selected", get(ai_config::get_selected_model))
         .route("/api/v1/ai/selected", put(ai_config::set_selected_model))
         .route("/api/v1/ai/cli-model", get(ai_config::get_claude_cli_model))
+        .route(
+            "/api/v1/ai/claude-cli-config",
+            get(ai_config::get_claude_cli_config),
+        )
+        .route(
+            "/api/v1/ai/claude-cli-config",
+            put(ai_config::set_claude_cli_config),
+        )
+        .route(
+            "/api/v1/ai/claude-cli-config/detect",
+            post(ai_config::redetect_claude_cli),
+        )
         .route("/api/v1/ai/default", put(ai_config::set_default_model))
         .route("/api/v1/ai/chat", post(ai_config::chat_with_selected))
         .route(
