@@ -23,7 +23,7 @@ const tabs = [
   { id: 'group-chat' as const, label: '群组讨论', icon: MessageSquare, path: '/group-chat' },
   { id: 'processes' as const, label: '进程监测', icon: Activity, path: '/processes' },
   { id: 'browser' as const, label: '浏览器', icon: Globe, path: '/browser' },
-  { id: 'ai-settings' as const, label: 'AI 设置', icon: Bot, path: '/ai-settings' },
+  // { id: 'ai-settings' as const, label: 'AI 设置', icon: Bot, path: '/ai-settings' },
   { id: 'settings' as const, label: '设置', icon: Settings, path: '/settings' },
 ];
 
@@ -168,7 +168,7 @@ export function Sidebar() {
               <Workflow className="w-4 h-4 text-white" />
             </div>
             <span className="font-bold text-lg bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              NexusFlow
+              YpNextFlow
             </span>
           </div>
         )}
@@ -257,7 +257,7 @@ export function Sidebar() {
           </div>
           {sidebarOpen && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">NexusFlow</p>
+              <p className="text-sm font-medium truncate">YpNextFlow</p>
               <p className="text-xs text-muted-foreground truncate">v0.1.0</p>
             </div>
           )}

@@ -111,7 +111,7 @@ function TerminalPane({
           setIsConnected(true);
           setConnectionError(null);
           wsRef.current.reconnectAttempts = 0;
-          terminal.writeln('\x1b[36m[NexusFlow]\x1b[0m 终端已连接');
+          terminal.writeln('\x1b[36m[YpNextFlow]\x1b[0m 终端已连接');
           terminal.writeln('');
         };
 
