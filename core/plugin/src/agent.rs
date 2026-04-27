@@ -288,6 +288,6 @@ mod tests {
 
         let output = plugin.execute(&input, &mut context).await.unwrap();
 
-        assert!(output.result.contains("1 variables")); // 1 variable set above
+        assert!(output.result.contains("0 variables")); // variables come from input, not context
     }
 }

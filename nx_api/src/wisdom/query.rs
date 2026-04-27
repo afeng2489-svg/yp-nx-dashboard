@@ -107,7 +107,7 @@ impl WisdomQueryService {
             .collect();
 
         // Sort by score descending, then by confidence descending
-        entries_with_scores.sort_by(|a, b| b.1.cmp(&a.1));
+        entries_with_scores.sort_by_key(|b| std::cmp::Reverse(b.1));
         let sorted: Vec<WisdomEntry> = entries_with_scores
             .into_iter()
             .map(|(e, _)| e)

@@ -384,28 +384,53 @@ pub enum SearchError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::{MemoryChunk, MessageRole, Transcript, TranscriptMetadata};
     use tempfile::tempdir;
 
     #[tokio::test]
     async fn test_search_without_embedding() {
         let dir = tempdir().unwrap();
         let store = Arc::new(MemoryStore::new(dir.path().join("test.db")).unwrap());
-        let search = MemorySearch::new(store);
 
-        // 手动添加 BM25 数据（不生成向量）
-        search
-            .index_chunk(
-                "team1",
-                "chunk1",
-                "PostgreSQL is a database",
-                serde_json::json!({}),
-            )
-            .await
-            .unwrap();
+        let search = MemorySearch::new(store.clone());
+
+        // Insert enough documents so BM25 scores are meaningful (IDF needs multiple docs)
+        let docs = vec![
+            ("chunk1", "PostgreSQL is a powerful open source database system"),
+            ("chunk2", "MySQL is another popular database management system"),
+            ("chunk3", "Redis is an in-memory key value store used as database cache"),
+            ("chunk4", "MongoDB is a document oriented database for modern applications"),
+            ("chunk5", "Rust is a systems programming language focused on safety and performance"),
+            ("chunk6", "Docker containers provide isolated runtime environments for applications"),
+            ("chunk7", "Kubernetes orchestrates containerized workloads across clusters"),
+            ("chunk8", "Git is a distributed version control system for tracking code changes"),
+        ];
+
+        // Insert transcript + chunk to satisfy foreign key chain
+        let transcript = Transcript::new("team1", "user1", MessageRole::User, "database systems overview");
+        store.store_transcript(&transcript).unwrap();
+
+        for (chunk_id, content) in &docs {
+            let chunk = MemoryChunk {
+                id: chunk_id.to_string(),
+                transcript_id: transcript.id.clone(),
+                content: content.to_string(),
+                chunk_index: 0,
+                token_count: 10,
+                embedding: None,
+                created_at: chrono::Utc::now(),
+            };
+            store.store_chunk(&chunk).unwrap();
+
+            search
+                .index_chunk("team1", chunk_id, content, serde_json::json!({}))
+                .await
+                .unwrap();
+        }
 
         let result = search
             .search(&SearchRequest::new("team1", "database"), None)
             .unwrap();
-        assert!(!result.results.is_empty());
+        assert!(!result.results.is_empty(), "Expected search to find results for 'database'");
     }
 }

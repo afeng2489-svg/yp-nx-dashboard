@@ -299,9 +299,7 @@ impl CodexLensEngine {
 
     /// 代码感知分词
     fn code_aware_tokenize(&self, content: &str, tokens: &mut HashMap<String, Vec<usize>>) {
-        let mut line_num = 1;
-
-        for line in content.lines() {
+        for (line_num, line) in (1..).zip(content.lines()) {
             let mut word_start = None;
             let chars: Vec<char> = line.chars().collect();
 
@@ -336,21 +334,16 @@ impl CodexLensEngine {
                 let word = chars[start..].iter().collect::<String>().to_lowercase();
                 self.add_token(tokens, &word, line_num);
             }
-
-            line_num += 1;
         }
     }
 
     /// 简单分词
     fn simple_tokenize(&self, content: &str, tokens: &mut HashMap<String, Vec<usize>>) {
-        let mut line_num = 1;
-
-        for line in content.lines() {
+        for (line_num, line) in (1..).zip(content.lines()) {
             for word in line.split(|c: char| !c.is_alphanumeric()) {
                 let word_lower = word.to_lowercase();
                 self.add_token(tokens, &word_lower, line_num);
             }
-            line_num += 1;
         }
     }
 

@@ -71,6 +71,7 @@ impl RunCommandWsHandler {
                         }
                         Some(Ok(WsMessage::Close(_))) | None => break,
                         Some(Ok(WsMessage::Ping(data))) => {
+                            #[allow(clippy::collapsible_match)]
                             if sender.send(WsMessage::Pong(data)).await.is_err() {
                                 break;
                             }

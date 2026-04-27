@@ -232,7 +232,7 @@ impl AceEngine {
     /// 添加文档进行索引
     pub fn index_document(&self, doc: Document, chunks: Vec<Chunk>, vectors: Vec<Vec<f32>>) {
         self.index.add_document(doc);
-        for (chunk, vector) in chunks.into_iter().zip(vectors.into_iter()) {
+        for (chunk, vector) in chunks.into_iter().zip(vectors) {
             self.index.add_chunk(chunk, vector);
         }
     }

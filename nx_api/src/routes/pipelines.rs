@@ -63,11 +63,7 @@ fn build_response(pipeline: Pipeline, steps: Vec<PipelineStep>) -> PipelineRespo
         .iter()
         .filter(|s| s.status == StepStatus::Failed)
         .count();
-    let pct = if total > 0 {
-        (completed * 100 / total) as u32
-    } else {
-        0
-    };
+    let pct = (completed * 100).checked_div(total).unwrap_or(0) as u32;
 
     PipelineResponse {
         id: pipeline.id,

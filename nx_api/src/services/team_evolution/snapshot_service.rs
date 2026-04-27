@@ -223,11 +223,7 @@ impl SnapshotService {
         let failed = snapshots.iter().filter(|s| s.phase == "failed").count() as u32;
 
         // overall_pct = average of all role progress_pct
-        let overall_pct = if total > 0 {
-            snapshots.iter().map(|s| s.progress_pct).sum::<u32>() / total
-        } else {
-            0
-        };
+        let overall_pct = snapshots.iter().map(|s| s.progress_pct).sum::<u32>().checked_div(total).unwrap_or(0);
 
         // Find the most active phase
         let overall_phase = if completed == total && total > 0 {

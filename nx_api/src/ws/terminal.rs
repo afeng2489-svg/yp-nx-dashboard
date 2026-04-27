@@ -141,6 +141,7 @@ impl TerminalWsHandler {
                             let _ = cmd_tx.send(PtyCommand::Write(String::from_utf8_lossy(&data).to_string())).await;
                         }
                         Ok(Some(WsMessage::Ping(data))) => {
+                            #[allow(clippy::collapsible_match)]
                             if sender.send(WsMessage::Pong(data)).await.is_err() {
                                 let _ = cmd_tx.send(PtyCommand::Terminate).await;
                                 break;

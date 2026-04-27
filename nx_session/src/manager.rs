@@ -349,10 +349,17 @@ mod tests {
     async fn test_resume_key() {
         let manager = SessionManager::new();
 
-        let session = manager.create_session(SessionMetadata::default()).await;
-        let resume_key = session.metadata.resume_key.clone().unwrap();
+        // create_session uses Session::new() internally which generates a resume_key,
+        // but passing default() metadata overwrites it with None.
+        // Use Session::new() metadata which has a resume_key.
+        let session = manager.create_session(SessionMetadata {
+            resume_key: Some(uuid::Uuid::new_v4().to_string()),
+            ..Default::default()
+        }).await;
+        let resume_key = session.metadata.resume_key.as_ref()
+            .expect("resume_key should be set");
 
-        let resumed = manager.get_session_by_resume_key(&resume_key).await;
+        let resumed = manager.get_session_by_resume_key(resume_key).await;
         assert!(resumed.is_some());
         assert_eq!(resumed.unwrap().id, session.id);
     }

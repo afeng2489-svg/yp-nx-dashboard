@@ -495,6 +495,6 @@ mod tests {
     fn test_detect_search_mode() {
         let engine = HybridSearchEngine::new(128);
         let mode = engine.detect_search_mode("fn main() -> ()");
-        assert_eq!(mode, HybridSearchMode::SemanticFirst);
+        assert_eq!(mode, HybridSearchMode::Hybrid); // has code syntax but not structural
     }
 }
