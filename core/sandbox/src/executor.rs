@@ -210,7 +210,8 @@ impl SandboxExecutor {
 
     #[cfg(unix)]
     fn apply_resource_limits(&self, cmd: &mut Command, request: &ExecuteRequest) {
-        let _memory_limit = request.memory_limit_bytes;
+        #[cfg(target_os = "linux")]
+        let memory_limit = request.memory_limit_bytes;
         let cpu_limit = request.cpu_time_secs;
 
         // Use pre_exec to set resource limits via setrlimit before the child process runs

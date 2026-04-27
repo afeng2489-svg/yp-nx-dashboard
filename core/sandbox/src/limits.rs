@@ -99,7 +99,7 @@ impl ResourceLimitConfig {
 #[derive(Debug, Clone, Default)]
 pub struct SyscallAllowList {
     /// 系统调用列表
-    pub syscalls: Vec<i32>,
+    pub syscalls: Vec<i64>,
 }
 
 impl SyscallAllowList {
@@ -407,7 +407,7 @@ impl SyscallAllowList {
 
         // 加载系统调用号
         filters.push(sock_filter {
-            code: BPF_LD | BPF_W | BPF_ABS,
+            code: (BPF_LD | BPF_W | BPF_ABS) as u16,
             jt: 0,
             jf: 0,
             k: offset_of!(sock_filter, code) as u32,
@@ -418,7 +418,7 @@ impl SyscallAllowList {
             let jt = if i < count - 1 { 1 } else { 0 };
             let jf = if i == count - 1 { 0 } else { 0 };
             filters.push(sock_filter {
-                code: BPF_JMP | BPF_JEQ | BPF_K,
+                code: (BPF_JMP | BPF_JEQ | BPF_K) as u16,
                 jt,
                 jf,
                 k: *syscall as u32,
@@ -427,7 +427,7 @@ impl SyscallAllowList {
 
         // 如果不在列表中则返回 -SECCOMP_RET_KILL
         filters.push(sock_filter {
-            code: BPF_RET | BPF_K,
+            code: (BPF_RET | BPF_K) as u16,
             jt: 0,
             jf: 0,
             k: SECCOMP_RET_KILL as u32,
@@ -435,7 +435,7 @@ impl SyscallAllowList {
 
         // 默认：允许
         filters.push(sock_filter {
-            code: BPF_RET | BPF_K,
+            code: (BPF_RET | BPF_K) as u16,
             jt: 0,
             jf: 0,
             k: SECCOMP_RET_ALLOW as u32,
