@@ -76,22 +76,26 @@ jobs:
         run: |
           mkdir -p target/release
           src="target/${{ matrix.target }}/release/nx_api"
-          # Windows appends .exe
-          if [ "$RUNNER_OS" = "Windows" ]; then src="${src}.exe"; fi
-          cp "$src" target/release/nx_api
+          # Windows appends .exe — keep the extension on Windows
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp "${src}.exe" target/release/nx_api.exe
+          else
+            cp "$src" target/release/nx_api
+          fi
 
       - name: Build Tauri app
         working-directory: nx_dashboard
         shell: bash
         run: |
-          if [ "${{ matrix.platform }}" == "windows" ]; then
-            npm run tauri build -- --target ${{ matrix.target }}
-          else
-            npm run tauri build
-          fi
+          npm run tauri build -- --target ${{ matrix.target }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+
+      - name: Debug bundle output
+        working-directory: nx_dashboard/src-tauri
+        shell: bash
+        run: find target -name "bundle" -type d 2>/dev/null | head -20 && echo "---" && find target -path "*/bundle/*" -type f 2>/dev/null | head -50
 
       - name: Upload artifact (macOS)
         if: matrix.platform == 'macos'
@@ -99,9 +103,12 @@ jobs:
         with:
           name: nx-dashboard-${{ matrix.platform }}-${{ matrix.target }}
           path: |
+            nx_dashboard/src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app
+            nx_dashboard/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
             nx_dashboard/src-tauri/target/release/bundle/macos/*.app
             nx_dashboard/src-tauri/target/release/bundle/dmg/*.dmg
           retention-days: 5
+          if-no-files-found: ignore
 
       - name: Upload artifact (Windows)
         if: matrix.platform == 'windows'
@@ -109,9 +116,10 @@ jobs:
         with:
           name: nx-dashboard-${{ matrix.platform }}-${{ matrix.target }}
           path: |
+            nx_dashboard/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
             nx_dashboard/src-tauri/target/release/bundle/nsis/*.exe
-            nx_dashboard/src-tauri/target/release/bundle/msi/*.msi
           retention-days: 5
+          if-no-files-found: ignore
 
       - name: Upload artifact (Linux)
         if: matrix.platform == 'linux'
@@ -119,9 +127,12 @@ jobs:
         with:
           name: nx-dashboard-${{ matrix.platform }}-${{ matrix.target }}
           path: |
+            nx_dashboard/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+            nx_dashboard/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
             nx_dashboard/src-tauri/target/release/bundle/appimage/*.AppImage
             nx_dashboard/src-tauri/target/release/bundle/deb/*.deb
           retention-days: 5
+          if-no-files-found: ignore
 
   # Create release package
   create-release:
