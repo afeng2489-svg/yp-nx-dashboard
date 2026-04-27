@@ -4,13 +4,13 @@
 
 use parking_lot::RwLock;
 use std::collections::HashMap;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::sync::Arc;
 use thiserror::Error;
 use uuid::Uuid;
 
 #[cfg(unix)]
-use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtyPair, PtySize};
+use portable_pty::{native_pty_system, Child, CommandBuilder, PtyPair, PtySize};
 
 /// PTY 错误类型
 #[derive(Error, Debug)]
@@ -108,6 +108,7 @@ pub struct PtyOutput {
 }
 
 /// PTY 会话管理器
+#[allow(clippy::arc_with_non_send_sync)]
 pub struct PtyManager {
     /// PTY 会话存储
     sessions: Arc<RwLock<HashMap<String, PtySession>>>,
@@ -132,6 +133,7 @@ impl std::fmt::Debug for PtyManager {
 
 impl PtyManager {
     /// 创建新的 PTY 管理器
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn new() -> Self {
         Self {
             sessions: Arc::new(RwLock::new(HashMap::new())),
@@ -243,7 +245,7 @@ impl PtyManager {
                     format!("writer not available: {}", e),
                 ))
             })?;
-            writer.write_all(data).map_err(|e| PtyError::IoError(e))?;
+            writer.write_all(data).map_err(PtyError::IoError)?;
 
             // 更新活动时间
             let mut sessions = self.sessions.write();

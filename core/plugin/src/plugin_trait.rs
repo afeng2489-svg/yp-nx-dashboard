@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
-use uuid::Uuid;
 
 /// Metadata about a plugin
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -5,9 +5,8 @@
 
 use async_trait::async_trait;
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::Duration;
 
 use super::{
@@ -36,7 +35,7 @@ impl SwitchBackend {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "minimax" => Some(SwitchBackend::MiniMax),
             "openai" => Some(SwitchBackend::OpenAI),
@@ -298,6 +297,7 @@ impl ClaudeSwitchProvider {
                 struct Usage {
                     prompt_tokens: usize,
                     completion_tokens: usize,
+                    #[allow(dead_code)]
                     total_tokens: usize,
                 }
 
@@ -422,18 +422,15 @@ mod tests {
     #[test]
     fn test_backend_from_str() {
         assert_eq!(
-            SwitchBackend::from_str("minimax"),
+            SwitchBackend::parse("minimax"),
             Some(SwitchBackend::MiniMax)
         );
+        assert_eq!(SwitchBackend::parse("openai"), Some(SwitchBackend::OpenAI));
         assert_eq!(
-            SwitchBackend::from_str("openai"),
-            Some(SwitchBackend::OpenAI)
-        );
-        assert_eq!(
-            SwitchBackend::from_str("deepseek"),
+            SwitchBackend::parse("deepseek"),
             Some(SwitchBackend::DeepSeek)
         );
-        assert_eq!(SwitchBackend::from_str("unknown"), None);
+        assert_eq!(SwitchBackend::parse("unknown"), None);
     }
 
     #[test]

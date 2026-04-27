@@ -11,6 +11,7 @@ use super::{
 };
 
 /// Ollama API 基础 URL
+#[allow(dead_code)]
 const OLLAMA_API_BASE: &str = "http://localhost:11434/api";
 
 /// Ollama 提供商结构体 (用于本地模型)
@@ -168,7 +169,9 @@ impl AIProvider for OllamaProvider {
         #[derive(Deserialize)]
         struct GenerateResponse {
             response: String,
+            #[allow(dead_code)]
             context: Option<Vec<i32>>,
+            #[allow(dead_code)]
             total_duration: Option<u64>,
             eval_count: Option<usize>,
             prompt_eval_count: Option<usize>,
@@ -218,6 +221,7 @@ impl AIProvider for OllamaProvider {
         #[derive(Deserialize)]
         struct ChatResponseBody {
             message: AssistantMessage,
+            #[allow(dead_code)]
             total_duration: Option<u64>,
             eval_count: Option<usize>,
             prompt_eval_count: Option<usize>,

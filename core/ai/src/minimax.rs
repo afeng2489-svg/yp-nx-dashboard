@@ -189,6 +189,7 @@ impl AIProvider for MiniMaxProvider {
         struct MiniMaxUsage {
             prompt_tokens: usize,
             completion_tokens: usize,
+            #[allow(dead_code)]
             total_tokens: usize,
         }
 
@@ -257,6 +258,7 @@ impl AIProvider for MiniMaxProvider {
         struct MiniMaxCompletionUsage {
             prompt_tokens: usize,
             completion_tokens: usize,
+            #[allow(dead_code)]
             total_tokens: usize,
         }
 

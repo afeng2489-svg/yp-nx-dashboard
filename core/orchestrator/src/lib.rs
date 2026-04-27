@@ -5,6 +5,18 @@
 //! - **Team Architecture v2**: Role-based agent collaboration
 //! - **Message Bus Protocol**: Async pub-sub communication
 
+#![allow(
+    dead_code,
+    unused_imports,
+    unused_variables,
+    unused_mut,
+    clippy::redundant_closure,
+    clippy::too_many_arguments,
+    clippy::should_implement_trait,
+    clippy::needless_borrow,
+    clippy::if_same_then_else
+)]
+
 pub mod cli;
 pub mod error;
 pub mod executor;

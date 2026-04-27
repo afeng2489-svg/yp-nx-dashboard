@@ -3,7 +3,6 @@
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use super::{
     AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CompletionRequest,
@@ -51,7 +50,7 @@ impl AnthropicProvider {
     ) -> Result<serde_json::Value, AIError> {
         let response = self
             .client
-            .post(&format!("{}{}", ANTHROPIC_API_BASE, path))
+            .post(format!("{}{}", ANTHROPIC_API_BASE, path))
             .header("x-api-key", &self.api_key)
             .header("anthropic-version", "2023-06-01")
             .header("content-type", "application/json")

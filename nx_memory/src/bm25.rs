@@ -31,7 +31,7 @@ impl Default for Bm25Config {
 
 /// BM25 索引文档
 #[derive(Debug, Clone)]
-struct IndexDocument {
+pub struct IndexDocument {
     id: String,
     content: String,
     terms: HashMap<String, u32>, // term -> frequency

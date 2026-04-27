@@ -14,7 +14,7 @@ pub async fn run_ccw(
     auto_mode: bool,
     parallel: bool,
     max_agents: Option<usize>,
-    config: &Config,
+    _config: &Config,
 ) -> anyhow::Result<()> {
     tracing::info!("启动 CCW 自动工作流编排器...");
 
@@ -59,7 +59,7 @@ pub async fn run_ccw(
 pub async fn run_ccw_coordinator(
     project_path: Option<PathBuf>,
     strategy: Option<String>,
-    config: &Config,
+    _config: &Config,
 ) -> anyhow::Result<()> {
     tracing::info!("启动 CCW 智能协调器...");
 
@@ -97,7 +97,7 @@ pub mod session_commands {
     use super::*;
 
     /// 列出所有会话
-    pub async fn list_sessions(config: &Config) -> anyhow::Result<()> {
+    pub async fn list_sessions(_config: &Config) -> anyhow::Result<()> {
         println!("📋 工作流会话列表");
         println!("=================\n");
 
@@ -116,7 +116,7 @@ pub mod session_commands {
     }
 
     /// 获取会话详情
-    pub async fn get_session(session_id: &str, config: &Config) -> anyhow::Result<()> {
+    pub async fn get_session(session_id: &str, _config: &Config) -> anyhow::Result<()> {
         println!("📋 会话详情: {}", session_id);
         println!("==================\n");
 
@@ -141,7 +141,7 @@ pub mod session_commands {
     }
 
     /// 删除会话
-    pub async fn delete_session(session_id: &str, config: &Config) -> anyhow::Result<()> {
+    pub async fn delete_session(session_id: &str, _config: &Config) -> anyhow::Result<()> {
         println!("🗑️  删除会话: {}", session_id);
         println!("警告: 此操作不可恢复!");
 
@@ -156,7 +156,7 @@ pub mod session_commands {
         session_id: &str,
         format: Option<&str>,
         output: Option<&str>,
-        config: &Config,
+        _config: &Config,
     ) -> anyhow::Result<()> {
         let fmt = format.unwrap_or("json");
         let out = output.unwrap_or("session_export");
@@ -187,14 +187,14 @@ pub mod session_commands {
     }
 
     /// 暂停会话
-    pub async fn pause_session(session_id: &str, config: &Config) -> anyhow::Result<()> {
+    pub async fn pause_session(session_id: &str, _config: &Config) -> anyhow::Result<()> {
         println!("⏸️  暂停会话: {}", session_id);
         println!("会话 {} 已暂停", session_id);
         Ok(())
     }
 
     /// 恢复会话
-    pub async fn resume_session(session_id: &str, config: &Config) -> anyhow::Result<()> {
+    pub async fn resume_session(session_id: &str, _config: &Config) -> anyhow::Result<()> {
         println!("▶️  恢复会话: {}", session_id);
         println!("会话 {} 正在恢复...", session_id);
         Ok(())
@@ -231,7 +231,7 @@ pub mod issue_commands {
     }
 
     /// 列出所有问题
-    pub async fn list_issues(status_filter: Option<&str>, config: &Config) -> anyhow::Result<()> {
+    pub async fn list_issues(_status_filter: Option<&str>, _config: &Config) -> anyhow::Result<()> {
         println!("📋 问题列表");
         println!("===========\n");
 
@@ -251,7 +251,7 @@ pub mod issue_commands {
     }
 
     /// 获取问题详情
-    pub async fn get_issue(issue_id: &str, config: &Config) -> anyhow::Result<()> {
+    pub async fn get_issue(issue_id: &str, _config: &Config) -> anyhow::Result<()> {
         println!("📋 问题详情: {}", issue_id);
         println!("==============\n");
 
@@ -284,7 +284,7 @@ pub mod issue_commands {
         description: Option<&str>,
         priority: Option<&str>,
         assignee: Option<&str>,
-        config: &Config,
+        _config: &Config,
     ) -> anyhow::Result<()> {
         let issue_id = format!("ISS-{:03}", 100);
 
@@ -310,7 +310,7 @@ pub mod issue_commands {
     pub async fn update_issue_status(
         issue_id: &str,
         status: &str,
-        config: &Config,
+        _config: &Config,
     ) -> anyhow::Result<()> {
         println!("🔄 更新问题状态: {}", issue_id);
         println!("新状态: {}", status);
@@ -319,7 +319,11 @@ pub mod issue_commands {
     }
 
     /// 添加评论
-    pub async fn add_comment(issue_id: &str, comment: &str, config: &Config) -> anyhow::Result<()> {
+    pub async fn add_comment(
+        issue_id: &str,
+        comment: &str,
+        _config: &Config,
+    ) -> anyhow::Result<()> {
         println!("💬 添加评论到 {}:", issue_id);
         println!("{}", comment);
         println!("\n评论已添加");
@@ -327,7 +331,7 @@ pub mod issue_commands {
     }
 
     /// 搜索问题
-    pub async fn search_issues(query: &str, config: &Config) -> anyhow::Result<()> {
+    pub async fn search_issues(query: &str, _config: &Config) -> anyhow::Result<()> {
         println!("🔍 搜索问题: {}", query);
         println!("=============\n");
 
@@ -569,7 +573,7 @@ pub async fn execute_code(
 
     let executor = SandboxExecutor::new();
 
-    let mut request = ExecuteRequest {
+    let request = ExecuteRequest {
         program: program.to_string(),
         args: args.to_vec(),
         env_vars: HashMap::new(),
@@ -635,7 +639,7 @@ pub async fn index_code(path: &PathBuf, stats: bool) -> anyhow::Result<()> {
 }
 
 /// 搜索已索引的代码
-pub async fn search_code(query: &str, limit: usize) -> anyhow::Result<()> {
+pub async fn search_code(query: &str, _limit: usize) -> anyhow::Result<()> {
     println!("正在搜索: {}", query);
     println!("(索引搜索尚未实现，请先使用 'nx index' 建立索引)");
     Ok(())

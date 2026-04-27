@@ -109,9 +109,8 @@ impl SlashCommandDispatcher {
             if let Some(eq_pos) = remaining.find('=') {
                 let key = remaining[..eq_pos].trim();
                 let after_eq = &remaining[eq_pos + 1..];
-                let (value, rest) = if after_eq.starts_with('"') {
+                let (value, rest) = if let Some(inner) = after_eq.strip_prefix('"') {
                     // Quoted value: scan for closing quote
-                    let inner = &after_eq[1..];
                     if let Some(close) = inner.find('"') {
                         (&inner[..close], inner[close + 1..].trim_start())
                     } else {

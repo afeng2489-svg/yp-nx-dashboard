@@ -6,7 +6,6 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use uuid::Uuid;
 
 use super::persistence::{PersistenceError, SessionStore};
 use super::pty::PtyManager;
@@ -33,6 +32,7 @@ pub struct SessionManager {
 
 impl SessionManager {
     /// 创建新的会话管理器
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn new() -> Self {
         Self {
             sessions: Arc::new(RwLock::new(HashMap::new())),
@@ -45,6 +45,7 @@ impl SessionManager {
     }
 
     /// 创建带持久化的会话管理器
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn with_persistence(store: SessionStore) -> Self {
         Self {
             sessions: Arc::new(RwLock::new(HashMap::new())),

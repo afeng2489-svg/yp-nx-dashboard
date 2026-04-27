@@ -2,6 +2,34 @@
 //!
 //! 高性能多智能体开发框架 CLI。
 
+#![allow(
+    dead_code,
+    unused_imports,
+    unused_variables,
+    unused_mut,
+    unused_assignments,
+    non_camel_case_types,
+    clippy::redundant_closure,
+    clippy::too_many_arguments,
+    clippy::derivable_impls,
+    clippy::should_implement_trait,
+    clippy::needless_return,
+    clippy::unnecessary_cast,
+    clippy::match_single_binding,
+    clippy::let_and_return,
+    clippy::needless_question_mark,
+    clippy::unnecessary_lazy_evaluations,
+    clippy::redundant_field_names,
+    clippy::useless_format,
+    clippy::manual_strip,
+    clippy::enum_variant_names,
+    clippy::new_without_default,
+    clippy::expect_fun_call,
+    clippy::or_fun_call,
+    unreachable_patterns,
+    clippy::if_same_then_else
+)]
+
 use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -454,7 +482,7 @@ async fn main() -> anyhow::Result<()> {
             }
         },
         Commands::WorkflowSession {
-            session_id,
+            session_id: _,
             subcommand,
         } => match subcommand {
             WorkflowSessionSubcommand::List => {
@@ -486,7 +514,7 @@ async fn main() -> anyhow::Result<()> {
                 commands::session_commands::resume_session(session_id, &config).await?;
             }
         },
-        Commands::Issue { id, subcommand } => match subcommand {
+        Commands::Issue { id: _, subcommand } => match subcommand {
             IssueSubcommand::List { status } => {
                 commands::issue_commands::list_issues(status.as_deref(), &config).await?;
             }
@@ -548,7 +576,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Help { command } => {
             let dispatcher = CommandDispatcher::new();
-            match dispatcher.get_help(&command) {
+            match dispatcher.get_help(command) {
                 Some(help) => {
                     println!("{}", help);
                 }

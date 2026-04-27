@@ -5,7 +5,7 @@
 use serde_json::Value;
 use tokio::io::{stdin, stdout, AsyncBufReadExt, AsyncWriteExt, BufReader};
 
-use crate::server::{McpMessage, McpServer};
+use crate::server::McpServer;
 
 /// 标准 I/O 传输处理器
 pub struct StdioTransport;

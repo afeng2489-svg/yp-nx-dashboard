@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use super::{
     AIError, AIProvider, ChatRequest, ChatResponse, CompletionRequest, CompletionResponse,
-    EmbedRequest, EmbedResponse, TokenUsage,
+    EmbedRequest, EmbedResponse,
 };
 
 /// 管理 AI 提供商的注册表
@@ -174,12 +174,12 @@ impl RegistryBuilder {
         }
     }
 
-    pub fn with_provider(mut self, provider: Arc<dyn AIProvider>) -> Self {
+    pub fn with_provider(self, provider: Arc<dyn AIProvider>) -> Self {
         self.registry.register(provider);
         self
     }
 
-    pub fn with_default(mut self, name: &str) -> Result<Self, AIError> {
+    pub fn with_default(self, name: &str) -> Result<Self, AIError> {
         self.registry.set_default(name)?;
         Ok(self)
     }

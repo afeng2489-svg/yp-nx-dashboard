@@ -199,7 +199,7 @@ pub async fn execution_ws(
                 })
                 .collect();
 
-            let status_json = serde_json::to_value(&execution.status)
+            let status_json = serde_json::to_value(execution.status)
                 .ok()
                 .and_then(|v| v.as_str().map(|s| s.to_string()))
                 .unwrap_or_else(|| "unknown".to_string());

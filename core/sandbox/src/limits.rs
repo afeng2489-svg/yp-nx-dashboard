@@ -96,7 +96,7 @@ impl ResourceLimitConfig {
 }
 
 /// seccomp 过滤器的允许系统调用列表
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SyscallAllowList {
     /// 系统调用列表
     pub syscalls: Vec<i32>,
@@ -391,7 +391,7 @@ impl SyscallAllowList {
     /// 在非 Linux 系统上创建空的允许列表
     #[cfg(not(target_os = "linux"))]
     pub fn new() -> Self {
-        Self { syscalls: vec![] }
+        Self::default()
     }
 
     /// 生成 BPF 过滤器代码 (仅 Linux)

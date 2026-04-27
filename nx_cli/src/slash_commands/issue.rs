@@ -131,7 +131,7 @@ impl CommandHandler for IssueCommands {
         Vec::new()
     }
 
-    async fn execute(&self, args: Args) -> CommandOutput {
+    async fn execute(&self, _args: Args) -> CommandOutput {
         // This is called when the main command is used without subcommand
         CommandOutput::success("Available issue commands: /issue:new, /issue:discover, /issue:plan, /issue:list, /issue:get")
     }

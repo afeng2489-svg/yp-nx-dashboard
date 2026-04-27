@@ -2,7 +2,6 @@ use crate::plugin_trait::{Plugin, PluginContext, PluginError, PluginMetadata};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
-use uuid::Uuid;
 
 /// Agent configuration for an agent plugin
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,6 +141,7 @@ pub trait AgentPlugin: Plugin {
     fn agent_config(&self) -> &AgentConfig;
 
     /// Execute the agent with the given input
+    #[allow(async_fn_in_trait)]
     async fn execute(
         &self,
         input: &AgentInput,
@@ -149,6 +149,7 @@ pub trait AgentPlugin: Plugin {
     ) -> Result<AgentOutput, AgentPluginError>;
 
     /// Execute with a custom system prompt override
+    #[allow(async_fn_in_trait)]
     async fn execute_with_prompt(
         &self,
         input: &AgentInput,

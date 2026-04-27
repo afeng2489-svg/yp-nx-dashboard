@@ -3,11 +3,11 @@
 use chrono::{DateTime, Utc};
 use futures_util::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::dialog::ConfirmationDialog;
-use crate::message::{A2UMessage, MessagePriority, MessageType};
+use crate::message::A2UMessage;
 use crate::notification::Notification;
 use crate::progress::ProgressUpdate;
 
@@ -115,6 +115,7 @@ pub struct MessageStream {
     /// 消息发送器
     message_tx: broadcast::Sender<A2uiStreamEvent>,
     /// 消息接收器
+    #[allow(dead_code)]
     message_rx: broadcast::Receiver<A2uiStreamEvent>,
     /// 历史消息
     history: std::sync::RwLock<Vec<A2uiStreamEvent>>,
@@ -176,7 +177,7 @@ impl MessageStream {
     async fn send_event(&self, event: A2uiStreamEvent) -> Result<(), StreamError> {
         // 存储到历史
         if self.config.enable_history {
-            if let A2uiStreamEvent::Message(msg) = &event {
+            if let A2uiStreamEvent::Message(_msg) = &event {
                 let mut history = self.history.write().unwrap();
                 if history.len() >= self.config.max_history {
                     history.remove(0);
@@ -279,6 +280,7 @@ pub struct StreamStats {
 /// 流管理器
 pub struct StreamManager {
     streams: std::sync::RwLock<std::collections::HashMap<String, MessageStream>>,
+    #[allow(dead_code)]
     default_config: StreamConfig,
 }
 
@@ -330,7 +332,7 @@ impl StreamManager {
         // 先尝试获取
         {
             let streams = self.streams.read().unwrap();
-            if let Some(stream) = streams.get(&session_id) {
+            if let Some(_stream) = streams.get(&session_id) {
                 return Ok(MessageStream::new(StreamConfig::new(session_id)));
             }
         }

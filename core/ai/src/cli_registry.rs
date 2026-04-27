@@ -50,8 +50,10 @@ impl CLIConfig {
 /// CLI 选择策略
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum CLISelectionStrategy {
     /// 自动选择（基于提示词分析）
+    #[default]
     Auto,
     /// 语义选择（分析提示词选择最佳 CLI）
     Semantic,
@@ -59,12 +61,6 @@ pub enum CLISelectionStrategy {
     Manual,
     /// 回退到默认
     Fallback,
-}
-
-impl Default for CLISelectionStrategy {
-    fn default() -> Self {
-        Self::Auto
-    }
 }
 
 /// CLI 注册表

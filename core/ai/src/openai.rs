@@ -3,7 +3,6 @@
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use super::{
     AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CompletionRequest,
@@ -51,7 +50,7 @@ impl OpenAIProvider {
     ) -> Result<serde_json::Value, AIError> {
         let response = self
             .client
-            .post(&format!("{}{}", OPENAI_API_BASE, path))
+            .post(format!("{}{}", OPENAI_API_BASE, path))
             .header("authorization", format!("Bearer {}", self.api_key))
             .header("content-type", "application/json")
             .json(&body)
@@ -139,6 +138,7 @@ impl AIProvider for OpenAIProvider {
         struct Usage {
             prompt_tokens: usize,
             completion_tokens: usize,
+            #[allow(dead_code)]
             total_tokens: usize,
         }
 
@@ -208,6 +208,7 @@ impl AIProvider for OpenAIProvider {
         struct Usage {
             prompt_tokens: usize,
             completion_tokens: usize,
+            #[allow(dead_code)]
             total_tokens: usize,
         }
 

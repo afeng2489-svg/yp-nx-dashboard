@@ -12,7 +12,6 @@ use crate::parser::{StageType, WorkflowError as ParserWorkflowError};
 use crate::{
     AgentState, AgentStatus, StageOutput, WorkflowDefinition, WorkflowState, WorkflowStatus,
 };
-use nexus_ai::ChatMessage;
 use regex::Regex;
 
 /// 共享工作流状态
@@ -260,9 +259,7 @@ impl WorkflowEngine {
             }
 
             // ── 计算下一个 stage ──
-            if stage.stage_type == StageType::Loop {
-                current_stage_name = Self::next_after(&workflow.stages, &stage.name);
-            } else if stage.next.is_empty() {
+            if stage.stage_type == StageType::Loop || stage.next.is_empty() {
                 current_stage_name = Self::next_after(&workflow.stages, &stage.name);
             } else {
                 let vars = state.read().variables.clone();
@@ -587,7 +584,7 @@ impl WorkflowEngine {
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
 
-        let mut child = cmd
+        let child = cmd
             .spawn()
             .map_err(|e| WorkflowError::Execution(format!("Failed to spawn Claude CLI: {}", e)))?;
 

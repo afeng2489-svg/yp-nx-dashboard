@@ -12,7 +12,7 @@ use std::sync::{Arc, RwLock};
 use crate::bm25::{Bm25Index, Bm25Result};
 use crate::embedding::EmbeddingProvider;
 use crate::storage::MemoryStore;
-use crate::types::{SearchRequest, SearchResponse, SearchResult, TranscriptMetadata};
+use crate::types::{SearchRequest, SearchResponse, SearchResult};
 
 /// Memory 搜索引擎
 pub struct MemorySearch {
@@ -76,9 +76,7 @@ impl MemorySearch {
 
         // 构建 BM25 索引
         let mut bm25_indexes = self.bm25_indexes.write().unwrap();
-        let bm25_index = bm25_indexes
-            .entry(team_id.to_string())
-            .or_insert_with(Bm25Index::new);
+        let bm25_index = bm25_indexes.entry(team_id.to_string()).or_default();
 
         for (chunk_id, content, metadata) in &bm25_data {
             bm25_index.add_document(chunk_id, content, Some(metadata.clone()));
@@ -104,9 +102,7 @@ impl MemorySearch {
         // 1. 添加到 BM25 索引（内存）
         {
             let mut bm25_indexes = self.bm25_indexes.write().unwrap();
-            let bm25_index = bm25_indexes
-                .entry(team_id.to_string())
-                .or_insert_with(Bm25Index::new);
+            let bm25_index = bm25_indexes.entry(team_id.to_string()).or_default();
             bm25_index.add_document(chunk_id, content, Some(metadata.clone()));
         }
 

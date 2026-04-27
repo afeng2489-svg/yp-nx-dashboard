@@ -9,7 +9,7 @@
 
 use crate::error::OrchestratorError;
 use crate::executor::{ExecutionResult, WorkflowDefinition};
-use crate::message_bus::{Channel, MessageBus, MessagePayload};
+use crate::message_bus::MessageBus;
 use crate::team::TeamId;
 use crate::CliManager;
 use crate::TeamManager;
@@ -144,7 +144,7 @@ impl CronSchedule {
 
         // 最多尝试 1 年内的调度
         for _ in 0..365 * 24 * 60 {
-            current = current + Duration::minutes(1);
+            current += Duration::minutes(1);
 
             let minute = current.minute() as u8;
             let hour = current.hour() as u8;
@@ -326,17 +326,13 @@ impl std::fmt::Display for QueueStatus {
 /// 任务优先级
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum TaskPriority {
     Low,
+    #[default]
     Normal,
     High,
     Critical,
-}
-
-impl Default for TaskPriority {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 impl std::fmt::Display for TaskPriority {
@@ -509,8 +505,8 @@ impl TaskScheduler {
         for task_result in tasks {
             let (
                 id_str,
-                workflow_json,
-                team_id_str,
+                _workflow_json,
+                _team_id_str,
                 _variables_json,
                 priority_str,
                 status_str,
@@ -874,7 +870,7 @@ impl TaskScheduler {
         };
 
         for job_id in jobs_to_run {
-            let (workflow, team_id, variables, cron_expr, schedule) = {
+            let (workflow, team_id, variables, cron_expr, _schedule) = {
                 let mut jobs = self.scheduled_jobs.write();
                 if let Some(job) = jobs.get_mut(&job_id) {
                     // 计算下次执行时间
@@ -897,7 +893,7 @@ impl TaskScheduler {
             };
 
             // 创建新任务
-            let task_id = self.enqueue(workflow, team_id, variables, TaskPriority::Normal);
+            let _task_id = self.enqueue(workflow, team_id, variables, TaskPriority::Normal);
 
             // 更新定时任务的下次执行时间
             self.update_scheduled_job_next_run_in_db(job_id);
@@ -929,7 +925,7 @@ impl TaskScheduler {
         let executor = self.executor.clone();
 
         let handle = tokio::spawn(async move {
-            let timeout = timeout_secs.map(|s| StdDuration::from_secs(s));
+            let timeout = timeout_secs.map(StdDuration::from_secs);
 
             let result = if let Some(timeout) = timeout {
                 tokio::time::timeout(timeout, executor.execute(workflow, team_id))
@@ -951,7 +947,7 @@ impl TaskScheduler {
     /// 处理任务结果
     async fn handle_task_result(
         task_id: Uuid,
-        result: Result<Result<ExecutionResult, OrchestratorError>, StdDuration>,
+        _result: Result<Result<ExecutionResult, OrchestratorError>, StdDuration>,
     ) {
         // 这个方法需要在静态上下文中调用，因为它不使用 self
         tracing::info!("任务 {} 完成", task_id);

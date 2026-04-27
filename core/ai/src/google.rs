@@ -3,7 +3,6 @@
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use super::{
     AIError, AIProvider, ChatMessage, ChatRequest, ChatResponse, CompletionRequest,
@@ -166,6 +165,7 @@ impl AIProvider for GoogleProvider {
         struct UsageMetadata {
             prompt_token_count: Option<usize>,
             candidates_token_count: Option<usize>,
+            #[allow(dead_code)]
             total_token_count: Option<usize>,
         }
 

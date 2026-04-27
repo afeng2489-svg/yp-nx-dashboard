@@ -2,13 +2,12 @@
 
 use crate::error::BusError;
 use crate::team::{AgentId, TeamId};
-use crate::CliTokenUsage;
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::broadcast;
 use uuid::Uuid;
 
 /// Message bus instance for agent communication
@@ -162,9 +161,9 @@ impl MessageBus {
     pub fn subscribe(&self, channel: Channel) -> Result<broadcast::Receiver<BusMessage>, BusError> {
         let sender = {
             let mut subs = self.subscribers.write();
-            if !subs.contains_key(&channel) {
+            if let std::collections::hash_map::Entry::Vacant(e) = subs.entry(channel) {
                 let (tx, rx) = broadcast::channel(1000);
-                subs.insert(channel, tx);
+                e.insert(tx);
                 return Ok(rx);
             }
             subs.get(&channel).cloned().unwrap()
@@ -224,7 +223,7 @@ impl MessageBus {
     /// Send direct message to an agent
     pub fn send_direct(
         &self,
-        to: AgentId,
+        _to: AgentId,
         from: MessageSource,
         payload: MessagePayload,
     ) -> Result<u64, BusError> {

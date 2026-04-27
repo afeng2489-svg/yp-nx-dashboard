@@ -1,9 +1,9 @@
 //! Workflow Executor - Orchestrates multi-agent workflow execution
 
-use crate::cli::{CliManager, CliRequest, CliResponse};
+use crate::cli::{CliManager, CliRequest};
 use crate::error::OrchestratorError;
-use crate::message_bus::{Channel, MessageBus, MessagePayload, MessageSource};
-use crate::team::{AgentId, AgentStatus, Task, TaskResult, TaskStatus, Team, TeamId, TeamManager};
+use crate::message_bus::{Channel, MessageBus, MessagePayload};
+use crate::team::{AgentId, TeamId, TeamManager};
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};

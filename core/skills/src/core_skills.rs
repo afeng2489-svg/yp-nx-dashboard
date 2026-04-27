@@ -71,7 +71,7 @@ impl SkillExecutor for BrainstormSkill {
     }
 
     fn validate(&self, params: &serde_json::Value) -> Result<(), SkillError> {
-        if !params.get("topic").is_some() {
+        if params.get("topic").is_none() {
             return Err(SkillError::ValidationFailed(
                 "Missing required parameter: topic".to_string(),
             ));
@@ -198,7 +198,7 @@ impl SkillExecutor for ReviewCodeSkill {
     }
 
     fn validate(&self, params: &serde_json::Value) -> Result<(), SkillError> {
-        if !params.get("diff").is_some() {
+        if params.get("diff").is_none() {
             return Err(SkillError::ValidationFailed(
                 "Missing required parameter: diff".to_string(),
             ));
@@ -329,7 +329,7 @@ impl SkillExecutor for SecurityAuditSkill {
     }
 
     fn validate(&self, params: &serde_json::Value) -> Result<(), SkillError> {
-        if !params.get("target").is_some() {
+        if params.get("target").is_none() {
             return Err(SkillError::ValidationFailed(
                 "Missing required parameter: target".to_string(),
             ));
@@ -468,12 +468,12 @@ impl SkillExecutor for DelegationCheckSkill {
     }
 
     fn validate(&self, params: &serde_json::Value) -> Result<(), SkillError> {
-        if !params.get("task").is_some() {
+        if params.get("task").is_none() {
             return Err(SkillError::ValidationFailed(
                 "Missing required parameter: task".to_string(),
             ));
         }
-        if !params.get("delegate_to").is_some() {
+        if params.get("delegate_to").is_none() {
             return Err(SkillError::ValidationFailed(
                 "Missing required parameter: delegate_to".to_string(),
             ));
@@ -602,7 +602,7 @@ impl SkillExecutor for SkillGeneratorSkill {
     }
 
     fn validate(&self, params: &serde_json::Value) -> Result<(), SkillError> {
-        if !params.get("description").is_some() {
+        if params.get("description").is_none() {
             return Err(SkillError::ValidationFailed(
                 "Missing required parameter: description".to_string(),
             ));

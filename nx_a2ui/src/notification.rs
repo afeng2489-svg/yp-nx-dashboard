@@ -78,7 +78,7 @@ pub struct Notification {
 }
 
 /// 通知元数据
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NotificationMetadata {
     /// 关联的工作流 ID
     pub workflow_id: Option<String>,
@@ -197,18 +197,6 @@ impl Notification {
     }
 }
 
-impl Default for NotificationMetadata {
-    fn default() -> Self {
-        Self {
-            workflow_id: None,
-            agent_id: None,
-            action_url: None,
-            expires_at: None,
-            extra: std::collections::HashMap::new(),
-        }
-    }
-}
-
 /// 通知处理器
 #[async_trait::async_trait]
 pub trait NotificationHandler: Send + Sync {
@@ -253,7 +241,7 @@ impl InMemoryNotificationStore {
         notifications.insert(id.clone(), notification);
         user_notifications
             .entry(user_id.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(id);
     }
 }

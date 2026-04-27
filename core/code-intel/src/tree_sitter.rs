@@ -2,7 +2,7 @@
 
 use parking_lot::RwLock;
 use std::path::Path;
-use tree_sitter::{Language as TsLanguage, Node, Parser, Query, Tree};
+use tree_sitter::{Node, Parser, Tree};
 
 /// 支持的代码语言
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
 /// 执行请求
@@ -65,6 +65,7 @@ pub struct ExecuteResponse {
 }
 
 /// 沙箱执行器
+#[allow(dead_code)]
 pub struct SandboxExecutor {
     #[cfg(unix)]
     seccomp_enabled: bool,
@@ -209,7 +210,7 @@ impl SandboxExecutor {
 
     #[cfg(unix)]
     fn apply_resource_limits(&self, cmd: &mut Command, request: &ExecuteRequest) {
-        let memory_limit = request.memory_limit_bytes;
+        let _memory_limit = request.memory_limit_bytes;
         let cpu_limit = request.cpu_time_secs;
 
         // Use pre_exec to set resource limits via setrlimit before the child process runs

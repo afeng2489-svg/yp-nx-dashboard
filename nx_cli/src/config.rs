@@ -147,7 +147,7 @@ pub fn load_config(path: &PathBuf) -> anyhow::Result<Config> {
 
 /// 展开配置中的环境变量
 fn expand_env_vars(mut config: Config) -> Config {
-    for (_, provider) in &mut config.providers {
+    for provider in config.providers.values_mut() {
         if let Some(ref api_key) = provider.api_key {
             if api_key.starts_with("${") && api_key.ends_with("}") {
                 let var_name = &api_key[2..api_key.len() - 1];

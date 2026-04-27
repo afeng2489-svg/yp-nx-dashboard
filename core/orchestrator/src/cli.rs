@@ -1,16 +1,13 @@
 //! Multi-CLI Orchestrator - Unified interface to multiple CLI AI tools
 
 use crate::error::CliError;
-use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::Arc;
 use std::time::Instant;
 use tokio::process::Command;
-use tokio::sync::broadcast;
 
 /// CLI tool provider identification
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

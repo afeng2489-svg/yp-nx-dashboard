@@ -7,7 +7,7 @@ mod issue;
 mod session;
 mod workflow;
 
-pub use dispatch::{CommandDispatcher, DispatchResult};
+pub use dispatch::CommandDispatcher;
 pub use issue::IssueCommands;
 pub use session::SessionCommands;
 pub use workflow::WorkflowCommands;

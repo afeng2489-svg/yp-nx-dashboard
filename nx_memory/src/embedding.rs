@@ -7,7 +7,6 @@
 
 // pub mod provider_adapter;
 
-use async_trait::async_trait;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -71,6 +70,7 @@ pub enum EmbedError {
 /// 使用 Anthropic 的 API 生成嵌入向量
 /// 注意：Anthropic 已停止提供嵌入 API，这里使用 OpenAI 兼容端点
 pub struct ClaudeEmbeddingProvider {
+    #[allow(dead_code)]
     client: reqwest::Client,
     api_key: String,
     model: String,
@@ -261,6 +261,7 @@ impl EmbeddingProvider for ClaudeEmbeddingProvider {
 
 /// OpenAI Embedding Provider
 pub struct OpenAIEmbeddingProvider {
+    #[allow(dead_code)]
     client: reqwest::Client,
     api_key: String,
     model: String,
@@ -431,6 +432,7 @@ impl EmbeddingProvider for OpenAIEmbeddingProvider {
 
 /// Ollama 本地 Embedding Provider
 pub struct OllamaEmbeddingProvider {
+    #[allow(dead_code)]
     client: reqwest::Client,
     base_url: String,
     model: String,

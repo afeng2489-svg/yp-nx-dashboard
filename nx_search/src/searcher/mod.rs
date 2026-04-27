@@ -3,10 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use super::{
-    embedding::{EmbeddingProvider, EmbeddingResult},
-    index::{Chunk, VectorIndex},
-};
+use super::{embedding::EmbeddingProvider, index::VectorIndex};
 
 /// 搜索结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,6 +72,7 @@ pub struct CodeSearcher {
     /// Embedding 提供者（可选）
     embedding_provider: Option<Arc<dyn EmbeddingProvider>>,
     /// 向量维度
+    #[allow(dead_code)]
     dimension: usize,
 }
 

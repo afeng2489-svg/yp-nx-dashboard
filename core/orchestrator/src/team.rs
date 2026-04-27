@@ -1,8 +1,8 @@
 //! Team Architecture v2 - Role-based agent collaboration
 
-use crate::cli::{CliProvider, CliRequest, CliResponse, CliTokenUsage};
-use crate::error::{OrchestratorError, TeamError};
-use crate::message_bus::{Channel, MessageBus, MessagePayload, MessageSource};
+use crate::cli::{CliProvider, CliTokenUsage};
+use crate::error::TeamError;
+use crate::message_bus::{Channel, MessageBus, MessagePayload};
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -315,7 +315,6 @@ impl TeamManager {
         team.add_dependency(developer_id, reviewer_id);
         team.add_dependency(reviewer_id, tester_id);
 
-        drop(team);
         drop(teams);
 
         // Initialize agent statuses

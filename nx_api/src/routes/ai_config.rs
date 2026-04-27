@@ -1410,7 +1410,7 @@ pub async fn enable_provider(
     };
 
     // 将 provider_key 转换为 SwitchBackend
-    let backend_type = SwitchBackend::from_str(&provider.provider_key)
+    let backend_type = SwitchBackend::parse(&provider.provider_key)
         .ok_or_else(|| -> (StatusCode, Json<serde_json::Value>) {
             (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": format!("Unsupported provider type: {}", provider.provider_key) })))
         })?;
@@ -1641,7 +1641,7 @@ pub async fn configure_claude_switch(
         .backends
         .iter()
         .map(|b| {
-            let backend_type = SwitchBackend::from_str(&b.backend)
+            let backend_type = SwitchBackend::parse(&b.backend)
                 .ok_or_else(|| format!("Unknown backend: {}", b.backend))?;
 
             let config = match backend_type {
@@ -1681,7 +1681,7 @@ pub async fn add_claude_switch_backend(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let manager = &state.ai_model_manager;
 
-    let backend_type = SwitchBackend::from_str(&request.backend).ok_or_else(|| {
+    let backend_type = SwitchBackend::parse(&request.backend).ok_or_else(|| {
         (
             StatusCode::BAD_REQUEST,
             format!("Unknown backend: {}", request.backend),
@@ -1762,7 +1762,7 @@ pub async fn switch_claude_switch_backend(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let manager = &state.ai_model_manager;
 
-    let backend = SwitchBackend::from_str(&request.backend).ok_or_else(|| {
+    let backend = SwitchBackend::parse(&request.backend).ok_or_else(|| {
         (
             StatusCode::BAD_REQUEST,
             format!("Unknown backend: {}", request.backend),
@@ -1853,7 +1853,7 @@ pub async fn test_claude_switch_backend(
 ) -> Result<Json<ConnectionTestResult>, (StatusCode, String)> {
     use nexus_ai::SwitchBackend;
 
-    let backend = SwitchBackend::from_str(&request.backend).ok_or_else(|| {
+    let backend = SwitchBackend::parse(&request.backend).ok_or_else(|| {
         (
             StatusCode::BAD_REQUEST,
             format!("Unknown backend: {}", request.backend),

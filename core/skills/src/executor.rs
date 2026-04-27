@@ -79,8 +79,8 @@ impl ExecutorRegistry {
         let mut executors_lock = self.executors.write();
         for executor in executors {
             let name = executor.name().to_string();
-            if !executors_lock.contains_key(&name) {
-                executors_lock.insert(name, executor);
+            if let std::collections::hash_map::Entry::Vacant(e) = executors_lock.entry(name) {
+                e.insert(executor);
                 count += 1;
             }
         }
@@ -125,6 +125,7 @@ impl ExecutorRegistry {
 /// 技能执行引擎
 ///
 /// 负责管理技能的执行、调度和结果追踪。
+#[allow(dead_code)]
 pub struct SkillExecutionEngine {
     /// 技能执行器注册表
     executor_registry: Arc<ExecutorRegistry>,
@@ -137,6 +138,7 @@ pub struct SkillExecutionEngine {
 }
 
 /// 活跃执行任务
+#[allow(dead_code)]
 struct ActiveExecution {
     execution_id: String,
     skill_name: String,
@@ -303,7 +305,7 @@ impl SkillExecutionEngine {
         let mut last_error = None;
 
         for phase in &phases {
-            if !phase.required && !context.params.get(&phase.name).is_some() {
+            if !phase.required && context.params.get(&phase.name).is_none() {
                 info!("Skipping optional phase '{}'", phase.name);
                 continue;
             }

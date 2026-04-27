@@ -68,7 +68,7 @@ pub struct A2UMessage {
 }
 
 /// 消息元数据
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MessageMetadata {
     /// 关联的工作流 ID
     pub workflow_id: Option<String>,
@@ -185,17 +185,5 @@ impl A2UMessage {
     pub fn replying_to(mut self, original_id: impl Into<String>) -> Self {
         self.metadata.reply_to = Some(original_id.into());
         self
-    }
-}
-
-impl Default for MessageMetadata {
-    fn default() -> Self {
-        Self {
-            workflow_id: None,
-            stage_id: None,
-            agent_id: None,
-            reply_to: None,
-            extra: std::collections::HashMap::new(),
-        }
     }
 }

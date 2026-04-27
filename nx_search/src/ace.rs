@@ -94,8 +94,10 @@ pub struct SymbolContext {
 /// ACE 搜索模式
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum AceSearchMode {
     /// 语义搜索
+    #[default]
     Semantic,
     /// 关键词搜索
     Keyword,
@@ -103,12 +105,6 @@ pub enum AceSearchMode {
     Hybrid,
     /// 代码结构搜索
     Structural,
-}
-
-impl Default for AceSearchMode {
-    fn default() -> Self {
-        AceSearchMode::Semantic
-    }
 }
 
 /// ACE 语义搜索引擎

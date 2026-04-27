@@ -1,6 +1,6 @@
 //! 从解析的代码中提取符号
 
-use super::{ParseResult, TreeNode};
+use super::ParseResult;
 use serde::{Deserialize, Serialize};
 
 /// 符号类型
@@ -134,8 +134,7 @@ pub fn get_function_signature(symbol: &Symbol, source: &[u8]) -> Option<String> 
 
     // Collect lines from start to end
     let mut sig_text = String::new();
-    for line_idx in start_line..=end_line.min(lines.len().saturating_sub(1)) {
-        let line = lines[line_idx];
+    for line in &lines[start_line..=end_line.min(lines.len().saturating_sub(1))] {
         // Stop at opening brace — the signature is everything before it
         if let Some(brace_pos) = line.find('{') {
             let before_brace = line[..brace_pos].trim_end();

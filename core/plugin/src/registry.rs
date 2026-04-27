@@ -1,7 +1,6 @@
-use crate::plugin_trait::{Plugin, PluginContext, PluginError, PluginMetadata};
+use crate::plugin_trait::{Plugin, PluginContext, PluginError};
 use once_cell::sync::OnceCell;
 use parking_lot::RwLock;
-use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{error, info};

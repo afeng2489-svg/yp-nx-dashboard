@@ -3,9 +3,8 @@
 //! 结合 ACE 语义搜索和 CodexLens FTS 的混合搜索模式,
 //! 根据查询类型自动选择最佳搜索策略。
 
-use crate::ace::{AceEngine, AceSearchHit, AceSearchMode, AceSearchResult};
-use crate::codexlens::{CodexLensConfig, CodexLensEngine, CodexLensHit, CodexLensResult};
-use crate::index::VectorIndex;
+use crate::ace::{AceEngine, AceSearchResult};
+use crate::codexlens::{CodexLensConfig, CodexLensEngine, CodexLensResult};
 use serde::{Deserialize, Serialize};
 
 /// 混合搜索配置
@@ -44,8 +43,10 @@ impl Default for HybridConfig {
 /// 混合搜索模式
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum HybridSearchMode {
     /// 自动选择最佳模式
+    #[default]
     Auto,
     /// 仅语义搜索
     SemanticOnly,
@@ -57,12 +58,6 @@ pub enum HybridSearchMode {
     SemanticFirst,
     /// 以关键词为主
     KeywordFirst,
-}
-
-impl Default for HybridSearchMode {
-    fn default() -> Self {
-        HybridSearchMode::Auto
-    }
 }
 
 /// 混合搜索结果
@@ -295,9 +290,7 @@ impl HybridSearchEngine {
 
         if analysis.has_code_syntax && analysis.is_structural {
             HybridSearchMode::SemanticFirst
-        } else if analysis.is_exact_phrase {
-            HybridSearchMode::KeywordOnly
-        } else if analysis.has_wildcard || analysis.is_regex {
+        } else if analysis.is_exact_phrase || analysis.has_wildcard || analysis.is_regex {
             HybridSearchMode::KeywordOnly
         } else {
             HybridSearchMode::Hybrid

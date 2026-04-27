@@ -125,6 +125,7 @@ struct InvertedIndexEntry {
 #[derive(Debug, Clone)]
 struct IndexedDocument {
     /// 文档 ID
+    #[allow(dead_code)]
     id: String,
     /// 文件路径
     path: String,
@@ -133,6 +134,7 @@ struct IndexedDocument {
     /// 语言
     language: Option<String>,
     /// 索引时间
+    #[allow(dead_code)]
     indexed_at: DateTime<Utc>,
     /// 行内容
     lines: Vec<String>,
@@ -160,6 +162,7 @@ impl IndexedDocument {
     }
 
     /// 获取行范围的内容
+    #[allow(dead_code)]
     fn get_line_range(&self, start: usize, end: usize) -> String {
         self.lines[start.saturating_sub(1)..end.min(self.lines.len())].join("\n")
     }
@@ -269,7 +272,7 @@ impl CodexLensEngine {
             entry
                 .positions
                 .entry(id.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .extend(positions);
             entry.doc_frequency = entry.document_ids.len();
         }
@@ -300,7 +303,7 @@ impl CodexLensEngine {
 
         for line in content.lines() {
             let mut word_start = None;
-            let mut chars: Vec<char> = line.chars().collect();
+            let chars: Vec<char> = line.chars().collect();
 
             for (i, c) in chars.iter().enumerate() {
                 if c.is_alphanumeric() || *c == '_' {
@@ -315,16 +318,14 @@ impl CodexLensEngine {
                     }
 
                     // 特殊处理代码符号
-                    if *c == '#' || *c == '/' || *c == '@' || *c == '.' {
-                        if i + 1 < chars.len() {
-                            let next_word: String = chars[i + 1..]
-                                .iter()
-                                .take_while(|&&c| c.is_alphanumeric() || c == '_')
-                                .collect::<String>()
-                                .to_lowercase();
-                            if !next_word.is_empty() {
-                                self.add_token(tokens, &format!("{}{}", c, next_word), line_num);
-                            }
+                    if (*c == '#' || *c == '/' || *c == '@' || *c == '.') && i + 1 < chars.len() {
+                        let next_word: String = chars[i + 1..]
+                            .iter()
+                            .take_while(|&&c| c.is_alphanumeric() || c == '_')
+                            .collect::<String>()
+                            .to_lowercase();
+                        if !next_word.is_empty() {
+                            self.add_token(tokens, &format!("{}{}", c, next_word), line_num);
                         }
                     }
                 }
@@ -365,10 +366,7 @@ impl CodexLensEngine {
             return;
         }
 
-        tokens
-            .entry(term.to_string())
-            .or_insert_with(Vec::new)
-            .push(line_num);
+        tokens.entry(term.to_string()).or_default().push(line_num);
     }
 
     /// 搜索
@@ -597,7 +595,7 @@ impl CodexLensEngine {
                     let similarity =
                         1.0 - (distance as f32 / index_term.len().max(term.len()) as f32);
                     let idf = self.calculate_idf(entry.doc_frequency);
-                    let score = similarity * idf;
+                    let _score = similarity * idf;
 
                     scores
                         .entry(doc_id.clone())
@@ -650,8 +648,8 @@ impl CodexLensEngine {
 
     /// 计算 IDF（逆文档频率）
     fn calculate_idf(&self, doc_frequency: usize) -> f32 {
-        let N = self.documents.len().max(1) as f32;
-        (N / doc_frequency as f32).ln() + 1.0
+        let n = self.documents.len().max(1) as f32;
+        (n / doc_frequency as f32).ln() + 1.0
     }
 
     /// 检查文档是否满足过滤器
@@ -687,11 +685,11 @@ impl CodexLensEngine {
         let len2 = s2.len();
         let mut matrix = vec![vec![0; len2 + 1]; len1 + 1];
 
-        for i in 0..=len1 {
-            matrix[i][0] = i;
+        for (i, row) in matrix.iter_mut().enumerate().take(len1 + 1) {
+            row[0] = i;
         }
-        for j in 0..=len2 {
-            matrix[0][j] = j;
+        for (j, val) in matrix[0].iter_mut().enumerate().take(len2 + 1) {
+            *val = j;
         }
 
         for i in 1..=len1 {

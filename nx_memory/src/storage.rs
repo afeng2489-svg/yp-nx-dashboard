@@ -330,7 +330,7 @@ impl MemoryStore {
                     team_id: row.get(1)?,
                     session_id: row.get(2)?,
                     user_id: row.get(3)?,
-                    role: MessageRole::from_str(&role_str).unwrap_or(MessageRole::User),
+                    role: MessageRole::parse(&role_str).unwrap_or(MessageRole::User),
                     content: row.get(5)?,
                     created_at: chrono::DateTime::from_timestamp(row.get(6)?, 0)
                         .unwrap_or_else(chrono::Utc::now),

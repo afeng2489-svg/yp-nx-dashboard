@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use super::{Reference, ReferenceFinder, Symbol};
+use super::Symbol;
 
 /// 索引中的文件
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,6 +21,7 @@ pub struct IndexedFile {
 }
 
 /// 项目的代码索引
+#[allow(dead_code)]
 pub struct CodeIndex {
     /// 文件索引
     files: RwLock<HashMap<PathBuf, IndexedFile>>,
