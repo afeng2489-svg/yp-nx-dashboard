@@ -169,14 +169,22 @@ export function useEditorHistory() {
   const undo = useCallback(() => {
     const state = doUndo();
     if (state) {
-      useEditorStore.setState({ nodes: state.nodes as typeof nodes, edges: state.edges as typeof edges, isDirty: true });
+      useEditorStore.setState({
+        nodes: state.nodes as typeof nodes,
+        edges: state.edges as typeof edges,
+        isDirty: true,
+      });
     }
   }, [doUndo]);
 
   const redo = useCallback(() => {
     const state = doRedo();
     if (state) {
-      useEditorStore.setState({ nodes: state.nodes as typeof nodes, edges: state.edges as typeof edges, isDirty: true });
+      useEditorStore.setState({
+        nodes: state.nodes as typeof nodes,
+        edges: state.edges as typeof edges,
+        isDirty: true,
+      });
     }
   }, [doRedo]);
 

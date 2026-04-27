@@ -1,42 +1,24 @@
 import { cn } from '@/lib/utils';
 
 // Base skeleton component with shimmer effect
-export function Skeleton({
-  className,
-  shimmer = true,
-}: {
-  className?: string;
-  shimmer?: boolean;
-}) {
+export function Skeleton({ className, shimmer = true }: { className?: string; shimmer?: boolean }) {
   return (
     <div
       className={cn(
         'rounded-lg bg-gradient-to-r from-muted via-muted/50 to-muted',
         shimmer && 'animate-shimmer bg-[length:200%_100%]',
-        className
+        className,
       )}
     />
   );
 }
 
 // Skeleton text lines
-export function SkeletonText({
-  lines = 3,
-  className,
-}: {
-  lines?: number;
-  className?: string;
-}) {
+export function SkeletonText({ lines = 3, className }: { lines?: number; className?: string }) {
   return (
     <div className={cn('space-y-2', className)}>
       {Array.from({ length: lines }).map((_, i) => (
-        <Skeleton
-          key={i}
-          className={cn(
-            'h-4',
-            i === lines - 1 ? 'w-3/4' : 'w-full'
-          )}
-        />
+        <Skeleton key={i} className={cn('h-4', i === lines - 1 ? 'w-3/4' : 'w-full')} />
       ))}
     </div>
   );
@@ -79,7 +61,12 @@ export function SkeletonStatCard({ className }: { className?: string }) {
 // Skeleton list item
 export function SkeletonListItem({ className }: { className?: string }) {
   return (
-    <div className={cn('flex items-center justify-between p-4 rounded-xl bg-card border border-border/50', className)}>
+    <div
+      className={cn(
+        'flex items-center justify-between p-4 rounded-xl bg-card border border-border/50',
+        className,
+      )}
+    >
       <div className="flex items-center gap-3">
         <Skeleton className="w-10 h-10 rounded-xl" />
         <div className="space-y-2">

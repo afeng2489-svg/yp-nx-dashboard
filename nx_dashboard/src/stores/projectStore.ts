@@ -42,7 +42,7 @@ class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public body?: string
+    public body?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -53,7 +53,7 @@ class ApiError extends Error {
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
-  timeout = 15000
+  timeout = 15000,
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -85,13 +85,19 @@ interface ProjectStore {
   // Project actions
   fetchProjects: () => Promise<void>;
   getProject: (id: string) => Promise<Project | null>;
-  createProject: (project: Omit<Project, 'id' | 'created_at' | 'updated_at' | 'status' | 'variables'>) => Promise<Project>;
+  createProject: (
+    project: Omit<Project, 'id' | 'created_at' | 'updated_at' | 'status' | 'variables'>,
+  ) => Promise<Project>;
   updateProject: (id: string, project: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   setCurrentProject: (project: Project | null) => void;
 
   // Execution actions
-  executeProject: (projectId: string, task: string, context?: Record<string, string>) => Promise<ExecuteProjectResponse>;
+  executeProject: (
+    projectId: string,
+    task: string,
+    context?: Record<string, string>,
+  ) => Promise<ExecuteProjectResponse>;
 
   clearError: () => void;
   clearExecutionResult: () => void;
@@ -113,7 +119,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       if (!response.ok) {
         throw new ApiError(
           `Failed to fetch projects: ${response.status} ${response.statusText}`,
-          response.status
+          response.status,
         );
       }
 
@@ -130,18 +136,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   getProject: async (id) => {
     try {
-      const response = await fetchWithTimeout(
-        `${API_BASE_URL}/api/v1/projects/${id}`, {}, 10000
-      );
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/v1/projects/${id}`, {}, 10000);
 
       if (!response.ok) {
         if (response.status === 404) {
           return null;
         }
-        throw new ApiError(
-          `Failed to fetch project: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to fetch project: ${response.status}`, response.status);
       }
 
       const data = await response.json();
@@ -171,10 +172,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to create project: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to create project: ${response.status}`, response.status);
       }
 
       const newProject: Project = await response.json();
@@ -193,29 +191,21 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   updateProject: async (id, updates) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetchWithTimeout(
-        `${API_BASE_URL}/api/v1/projects/${id}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(updates),
-        }
-      );
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/v1/projects/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to update project: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to update project: ${response.status}`, response.status);
       }
 
       const updatedProject: Project = await response.json();
       set((state) => ({
-        projects: state.projects.map((p) =>
-          p.id === id ? updatedProject : p
-        ),
+        projects: state.projects.map((p) => (p.id === id ? updatedProject : p)),
         loading: false,
       }));
     } catch (error) {
@@ -228,16 +218,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   deleteProject: async (id) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetchWithTimeout(
-        `${API_BASE_URL}/api/v1/projects/${id}`,
-        { method: 'DELETE' }
-      );
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/v1/projects/${id}`, {
+        method: 'DELETE',
+      });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to delete project: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to delete project: ${response.status}`, response.status);
       }
 
       set((state) => ({
@@ -271,14 +257,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             context,
           }),
         },
-        120000 // 2 min timeout for execution
+        120000, // 2 min timeout for execution
       );
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to execute project: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to execute project: ${response.status}`, response.status);
       }
 
       const result: ExecuteProjectResponse = await response.json();
@@ -288,9 +271,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const updatedProject = await get().getProject(projectId);
       if (updatedProject) {
         set((state) => ({
-          projects: state.projects.map((p) =>
-            p.id === projectId ? updatedProject : p
-          ),
+          projects: state.projects.map((p) => (p.id === projectId ? updatedProject : p)),
           currentProject: updatedProject,
         }));
       }

@@ -26,7 +26,15 @@ interface Props {
 }
 
 export default function ProjectProgressDashboard({ projectId }: Props) {
-  const { progress, snapshots, progressLoading, snapshotsLoading, error, fetchProgress, fetchSnapshots } = useSnapshotStore();
+  const {
+    progress,
+    snapshots,
+    progressLoading,
+    snapshotsLoading,
+    error,
+    fetchProgress,
+    fetchSnapshots,
+  } = useSnapshotStore();
 
   React.useEffect(() => {
     if (projectId) {
@@ -56,9 +64,7 @@ export default function ProjectProgressDashboard({ projectId }: Props) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-bold">项目进度</h3>
-            <span className="text-sm text-gray-500">
-              {progress.overall_pct}%
-            </span>
+            <span className="text-sm text-gray-500">{progress.overall_pct}%</span>
           </div>
 
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
@@ -79,9 +85,7 @@ export default function ProjectProgressDashboard({ projectId }: Props) {
           </div>
 
           {progress.last_activity && (
-            <p className="text-xs text-gray-400 truncate">
-              最近活动: {progress.last_activity}
-            </p>
+            <p className="text-xs text-gray-400 truncate">最近活动: {progress.last_activity}</p>
           )}
         </div>
       )}
@@ -90,7 +94,7 @@ export default function ProjectProgressDashboard({ projectId }: Props) {
       {snapshots.length > 0 && (
         <div className="space-y-2">
           <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400">角色进度</h4>
-          {snapshots.map(snap => (
+          {snapshots.map((snap) => (
             <RoleProgressCard key={snap.id} snapshot={snap} />
           ))}
         </div>
@@ -99,7 +103,11 @@ export default function ProjectProgressDashboard({ projectId }: Props) {
   );
 }
 
-function RoleProgressCard({ snapshot }: { snapshot: ReturnType<typeof useSnapshotStore.getState>['snapshots'][0] }) {
+function RoleProgressCard({
+  snapshot,
+}: {
+  snapshot: ReturnType<typeof useSnapshotStore.getState>['snapshots'][0];
+}) {
   const [expanded, setExpanded] = React.useState(false);
   const phaseColor = PHASE_COLORS[snapshot.phase] || 'bg-gray-400';
   const phaseLabel = PHASE_LABELS[snapshot.phase] || snapshot.phase;
@@ -112,9 +120,11 @@ function RoleProgressCard({ snapshot }: { snapshot: ReturnType<typeof useSnapsho
         onClick={() => setExpanded(!expanded)}
       >
         {/* Phase indicator */}
-        <span className={`w-2.5 h-2.5 rounded-full ${phaseColor} ${
-          snapshot.phase === 'coding' || snapshot.phase === 'thinking' ? 'animate-pulse' : ''
-        }`} />
+        <span
+          className={`w-2.5 h-2.5 rounded-full ${phaseColor} ${
+            snapshot.phase === 'coding' || snapshot.phase === 'thinking' ? 'animate-pulse' : ''
+          }`}
+        />
 
         {/* Name + phase */}
         <div className="flex-1 min-w-0">
@@ -153,15 +163,22 @@ function RoleProgressCard({ snapshot }: { snapshot: ReturnType<typeof useSnapsho
           )}
           {snapshot.files_touched.length > 0 && (
             <div>
-              <span className="text-xs font-medium text-gray-500">修改文件 ({snapshot.files_touched.length})</span>
+              <span className="text-xs font-medium text-gray-500">
+                修改文件 ({snapshot.files_touched.length})
+              </span>
               <div className="flex flex-wrap gap-1 mt-1">
-                {snapshot.files_touched.slice(0, 8).map(f => (
-                  <span key={f} className="text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded truncate max-w-[200px]">
+                {snapshot.files_touched.slice(0, 8).map((f) => (
+                  <span
+                    key={f}
+                    className="text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded truncate max-w-[200px]"
+                  >
                     {f}
                   </span>
                 ))}
                 {snapshot.files_touched.length > 8 && (
-                  <span className="text-xs text-gray-400">+{snapshot.files_touched.length - 8}</span>
+                  <span className="text-xs text-gray-400">
+                    +{snapshot.files_touched.length - 8}
+                  </span>
                 )}
               </div>
             </div>

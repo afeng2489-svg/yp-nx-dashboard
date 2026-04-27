@@ -60,7 +60,10 @@ export function ProcessMonitor() {
       if (!aborted) timer = setTimeout(poll, 8000);
     };
     poll();
-    return () => { aborted = true; clearTimeout(timer); };
+    return () => {
+      aborted = true;
+      clearTimeout(timer);
+    };
   }, []);
 
   const getStatusIcon = (status: string) => {
@@ -90,10 +93,12 @@ export function ProcessMonitor() {
         <div className="flex items-center gap-2">
           <Activity className="w-5 h-5 text-red-500" />
           <h2 className="font-semibold">进程监测</h2>
-          <span className={cn(
-            'px-2 py-0.5 text-xs rounded-full',
-            processes.length > 0 ? 'bg-red-500/20 text-red-500' : 'bg-gray-500/20 text-gray-500'
-          )}>
+          <span
+            className={cn(
+              'px-2 py-0.5 text-xs rounded-full',
+              processes.length > 0 ? 'bg-red-500/20 text-red-500' : 'bg-gray-500/20 text-gray-500',
+            )}
+          >
             {processes.length} 个进程
           </span>
         </div>

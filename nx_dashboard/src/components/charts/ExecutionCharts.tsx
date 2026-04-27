@@ -86,8 +86,16 @@ export function ExecutionTrendChart({ className }: { className?: string }) {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="displayDate" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-            <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
+            <XAxis
+              dataKey="displayDate"
+              tick={{ fontSize: 12 }}
+              stroke="hsl(var(--muted-foreground))"
+            />
+            <YAxis
+              tick={{ fontSize: 12 }}
+              stroke="hsl(var(--muted-foreground))"
+              allowDecimals={false}
+            />
             <Tooltip
               contentStyle={{
                 background: 'hsl(var(--card))',
@@ -129,7 +137,7 @@ export function ExecutionStatusPie({ className }: { className?: string }) {
         acc[e.status] = (acc[e.status] || 0) + 1;
         return acc;
       },
-      {} as Record<string, number>
+      {} as Record<string, number>,
     );
 
     return [
@@ -211,7 +219,7 @@ export function WorkflowPerformanceChart({ className }: { className?: string }) 
         if (e.status === 'failed') acc[wid].failed += 1;
         return acc;
       },
-      {} as Record<string, { total: number; completed: number; failed: number }>
+      {} as Record<string, { total: number; completed: number; failed: number }>,
     );
 
     return Object.entries(workflowStats)
@@ -240,7 +248,11 @@ export function WorkflowPerformanceChart({ className }: { className?: string }) 
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="workflow_id" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+            <XAxis
+              dataKey="workflow_id"
+              tick={{ fontSize: 11 }}
+              stroke="hsl(var(--muted-foreground))"
+            />
             <YAxis
               tick={{ fontSize: 11 }}
               stroke="hsl(var(--muted-foreground))"
@@ -256,7 +268,12 @@ export function WorkflowPerformanceChart({ className }: { className?: string }) 
               }}
               formatter={(value: number) => [`${value}%`, '成功率']}
             />
-            <Bar dataKey="successRate" fill={COLORS.completed} radius={[4, 4, 0, 0]} name="成功率" />
+            <Bar
+              dataKey="successRate"
+              fill={COLORS.completed}
+              radius={[4, 4, 0, 0]}
+              name="成功率"
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>

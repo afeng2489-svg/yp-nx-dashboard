@@ -58,13 +58,11 @@ function EditorTab({ file, isActive, onSelect, onClose }: TabProps) {
         'group flex items-center gap-1.5 px-3 py-1.5 text-sm border-r border-border min-w-0 max-w-[180px]',
         isActive
           ? 'bg-background text-foreground'
-          : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+          : 'bg-muted/50 text-muted-foreground hover:bg-muted',
       )}
     >
       <span className="truncate">{getFileName(file.path)}</span>
-      {file.isDirty && (
-        <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />
-      )}
+      {file.isDirty && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
       <span
         onClick={handleClose}
         className="ml-1 p-0.5 rounded hover:bg-accent opacity-0 group-hover:opacity-100 flex-shrink-0"
@@ -119,7 +117,7 @@ export function FileEditor() {
         updateFileContent(activeFilePath, value);
       }
     },
-    [activeFilePath, updateFileContent]
+    [activeFilePath, updateFileContent],
   );
 
   const handleClose = (path: string) => {
@@ -211,7 +209,7 @@ export function FileEditor() {
                 'flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors',
                 activeFile.isDirty
                   ? 'hover:bg-accent text-foreground'
-                  : 'text-muted-foreground/50 cursor-not-allowed'
+                  : 'text-muted-foreground/50 cursor-not-allowed',
               )}
             >
               <Save className="w-3 h-3" />

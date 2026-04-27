@@ -53,7 +53,14 @@ export interface InstantiateRequest {
   variables?: Record<string, unknown>;
 }
 
-export type TemplateCategory = 'planning' | 'development' | 'analysis' | 'security' | 'testing' | 'research' | 'writing';
+export type TemplateCategory =
+  | 'planning'
+  | 'development'
+  | 'analysis'
+  | 'security'
+  | 'testing'
+  | 'research'
+  | 'writing';
 
 export const TEMPLATE_CATEGORIES: { value: TemplateCategory; label: string }[] = [
   { value: 'planning', label: '规划' },
@@ -78,7 +85,10 @@ interface TemplateStore {
   fetchTemplatesByCategory: (category: string) => Promise<void>;
   getTemplate: (id: string) => Promise<Template | null>;
   createTemplate: (template: CreateTemplateRequest) => Promise<Template>;
-  instantiateTemplate: (id: string, variables?: Record<string, unknown>) => Promise<InstantiateResponse>;
+  instantiateTemplate: (
+    id: string,
+    variables?: Record<string, unknown>,
+  ) => Promise<InstantiateResponse>;
   setCurrentTemplate: (template: Template | null) => void;
   setSelectedCategory: (category: TemplateCategory | null) => void;
   clearError: () => void;
@@ -89,7 +99,7 @@ class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public body?: string
+    public body?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -100,7 +110,7 @@ class ApiError extends Error {
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
-  timeout = 10000
+  timeout = 10000,
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -136,7 +146,7 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
       if (!response.ok) {
         throw new ApiError(
           `Failed to fetch templates: ${response.status} ${response.statusText}`,
-          response.status
+          response.status,
         );
       }
 
@@ -155,13 +165,13 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
     set({ loading: true, error: null, selectedCategory: category as TemplateCategory });
     try {
       const response = await fetchWithTimeout(
-        `${API_BASE_URL}/api/v1/templates/category/${category}`
+        `${API_BASE_URL}/api/v1/templates/category/${category}`,
       );
 
       if (!response.ok) {
         throw new ApiError(
           `Failed to fetch templates: ${response.status} ${response.statusText}`,
-          response.status
+          response.status,
         );
       }
 
@@ -178,18 +188,13 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
 
   getTemplate: async (id: string) => {
     try {
-      const response = await fetchWithTimeout(
-        `${API_BASE_URL}/api/v1/templates/${id}`
-      );
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/v1/templates/${id}`);
 
       if (!response.ok) {
         if (response.status === 404) {
           return null;
         }
-        throw new ApiError(
-          `Failed to fetch template: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to fetch template: ${response.status}`, response.status);
       }
 
       const template = await response.json();
@@ -212,22 +217,22 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to create template: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to create template: ${response.status}`, response.status);
       }
 
       const newTemplate = await response.json();
       set((state) => ({
-        templates: [...state.templates, {
-          id: newTemplate.id,
-          name: newTemplate.name,
-          description: newTemplate.description,
-          category: newTemplate.category,
-          stage_count: newTemplate.stages.length,
-          agent_count: newTemplate.agents.length,
-        }],
+        templates: [
+          ...state.templates,
+          {
+            id: newTemplate.id,
+            name: newTemplate.name,
+            description: newTemplate.description,
+            category: newTemplate.category,
+            stage_count: newTemplate.stages.length,
+            agent_count: newTemplate.agents.length,
+          },
+        ],
       }));
       return newTemplate;
     } catch (error) {
@@ -247,10 +252,7 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to instantiate template: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to instantiate template: ${response.status}`, response.status);
       }
 
       const result: InstantiateResponse = await response.json();

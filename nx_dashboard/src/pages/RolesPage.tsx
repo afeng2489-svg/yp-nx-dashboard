@@ -38,7 +38,7 @@ export function RolesPage() {
       if (response.ok) {
         const skills = await response.json();
         const skillIds = skills.map((s: any) => s.skill_id);
-        setRoleSkills(prev => ({ ...prev, [role.id]: skillIds }));
+        setRoleSkills((prev) => ({ ...prev, [role.id]: skillIds }));
       }
     } catch (error) {
       console.error('Failed to fetch role skills:', error);
@@ -63,7 +63,7 @@ export function RolesPage() {
           const roles: RoleWithTeam[] = await response.json();
           // Deduplicate by id
           const seen = new Set<string>();
-          const uniqueRoles = roles.filter(r => {
+          const uniqueRoles = roles.filter((r) => {
             if (seen.has(r.id)) return false;
             seen.add(r.id);
             return true;
@@ -79,11 +79,14 @@ export function RolesPage() {
       }
     };
     loadAllRoles();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [teams]);
 
-  const filteredRoles = allRoles.filter(role => {
-    const matchesSearch = searchTerm === '' ||
+  const filteredRoles = allRoles.filter((role) => {
+    const matchesSearch =
+      searchTerm === '' ||
       role.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       role.description?.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
@@ -131,7 +134,7 @@ export function RolesPage() {
         method: 'DELETE',
       });
       if (response.ok) {
-        setAllRoles(prev => prev.filter(r => r.id !== confirmDelete.id));
+        setAllRoles((prev) => prev.filter((r) => r.id !== confirmDelete.id));
         setConfirmDelete(null);
       }
     } catch (error) {
@@ -154,8 +157,8 @@ export function RolesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newRoleName,
-          description: newRoleDescription || "",
-          system_prompt: newRoleInstructions || "",
+          description: newRoleDescription || '',
+          system_prompt: newRoleInstructions || '',
         }),
       });
       if (response.ok) {
@@ -239,7 +242,7 @@ export function RolesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredRoles.map(role => (
+          {filteredRoles.map((role) => (
             <div
               key={role.id}
               className="border rounded-lg p-4 bg-card hover:shadow-md transition-shadow"
@@ -294,10 +297,7 @@ export function RolesPage() {
               {role.skills && role.skills.length > 0 && (
                 <div className="flex flex-wrap gap-1 mb-3">
                   {role.skills.slice(0, 3).map((skill, idx) => (
-                    <span
-                      key={idx}
-                      className="px-2 py-0.5 text-xs bg-secondary rounded-md"
-                    >
+                    <span key={idx} className="px-2 py-0.5 text-xs bg-secondary rounded-md">
                       {skill}
                     </span>
                   ))}
@@ -311,9 +311,7 @@ export function RolesPage() {
 
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>模型: {role.model || '默认'}</span>
-                {role.temperature && (
-                  <span>温度: {role.temperature}</span>
-                )}
+                {role.temperature && <span>温度: {role.temperature}</span>}
               </div>
             </div>
           ))}
@@ -343,8 +341,10 @@ export function RolesPage() {
                   className="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="">全局角色 (不关联团队)</option>
-                  {teams.map(team => (
-                    <option key={team.id} value={team.id}>{team.name}</option>
+                  {teams.map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -486,11 +486,11 @@ export function RolesPage() {
           currentSkills={roleSkills[skillManageRole.id] || skillManageRole.skills || []}
           onClose={() => setSkillManageRole(null)}
           onSkillsChange={(skillIds) => {
-            setRoleSkills(prev => ({ ...prev, [skillManageRole.id]: skillIds }));
+            setRoleSkills((prev) => ({ ...prev, [skillManageRole.id]: skillIds }));
             // Update the role in the list
-            setAllRoles(prev => prev.map(r =>
-              r.id === skillManageRole.id ? { ...r, skills: skillIds } : r
-            ));
+            setAllRoles((prev) =>
+              prev.map((r) => (r.id === skillManageRole.id ? { ...r, skills: skillIds } : r)),
+            );
           }}
         />
       )}

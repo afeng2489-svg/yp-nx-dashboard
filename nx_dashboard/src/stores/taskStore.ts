@@ -71,7 +71,10 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       const data: TaskListResponse = await response.json();
       set({ tasks: data.tasks, stats: data.stats, loading: false });
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to fetch tasks', loading: false });
+      set({
+        error: error instanceof Error ? error.message : 'Failed to fetch tasks',
+        loading: false,
+      });
     }
   },
 
@@ -108,7 +111,10 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       get().fetchStats();
       return task;
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Failed to create task', loading: false });
+      set({
+        error: error instanceof Error ? error.message : 'Failed to create task',
+        loading: false,
+      });
       return null;
     }
   },
@@ -144,7 +150,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       // Update local state
       set((state) => ({
         tasks: state.tasks.map((task) =>
-          task.id === id ? { ...task, status: 'cancelled' as TaskStatus } : task
+          task.id === id ? { ...task, status: 'cancelled' as TaskStatus } : task,
         ),
       }));
       // Refresh stats

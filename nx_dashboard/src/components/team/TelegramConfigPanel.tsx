@@ -1,5 +1,15 @@
 import { useState, useEffect } from 'react';
-import { X, Loader2, Check, Bot, Power, PowerOff, Save, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  X,
+  Loader2,
+  Check,
+  Bot,
+  Power,
+  PowerOff,
+  Save,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTeamStore, MemberBotStatus } from '@/stores/teamStore';
 
@@ -84,9 +94,7 @@ export function TelegramConfigPanel({ teamId, onClose }: TelegramConfigPanelProp
       if (updData.ok && updData.result?.length > 0) {
         const lastUpdate = updData.result[updData.result.length - 1];
         const chatId =
-          lastUpdate.message?.chat?.id ??
-          lastUpdate.callback_query?.message?.chat?.id ??
-          null;
+          lastUpdate.message?.chat?.id ?? lastUpdate.callback_query?.message?.chat?.id ?? null;
         if (chatId !== null) {
           updateRow(roleId, { chatId: String(chatId), fetchError: null });
         } else {
@@ -176,7 +184,7 @@ export function TelegramConfigPanel({ teamId, onClose }: TelegramConfigPanelProp
                 anyPolling
                   ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
                   : 'bg-green-500/10 text-green-600 hover:bg-green-500/20',
-                (togglingAll || configuredCount === 0) && 'opacity-50 cursor-not-allowed'
+                (togglingAll || configuredCount === 0) && 'opacity-50 cursor-not-allowed',
               )}
             >
               {togglingAll ? (
@@ -219,8 +227,8 @@ export function TelegramConfigPanel({ teamId, onClose }: TelegramConfigPanelProp
                     member.is_polling
                       ? 'border-green-500/30 bg-green-500/5'
                       : hasToken
-                      ? 'border-blue-500/20 bg-blue-500/5'
-                      : 'border-border/50 bg-card'
+                        ? 'border-blue-500/20 bg-blue-500/5'
+                        : 'border-border/50 bg-card',
                   )}
                 >
                   {/* Row Header */}
@@ -229,19 +237,27 @@ export function TelegramConfigPanel({ teamId, onClose }: TelegramConfigPanelProp
                     onClick={() => updateRow(member.role_id, { expanded: !row.expanded })}
                   >
                     {/* Status dot */}
-                    <div className={cn(
-                      'w-2.5 h-2.5 rounded-full flex-shrink-0',
-                      member.is_polling ? 'bg-green-500 animate-pulse' : hasToken ? 'bg-blue-400' : 'bg-muted-foreground/30'
-                    )} />
+                    <div
+                      className={cn(
+                        'w-2.5 h-2.5 rounded-full flex-shrink-0',
+                        member.is_polling
+                          ? 'bg-green-500 animate-pulse'
+                          : hasToken
+                            ? 'bg-blue-400'
+                            : 'bg-muted-foreground/30',
+                      )}
+                    />
                     <span className="font-medium flex-1">{member.role_name}</span>
-                    <span className={cn(
-                      'text-xs px-2 py-0.5 rounded-full',
-                      member.is_polling
-                        ? 'bg-green-500/15 text-green-600'
-                        : hasToken
-                        ? 'bg-blue-500/15 text-blue-600'
-                        : 'bg-muted text-muted-foreground'
-                    )}>
+                    <span
+                      className={cn(
+                        'text-xs px-2 py-0.5 rounded-full',
+                        member.is_polling
+                          ? 'bg-green-500/15 text-green-600'
+                          : hasToken
+                            ? 'bg-blue-500/15 text-blue-600'
+                            : 'bg-muted text-muted-foreground',
+                      )}
+                    >
                       {member.is_polling ? '运行中' : hasToken ? '已配置' : '未配置'}
                     </span>
                     {row.expanded ? (
@@ -262,7 +278,14 @@ export function TelegramConfigPanel({ teamId, onClose }: TelegramConfigPanelProp
                           <input
                             type="password"
                             value={row.botToken}
-                            onChange={(e) => updateRow(member.role_id, { botToken: e.target.value, botUsername: null, chatId: '', fetchError: null })}
+                            onChange={(e) =>
+                              updateRow(member.role_id, {
+                                botToken: e.target.value,
+                                botUsername: null,
+                                chatId: '',
+                                fetchError: null,
+                              })
+                            }
                             onBlur={() => row.botToken.trim() && autoFetchChatId(member.role_id)}
                             placeholder="从 @BotFather 获取"
                             className="input-field text-sm flex-1"
@@ -282,9 +305,13 @@ export function TelegramConfigPanel({ teamId, onClose }: TelegramConfigPanelProp
                       {row.botUsername && (
                         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
                           <Bot className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-                          <span className="text-xs text-blue-600 font-medium">@{row.botUsername}</span>
+                          <span className="text-xs text-blue-600 font-medium">
+                            @{row.botUsername}
+                          </span>
                           {row.chatId && (
-                            <span className="text-xs text-muted-foreground ml-auto">Chat ID: {row.chatId}</span>
+                            <span className="text-xs text-muted-foreground ml-auto">
+                              Chat ID: {row.chatId}
+                            </span>
                           )}
                         </div>
                       )}
@@ -306,10 +333,8 @@ export function TelegramConfigPanel({ teamId, onClose }: TelegramConfigPanelProp
                           disabled={row.saving || !row.botToken.trim()}
                           className={cn(
                             'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
-                            row.saved
-                              ? 'bg-green-500/15 text-green-600'
-                              : 'btn-primary',
-                            (row.saving || !row.botToken.trim()) && 'opacity-50 cursor-not-allowed'
+                            row.saved ? 'bg-green-500/15 text-green-600' : 'btn-primary',
+                            (row.saving || !row.botToken.trim()) && 'opacity-50 cursor-not-allowed',
                           )}
                         >
                           {row.saving ? (

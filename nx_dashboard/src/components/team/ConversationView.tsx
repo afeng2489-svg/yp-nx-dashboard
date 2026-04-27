@@ -44,9 +44,13 @@ const ChatInput = memo(function ChatInput({ isActive, onSend, onCancel }: ChatIn
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          onCompositionStart={() => { isComposingRef.current = true; }}
-          onCompositionEnd={() => { isComposingRef.current = false; }}
-          placeholder={isActive ? "等待响应..." : "输入消息..."}
+          onCompositionStart={() => {
+            isComposingRef.current = true;
+          }}
+          onCompositionEnd={() => {
+            isComposingRef.current = false;
+          }}
+          placeholder={isActive ? '等待响应...' : '输入消息...'}
           className="input-field flex-1 resize-none"
           rows={1}
           disabled={isActive}
@@ -56,14 +60,10 @@ const ChatInput = memo(function ChatInput({ isActive, onSend, onCancel }: ChatIn
           disabled={!isActive && !value.trim()}
           className={cn(
             'btn-primary px-4',
-            (!isActive && !value.trim()) ? 'opacity-50 cursor-not-allowed' : ''
+            !isActive && !value.trim() ? 'opacity-50 cursor-not-allowed' : '',
           )}
         >
-          {isActive ? (
-            <Square className="w-4 h-4" />
-          ) : (
-            <Send className="w-4 h-4" />
-          )}
+          {isActive ? <Square className="w-4 h-4" /> : <Send className="w-4 h-4" />}
         </button>
       </div>
     </div>
@@ -73,12 +73,7 @@ const ChatInput = memo(function ChatInput({ isActive, onSend, onCancel }: ChatIn
 // ── 消息气泡，避免列表整体重渲染 ─────────────────────────
 const MessageBubble = memo(function MessageBubble({ message }: { message: Message }) {
   return (
-    <div
-      className={cn(
-        'flex gap-3',
-        message.role === 'user' ? 'justify-end' : 'justify-start'
-      )}
-    >
+    <div className={cn('flex gap-3', message.role === 'user' ? 'justify-end' : 'justify-start')}>
       {message.role === 'assistant' && (
         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center flex-shrink-0">
           <Bot className="w-4 h-4 text-white" />
@@ -89,18 +84,20 @@ const MessageBubble = memo(function MessageBubble({ message }: { message: Messag
           'max-w-[80%] rounded-2xl px-4 py-2.5',
           message.role === 'user'
             ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white'
-            : 'bg-muted'
+            : 'bg-muted',
         )}
       >
         <p className="text-sm whitespace-pre-wrap">{message.content}</p>
         {message.created_at && (
-          <p className={cn(
-            'text-xs mt-1',
-            message.role === 'user' ? 'text-white/70' : 'text-muted-foreground'
-          )}>
+          <p
+            className={cn(
+              'text-xs mt-1',
+              message.role === 'user' ? 'text-white/70' : 'text-muted-foreground',
+            )}
+          >
             {new Date(message.created_at).toLocaleTimeString('zh-CN', {
               hour: '2-digit',
-              minute: '2-digit'
+              minute: '2-digit',
             })}
           </p>
         )}
@@ -149,14 +146,18 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
   }, [teamId, agentExec.activeRoleId, agentExec.activeSessionId, setTerminalSession]);
 
   useEffect(() => {
-    const serverMessages = storeMessages.filter(m => m.team_id === teamId);
-    setLocalMessages(prev => {
-      const tempMessages = prev.filter(m => m.id.startsWith('temp-'));
+    const serverMessages = storeMessages.filter((m) => m.team_id === teamId);
+    setLocalMessages((prev) => {
+      const tempMessages = prev.filter((m) => m.id.startsWith('temp-'));
       if (tempMessages.length === 0) return serverMessages;
       // 去重：如果服务端消息中已包含相同内容的消息，移除对应临时消息
-      const serverUserContents = new Set(serverMessages.filter(m => m.role === 'user').map(m => m.content));
-      const serverAssistantContents = new Set(serverMessages.filter(m => m.role === 'assistant').map(m => m.content));
-      const keptTemp = tempMessages.filter(m => {
+      const serverUserContents = new Set(
+        serverMessages.filter((m) => m.role === 'user').map((m) => m.content),
+      );
+      const serverAssistantContents = new Set(
+        serverMessages.filter((m) => m.role === 'assistant').map((m) => m.content),
+      );
+      const keptTemp = tempMessages.filter((m) => {
         if (m.role === 'assistant') return !serverAssistantContents.has(m.content);
         if (m.role === 'user') return !serverUserContents.has(m.content);
         return true;
@@ -177,7 +178,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
           content: agentExec.result,
           created_at: new Date().toISOString(),
         };
-        setLocalMessages(prev => [...prev, tempAssistantMsg]);
+        setLocalMessages((prev) => [...prev, tempAssistantMsg]);
       }
       if (agentExec.partialOutput) {
         setLastCliOutput(agentExec.partialOutput);
@@ -222,7 +223,11 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
       if (!aborted) timer = setTimeout(poll, 10000);
     };
     poll();
-    return () => { aborted = true; clearTimeout(timer); abortController.abort(); };
+    return () => {
+      aborted = true;
+      clearTimeout(timer);
+      abortController.abort();
+    };
   }, [isActive, teamId, fetchMessages]);
 
   // 冻结保护：isActive 超过 5 分钟自动重置，防止 WS 丢失事件导致 UI 永久卡死
@@ -239,31 +244,34 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [localMessages]);
 
-  const handleSend = useCallback((text: string) => {
-    if (!text || isActive || executingRef.current) return;
+  const handleSend = useCallback(
+    (text: string) => {
+      if (!text || isActive || executingRef.current) return;
 
-    // 监控模式 ON：先显示确认弹框，不直接执行
-    if (isMonitorMode) {
-      setPendingConfirmTask(text);
-      return;
-    }
+      // 监控模式 ON：先显示确认弹框，不直接执行
+      if (isMonitorMode) {
+        setPendingConfirmTask(text);
+        return;
+      }
 
-    executingRef.current = true;
+      executingRef.current = true;
 
-    const userMessage: Message = {
-      id: `temp-${Date.now()}`,
-      team_id: teamId,
-      role: 'user',
-      message_type: 'User',
-      content: text,
-      created_at: new Date().toISOString(),
-    };
+      const userMessage: Message = {
+        id: `temp-${Date.now()}`,
+        team_id: teamId,
+        role: 'user',
+        message_type: 'User',
+        content: text,
+        created_at: new Date().toISOString(),
+      };
 
-    setLocalMessages(prev => [...prev, userMessage]);
-    agentExec.execute(teamId, text).finally(() => {
-      executingRef.current = false;
-    });
-  }, [teamId, isActive, agentExec, isMonitorMode]);
+      setLocalMessages((prev) => [...prev, userMessage]);
+      agentExec.execute(teamId, text).finally(() => {
+        executingRef.current = false;
+      });
+    },
+    [teamId, isActive, agentExec, isMonitorMode],
+  );
 
   const handleConfirmTask = useCallback(() => {
     if (!pendingConfirmTask || executingRef.current) return;
@@ -276,7 +284,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
       content: pendingConfirmTask,
       created_at: new Date().toISOString(),
     };
-    setLocalMessages(prev => [...prev, userMessage]);
+    setLocalMessages((prev) => [...prev, userMessage]);
     agentExec.execute(teamId, pendingConfirmTask, true).finally(() => {
       executingRef.current = false;
     });
@@ -303,7 +311,9 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
               onClick={() => setActiveTab('chat')}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                activeTab === 'chat' ? 'bg-emerald-500/20 text-emerald-400' : 'text-muted-foreground hover:bg-accent'
+                activeTab === 'chat'
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : 'text-muted-foreground hover:bg-accent',
               )}
             >
               <MessageCircle className="w-4 h-4" />
@@ -313,7 +323,9 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
               onClick={() => setActiveTab('terminal')}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                activeTab === 'terminal' ? 'bg-green-500/20 text-green-400' : 'text-muted-foreground hover:bg-accent'
+                activeTab === 'terminal'
+                  ? 'bg-green-500/20 text-green-400'
+                  : 'text-muted-foreground hover:bg-accent',
               )}
             >
               <TerminalIcon className="w-4 h-4" />
@@ -321,10 +333,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg hover:bg-accent transition-colors"
-            >
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-accent transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -332,120 +341,129 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
 
         {/* 终端 Tab（始终挂载，切换时用 hidden 隐藏，避免断连） */}
         <div className={cn('flex-1 overflow-hidden', activeTab !== 'terminal' && 'hidden')}>
-          <TerminalPanel teamId={teamId} roles={roles} visible={activeTab === 'terminal'} activeRoleId={agentExec.activeRoleId} />
+          <TerminalPanel
+            teamId={teamId}
+            roles={roles}
+            visible={activeTab === 'terminal'}
+            activeRoleId={agentExec.activeRoleId}
+          />
         </div>
 
         {/* 对话 Tab */}
-        {activeTab === 'chat' && <>
-        {/* Messages */}
-        <div ref={messagesScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
-          {localMessages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-              <Bot className="w-12 h-12 mb-4 opacity-50" />
-              <p className="font-medium">开始与团队对话</p>
-              <p className="text-sm mt-1">发送消息来测试团队协作</p>
-            </div>
-          ) : (
-            localMessages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
-            ))
-          )}
-          {showLastOutput && lastCliOutput && !isActive && (
-            <div className="flex gap-3 justify-start">
-              <div className="w-8 h-8 rounded-full bg-[#252526] flex items-center justify-center flex-shrink-0">
-                <TerminalIcon className="w-4 h-4 text-green-400" />
-              </div>
-              <div className="flex-1 max-w-[85%]">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-muted-foreground">执行过程</span>
-                  <button
-                    onClick={() => setShowLastOutput(false)}
-                    className="text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    收起
-                  </button>
+        {activeTab === 'chat' && (
+          <>
+            {/* Messages */}
+            <div ref={messagesScrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+              {localMessages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+                  <Bot className="w-12 h-12 mb-4 opacity-50" />
+                  <p className="font-medium">开始与团队对话</p>
+                  <p className="text-sm mt-1">发送消息来测试团队协作</p>
                 </div>
-                <div className="bg-[#1a1a1a] rounded-xl px-3 py-2 text-xs text-green-400 max-h-64 overflow-y-auto border border-white/5">
-                  <pre className="whitespace-pre-wrap font-mono leading-relaxed">{lastCliOutput}</pre>
+              ) : (
+                localMessages.map((message) => <MessageBubble key={message.id} message={message} />)
+              )}
+              {showLastOutput && lastCliOutput && !isActive && (
+                <div className="flex gap-3 justify-start">
+                  <div className="w-8 h-8 rounded-full bg-[#252526] flex items-center justify-center flex-shrink-0">
+                    <TerminalIcon className="w-4 h-4 text-green-400" />
+                  </div>
+                  <div className="flex-1 max-w-[85%]">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-muted-foreground">执行过程</span>
+                      <button
+                        onClick={() => setShowLastOutput(false)}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        收起
+                      </button>
+                    </div>
+                    <div className="bg-[#1a1a1a] rounded-xl px-3 py-2 text-xs text-green-400 max-h-64 overflow-y-auto border border-white/5">
+                      <pre className="whitespace-pre-wrap font-mono leading-relaxed">
+                        {lastCliOutput}
+                      </pre>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
-          {pendingConfirmTask && (
-            <div className="flex gap-3 justify-start">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center flex-shrink-0">
-                <Bot className="w-4 h-4 text-white" />
-              </div>
-              <div className="flex-1 max-w-[85%] bg-amber-500/10 rounded-2xl px-4 py-3 border border-amber-500/20">
-                <p className="text-sm text-amber-300 font-semibold mb-1">⚠ 监控模式 — 确认执行此任务？</p>
-                <p className="text-sm text-amber-100/80 mb-3 break-all">{pendingConfirmTask}</p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleConfirmTask}
-                    className="px-4 py-1.5 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors font-medium"
-                  >
-                    允许
-                  </button>
-                  <button
-                    onClick={handleCancelTask}
-                    className="px-4 py-1.5 text-sm bg-[#252526] hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded transition-colors"
-                  >
-                    拒绝
-                  </button>
+              )}
+              {pendingConfirmTask && (
+                <div className="flex gap-3 justify-start">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center flex-shrink-0">
+                    <Bot className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="flex-1 max-w-[85%] bg-amber-500/10 rounded-2xl px-4 py-3 border border-amber-500/20">
+                    <p className="text-sm text-amber-300 font-semibold mb-1">
+                      ⚠ 监控模式 — 确认执行此任务？
+                    </p>
+                    <p className="text-sm text-amber-100/80 mb-3 break-all">{pendingConfirmTask}</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleConfirmTask}
+                        className="px-4 py-1.5 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors font-medium"
+                      >
+                        允许
+                      </button>
+                      <button
+                        onClick={handleCancelTask}
+                        className="px-4 py-1.5 text-sm bg-[#252526] hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded transition-colors"
+                      >
+                        拒绝
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
-          {agentExec.status === 'confirmation' && agentExec.confirmationQuestion && (
-            <div className="flex gap-3 justify-start">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center flex-shrink-0">
-                <Bot className="w-4 h-4 text-white" />
-              </div>
-              <div className="flex-1 max-w-[85%] bg-amber-500/10 rounded-2xl px-4 py-3 border border-amber-500/20">
-                <p className="text-sm text-amber-200 font-medium mb-3">
-                  {agentExec.confirmationQuestion}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {agentExec.confirmationOptions.map((option) => (
-                    <button
-                      key={option}
-                      onClick={() => agentExec.sendConfirmation(option)}
-                      className="px-3 py-1.5 text-sm bg-[#252526] hover:bg-amber-500/30 text-amber-200 border border-amber-500/30 rounded transition-colors"
-                    >
-                      {option}
-                    </button>
-                  ))}
+              )}
+              {agentExec.status === 'confirmation' && agentExec.confirmationQuestion && (
+                <div className="flex gap-3 justify-start">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center flex-shrink-0">
+                    <Bot className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="flex-1 max-w-[85%] bg-amber-500/10 rounded-2xl px-4 py-3 border border-amber-500/20">
+                    <p className="text-sm text-amber-200 font-medium mb-3">
+                      {agentExec.confirmationQuestion}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {agentExec.confirmationOptions.map((option) => (
+                        <button
+                          key={option}
+                          onClick={() => agentExec.sendConfirmation(option)}
+                          className="px-3 py-1.5 text-sm bg-[#252526] hover:bg-amber-500/30 text-amber-200 border border-amber-500/30 rounded transition-colors"
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
+              {agentExec.status === 'failed' && agentExec.error && (
+                <div className="flex gap-3 justify-start">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center flex-shrink-0">
+                    <Bot className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="bg-red-500/10 rounded-2xl px-4 py-2.5">
+                    <p className="text-sm text-red-400">{agentExec.error}</p>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-          {agentExec.status === 'failed' && agentExec.error && (
-            <div className="flex gap-3 justify-start">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center flex-shrink-0">
-                <Bot className="w-4 h-4 text-white" />
-              </div>
-              <div className="bg-red-500/10 rounded-2xl px-4 py-2.5">
-                <p className="text-sm text-red-400">{agentExec.error}</p>
-              </div>
-            </div>
-          )}
-        </div>
 
-        {/* 执行中：内嵌终端预览 */}
-        {isActive && (
-          <div className="px-4 pb-2">
-            <EmbeddedTerminalPreview
-              output={agentExec.partialOutput || ''}
-              elapsedSecs={agentExec.elapsedSecs || 0}
-              progress={agentExec.progress}
-              onViewTerminal={() => setActiveTab('terminal')}
-            />
-          </div>
+            {/* 执行中：内嵌终端预览 */}
+            {isActive && (
+              <div className="px-4 pb-2">
+                <EmbeddedTerminalPreview
+                  output={agentExec.partialOutput || ''}
+                  elapsedSecs={agentExec.elapsedSecs || 0}
+                  progress={agentExec.progress}
+                  onViewTerminal={() => setActiveTab('terminal')}
+                />
+              </div>
+            )}
+
+            {/* Input — 独立组件，打字不触发消息列表/终端重渲染 */}
+            <ChatInput isActive={isActive} onSend={handleSend} onCancel={handleCancel} />
+          </>
         )}
-
-        {/* Input — 独立组件，打字不触发消息列表/终端重渲染 */}
-        <ChatInput isActive={isActive} onSend={handleSend} onCancel={handleCancel} />
-        </>}
       </div>
     </div>
   );

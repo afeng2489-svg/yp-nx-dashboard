@@ -54,16 +54,8 @@ function WorkflowNodeComponent({ data, selected }: WorkflowNodeProps) {
         </div>
       )}
 
-      <Handle
-        type="target"
-        position={Position.Top}
-        className="!w-3 !h-3 !bg-primary border-2"
-      />
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        className="!w-3 !h-3 !bg-primary border-2"
-      />
+      <Handle type="target" position={Position.Top} className="!w-3 !h-3 !bg-primary border-2" />
+      <Handle type="source" position={Position.Bottom} className="!w-3 !h-3 !bg-primary border-2" />
       <Handle
         type="target"
         position={Position.Left}

@@ -111,22 +111,27 @@ export function useClaudeStream(options: UseClaudeStreamOptions = {}): UseClaude
   }, []);
 
   // 执行 Claude CLI
-  const execute = useCallback((prompt: string, workingDirectory?: string) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      setError('WebSocket 未连接');
-      return;
-    }
+  const execute = useCallback(
+    (prompt: string, workingDirectory?: string) => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        setError('WebSocket 未连接');
+        return;
+      }
 
-    // 清除之前的输出
-    clear();
-    setIsExecuting(true);
+      // 清除之前的输出
+      clear();
+      setIsExecuting(true);
 
-    wsRef.current.send(JSON.stringify({
-      type: 'execute',
-      prompt,
-      working_directory: workingDirectory || null,
-    }));
-  }, [clear]);
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'execute',
+          prompt,
+          working_directory: workingDirectory || null,
+        }),
+      );
+    },
+    [clear],
+  );
 
   // 连接 WebSocket
   useEffect(() => {

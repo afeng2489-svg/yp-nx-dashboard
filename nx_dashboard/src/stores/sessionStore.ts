@@ -17,7 +17,7 @@ class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public body?: string
+    public body?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -28,7 +28,7 @@ class ApiError extends Error {
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
-  timeout = 5000
+  timeout = 5000,
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -81,7 +81,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
       if (!response.ok) {
         throw new ApiError(
           `Failed to fetch sessions: ${response.status} ${response.statusText}`,
-          response.status
+          response.status,
         );
       }
 
@@ -104,10 +104,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
         if (response.status === 404) {
           return null;
         }
-        throw new ApiError(
-          `Failed to fetch session: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to fetch session: ${response.status}`, response.status);
       }
 
       return await response.json();
@@ -128,10 +125,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to create session: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to create session: ${response.status}`, response.status);
       }
 
       const newSession = await response.json();
@@ -148,25 +142,18 @@ export const useSessionStore = create<SessionStore>((set) => ({
     try {
       const response = await fetchWithTimeout(
         `${API_BASE_URL}/api/v1/sessions/resume/${resumeKey}`,
-        { method: 'POST' }
+        { method: 'POST' },
       );
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to resume session: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to resume session: ${response.status}`, response.status);
       }
 
       const resumedSession = await response.json();
       set((state) => ({
-        sessions: state.sessions.map((s) =>
-          s.id === resumedSession.id ? resumedSession : s
-        ),
+        sessions: state.sessions.map((s) => (s.id === resumedSession.id ? resumedSession : s)),
         currentSession:
-          state.currentSession?.id === resumedSession.id
-            ? resumedSession
-            : state.currentSession,
+          state.currentSession?.id === resumedSession.id ? resumedSession : state.currentSession,
       }));
       return resumedSession;
     } catch (error) {
@@ -178,27 +165,19 @@ export const useSessionStore = create<SessionStore>((set) => ({
 
   pauseSession: async (id) => {
     try {
-      const response = await fetchWithTimeout(
-        `${API_BASE_URL}/api/v1/sessions/${id}/pause`,
-        { method: 'POST' }
-      );
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/v1/sessions/${id}/pause`, {
+        method: 'POST',
+      });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to pause session: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to pause session: ${response.status}`, response.status);
       }
 
       const pausedSession = await response.json();
       set((state) => ({
-        sessions: state.sessions.map((s) =>
-          s.id === pausedSession.id ? pausedSession : s
-        ),
+        sessions: state.sessions.map((s) => (s.id === pausedSession.id ? pausedSession : s)),
         currentSession:
-          state.currentSession?.id === pausedSession.id
-            ? pausedSession
-            : state.currentSession,
+          state.currentSession?.id === pausedSession.id ? pausedSession : state.currentSession,
       }));
       return pausedSession;
     } catch (error) {
@@ -210,23 +189,17 @@ export const useSessionStore = create<SessionStore>((set) => ({
 
   activateSession: async (id) => {
     try {
-      const response = await fetchWithTimeout(
-        `${API_BASE_URL}/api/v1/sessions/${id}/activate`,
-        { method: 'POST' }
-      );
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/v1/sessions/${id}/activate`, {
+        method: 'POST',
+      });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to activate session: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to activate session: ${response.status}`, response.status);
       }
 
       const activatedSession = await response.json();
       set((state) => ({
-        sessions: state.sessions.map((s) =>
-          s.id === activatedSession.id ? activatedSession : s
-        ),
+        sessions: state.sessions.map((s) => (s.id === activatedSession.id ? activatedSession : s)),
         currentSession:
           state.currentSession?.id === activatedSession.id
             ? activatedSession
@@ -242,27 +215,19 @@ export const useSessionStore = create<SessionStore>((set) => ({
 
   syncSession: async (id) => {
     try {
-      const response = await fetchWithTimeout(
-        `${API_BASE_URL}/api/v1/sessions/${id}/sync`,
-        { method: 'POST' }
-      );
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/v1/sessions/${id}/sync`, {
+        method: 'POST',
+      });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to sync session: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to sync session: ${response.status}`, response.status);
       }
 
       const syncedSession = await response.json();
       set((state) => ({
-        sessions: state.sessions.map((s) =>
-          s.id === syncedSession.id ? syncedSession : s
-        ),
+        sessions: state.sessions.map((s) => (s.id === syncedSession.id ? syncedSession : s)),
         currentSession:
-          state.currentSession?.id === syncedSession.id
-            ? syncedSession
-            : state.currentSession,
+          state.currentSession?.id === syncedSession.id ? syncedSession : state.currentSession,
       }));
       return syncedSession;
     } catch (error) {
@@ -285,10 +250,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to terminate session: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to terminate session: ${response.status}`, response.status);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';

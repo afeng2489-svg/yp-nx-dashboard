@@ -28,7 +28,7 @@ export function AnimatedIcon({
       className={cn(
         'relative inline-flex items-center justify-center transition-all duration-200',
         animated && isHovered && 'scale-110',
-        className
+        className,
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -59,13 +59,7 @@ export function BouncingIcon({
 }
 
 // Pulsing icon
-export function PulsingIcon({
-  icon: Icon,
-  className,
-}: {
-  icon: LucideIcon;
-  className?: string;
-}) {
+export function PulsingIcon({ icon: Icon, className }: { icon: LucideIcon; className?: string }) {
   return (
     <div className={cn('relative animate-pulse-soft', className)}>
       <Icon className="w-5 h-5" />

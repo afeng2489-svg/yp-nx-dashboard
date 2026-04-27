@@ -123,7 +123,9 @@ function SingleTerminal({ teamId, roleId, sessionId, visible, onClose }: SingleT
       {/* 工具栏 */}
       <div className="flex items-center gap-2 px-3 py-2 bg-[#161b22] border-b border-white/10 flex-shrink-0">
         <div className="flex items-center gap-1.5">
-          <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-400' : 'bg-yellow-400 animate-pulse'}`} />
+          <div
+            className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-400' : 'bg-yellow-400 animate-pulse'}`}
+          />
           <span className="text-xs text-white/40 font-mono">{sessionId.slice(0, 8)}</span>
         </div>
         <div className="flex-1" />
@@ -159,7 +161,13 @@ interface ActiveSession {
   sessionId: string;
 }
 
-export function TerminalPanel({ teamId, roles, workspacePath, visible = true, activeRoleId: externalActiveRoleId }: TerminalPanelProps) {
+export function TerminalPanel({
+  teamId,
+  roles,
+  workspacePath,
+  visible = true,
+  activeRoleId: externalActiveRoleId,
+}: TerminalPanelProps) {
   const [activeTabRoleId, setActiveTabRoleId] = useState<string | null>(null);
 
   // 从 store 读取该团队所有角色的活跃 session
@@ -186,18 +194,21 @@ export function TerminalPanel({ teamId, roles, workspacePath, visible = true, ac
 
   // 自动选中第一个有 session 的 tab
   useEffect(() => {
-    if (activeSessions.length > 0 && !activeSessions.find(s => s.roleId === activeTabRoleId)) {
+    if (activeSessions.length > 0 && !activeSessions.find((s) => s.roleId === activeTabRoleId)) {
       setActiveTabRoleId(activeSessions[0].roleId);
     }
   }, [activeSessions, activeTabRoleId]);
 
-  const handleCloseSession = useCallback((roleId: string) => {
-    // 如果关闭的是当前 tab，切到下一个
-    if (activeTabRoleId === roleId) {
-      const remaining = activeSessions.filter(s => s.roleId !== roleId);
-      setActiveTabRoleId(remaining.length > 0 ? remaining[0].roleId : null);
-    }
-  }, [activeTabRoleId, activeSessions]);
+  const handleCloseSession = useCallback(
+    (roleId: string) => {
+      // 如果关闭的是当前 tab，切到下一个
+      if (activeTabRoleId === roleId) {
+        const remaining = activeSessions.filter((s) => s.roleId !== roleId);
+        setActiveTabRoleId(remaining.length > 0 ? remaining[0].roleId : null);
+      }
+    },
+    [activeTabRoleId, activeSessions],
+  );
 
   // 没有活跃 session 时显示空状态
   if (activeSessions.length === 0) {
@@ -209,7 +220,8 @@ export function TerminalPanel({ teamId, roles, workspacePath, visible = true, ac
     );
   }
 
-  const currentSession = activeSessions.find(s => s.roleId === activeTabRoleId) ?? activeSessions[0];
+  const currentSession =
+    activeSessions.find((s) => s.roleId === activeTabRoleId) ?? activeSessions[0];
 
   return (
     <div className="flex flex-col h-full bg-[#0d1117]">
@@ -229,7 +241,7 @@ export function TerminalPanel({ teamId, roles, workspacePath, visible = true, ac
                 'px-3 py-2 text-xs font-mono whitespace-nowrap transition-colors border-r border-white/5',
                 currentSession.roleId === session.roleId
                   ? 'text-green-400 bg-[#0d1117] border-b-2 border-b-green-400'
-                  : 'text-white/40 hover:text-white/70 hover:bg-white/5'
+                  : 'text-white/40 hover:text-white/70 hover:bg-white/5',
               )}
             >
               {session.roleName}
@@ -242,7 +254,10 @@ export function TerminalPanel({ teamId, roles, workspacePath, visible = true, ac
       {activeSessions.map((session) => (
         <div
           key={session.roleId}
-          className={cn('flex-1 overflow-hidden', currentSession.roleId !== session.roleId && 'hidden')}
+          className={cn(
+            'flex-1 overflow-hidden',
+            currentSession.roleId !== session.roleId && 'hidden',
+          )}
         >
           <SingleTerminal
             teamId={teamId}

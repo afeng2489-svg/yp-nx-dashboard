@@ -59,10 +59,7 @@ export function showWarning(message: string, description?: string) {
 }
 
 // Loading toast (promise)
-export function showLoading(
-  message: string,
-  promise: Promise<unknown>
-): Promise<unknown> {
+export function showLoading(message: string, promise: Promise<unknown>): Promise<unknown> {
   toast.promise(promise, {
     loading: message,
     success: () => `${message} 成功`,
@@ -80,7 +77,7 @@ export function showAction(
   action: {
     label: string;
     onClick: () => void;
-  }
+  },
 ) {
   return toast(message, {
     ...toastConfig,

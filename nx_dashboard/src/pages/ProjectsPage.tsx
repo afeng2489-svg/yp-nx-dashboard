@@ -2,7 +2,20 @@ import { useEffect, useState } from 'react';
 import { useProjectStore, Project, ExecuteProjectResponse } from '@/stores/projectStore';
 import { useTeamStore } from '@/stores/teamStore';
 import { useWorkspaceStore, Workspace } from '@/stores/workspaceStore';
-import { Plus, Trash2, Play, X, Loader2, FolderOpen, Clock, CheckCircle, XCircle, AlertCircle, Folder, Terminal } from 'lucide-react';
+import {
+  Plus,
+  Trash2,
+  Play,
+  X,
+  Loader2,
+  FolderOpen,
+  Clock,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Folder,
+  Terminal,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 import { showError } from '@/lib/toast';
@@ -13,7 +26,7 @@ interface DisplayProject {
   id: string;
   name: string;
   description: string;
-  path?: string;  // Only for local/workspace projects
+  path?: string; // Only for local/workspace projects
   team_id?: string;
   type: 'execution' | 'local';
   status?: 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled';
@@ -22,7 +35,18 @@ interface DisplayProject {
 }
 
 export function ProjectsPage() {
-  const { projects, loading, executing, error, fetchProjects, createProject, deleteProject, executeProject, executionResult, clearExecutionResult } = useProjectStore();
+  const {
+    projects,
+    loading,
+    executing,
+    error,
+    fetchProjects,
+    createProject,
+    deleteProject,
+    executeProject,
+    executionResult,
+    clearExecutionResult,
+  } = useProjectStore();
   const { teams, fetchTeams } = useTeamStore();
   const { workspaces, fetchWorkspaces } = useWorkspaceStore();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -38,10 +62,10 @@ export function ProjectsPage() {
   }, []);
 
   // Combine projects and workspaces into a unified list
-  const executionProjectNames = new Set(projects.map(p => p.name));
+  const executionProjectNames = new Set(projects.map((p) => p.name));
   const displayProjects: DisplayProject[] = [
     // Execution projects
-    ...projects.map(p => ({
+    ...projects.map((p) => ({
       id: p.id,
       name: p.name,
       description: p.description || '',
@@ -53,8 +77,8 @@ export function ProjectsPage() {
     })),
     // Local projects (workspaces with root_path), excluding those with same name as an execution project
     ...workspaces
-      .filter(w => w.root_path && !executionProjectNames.has(w.name))
-      .map(w => ({
+      .filter((w) => w.root_path && !executionProjectNames.has(w.name))
+      .map((w) => ({
         id: w.id,
         name: w.name,
         description: w.description || '',
@@ -66,9 +90,16 @@ export function ProjectsPage() {
   ];
 
   // Sort by updated_at descending
-  displayProjects.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+  displayProjects.sort(
+    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+  );
 
-  const handleCreateProject = async (data: { name: string; description: string; team_id: string; workspace_id?: string }) => {
+  const handleCreateProject = async (data: {
+    name: string;
+    description: string;
+    team_id: string;
+    workspace_id?: string;
+  }) => {
     try {
       await createProject(data);
       setShowCreateModal(false);
@@ -83,7 +114,7 @@ export function ProjectsPage() {
       '删除项目',
       `确定删除项目 "${project.name}"？`,
       () => deleteProject(project.id),
-      'danger'
+      'danger',
     );
   };
 
@@ -102,15 +133,35 @@ export function ProjectsPage() {
   const getStatusBadge = (status: Project['status']) => {
     switch (status) {
       case 'pending':
-        return <span className="px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600 text-xs font-medium">待处理</span>;
+        return (
+          <span className="px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600 text-xs font-medium">
+            待处理
+          </span>
+        );
       case 'in_progress':
-        return <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 text-xs font-medium">进行中</span>;
+        return (
+          <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 text-xs font-medium">
+            进行中
+          </span>
+        );
       case 'completed':
-        return <span className="px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 text-xs font-medium">已完成</span>;
+        return (
+          <span className="px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 text-xs font-medium">
+            已完成
+          </span>
+        );
       case 'failed':
-        return <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 text-xs font-medium">失败</span>;
+        return (
+          <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 text-xs font-medium">
+            失败
+          </span>
+        );
       case 'cancelled':
-        return <span className="px-2 py-0.5 rounded-full bg-gray-500/10 text-gray-600 text-xs font-medium">已取消</span>;
+        return (
+          <span className="px-2 py-0.5 rounded-full bg-gray-500/10 text-gray-600 text-xs font-medium">
+            已取消
+          </span>
+        );
     }
   };
 
@@ -163,26 +214,30 @@ export function ProjectsPage() {
               className={cn(
                 'bg-card rounded-2xl border border-border/50 p-5',
                 'hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20',
-                'transition-all duration-200 group'
+                'transition-all duration-200 group',
               )}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-2">
                     {/* Project type badge */}
-                    <span className={cn(
-                      'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
-                      project.type === 'local'
-                        ? 'bg-blue-500/10 text-blue-600'
-                        : 'bg-emerald-500/10 text-emerald-600'
-                    )}>
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
+                        project.type === 'local'
+                          ? 'bg-blue-500/10 text-blue-600'
+                          : 'bg-emerald-500/10 text-emerald-600',
+                      )}
+                    >
                       <Folder className="w-3 h-3" />
                       {project.type === 'local' ? '本地' : '执行'}
                     </span>
                     <h3 className="font-semibold text-lg group-hover:text-emerald-600 transition-colors">
                       {project.name}
                     </h3>
-                    {project.type === 'execution' && project.status && getStatusBadge(project.status)}
+                    {project.type === 'execution' &&
+                      project.status &&
+                      getStatusBadge(project.status)}
                   </div>
                   <p className="text-sm text-muted-foreground mb-3">
                     {project.description || '无描述'}
@@ -191,12 +246,16 @@ export function ProjectsPage() {
                     {project.type === 'local' && project.path && (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 text-xs font-medium text-blue-600">
                         <FolderOpen className="w-3 h-3" />
-                        {project.path.length > 40 ? project.path.slice(0, 40) + '...' : project.path}
+                        {project.path.length > 40
+                          ? project.path.slice(0, 40) + '...'
+                          : project.path}
                       </span>
                     )}
                     {project.type === 'execution' && project.team_id && (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-xs font-medium text-emerald-600">
-                        团队: {teams.find(t => t.id === project.team_id)?.name || String(project.team_id).slice(0, 8)}
+                        团队:{' '}
+                        {teams.find((t) => t.id === project.team_id)?.name ||
+                          String(project.team_id).slice(0, 8)}
                       </span>
                     )}
                     <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -205,7 +264,7 @@ export function ProjectsPage() {
                         month: 'short',
                         day: 'numeric',
                         hour: '2-digit',
-                        minute: '2-digit'
+                        minute: '2-digit',
                       })}
                     </span>
                   </div>
@@ -216,7 +275,7 @@ export function ProjectsPage() {
                     <button
                       onClick={() => {
                         // Find the original project for execution
-                        const originalProject = projects.find(p => p.id === project.id);
+                        const originalProject = projects.find((p) => p.id === project.id);
                         if (originalProject) {
                           setSelectedProject(originalProject);
                           setShowExecuteModal(true);
@@ -227,7 +286,7 @@ export function ProjectsPage() {
                         'bg-gradient-to-r from-emerald-500 to-teal-500',
                         'text-white shadow-lg shadow-emerald-500/25',
                         'hover:shadow-emerald-500/40 hover:-translate-y-0.5',
-                        executing && 'opacity-50 cursor-not-allowed'
+                        executing && 'opacity-50 cursor-not-allowed',
                       )}
                       title="执行项目"
                       disabled={executing}
@@ -238,7 +297,7 @@ export function ProjectsPage() {
                   {project.type === 'execution' && (
                     <button
                       onClick={() => {
-                        const originalProject = projects.find(p => p.id === project.id);
+                        const originalProject = projects.find((p) => p.id === project.id);
                         if (originalProject) {
                           handleDeleteProject(originalProject);
                         }
@@ -246,7 +305,7 @@ export function ProjectsPage() {
                       className={cn(
                         'p-2.5 rounded-xl transition-all duration-200',
                         'hover:bg-red-500/10 text-muted-foreground hover:text-red-500',
-                        'hover:-translate-y-0.5'
+                        'hover:-translate-y-0.5',
                       )}
                       title="删除"
                     >
@@ -288,13 +347,13 @@ export function ProjectsPage() {
       )}
 
       <ConfirmModal
-          isOpen={confirmState.isOpen}
-          title={confirmState.title}
-          message={confirmState.message}
-          onConfirm={confirmState.onConfirm}
-          onCancel={hideConfirm}
-          variant={confirmState.variant}
-        />
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={confirmState.onConfirm}
+        onCancel={hideConfirm}
+        variant={confirmState.variant}
+      />
     </div>
   );
 }
@@ -309,7 +368,12 @@ function CreateProjectModal({
   teams: { id: string; name: string }[];
   workspaces: { id: string; name: string; root_path?: string }[];
   onClose: () => void;
-  onCreate: (data: { name: string; description: string; team_id: string; workspace_id?: string }) => void;
+  onCreate: (data: {
+    name: string;
+    description: string;
+    team_id: string;
+    workspace_id?: string;
+  }) => void;
 }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -325,7 +389,18 @@ function CreateProjectModal({
             <X className="w-5 h-5" />
           </button>
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); onCreate({ name, description, team_id: teamId, workspace_id: workspaceId || undefined }); }} className="p-6 space-y-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onCreate({
+              name,
+              description,
+              team_id: teamId,
+              workspace_id: workspaceId || undefined,
+            });
+          }}
+          className="p-6 space-y-4"
+        >
           <div>
             <label className="block text-sm font-medium mb-2">项目名称</label>
             <input
@@ -358,7 +433,9 @@ function CreateProjectModal({
                 <option value="">请先创建团队</option>
               ) : (
                 teams.map((team) => (
-                  <option key={team.id} value={team.id}>{team.name}</option>
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
                 ))
               )}
             </select>
@@ -371,11 +448,13 @@ function CreateProjectModal({
               className="w-full px-4 py-2 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
             >
               <option value="">不关联工作区</option>
-              {workspaces.filter(w => w.root_path).map((workspace) => (
-                <option key={workspace.id} value={workspace.id}>
-                  {workspace.name} ({workspace.root_path?.slice(0, 30)}...)
-                </option>
-              ))}
+              {workspaces
+                .filter((w) => w.root_path)
+                .map((workspace) => (
+                  <option key={workspace.id} value={workspace.id}>
+                    {workspace.name} ({workspace.root_path?.slice(0, 30)}...)
+                  </option>
+                ))}
             </select>
           </div>
           <div className="flex justify-end gap-3 pt-2">
@@ -433,7 +512,7 @@ function ExecuteProjectModal({
               'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors',
               activeTab === 'standard'
                 ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
             <Play className="w-4 h-4" />
@@ -445,7 +524,7 @@ function ExecuteProjectModal({
               'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors',
               activeTab === 'cli'
                 ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
             <Terminal className="w-4 h-4" />
@@ -470,11 +549,19 @@ function ExecuteProjectModal({
 
               {result && (
                 <div className="space-y-3">
-                  <div className={cn(
-                    'flex items-center gap-2 p-3 rounded-xl',
-                    result.success ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'
-                  )}>
-                    {result.success ? <CheckCircle className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                  <div
+                    className={cn(
+                      'flex items-center gap-2 p-3 rounded-xl',
+                      result.success
+                        ? 'bg-green-500/10 text-green-600'
+                        : 'bg-red-500/10 text-red-600',
+                    )}
+                  >
+                    {result.success ? (
+                      <CheckCircle className="w-5 h-5" />
+                    ) : (
+                      <XCircle className="w-5 h-5" />
+                    )}
                     <span className="font-medium">{result.success ? '执行成功' : '执行失败'}</span>
                   </div>
 
@@ -489,13 +576,19 @@ function ExecuteProjectModal({
 
                   {result.messages.length > 0 && (
                     <div>
-                      <label className="block text-sm font-medium mb-2">执行消息 ({result.messages.length})</label>
+                      <label className="block text-sm font-medium mb-2">
+                        执行消息 ({result.messages.length})
+                      </label>
                       <div className="space-y-2 max-h-[300px] overflow-y-auto">
                         {result.messages.map((msg, idx) => (
                           <div key={idx} className="p-3 rounded-xl bg-accent/30 text-sm">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="font-medium text-primary">{msg.role_name || 'System'}</span>
-                              <span className="text-xs text-muted-foreground">{new Date(msg.created_at).toLocaleTimeString()}</span>
+                              <span className="font-medium text-primary">
+                                {msg.role_name || 'System'}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(msg.created_at).toLocaleTimeString()}
+                              </span>
                             </div>
                             <p className="text-xs whitespace-pre-wrap">{msg.content}</p>
                           </div>

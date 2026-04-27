@@ -33,9 +33,7 @@ function PauseCardContent() {
           </div>
         </div>
 
-        <p className="text-sm text-foreground mb-3 leading-relaxed">
-          {pendingPause.question}
-        </p>
+        <p className="text-sm text-foreground mb-3 leading-relaxed">{pendingPause.question}</p>
 
         <div className="space-y-1.5">
           {pendingPause.options.map((opt) => (
@@ -45,7 +43,7 @@ function PauseCardContent() {
               className={cn(
                 'w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-sm',
                 'border border-border bg-accent/50 hover:border-amber-500/40 hover:bg-amber-500/5',
-                'transition-all text-left group'
+                'transition-all text-left group',
               )}
             >
               <span className="font-medium">{opt.label}</span>

@@ -1,5 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Square, Trash2, Terminal, ChevronDown, ChevronRight, Loader2, Server, Settings, CheckCircle, XCircle, AlertCircle, Edit2 } from 'lucide-react';
+import {
+  Play,
+  Square,
+  Trash2,
+  Terminal,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  Server,
+  Settings,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Edit2,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useCommandRunner, OutputLine } from '@/hooks/useCommandRunner';
@@ -56,7 +70,10 @@ export function ProjectRunner() {
   const [showCommon, setShowCommon] = useState(true);
   const [showServices, setShowServices] = useState(true);
   const [editingService, setEditingService] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<{ command: string; cwd: string }>({ command: '', cwd: '' });
+  const [editValues, setEditValues] = useState<{ command: string; cwd: string }>({
+    command: '',
+    cwd: '',
+  });
 
   const outputEndRef = useRef<HTMLDivElement>(null);
 
@@ -71,11 +88,14 @@ export function ProjectRunner() {
 
     const detect = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/v1/workspaces/${currentWorkspace.id}/detect-services`);
+        const res = await fetch(
+          `${API_BASE_URL}/api/v1/workspaces/${currentWorkspace.id}/detect-services`,
+        );
         if (!res.ok) return;
-        const data: { services: { id: string; name: string; command: string; cwd: string }[] } = await res.json();
+        const data: { services: { id: string; name: string; command: string; cwd: string }[] } =
+          await res.json();
         data.services.forEach((detected) => {
-          const existing = services.find(s => s.id === detected.id);
+          const existing = services.find((s) => s.id === detected.id);
           if (existing && !existing.cwd) {
             updateService(detected.id, { command: detected.command, cwd: detected.cwd });
           }
@@ -115,10 +135,13 @@ export function ProjectRunner() {
     fetchScripts();
   }, [currentWorkspace?.id]);
 
-  const handleRunScript = useCallback((command: string) => {
-    if (!currentWorkspace?.root_path) return;
-    runner.execute(command, currentWorkspace.root_path);
-  }, [currentWorkspace?.root_path, runner]);
+  const handleRunScript = useCallback(
+    (command: string) => {
+      if (!currentWorkspace?.root_path) return;
+      runner.execute(command, currentWorkspace.root_path);
+    },
+    [currentWorkspace?.root_path, runner],
+  );
 
   const handleRunCustom = useCallback(() => {
     if (!customCommand.trim() || !currentWorkspace?.root_path) return;
@@ -159,12 +182,8 @@ export function ProjectRunner() {
       <div className="px-3 py-2 border-b">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className={cn('text-sm font-medium', typeInfo.color)}>
-              {typeInfo.label}
-            </span>
-            {!runner.isConnected && (
-              <span className="text-xs text-red-400">未连接</span>
-            )}
+            <span className={cn('text-sm font-medium', typeInfo.color)}>{typeInfo.label}</span>
+            {!runner.isConnected && <span className="text-xs text-red-400">未连接</span>}
           </div>
           {runner.isRunning && (
             <button
@@ -187,7 +206,11 @@ export function ProjectRunner() {
               onClick={() => setShowScripts(!showScripts)}
               className="w-full flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
-              {showScripts ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+              {showScripts ? (
+                <ChevronDown className="w-3 h-3" />
+              ) : (
+                <ChevronRight className="w-3 h-3" />
+              )}
               项目脚本
               <span className="text-[10px] opacity-60">({scripts.length})</span>
               {scriptsLoading && <Loader2 className="w-3 h-3 animate-spin ml-1" />}
@@ -203,7 +226,7 @@ export function ProjectRunner() {
                       'flex items-center gap-1 px-2 py-1 text-xs rounded-md border transition-colors',
                       runner.isRunning
                         ? 'opacity-50 cursor-not-allowed'
-                        : 'hover:bg-accent hover:border-primary/30'
+                        : 'hover:bg-accent hover:border-primary/30',
                     )}
                     title={script.command}
                   >
@@ -235,7 +258,7 @@ export function ProjectRunner() {
                   'flex items-center gap-1 px-2 py-1 text-xs rounded-md border transition-colors',
                   runner.isRunning
                     ? 'opacity-50 cursor-not-allowed'
-                    : 'hover:bg-accent hover:border-primary/30'
+                    : 'hover:bg-accent hover:border-primary/30',
                 )}
                 title={cmd.command}
               >
@@ -253,7 +276,11 @@ export function ProjectRunner() {
           onClick={() => setShowServices(!showServices)}
           className="w-full flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
-          {showServices ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+          {showServices ? (
+            <ChevronDown className="w-3 h-3" />
+          ) : (
+            <ChevronRight className="w-3 h-3" />
+          )}
           <Server className="w-3 h-3" />
           服务管理
         </button>
@@ -265,16 +292,29 @@ export function ProjectRunner() {
               const isEditing = editingService === svc.id;
 
               return (
-                <div key={svc.id} className="rounded-lg border border-border/60 bg-background/50 p-2 space-y-1.5">
+                <div
+                  key={svc.id}
+                  className="rounded-lg border border-border/60 bg-background/50 p-2 space-y-1.5"
+                >
                   {/* Header row */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
                       {/* Status dot */}
-                      {runner2.status === 'running' && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />}
-                      {runner2.status === 'starting' && <Loader2 className="w-3 h-3 text-yellow-500 animate-spin shrink-0" />}
-                      {runner2.status === 'stopping' && <Loader2 className="w-3 h-3 text-orange-500 animate-spin shrink-0" />}
-                      {runner2.status === 'idle' && <span className="w-2 h-2 rounded-full bg-muted-foreground/40 shrink-0" />}
-                      {runner2.status === 'error' && <AlertCircle className="w-3 h-3 text-red-500 shrink-0" />}
+                      {runner2.status === 'running' && (
+                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />
+                      )}
+                      {runner2.status === 'starting' && (
+                        <Loader2 className="w-3 h-3 text-yellow-500 animate-spin shrink-0" />
+                      )}
+                      {runner2.status === 'stopping' && (
+                        <Loader2 className="w-3 h-3 text-orange-500 animate-spin shrink-0" />
+                      )}
+                      {runner2.status === 'idle' && (
+                        <span className="w-2 h-2 rounded-full bg-muted-foreground/40 shrink-0" />
+                      )}
+                      {runner2.status === 'error' && (
+                        <AlertCircle className="w-3 h-3 text-red-500 shrink-0" />
+                      )}
                       <span className="text-xs font-medium truncate">{svc.name}</span>
                       {runner2.pid && (
                         <span className="text-[10px] text-muted-foreground">PID:{runner2.pid}</span>
@@ -286,7 +326,10 @@ export function ProjectRunner() {
                           if (isEditing) {
                             setEditingService(null);
                           } else {
-                            setEditValues({ command: svc.command, cwd: svc.cwd || currentWorkspace.root_path || '' });
+                            setEditValues({
+                              command: svc.command,
+                              cwd: svc.cwd || currentWorkspace.root_path || '',
+                            });
                             setEditingService(svc.id);
                           }
                         }}
@@ -305,15 +348,19 @@ export function ProjectRunner() {
                         </button>
                       ) : (
                         <button
-                          onClick={() => runner2.start(svc.command, svc.cwd || currentWorkspace.root_path!)}
+                          onClick={() =>
+                            runner2.start(svc.command, svc.cwd || currentWorkspace.root_path!)
+                          }
                           disabled={!svc.command}
                           className={cn(
                             'flex items-center gap-0.5 px-2 py-0.5 text-[11px] rounded font-medium transition-colors',
                             svc.command
                               ? 'bg-green-500/10 text-green-600 hover:bg-green-500/20'
-                              : 'opacity-40 cursor-not-allowed bg-muted text-muted-foreground'
+                              : 'opacity-40 cursor-not-allowed bg-muted text-muted-foreground',
                           )}
-                          title={svc.cwd ? svc.cwd : `使用当前工作区: ${currentWorkspace.root_path}`}
+                          title={
+                            svc.cwd ? svc.cwd : `使用当前工作区: ${currentWorkspace.root_path}`
+                          }
                         >
                           <Play className="w-2.5 h-2.5" />
                           启动
@@ -335,21 +382,24 @@ export function ProjectRunner() {
                       <input
                         type="text"
                         value={editValues.command}
-                        onChange={(e) => setEditValues(v => ({ ...v, command: e.target.value }))}
+                        onChange={(e) => setEditValues((v) => ({ ...v, command: e.target.value }))}
                         placeholder="命令 (如: npm run dev)"
                         className="w-full px-2 py-1 text-[11px] rounded border bg-background outline-none focus:ring-1 focus:ring-primary font-mono"
                       />
                       <input
                         type="text"
                         value={editValues.cwd}
-                        onChange={(e) => setEditValues(v => ({ ...v, cwd: e.target.value }))}
+                        onChange={(e) => setEditValues((v) => ({ ...v, cwd: e.target.value }))}
                         placeholder="工作目录 (如: /path/to/project)"
                         className="w-full px-2 py-1 text-[11px] rounded border bg-background outline-none focus:ring-1 focus:ring-primary font-mono"
                       />
                       <div className="flex gap-1">
                         <button
                           onClick={() => {
-                            updateService(svc.id, { command: editValues.command, cwd: editValues.cwd });
+                            updateService(svc.id, {
+                              command: editValues.command,
+                              cwd: editValues.cwd,
+                            });
                             setEditingService(null);
                           }}
                           className="px-2 py-0.5 text-[11px] rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
@@ -358,7 +408,9 @@ export function ProjectRunner() {
                         </button>
                         {currentWorkspace?.root_path && (
                           <button
-                            onClick={() => setEditValues(v => ({ ...v, cwd: currentWorkspace.root_path! }))}
+                            onClick={() =>
+                              setEditValues((v) => ({ ...v, cwd: currentWorkspace.root_path! }))
+                            }
                             className="px-2 py-0.5 text-[11px] rounded border hover:bg-accent transition-colors text-muted-foreground"
                             title="使用当前工作区路径"
                           >
@@ -453,7 +505,7 @@ function OutputLineComponent({ line }: { line: OutputLine }) {
         'whitespace-pre-wrap break-all',
         line.type === 'stderr' && 'text-red-400',
         line.type === 'system' && 'text-blue-400 font-medium',
-        line.type === 'stdout' && 'text-foreground'
+        line.type === 'stdout' && 'text-foreground',
       )}
     >
       {line.data}

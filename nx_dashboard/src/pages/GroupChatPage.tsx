@@ -75,14 +75,11 @@ function useParallelRound() {
 
       setIsRunning(true);
 
-      const res = await fetch(
-        `${API_BASE}/api/v1/group-sessions/${sessionId}/execute-round`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role_ids: roleIds }),
-        },
-      );
+      const res = await fetch(`${API_BASE}/api/v1/group-sessions/${sessionId}/execute-round`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role_ids: roleIds }),
+      });
 
       if (!res.ok) {
         setIsRunning(false);
@@ -118,7 +115,11 @@ function useParallelRound() {
                   case 'started':
                     return { ...b, status: 'pending' };
                   case 'thinking':
-                    return { ...b, status: 'thinking', elapsed_secs: data.elapsed_secs ?? b.elapsed_secs };
+                    return {
+                      ...b,
+                      status: 'thinking',
+                      elapsed_secs: data.elapsed_secs ?? b.elapsed_secs,
+                    };
                   case 'completed':
                     doneCount++;
                     if (doneCount === executions.length) {
@@ -206,7 +207,9 @@ export function GroupChatPage() {
   const [conclusionResult, setConclusionResult] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [turnInfo, setTurnInfo] = useState<DiscussionTurnInfo | null>(null);
-  const [nextSpeaker, setNextSpeaker] = useState<{ role_id: string; role_name: string } | null>(null);
+  const [nextSpeaker, setNextSpeaker] = useState<{ role_id: string; role_name: string } | null>(
+    null,
+  );
   const [autoMode, setAutoMode] = useState(false);
   const [executingRole, setExecutingRole] = useState<string | null>(null);
 
@@ -280,7 +283,7 @@ export function GroupChatPage() {
     ? skills.filter(
         (s) =>
           s.name.toLowerCase().includes(skillSearch.toLowerCase()) ||
-          s.description.toLowerCase().includes(skillSearch.toLowerCase())
+          s.description.toLowerCase().includes(skillSearch.toLowerCase()),
       )
     : skills;
 
@@ -319,7 +322,13 @@ export function GroupChatPage() {
 
   // Auto-execute next role when in auto mode
   useEffect(() => {
-    if (autoMode && currentSession?.status === 'active' && nextSpeaker && !executingRole && !isAgentActive) {
+    if (
+      autoMode &&
+      currentSession?.status === 'active' &&
+      nextSpeaker &&
+      !executingRole &&
+      !isAgentActive
+    ) {
       handleExecuteRoleTurn(nextSpeaker.role_id);
     }
   }, [autoMode, currentSession?.status, nextSpeaker, executingRole, isAgentActive]);
@@ -445,7 +454,7 @@ export function GroupChatPage() {
       '删除讨论会话',
       `确定删除会话 "${session.name}"？`,
       () => deleteSession(session.id),
-      'danger'
+      'danger',
     );
   };
 
@@ -460,11 +469,7 @@ export function GroupChatPage() {
       concluded: { cls: 'bg-gray-500/20 text-gray-500', label: '已结束' },
     };
     const c = config[status] || config.pending;
-    return (
-      <span className={cn('px-2 py-0.5 rounded text-xs font-medium', c.cls)}>
-        {c.label}
-      </span>
-    );
+    return <span className={cn('px-2 py-0.5 rounded text-xs font-medium', c.cls)}>{c.label}</span>;
   };
 
   const getStrategyLabel = (strategy: SpeakingStrategy) => {
@@ -527,9 +532,7 @@ export function GroupChatPage() {
             </div>
             <div className="divide-y max-h-[600px] overflow-y-auto">
               {sessions.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground">
-                  暂无讨论会话
-                </div>
+                <div className="p-8 text-center text-muted-foreground">暂无讨论会话</div>
               ) : (
                 sessions.map((session) => (
                   <div
@@ -537,7 +540,7 @@ export function GroupChatPage() {
                     onClick={() => handleSelectSession(session.id)}
                     className={cn(
                       'p-4 cursor-pointer hover:bg-accent transition-colors',
-                      selectedSessionId === session.id && 'bg-accent'
+                      selectedSessionId === session.id && 'bg-accent',
                     )}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -603,10 +606,7 @@ export function GroupChatPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {currentSession.status === 'pending' && (
-                      <button
-                        onClick={() => setShowStartModal(true)}
-                        className="btn btn-primary"
-                      >
+                      <button onClick={() => setShowStartModal(true)} className="btn btn-primary">
                         <Play className="w-4 h-4 mr-1" />
                         开始讨论
                       </button>
@@ -623,7 +623,9 @@ export function GroupChatPage() {
                         </button>
                         <button
                           onClick={handleExecuteRound}
-                          disabled={isRoundRunning || isAgentActive || !currentSession.participants?.length}
+                          disabled={
+                            isRoundRunning || isAgentActive || !currentSession.participants?.length
+                          }
                           className="btn btn-outline flex items-center gap-1"
                           title="并行执行所有参与者的本轮发言（速度约提升 N 倍）"
                         >
@@ -651,25 +653,25 @@ export function GroupChatPage() {
                           key={p.role_id}
                           className={cn(
                             'px-3 py-1 rounded-full bg-secondary text-sm flex items-center gap-2',
-                            nextSpeaker?.role_id === p.role_id && 'ring-2 ring-primary'
+                            nextSpeaker?.role_id === p.role_id && 'ring-2 ring-primary',
                           )}
                         >
                           <span>{p.role_name}</span>
                           {nextSpeaker?.role_id === p.role_id && (
                             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                           )}
-                          <span className="text-xs text-muted-foreground">
-                            {p.message_count}条
-                          </span>
-                          {currentSession.status === 'active' && !executingRole && !isAgentActive && (
-                            <button
-                              onClick={() => handleExecuteRoleTurn(p.role_id)}
-                              className="ml-1 p-0.5 hover:bg-primary/20 rounded"
-                              disabled={executingRole !== null || isAgentActive}
-                            >
-                              <Play className="w-3 h-3" />
-                            </button>
-                          )}
+                          <span className="text-xs text-muted-foreground">{p.message_count}条</span>
+                          {currentSession.status === 'active' &&
+                            !executingRole &&
+                            !isAgentActive && (
+                              <button
+                                onClick={() => handleExecuteRoleTurn(p.role_id)}
+                                className="ml-1 p-0.5 hover:bg-primary/20 rounded"
+                                disabled={executingRole !== null || isAgentActive}
+                              >
+                                <Play className="w-3 h-3" />
+                              </button>
+                            )}
                         </div>
                       ))}
                     </div>
@@ -702,12 +704,18 @@ export function GroupChatPage() {
                           bot.status === 'pending' && 'bg-secondary/50 border-border',
                         )}
                       >
-                        {bot.status === 'done' && <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />}
+                        {bot.status === 'done' && (
+                          <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                        )}
                         {bot.status === 'thinking' && (
                           <Loader2 className="w-3.5 h-3.5 text-primary animate-spin flex-shrink-0" />
                         )}
-                        {bot.status === 'failed' && <AlertCircle className="w-3.5 h-3.5 text-destructive flex-shrink-0" />}
-                        {bot.status === 'pending' && <Clock className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />}
+                        {bot.status === 'failed' && (
+                          <AlertCircle className="w-3.5 h-3.5 text-destructive flex-shrink-0" />
+                        )}
+                        {bot.status === 'pending' && (
+                          <Clock className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        )}
                         <span className="truncate">{bot.role_name ?? bot.role_id}</span>
                         {bot.status === 'thinking' && bot.elapsed_secs > 0 && (
                           <span className="ml-auto text-xs text-muted-foreground flex-shrink-0">
@@ -739,9 +747,7 @@ export function GroupChatPage() {
                 </div>
                 <div className="max-h-[400px] overflow-y-auto p-4 space-y-4">
                   {messages.length === 0 ? (
-                    <div className="text-center text-muted-foreground py-8">
-                      暂无讨论记录
-                    </div>
+                    <div className="text-center text-muted-foreground py-8">暂无讨论记录</div>
                   ) : (
                     messages.map((msg) => (
                       <div key={msg.id} className="flex gap-3">
@@ -770,9 +776,8 @@ export function GroupChatPage() {
                   <div className="p-4 border-t">
                     <AgentThinkingIndicator
                       agentRole={
-                        currentSession?.participants?.find(
-                          (p) => p.role_id === executingRole
-                        )?.role_name
+                        currentSession?.participants?.find((p) => p.role_id === executingRole)
+                          ?.role_name
                       }
                       elapsedSecs={agentExec.elapsedSecs}
                       onCancel={() => {
@@ -830,7 +835,7 @@ export function GroupChatPage() {
                             if (e.key === 'ArrowDown') {
                               e.preventDefault();
                               setSelectedSkillIndex((prev) =>
-                                prev < filteredSkills.length - 1 ? prev + 1 : prev
+                                prev < filteredSkills.length - 1 ? prev + 1 : prev,
                               );
                             } else if (e.key === 'ArrowUp') {
                               e.preventDefault();
@@ -850,8 +855,12 @@ export function GroupChatPage() {
                         }}
                         placeholder="输入消息... (输入 / 触发技能)"
                         className="input flex-1 pr-20"
-                        onCompositionStart={() => { isComposingRef.current = true; }}
-                        onCompositionEnd={() => { isComposingRef.current = false; }}
+                        onCompositionStart={() => {
+                          isComposingRef.current = true;
+                        }}
+                        onCompositionEnd={() => {
+                          isComposingRef.current = false;
+                        }}
                       />
                       {/* Skill hint trigger indicator */}
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
@@ -890,13 +899,13 @@ export function GroupChatPage() {
                               onClick={() => insertSkill(skill)}
                               className={cn(
                                 'w-full text-left px-3 py-2 hover:bg-accent transition-colors',
-                                index === selectedSkillIndex && 'bg-accent'
+                                index === selectedSkillIndex && 'bg-accent',
                               )}
                             >
                               <div className="flex items-center justify-between">
                                 <span className="font-medium text-sm">
-                                  <Sparkles className="w-3 h-3 inline mr-2 text-primary" />
-                                  /{skill.id}
+                                  <Sparkles className="w-3 h-3 inline mr-2 text-primary" />/
+                                  {skill.id}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
                                   {skill.category}
@@ -924,16 +933,12 @@ export function GroupChatPage() {
                     <CheckCircle className="w-4 h-4 text-green-500" />
                     讨论结论
                   </h3>
-                  <p className="text-sm whitespace-pre-wrap">
-                    {currentSession.conclusion.content}
-                  </p>
+                  <p className="text-sm whitespace-pre-wrap">{currentSession.conclusion.content}</p>
                   <div className="mt-3 pt-3 border-t flex items-center gap-4 text-xs text-muted-foreground">
                     <span>
                       共识度: {(currentSession.conclusion.consensus_level * 100).toFixed(0)}%
                     </span>
-                    <span>
-                      同意人数: {currentSession.conclusion.agreed_by.length}
-                    </span>
+                    <span>同意人数: {currentSession.conclusion.agreed_by.length}</span>
                   </div>
                 </div>
               )}
@@ -1050,34 +1055,34 @@ export function GroupChatPage() {
             </p>
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
               {(roles[currentSession.team_id] || []).map((role) => (
-                  <label
-                    key={role.id}
-                    className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={startForm.participant_role_ids.includes(role.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setStartForm({
-                            participant_role_ids: [...startForm.participant_role_ids, role.id],
-                          });
-                        } else {
-                          setStartForm({
-                            participant_role_ids: startForm.participant_role_ids.filter(
-                              (id) => id !== role.id
-                            ),
-                          });
-                        }
-                      }}
-                      className="rounded"
-                    />
-                    <div>
-                      <span className="font-medium">{role.name}</span>
-                      <p className="text-xs text-muted-foreground">{role.description}</p>
-                    </div>
-                  </label>
-                ))}
+                <label
+                  key={role.id}
+                  className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={startForm.participant_role_ids.includes(role.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setStartForm({
+                          participant_role_ids: [...startForm.participant_role_ids, role.id],
+                        });
+                      } else {
+                        setStartForm({
+                          participant_role_ids: startForm.participant_role_ids.filter(
+                            (id) => id !== role.id,
+                          ),
+                        });
+                      }
+                    }}
+                    className="rounded"
+                  />
+                  <div>
+                    <span className="font-medium">{role.name}</span>
+                    <p className="text-xs text-muted-foreground">{role.description}</p>
+                  </div>
+                </label>
+              ))}
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setShowStartModal(false)} className="btn btn-outline">

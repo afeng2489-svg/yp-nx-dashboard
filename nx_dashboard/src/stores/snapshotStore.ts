@@ -106,7 +106,7 @@ export const useSnapshotStore = create<SnapshotState>((set, get) => ({
   fetchHistory: async (projectId: string, roleId: string) => {
     try {
       const res = await fetch(
-        `${API_BASE_URL}/api/v1/projects/${projectId}/role-snapshots/${roleId}/history`
+        `${API_BASE_URL}/api/v1/projects/${projectId}/role-snapshots/${roleId}/history`,
       );
       if (!res.ok) return;
       const data = await res.json();
@@ -127,5 +127,13 @@ export const useSnapshotStore = create<SnapshotState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
-  reset: () => set({ progress: null, snapshots: [], history: {}, progressLoading: false, snapshotsLoading: false, error: null }),
+  reset: () =>
+    set({
+      progress: null,
+      snapshots: [],
+      history: {},
+      progressLoading: false,
+      snapshotsLoading: false,
+      error: null,
+    }),
 }));

@@ -26,7 +26,7 @@ export function ProviderPresetSelector({
     (preset) =>
       preset.name.toLowerCase().includes(search.toLowerCase()) ||
       preset.description.toLowerCase().includes(search.toLowerCase()) ||
-      preset.key.toLowerCase().includes(search.toLowerCase())
+      preset.key.toLowerCase().includes(search.toLowerCase()),
   );
 
   const getFormatLabel = (format: APIFormat) => {
@@ -90,7 +90,7 @@ export function ProviderPresetSelector({
                     'p-3 rounded-lg border cursor-pointer transition-all',
                     selectedPreset?.key === preset.key
                       ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/30'
+                      : 'border-border hover:border-primary/30',
                   )}
                   onClick={() => setSelectedPreset(preset)}
                 >
@@ -144,7 +144,7 @@ export function ProviderPresetSelector({
                 placeholder="输入 API Key"
                 className={cn(
                   'w-full px-3 py-2 rounded-lg border bg-background',
-                  apiKeyError ? 'border-red-500' : 'border-input'
+                  apiKeyError ? 'border-red-500' : 'border-input',
                 )}
               />
               {apiKeyError && <p className="text-xs text-red-500 mt-1">{apiKeyError}</p>}
@@ -161,10 +161,14 @@ export function ProviderPresetSelector({
                 disabled={!apiKey.trim() || isConfirming}
                 className={cn(
                   'px-4 py-2 rounded-lg bg-primary text-primary-foreground transition-colors',
-                  'hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2'
+                  'hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2',
                 )}
               >
-                {isConfirming ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                {isConfirming ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle className="w-4 h-4" />
+                )}
                 添加 {selectedPreset.name}
               </button>
             </div>

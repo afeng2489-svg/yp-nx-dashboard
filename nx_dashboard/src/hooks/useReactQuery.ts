@@ -22,11 +22,7 @@ export function useDashboardData() {
     queryKey: ['dashboard'],
     queryFn: async () => {
       // Fetch all in parallel for faster loading
-      await Promise.all([
-        fetchWorkflows(),
-        fetchExecutions(),
-        fetchSessions(),
-      ]);
+      await Promise.all([fetchWorkflows(), fetchExecutions(), fetchSessions()]);
       return true;
     },
     staleTime: 1000 * 30, // 30 seconds
@@ -258,7 +254,11 @@ export function useWisdomEntriesQuery(category?: string | null) {
   const query = useQuery({
     queryKey: ['wisdom-entries', category],
     queryFn: async () => {
-      await fetchEntries(category ? { category: category as import('@/stores/wisdomStore').WisdomCategory } : undefined);
+      await fetchEntries(
+        category
+          ? { category: category as import('@/stores/wisdomStore').WisdomCategory }
+          : undefined,
+      );
       // Re-read from store after fetch completes to get updated value
       return useWisdomStore.getState().entries;
     },
@@ -443,7 +443,13 @@ export function useAIUpdateCLIConfigMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ cli, updates }: { cli: string; updates: { enabled?: boolean; path?: string } }) => {
+    mutationFn: async ({
+      cli,
+      updates,
+    }: {
+      cli: string;
+      updates: { enabled?: boolean; path?: string };
+    }) => {
       return api.updateCLIConfig(cli, updates);
     },
     onSuccess: () => {

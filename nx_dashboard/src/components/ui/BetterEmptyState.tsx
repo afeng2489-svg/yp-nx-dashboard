@@ -46,8 +46,14 @@ export function BetterEmptyState({
         </div>
 
         {/* Floating decorative elements */}
-        <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 opacity-60 animate-bounce" style={{ animationDuration: '2s' }} />
-        <div className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 opacity-60 animate-bounce" style={{ animationDuration: '2.5s', animationDelay: '0.5s' }} />
+        <div
+          className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 opacity-60 animate-bounce"
+          style={{ animationDuration: '2s' }}
+        />
+        <div
+          className="absolute -bottom-1 -left-1 w-2 h-2 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 opacity-60 animate-bounce"
+          style={{ animationDuration: '2.5s', animationDelay: '0.5s' }}
+        />
       </div>
 
       {/* Text content */}

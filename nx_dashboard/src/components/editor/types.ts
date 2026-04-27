@@ -1,5 +1,11 @@
 import { Node, Edge } from '@xyflow/react';
-import { AgentConfig, StageConfig, ConditionConfig, LoopConfig, NodeType } from '@/stores/editorStore';
+import {
+  AgentConfig,
+  StageConfig,
+  ConditionConfig,
+  LoopConfig,
+  NodeType,
+} from '@/stores/editorStore';
 
 export type { NodeType, AgentConfig, StageConfig, ConditionConfig, LoopConfig };
 

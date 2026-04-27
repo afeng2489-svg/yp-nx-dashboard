@@ -26,9 +26,7 @@ export function AgentThinkingIndicator({
     return () => clearInterval(interval);
   }, []);
 
-  const label = agentRole && agentRole !== 'team'
-    ? `${agentRole} 正在思考`
-    : '正在思考';
+  const label = agentRole && agentRole !== 'team' ? `${agentRole} 正在思考` : '正在思考';
 
   const showSlowWarning = elapsedSecs >= 30;
 
@@ -48,24 +46,20 @@ export function AgentThinkingIndicator({
               {[0, 1, 2].map((i) => (
                 <span
                   key={i}
-                  className={cn(
-                    'w-1.5 h-1.5 rounded-full bg-emerald-500',
-                    'animate-bounce',
-                  )}
+                  className={cn('w-1.5 h-1.5 rounded-full bg-emerald-500', 'animate-bounce')}
                   style={{ animationDelay: `${i * 150}ms` }}
                 />
               ))}
             </span>
             <span className="text-sm text-muted-foreground">
-              {label}{dots}
+              {label}
+              {dots}
             </span>
           </div>
 
           {/* Elapsed time */}
           <div className="flex items-center gap-2 mt-1">
-            <span className="text-xs text-muted-foreground/70">
-              {elapsedSecs}s
-            </span>
+            <span className="text-xs text-muted-foreground/70">{elapsedSecs}s</span>
             {/* Cancel button */}
             <button
               onClick={onCancel}
@@ -79,15 +73,15 @@ export function AgentThinkingIndicator({
 
         {/* Slow warning */}
         {showSlowWarning && (
-          <p className="text-xs text-amber-500/80 px-2">
-            任务耗时较长，请耐心等待...
-          </p>
+          <p className="text-xs text-amber-500/80 px-2">任务耗时较长，请耐心等待...</p>
         )}
 
         {/* Partial output preview */}
         {partialOutput && (
           <div className="bg-[#1a1a1a] rounded-xl px-3 py-2 text-xs text-green-400 max-h-48 overflow-y-auto border border-white/5">
-            <pre className="whitespace-pre-wrap font-mono leading-relaxed">{partialOutput.slice(-2000)}</pre>
+            <pre className="whitespace-pre-wrap font-mono leading-relaxed">
+              {partialOutput.slice(-2000)}
+            </pre>
           </div>
         )}
       </div>

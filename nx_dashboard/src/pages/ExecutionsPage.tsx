@@ -3,7 +3,19 @@ import { useLocation } from 'react-router-dom';
 import { useExecutionsQuery } from '@/hooks/useReactQuery';
 import { useExecutionStore, Execution, StageResult } from '@/stores/executionStore';
 import { onWorkspaceChange } from '@/stores/workspaceStore';
-import { XCircle, Clock, CheckCircle, Play, AlertCircle, Loader2, X, ChevronRight, Terminal, Activity, PauseCircle } from 'lucide-react';
+import {
+  XCircle,
+  Clock,
+  CheckCircle,
+  Play,
+  AlertCircle,
+  Loader2,
+  X,
+  ChevronRight,
+  Terminal,
+  Activity,
+  PauseCircle,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // 工作流操作说明
@@ -69,7 +81,7 @@ function formatTime(dateStr?: string): string {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit'
+    second: '2-digit',
   });
 }
 
@@ -107,7 +119,9 @@ function ExecutionDetailModal({
         {/* 弹窗头部 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-gradient-to-r from-indigo-500/5 to-purple-500/5">
           <div className="flex items-center gap-4">
-            <div className={cn('p-2.5 rounded-xl bg-gradient-to-br ', config.gradient, 'shadow-lg')}>
+            <div
+              className={cn('p-2.5 rounded-xl bg-gradient-to-br ', config.gradient, 'shadow-lg')}
+            >
               <Icon className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -130,10 +144,7 @@ function ExecutionDetailModal({
                 <span className="text-sm text-amber-600 font-medium">等待用户输入</span>
               </div>
             )}
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg hover:bg-accent transition-colors"
-            >
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-accent transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -148,11 +159,13 @@ function ExecutionDetailModal({
             </div>
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">状态</p>
-              <span className={cn(
-                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium',
-                'bg-gradient-to-r ' + config.gradient,
-                'text-white shadow-md'
-              )}>
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium',
+                  'bg-gradient-to-r ' + config.gradient,
+                  'text-white shadow-md',
+                )}
+              >
                 {config.label}
               </span>
             </div>
@@ -162,7 +175,9 @@ function ExecutionDetailModal({
             </div>
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">持续时间</p>
-              <p className="font-medium text-sm">{formatDuration(execution.started_at, execution.finished_at)}</p>
+              <p className="font-medium text-sm">
+                {formatDuration(execution.started_at, execution.finished_at)}
+              </p>
             </div>
           </div>
         </div>
@@ -175,7 +190,7 @@ function ExecutionDetailModal({
               'flex-1 px-4 py-3 text-sm font-medium transition-all relative',
               activeTab === 'stages'
                 ? 'text-indigo-600'
-                : 'text-muted-foreground hover:text-foreground'
+                : 'text-muted-foreground hover:text-foreground',
             )}
           >
             阶段结果
@@ -189,7 +204,7 @@ function ExecutionDetailModal({
               'flex-1 px-4 py-3 text-sm font-medium transition-all relative',
               activeTab === 'logs'
                 ? 'text-indigo-600'
-                : 'text-muted-foreground hover:text-foreground'
+                : 'text-muted-foreground hover:text-foreground',
             )}
           >
             执行日志
@@ -203,7 +218,7 @@ function ExecutionDetailModal({
         <div className="flex-1 overflow-auto p-6">
           {activeTab === 'stages' ? (
             <div className="space-y-3">
-              {(!execution.stage_results || execution.stage_results.length === 0) ? (
+              {!execution.stage_results || execution.stage_results.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 flex items-center justify-center">
                     <Activity className="w-8 h-8 text-indigo-500" />
@@ -260,11 +275,18 @@ function StageResultCard({
         className="w-full flex items-center justify-between px-4 py-3 hover:from-indigo-500/5 hover:to-purple-500/5 transition-all"
       >
         <div className="flex items-center gap-3">
-          <div className={cn(
-            'p-1.5 rounded-lg transition-transform duration-200',
-            isExpanded ? 'bg-emerald-500/10 rotate-90' : 'bg-indigo-500/10'
-          )}>
-            <ChevronRight className={cn('w-4 h-4 text-indigo-500 transition-transform', isExpanded && 'rotate-90')} />
+          <div
+            className={cn(
+              'p-1.5 rounded-lg transition-transform duration-200',
+              isExpanded ? 'bg-emerald-500/10 rotate-90' : 'bg-indigo-500/10',
+            )}
+          >
+            <ChevronRight
+              className={cn(
+                'w-4 h-4 text-indigo-500 transition-transform',
+                isExpanded && 'rotate-90',
+              )}
+            />
           </div>
           <CheckCircle className="w-4 h-4 text-emerald-500" />
           <span className="font-medium">{result.stage_name}</span>
@@ -276,7 +298,10 @@ function StageResultCard({
       {isExpanded && result.outputs && result.outputs.length > 0 && (
         <div className="px-4 pb-4 space-y-2">
           {result.outputs.map((output, idx) => (
-            <div key={idx} className="p-3 bg-[#1e1e1e] rounded-lg text-xs text-gray-300 font-mono overflow-auto border border-white/5">
+            <div
+              key={idx}
+              className="p-3 bg-[#1e1e1e] rounded-lg text-xs text-gray-300 font-mono overflow-auto border border-white/5"
+            >
               {String(output)}
             </div>
           ))}
@@ -289,7 +314,11 @@ function StageResultCard({
 // 执行日志面板
 function ExecutionLogs({ executionId }: { executionId: string }) {
   type LogEntry = { type: 'system' | 'output' | 'stage' | 'error'; text: string };
-  type PauseState = { stage_name: string; question: string; options: { label: string; value: string }[] };
+  type PauseState = {
+    stage_name: string;
+    question: string;
+    options: { label: string; value: string }[];
+  };
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
   const [currentStage, setCurrentStage] = useState<string | null>(null);
@@ -353,7 +382,11 @@ function ExecutionLogs({ executionId }: { executionId: string }) {
           setLogs((prev) => [...prev, { type: 'stage', text: `✓ 阶段完成: ${data.stage_name}` }]);
         } else if (data.type === 'workflow_paused') {
           setLogs((prev) => [...prev, { type: 'system', text: `⏸ 暂停 — ${data.stage_name}` }]);
-          setPauseState({ stage_name: data.stage_name, question: data.question, options: data.options ?? [] });
+          setPauseState({
+            stage_name: data.stage_name,
+            question: data.question,
+            options: data.options ?? [],
+          });
         } else if (data.type === 'workflow_resumed') {
           setPauseState(null);
           setLogs((prev) => [...prev, { type: 'system', text: `▶ 已选择: ${data.chosen_value}` }]);
@@ -410,7 +443,9 @@ function ExecutionLogs({ executionId }: { executionId: string }) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-600'}`} />
+          <div
+            className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-600'}`}
+          />
           <span className="text-xs text-gray-500">{wsConnected ? '实时' : '历史'}</span>
         </div>
       </div>
@@ -447,10 +482,13 @@ function ExecutionLogs({ executionId }: { executionId: string }) {
               key={index}
               className={cn(
                 'leading-relaxed px-2 py-0.5 rounded whitespace-pre-wrap break-all',
-                log.type === 'error'  ? 'text-red-400' :
-                log.type === 'stage'  ? 'text-emerald-400 font-semibold' :
-                log.type === 'system' ? 'text-blue-400' :
-                'text-gray-300'
+                log.type === 'error'
+                  ? 'text-red-400'
+                  : log.type === 'stage'
+                    ? 'text-emerald-400 font-semibold'
+                    : log.type === 'system'
+                      ? 'text-blue-400'
+                      : 'text-gray-300',
               )}
             >
               {log.text}
@@ -477,12 +515,17 @@ function WorkflowOperationsGuide() {
       >
         <Play className="w-4 h-4" />
         <span>工作流操作说明</span>
-        <ChevronRight className={cn('w-4 h-4 transition-transform duration-200', isExpanded && 'rotate-90')} />
+        <ChevronRight
+          className={cn('w-4 h-4 transition-transform duration-200', isExpanded && 'rotate-90')}
+        />
       </button>
       {isExpanded && (
         <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-3 relative">
           {WORKFLOW_OPERATIONS.map((op) => (
-            <div key={op.key} className="flex items-start gap-2 p-2 rounded-lg bg-card/50 border border-border/50">
+            <div
+              key={op.key}
+              className="flex items-start gap-2 p-2 rounded-lg bg-card/50 border border-border/50"
+            >
               <span className="flex-shrink-0 w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 text-white text-xs flex items-center justify-center font-bold shadow-md">
                 {op.key}
               </span>
@@ -517,27 +560,36 @@ function ExecutionCard({
       className={cn(
         'bg-card rounded-2xl border border-border/50 p-5 cursor-pointer',
         'hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20',
-        'transition-all duration-200 hover:-translate-y-0.5 group'
+        'transition-all duration-200 hover:-translate-y-0.5 group',
       )}
     >
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className={cn(
-            'p-2.5 rounded-xl bg-gradient-to-br ', config.gradient,
-            'shadow-lg group-hover:scale-110 transition-transform duration-200'
-          )}>
+          <div
+            className={cn(
+              'p-2.5 rounded-xl bg-gradient-to-br ',
+              config.gradient,
+              'shadow-lg group-hover:scale-110 transition-transform duration-200',
+            )}
+          >
             <Icon className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-semibold group-hover:text-indigo-600 transition-colors">{execution.workflow_id}</h3>
-            <p className="text-xs text-muted-foreground font-mono">ID: {execution.id.slice(0, 8)}...</p>
+            <h3 className="font-semibold group-hover:text-indigo-600 transition-colors">
+              {execution.workflow_id}
+            </h3>
+            <p className="text-xs text-muted-foreground font-mono">
+              ID: {execution.id.slice(0, 8)}...
+            </p>
           </div>
         </div>
-        <span className={cn(
-          'px-3 py-1.5 rounded-full text-xs font-medium shadow-md',
-          'bg-gradient-to-r ' + config.gradient,
-          'text-white'
-        )}>
+        <span
+          className={cn(
+            'px-3 py-1.5 rounded-full text-xs font-medium shadow-md',
+            'bg-gradient-to-r ' + config.gradient,
+            'text-white',
+          )}
+        >
           {config.label}
         </span>
       </div>
@@ -549,18 +601,23 @@ function ExecutionCard({
         </div>
         <div className="space-y-1">
           <p className="text-muted-foreground text-xs">持续时间</p>
-          <p className="font-medium text-sm">{formatDuration(execution.started_at, execution.finished_at)}</p>
+          <p className="font-medium text-sm">
+            {formatDuration(execution.started_at, execution.finished_at)}
+          </p>
         </div>
       </div>
 
-      {(execution.stage_results && execution.stage_results.length > 0) && (
+      {execution.stage_results && execution.stage_results.length > 0 && (
         <div className="mt-4 pt-4 border-t border-border/50">
           <p className="text-xs text-muted-foreground mb-2">
             阶段进度 ({execution.stage_results.length})
           </p>
           <div className="flex items-center gap-2">
             {execution.stage_results.slice(0, 3).map((result, idx) => (
-              <span key={idx} className="px-2 py-1 text-xs bg-gradient-to-r from-emerald-500/10 to-green-500/10 text-emerald-600 rounded-lg border border-emerald-500/20">
+              <span
+                key={idx}
+                className="px-2 py-1 text-xs bg-gradient-to-r from-emerald-500/10 to-green-500/10 text-emerald-600 rounded-lg border border-emerald-500/20"
+              >
                 {result.stage_name}
               </span>
             ))}
@@ -614,7 +671,7 @@ export function ExecutionsPage() {
 
   // The live execution from store (auto-updates via WS events)
   const liveSelectedExecution = selectedExecutionId
-    ? executions.find((e) => e.id === selectedExecutionId) ?? null
+    ? (executions.find((e) => e.id === selectedExecutionId) ?? null)
     : null;
 
   // Listen for workspace changes
@@ -622,7 +679,9 @@ export function ExecutionsPage() {
     const unsubscribe = onWorkspaceChange(() => {
       refetch();
     });
-    return () => { unsubscribe(); };
+    return () => {
+      unsubscribe();
+    };
   }, [refetch]);
 
   // Connect store WS when opening modal for a running execution
@@ -644,7 +703,7 @@ export function ExecutionsPage() {
     (id: string) => {
       cancelExecution(id);
     },
-    [cancelExecution]
+    [cancelExecution],
   );
 
   if (loading) {
@@ -712,7 +771,6 @@ export function ExecutionsPage() {
           onCancel={handleCancel}
         />
       )}
-
     </div>
   );
 }

@@ -32,7 +32,7 @@ const DEFAULT_SERVICES: ServiceEntry[] = [
     id: 'frontend',
     name: '前端',
     command: 'npm run dev',
-    cwd: '',   // user fills in or auto-detected
+    cwd: '', // user fills in or auto-detected
   },
   {
     id: 'backend',
@@ -83,20 +83,18 @@ export const useSettingsStore = create<SettingsStore>()(
       security: { ...DEFAULT_SECURITY },
       services: [...DEFAULT_SERVICES],
 
-      setLayout: (patch) =>
-        set((state) => ({ layout: { ...state.layout, ...patch } })),
+      setLayout: (patch) => set((state) => ({ layout: { ...state.layout, ...patch } })),
 
       setNotifications: (patch) =>
         set((state) => ({ notifications: { ...state.notifications, ...patch } })),
 
-      setSecurity: (patch) =>
-        set((state) => ({ security: { ...state.security, ...patch } })),
+      setSecurity: (patch) => set((state) => ({ security: { ...state.security, ...patch } })),
 
       setServices: (services) => set({ services }),
 
       updateService: (id, patch) =>
         set((state) => ({
-          services: state.services.map((s) => s.id === id ? { ...s, ...patch } : s),
+          services: state.services.map((s) => (s.id === id ? { ...s, ...patch } : s)),
         })),
 
       reset: () =>
@@ -109,6 +107,6 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: 'nexus-settings',
-    }
-  )
+    },
+  ),
 );

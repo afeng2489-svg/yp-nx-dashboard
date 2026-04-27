@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import { X, GitBranch, Users, ArrowRight } from 'lucide-react';
-import { useTemplateStore, TEMPLATE_CATEGORIES, type TemplateSummary, type Template, type TemplateCategory } from '@/stores/templateStore';
+import {
+  useTemplateStore,
+  TEMPLATE_CATEGORIES,
+  type TemplateSummary,
+  type Template,
+  type TemplateCategory,
+} from '@/stores/templateStore';
 import { TemplateCard, TemplateCardSkeleton } from './TemplateCard';
 import { BetterEmptyState } from '@/components/ui/BetterEmptyState';
 
@@ -67,10 +73,7 @@ export function TemplateGallery({ isOpen, onClose, onUseTemplate }: TemplateGall
               <h2 className="text-lg font-semibold">工作流模板</h2>
               <p className="text-sm text-muted-foreground">选择模板快速创建工作流</p>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg hover:bg-accent transition-colors"
-            >
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-accent transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -81,22 +84,25 @@ export function TemplateGallery({ isOpen, onClose, onUseTemplate }: TemplateGall
               onClick={() => handleCategoryChange('all')}
               className={`
                 px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors
-                ${selectedCategory === null
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                ${
+                  selectedCategory === null
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                 }
               `}
             >
               全部
-            </button>            {TEMPLATE_CATEGORIES.map((cat) => (
+            </button>{' '}
+            {TEMPLATE_CATEGORIES.map((cat) => (
               <button
                 key={cat.value}
                 onClick={() => handleCategoryChange(cat.value)}
                 className={`
                   px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors capitalize
-                  ${selectedCategory === cat.value
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  ${
+                    selectedCategory === cat.value
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   }
                 `}
               >
@@ -165,11 +171,7 @@ interface TemplatePreviewModalProps {
   onUse: () => void;
 }
 
-function TemplatePreviewModal({
-  template,
-  onClose,
-  onUse,
-}: TemplatePreviewModalProps) {
+function TemplatePreviewModal({ template, onClose, onUse }: TemplatePreviewModalProps) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
@@ -180,10 +182,7 @@ function TemplatePreviewModal({
             <h3 className="font-semibold text-lg">{template.name}</h3>
             <p className="text-xs text-muted-foreground capitalize">{template.category}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-accent transition-colors"
-          >
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-accent transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>

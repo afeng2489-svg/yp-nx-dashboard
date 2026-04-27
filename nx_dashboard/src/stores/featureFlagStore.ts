@@ -64,7 +64,7 @@ export const useFeatureFlagStore = create<FeatureFlagState>()(
           }
           const updated = await res.json();
           set({
-            flags: get().flags.map(f => f.key === key ? updated : f),
+            flags: get().flags.map((f) => (f.key === key ? updated : f)),
           });
         } catch (err) {
           set({ error: (err as Error).message });
@@ -83,7 +83,7 @@ export const useFeatureFlagStore = create<FeatureFlagState>()(
           }
           const updated = await res.json();
           set({
-            flags: get().flags.map(f => f.key === key ? updated : f),
+            flags: get().flags.map((f) => (f.key === key ? updated : f)),
           });
         } catch (err) {
           set({ error: (err as Error).message });
@@ -91,7 +91,7 @@ export const useFeatureFlagStore = create<FeatureFlagState>()(
       },
 
       isEnabled: (key: string) => {
-        const flag = get().flags.find(f => f.key === key);
+        const flag = get().flags.find((f) => f.key === key);
         return flag ? flag.state === 'on' && !flag.circuit_breaker : false;
       },
 
@@ -100,6 +100,6 @@ export const useFeatureFlagStore = create<FeatureFlagState>()(
     {
       name: 'nexusflow-feature-flags',
       partialize: (state) => ({ flags: state.flags }),
-    }
-  )
+    },
+  ),
 );

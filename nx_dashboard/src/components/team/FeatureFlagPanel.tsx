@@ -32,15 +32,13 @@ export default function FeatureFlagPanel() {
       {error && <div className="text-sm text-red-500">{error}</div>}
 
       <div className="space-y-2">
-        {flags.map(flag => (
+        {flags.map((flag) => (
           <div
             key={flag.key}
             className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
           >
             <div className="flex items-center gap-3">
-              <span className="text-sm font-medium">
-                {FLAG_LABELS[flag.key] || flag.key}
-              </span>
+              <span className="text-sm font-medium">{FLAG_LABELS[flag.key] || flag.key}</span>
               {flag.circuit_breaker && (
                 <span className="px-2 py-0.5 rounded text-xs bg-red-100 text-red-700 font-medium">
                   熔断
@@ -56,7 +54,7 @@ export default function FeatureFlagPanel() {
             <div className="flex items-center gap-2">
               {/* Three-state toggle */}
               <div className="flex rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600">
-                {STATE_OPTIONS.map(opt => (
+                {STATE_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
                     className={`px-2 py-1 text-xs transition-colors ${

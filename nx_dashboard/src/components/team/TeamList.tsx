@@ -32,7 +32,7 @@ export function TeamList({ teams, selectedTeamId, onSelect, onCreate }: TeamList
             'w-full text-left p-4 rounded-xl border transition-all duration-200',
             selectedTeamId === team.id
               ? 'bg-primary/5 border-primary/30'
-              : 'bg-card border-border/50 hover:border-primary/20 hover:bg-primary/5'
+              : 'bg-card border-border/50 hover:border-primary/20 hover:bg-primary/5',
           )}
         >
           <div className="flex items-center justify-between">
@@ -42,10 +42,12 @@ export function TeamList({ teams, selectedTeamId, onSelect, onCreate }: TeamList
                 {team.description || '无描述'}
               </p>
             </div>
-            <span className={cn(
-              'w-2 h-2 rounded-full',
-              selectedTeamId === team.id ? 'bg-primary' : 'bg-muted'
-            )} />
+            <span
+              className={cn(
+                'w-2 h-2 rounded-full',
+                selectedTeamId === team.id ? 'bg-primary' : 'bg-muted',
+              )}
+            />
           </div>
         </button>
       ))}

@@ -18,15 +18,8 @@ const nodeTypes = {
 };
 
 export function WorkflowCanvas() {
-  const {
-    nodes,
-    edges,
-    onNodesChange,
-    onEdgesChange,
-    onConnect,
-    addNode,
-    selectNode,
-  } = useEditorStore();
+  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, selectNode } =
+    useEditorStore();
 
   const { screenToFlowPosition } = useReactFlow();
 
@@ -43,7 +36,7 @@ export function WorkflowCanvas() {
 
       addNode(type, position);
     },
-    [addNode, screenToFlowPosition]
+    [addNode, screenToFlowPosition],
   );
 
   const handleDragOver = useCallback((event: React.DragEvent) => {
@@ -56,11 +49,7 @@ export function WorkflowCanvas() {
   }, [selectNode]);
 
   return (
-    <div
-      style={{ position: 'absolute', inset: 0 }}
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
-    >
+    <div style={{ position: 'absolute', inset: 0 }} onDrop={handleDrop} onDragOver={handleDragOver}>
       <ReactFlow
         style={{ width: '100%', height: '100%' }}
         nodes={nodes}
@@ -79,16 +68,8 @@ export function WorkflowCanvas() {
         }}
         proOptions={{ hideAttribution: true }}
       >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={16}
-          size={1}
-          color="hsl(var(--border))"
-        />
-        <Controls
-          className="!bg-card !border-border shadow-md"
-          showInteractive={false}
-        />
+        <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="hsl(var(--border))" />
+        <Controls className="!bg-card !border-border shadow-md" showInteractive={false} />
         <MiniMap
           className="!bg-card !border-border shadow-md"
           nodeColor={(node) => {

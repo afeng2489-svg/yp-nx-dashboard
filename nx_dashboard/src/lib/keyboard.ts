@@ -87,8 +87,8 @@ export const useKeyboardStore = create<KeyboardStore>()(
     {
       name: 'nexusflow-keyboard',
       partialize: (state) => ({ isEnabled: state.isEnabled }),
-    }
-  )
+    },
+  ),
 );
 
 // Hook to use a specific shortcut
@@ -99,11 +99,7 @@ export function useShortcut(id: string): KeyboardShortcut | undefined {
 // Hook to register a shortcut on mount
 import { useEffect } from 'react';
 
-export function useRegisterShortcut(
-  id: string,
-  shortcut: KeyboardShortcut,
-  deps: unknown[] = []
-) {
+export function useRegisterShortcut(id: string, shortcut: KeyboardShortcut, deps: unknown[] = []) {
   const register = useKeyboardStore((state) => state.registerShortcut);
   const unregister = useKeyboardStore((state) => state.unregisterShortcut);
 
@@ -150,11 +146,7 @@ export function useKeyboardHandler() {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Skip if in input/textarea
       const target = event.target as HTMLElement;
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable
-      ) {
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return;
       }
 

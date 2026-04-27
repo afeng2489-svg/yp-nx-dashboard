@@ -3,7 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { X, Play, Loader2 } from 'lucide-react';
 import { TemplateCard, TemplateCardSkeleton } from '@/components/workflow/TemplateCard';
-import { useTemplateStore, TEMPLATE_CATEGORIES, type TemplateSummary, type TemplateCategory, type Template } from '@/stores/templateStore';
+import {
+  useTemplateStore,
+  TEMPLATE_CATEGORIES,
+  type TemplateSummary,
+  type TemplateCategory,
+  type Template,
+} from '@/stores/templateStore';
 import { useExecutionStore } from '@/stores/executionStore';
 import { cn } from '@/lib/utils';
 
@@ -17,11 +23,11 @@ interface LaunchDialogProps {
 function LaunchDialog({ template, onClose, onLaunch }: LaunchDialogProps) {
   // Variables with empty string value are required inputs
   const requiredInputs = Object.entries(template.variables ?? {}).filter(
-    ([, v]) => v === '' || v === null
+    ([, v]) => v === '' || v === null,
   );
 
   const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(requiredInputs.map(([k]) => [k, '']))
+    Object.fromEntries(requiredInputs.map(([k]) => [k, ''])),
   );
   const [launching, setLaunching] = useState(false);
 
@@ -46,10 +52,7 @@ function LaunchDialog({ template, onClose, onLaunch }: LaunchDialogProps) {
             <h2 className="text-lg font-semibold">{template.name}</h2>
             <p className="text-xs text-muted-foreground mt-0.5">{template.description}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-accent transition-colors"
-          >
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-accent transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -96,7 +99,7 @@ function LaunchDialog({ template, onClose, onLaunch }: LaunchDialogProps) {
               'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl transition-all',
               canLaunch && !launching
                 ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40'
-                : 'bg-muted text-muted-foreground cursor-not-allowed'
+                : 'bg-muted text-muted-foreground cursor-not-allowed',
             )}
           >
             {launching ? (
@@ -146,39 +149,43 @@ export function TemplatesPage() {
     }
   };
 
-  const handleLaunch = useCallback(async (summary: TemplateSummary) => {
-    const template = await getTemplate(summary.id);
-    if (template) {
-      setLaunchingTemplate(template);
-    } else {
-      toast.error('获取模板详情失败');
-    }
-  }, [getTemplate]);
+  const handleLaunch = useCallback(
+    async (summary: TemplateSummary) => {
+      const template = await getTemplate(summary.id);
+      if (template) {
+        setLaunchingTemplate(template);
+      } else {
+        toast.error('获取模板详情失败');
+      }
+    },
+    [getTemplate],
+  );
 
-  const handleExecute = useCallback(async (variables: Record<string, string>) => {
-    if (!launchingTemplate) return;
-    try {
-      // 1. Instantiate template → create workflow
-      const result = await instantiateTemplate(launchingTemplate.id);
-      // 2. Start execution with user-provided variables
-      const execution = await startExecution(result.workflow_id, variables);
-      setLaunchingTemplate(null);
-      toast.success('工作流已启动', { description: `正在执行: ${launchingTemplate.name}` });
-      // 3. Navigate to executions page and auto-open the new execution
-      navigate('/executions', { state: { openExecutionId: execution.id } });
-    } catch {
-      toast.error('启动失败，请重试');
-    }
-  }, [launchingTemplate, instantiateTemplate, startExecution, navigate]);
+  const handleExecute = useCallback(
+    async (variables: Record<string, string>) => {
+      if (!launchingTemplate) return;
+      try {
+        // 1. Instantiate template → create workflow
+        const result = await instantiateTemplate(launchingTemplate.id);
+        // 2. Start execution with user-provided variables
+        const execution = await startExecution(result.workflow_id, variables);
+        setLaunchingTemplate(null);
+        toast.success('工作流已启动', { description: `正在执行: ${launchingTemplate.name}` });
+        // 3. Navigate to executions page and auto-open the new execution
+        navigate('/executions', { state: { openExecutionId: execution.id } });
+      } catch {
+        toast.error('启动失败，请重试');
+      }
+    },
+    [launchingTemplate, instantiateTemplate, startExecution, navigate],
+  );
 
   return (
     <div className="h-full flex flex-col">
       <div className="p-4 border-b flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">工作流模板</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            选择模板直接启动执行
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">选择模板直接启动执行</p>
         </div>
       </div>
 
@@ -187,9 +194,7 @@ export function TemplatesPage() {
         <button
           onClick={() => handleCategoryChange('all')}
           className={`px-3 py-2 text-sm rounded-lg transition-colors ${
-            selectedCategory === null
-              ? 'bg-primary text-primary-foreground'
-              : 'hover:bg-accent'
+            selectedCategory === null ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
           }`}
         >
           全部
@@ -218,9 +223,7 @@ export function TemplatesPage() {
           </div>
         )}
         {error && (
-          <div className="flex items-center justify-center h-64 text-destructive">
-            {error}
-          </div>
+          <div className="flex items-center justify-center h-64 text-destructive">{error}</div>
         )}
         {!loading && !error && templates.length === 0 && (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">

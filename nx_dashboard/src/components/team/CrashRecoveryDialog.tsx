@@ -49,7 +49,7 @@ export default function CrashRecoveryDialog({ projectId, onResumed }: Props) {
         method: 'POST',
       });
       if (res.ok) {
-        setInterrupted(prev => prev.filter(e => e.execution_id !== executionId));
+        setInterrupted((prev) => prev.filter((e) => e.execution_id !== executionId));
         onResumed?.();
       }
     } catch {
@@ -64,7 +64,7 @@ export default function CrashRecoveryDialog({ projectId, onResumed }: Props) {
         method: 'DELETE',
       });
       if (res.ok) {
-        setInterrupted(prev => prev.filter(e => e.execution_id !== executionId));
+        setInterrupted((prev) => prev.filter((e) => e.execution_id !== executionId));
       }
     } catch {
       // silent
@@ -83,8 +83,11 @@ export default function CrashRecoveryDialog({ projectId, onResumed }: Props) {
       </p>
 
       <div className="space-y-2 max-h-40 overflow-y-auto">
-        {interrupted.map(exec => (
-          <div key={exec.execution_id} className="p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+        {interrupted.map((exec) => (
+          <div
+            key={exec.execution_id}
+            className="p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700"
+          >
             <p className="text-xs font-medium truncate">{exec.task_prompt}</p>
             <p className="text-xs text-gray-400 mt-0.5">
               中断于: {new Date(exec.last_heartbeat).toLocaleString()}

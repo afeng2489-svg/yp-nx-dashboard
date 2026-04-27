@@ -1,4 +1,13 @@
-import { X, GitBranch, Users, AlertCircle, ChevronRight, Pause, Terminal, Info } from 'lucide-react';
+import {
+  X,
+  GitBranch,
+  Users,
+  AlertCircle,
+  ChevronRight,
+  Pause,
+  Terminal,
+  Info,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Workflow, Stage, Agent } from '@/stores/workflowStore';
 
@@ -8,38 +17,56 @@ interface WorkflowTutorialModalProps {
 }
 
 function ModelBadge({ model }: { model: string }) {
-  const label = model.includes('opus') ? 'Opus' : model.includes('sonnet') ? 'Sonnet' : model.includes('haiku') ? 'Haiku' : model;
+  const label = model.includes('opus')
+    ? 'Opus'
+    : model.includes('sonnet')
+      ? 'Sonnet'
+      : model.includes('haiku')
+        ? 'Haiku'
+        : model;
   const cls = model.includes('opus')
     ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
     : model.includes('sonnet')
-    ? 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20'
-    : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
+      ? 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20'
+      : 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
   return (
-    <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-medium border', cls)}>
-      {label}
-    </span>
+    <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-medium border', cls)}>{label}</span>
   );
 }
 
-function StageNode({ stage, index, total, agents }: { stage: Stage; index: number; total: number; agents: Agent[] }) {
+function StageNode({
+  stage,
+  index,
+  total,
+  agents,
+}: {
+  stage: Stage;
+  index: number;
+  total: number;
+  agents: Agent[];
+}) {
   const isUserInput = stage.stage_type === 'user_input';
   const stageAgents = (stage.agents ?? [])
-    .map(id => agents.find(a => a.id === id))
+    .map((id) => agents.find((a) => a.id === id))
     .filter(Boolean) as Agent[];
 
   return (
     <div className="flex flex-col items-center">
-      <div className={cn(
-        'w-full rounded-xl border p-3',
-        isUserInput
-          ? 'bg-amber-500/5 border-amber-500/20'
-          : 'bg-gradient-to-r from-indigo-500/5 to-purple-500/5 border-indigo-500/15'
-      )}>
+      <div
+        className={cn(
+          'w-full rounded-xl border p-3',
+          isUserInput
+            ? 'bg-amber-500/5 border-amber-500/20'
+            : 'bg-gradient-to-r from-indigo-500/5 to-purple-500/5 border-indigo-500/15',
+        )}
+      >
         <div className="flex items-center gap-2 mb-1">
-          <span className={cn(
-            'w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0',
-            isUserInput ? 'bg-amber-500 text-white' : 'bg-indigo-500 text-white'
-          )}>
+          <span
+            className={cn(
+              'w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0',
+              isUserInput ? 'bg-amber-500 text-white' : 'bg-indigo-500 text-white',
+            )}
+          >
             {isUserInput ? <Pause className="w-2.5 h-2.5" /> : index + 1}
           </span>
           <span className="text-sm font-medium">{stage.name}</span>
@@ -54,8 +81,11 @@ function StageNode({ stage, index, total, agents }: { stage: Stage; index: numbe
         )}
         {stageAgents.length > 0 && (
           <div className="ml-7 flex flex-wrap gap-1">
-            {stageAgents.map(agent => (
-              <span key={agent.id} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+            {stageAgents.map((agent) => (
+              <span
+                key={agent.id}
+                className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
+              >
                 <span className="w-1 h-1 rounded-full bg-indigo-400 flex-shrink-0" />
                 {agent.role}
                 <ModelBadge model={agent.model} />
@@ -74,15 +104,17 @@ function StageNode({ stage, index, total, agents }: { stage: Stage; index: numbe
 }
 
 export function WorkflowTutorialModal({ workflow, onClose }: WorkflowTutorialModalProps) {
-  const requiredInputs = workflow.triggers
-    ?.flatMap(t => Object.entries(t.inputs ?? {}))
-    .filter(([, v]) => v.required) ?? [];
+  const requiredInputs =
+    workflow.triggers
+      ?.flatMap((t) => Object.entries(t.inputs ?? {}))
+      .filter(([, v]) => v.required) ?? [];
 
-  const optionalInputs = workflow.triggers
-    ?.flatMap(t => Object.entries(t.inputs ?? {}))
-    .filter(([, v]) => !v.required) ?? [];
+  const optionalInputs =
+    workflow.triggers
+      ?.flatMap((t) => Object.entries(t.inputs ?? {}))
+      .filter(([, v]) => !v.required) ?? [];
 
-  const hasUserInputStage = workflow.stages.some(s => s.stage_type === 'user_input');
+  const hasUserInputStage = workflow.stages.some((s) => s.stage_type === 'user_input');
 
   const steps: string[] = [];
   if (requiredInputs.length > 0) {
@@ -130,12 +162,17 @@ export function WorkflowTutorialModal({ workflow, onClose }: WorkflowTutorialMod
               </h3>
               <div className="space-y-2">
                 {requiredInputs.map(([name, input]) => (
-                  <div key={name} className="flex items-start gap-3 p-3 rounded-xl bg-red-500/5 border border-red-500/15">
+                  <div
+                    key={name}
+                    className="flex items-start gap-3 p-3 rounded-xl bg-red-500/5 border border-red-500/15"
+                  >
                     <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <code className="text-sm font-mono font-semibold text-red-600">{name}</code>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 border border-red-500/20">必填</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 border border-red-500/20">
+                          必填
+                        </span>
                         <span className="text-[10px] text-muted-foreground">{input.type}</span>
                       </div>
                       <p className="text-xs text-muted-foreground">{input.description}</p>
@@ -143,14 +180,21 @@ export function WorkflowTutorialModal({ workflow, onClose }: WorkflowTutorialMod
                   </div>
                 ))}
                 {optionalInputs.map(([name, input]) => (
-                  <div key={name} className="flex items-start gap-3 p-3 rounded-xl bg-accent/50 border border-border">
+                  <div
+                    key={name}
+                    className="flex items-start gap-3 p-3 rounded-xl bg-accent/50 border border-border"
+                  >
                     <Info className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <code className="text-sm font-mono font-semibold">{name}</code>
-                        <span className="text-[10px] text-muted-foreground">{input.type}（选填）</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {input.type}（选填）
+                        </span>
                       </div>
-                      {input.description && <p className="text-xs text-muted-foreground">{input.description}</p>}
+                      {input.description && (
+                        <p className="text-xs text-muted-foreground">{input.description}</p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -187,8 +231,11 @@ export function WorkflowTutorialModal({ workflow, onClose }: WorkflowTutorialMod
                 参与智能体（{workflow.agents.length} 个）
               </h3>
               <div className="grid gap-2">
-                {workflow.agents.map(agent => (
-                  <div key={agent.id} className="flex items-start gap-3 p-3 rounded-xl bg-gradient-to-r from-purple-500/5 to-pink-500/5 border border-purple-500/10">
+                {workflow.agents.map((agent) => (
+                  <div
+                    key={agent.id}
+                    className="flex items-start gap-3 p-3 rounded-xl bg-gradient-to-r from-purple-500/5 to-pink-500/5 border border-purple-500/10"
+                  >
                     <div className="w-6 h-6 rounded-lg bg-purple-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
                       <span className="text-[10px] font-bold text-purple-600">AI</span>
                     </div>
@@ -198,7 +245,10 @@ export function WorkflowTutorialModal({ workflow, onClose }: WorkflowTutorialMod
                         <ModelBadge model={agent.model} />
                       </div>
                       <p className="text-xs text-muted-foreground line-clamp-2">
-                        {agent.prompt.trim().split('\n').find(l => l.trim().length > 0) ?? ''}
+                        {agent.prompt
+                          .trim()
+                          .split('\n')
+                          .find((l) => l.trim().length > 0) ?? ''}
                       </p>
                     </div>
                   </div>
@@ -229,7 +279,8 @@ export function WorkflowTutorialModal({ workflow, onClose }: WorkflowTutorialMod
             <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
               <Pause className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                此工作流包含<strong>人工干预节点</strong>，执行期间会暂停并弹出选项供你选择，请保持页面在线并留意执行状态。
+                此工作流包含<strong>人工干预节点</strong>
+                ，执行期间会暂停并弹出选项供你选择，请保持页面在线并留意执行状态。
               </p>
             </div>
           )}

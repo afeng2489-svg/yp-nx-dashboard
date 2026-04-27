@@ -67,6 +67,14 @@ jobs:
         working-directory: nx_dashboard
         run: npm ci
 
+      - name: Frontend type check
+        working-directory: nx_dashboard
+        run: npx tsc -b --noEmit
+
+      - name: Frontend format check
+        working-directory: nx_dashboard
+        run: npx prettier --check 'src/**/*.{ts,tsx,css,json}'
+
       - name: Build nx_api binary
         run: cargo build --release --bin nx_api --target ${{ matrix.target }}
 

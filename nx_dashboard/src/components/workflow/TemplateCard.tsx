@@ -8,7 +8,6 @@ interface TemplateCardProps {
   variant?: 'default' | 'compact';
 }
 
-
 const categoryColors: Record<string, string> = {
   planning: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
   development: 'bg-green-500/10 text-green-600 border-green-500/20',
@@ -19,11 +18,7 @@ const categoryColors: Record<string, string> = {
   writing: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
 };
 
-export function TemplateCard({
-  template,
-  onLaunch,
-  variant = 'default',
-}: TemplateCardProps) {
+export function TemplateCard({ template, onLaunch, variant = 'default' }: TemplateCardProps) {
   const categoryColorClass = categoryColors[template.category] || categoryColors.planning;
 
   if (variant === 'compact') {
@@ -59,16 +54,19 @@ export function TemplateCard({
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-base truncate">{template.name}</h3>
-          <span className={cn('inline-block px-2 py-0.5 text-xs rounded border capitalize mt-1', categoryColorClass)}>
+          <span
+            className={cn(
+              'inline-block px-2 py-0.5 text-xs rounded border capitalize mt-1',
+              categoryColorClass,
+            )}
+          >
             {template.category}
           </span>
         </div>
       </div>
 
       {/* Description */}
-      <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-        {template.description}
-      </p>
+      <p className="text-sm text-muted-foreground line-clamp-2 mb-4">{template.description}</p>
 
       {/* Stats */}
       <div className="flex items-center gap-4 mb-4 text-xs text-muted-foreground">

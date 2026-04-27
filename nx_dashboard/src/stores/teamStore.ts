@@ -13,7 +13,7 @@ export interface Team {
 
 export interface Role {
   id: string;
-  team_id?: string | null;  // Optional: roles are global/shared in new architecture
+  team_id?: string | null; // Optional: roles are global/shared in new architecture
   name: string;
   description?: string;
   instructions?: string;
@@ -111,7 +111,7 @@ class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public body?: string
+    public body?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -122,7 +122,7 @@ class ApiError extends Error {
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
-  timeout = 5000
+  timeout = 5000,
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -146,7 +146,7 @@ async function fetchWithTimeout(
 interface TeamStore {
   teams: Team[];
   currentTeam: Team | null;
-  roles: Record<string, Role[]>;  // Keyed by team_id
+  roles: Record<string, Role[]>; // Keyed by team_id
   messages: Message[];
   telegramConfig: TelegramConfig | null;
   loading: boolean;
@@ -208,12 +208,22 @@ interface TeamStore {
   enableTelegram: (teamId: string, enabled: boolean) => Promise<void>;
   // Per-member bot actions
   getMemberBots: (teamId: string) => Promise<MemberBotStatus[]>;
-  configureMemberBot: (teamId: string, roleId: string, config: MemberBotConfigItem) => Promise<MemberBotStatus>;
+  configureMemberBot: (
+    teamId: string,
+    roleId: string,
+    config: MemberBotConfigItem,
+  ) => Promise<MemberBotStatus>;
   toggleAllMemberBots: (teamId: string, enabled: boolean) => Promise<MemberBotStatus[]>;
 
   // Memory actions
   searchMemory: (teamId: string, query: string) => Promise<MemorySearchResponse>;
-  storeMemory: (teamId: string, userId: string, content: string, role?: string, sessionId?: string) => Promise<void>;
+  storeMemory: (
+    teamId: string,
+    userId: string,
+    content: string,
+    role?: string,
+    sessionId?: string,
+  ) => Promise<void>;
   clearMemory: (teamId: string) => Promise<void>;
 
   clearError: () => void;
@@ -252,7 +262,7 @@ function loadTerminalSessions(): Record<string, Record<string, string>> {
 export const useTeamStore = create<TeamStore>((set, get) => ({
   teams: [],
   currentTeam: null,
-  roles: {},  // Keyed by team_id
+  roles: {}, // Keyed by team_id
   messages: [],
   telegramConfig: null,
   loading: false,
@@ -270,13 +280,13 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       const response = await fetchWithTimeout(
         `${API_BASE}/api/v1/teams`,
         { signal: controller.signal },
-        15000
+        15000,
       );
 
       if (!response.ok) {
         throw new ApiError(
           `Failed to fetch teams: ${response.status} ${response.statusText}`,
-          response.status
+          response.status,
         );
       }
 
@@ -293,18 +303,13 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
 
   getTeam: async (id) => {
     try {
-      const response = await fetchWithTimeout(
-        `${API_BASE}/api/v1/teams/${id}`, {}, 10000
-      );
+      const response = await fetchWithTimeout(`${API_BASE}/api/v1/teams/${id}`, {}, 10000);
 
       if (!response.ok) {
         if (response.status === 404) {
           return null;
         }
-        throw new ApiError(
-          `Failed to fetch team: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to fetch team: ${response.status}`, response.status);
       }
 
       const data = await response.json();
@@ -327,10 +332,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to create team: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to create team: ${response.status}`, response.status);
       }
 
       const newTeam = await response.json();
@@ -347,7 +349,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
     // Optimistic update
     set((state) => ({
       teams: state.teams.map((t) =>
-        t.id === id ? { ...t, ...updates, updated_at: new Date().toISOString() } : t
+        t.id === id ? { ...t, ...updates, updated_at: new Date().toISOString() } : t,
       ),
     }));
 
@@ -359,10 +361,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to update team: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to update team: ${response.status}`, response.status);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -384,10 +383,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to delete team: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to delete team: ${response.status}`, response.status);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -405,14 +401,11 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       const response = await fetchWithTimeout(
         `${API_BASE}/api/v1/teams/${teamId}/roles`,
         { signal: controller.signal },
-        10000
+        10000,
       );
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to fetch roles: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to fetch roles: ${response.status}`, response.status);
       }
 
       const backendRoles = await response.json();
@@ -436,10 +429,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to create role: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to create role: ${response.status}`, response.status);
       }
 
       const backendRole = await response.json();
@@ -477,7 +467,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       roles: {
         ...state.roles,
         [teamId]: state.roles[teamId].map((r) =>
-          r.id === id ? { ...r, ...updates, updated_at: new Date().toISOString() } : r
+          r.id === id ? { ...r, ...updates, updated_at: new Date().toISOString() } : r,
         ),
       },
     }));
@@ -490,10 +480,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to update role: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to update role: ${response.status}`, response.status);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -528,10 +515,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to delete role: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to delete role: ${response.status}`, response.status);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -546,10 +530,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
     try {
       const response = await fetch(`${API_BASE}/api/v1/roles`);
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to fetch all roles: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to fetch all roles: ${response.status}`, response.status);
       }
       const backendRoles = await response.json();
       return backendRoles.map(mapBackendRole);
@@ -570,17 +551,14 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         body: JSON.stringify({ team_id: teamId }),
       });
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to assign role to team: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to assign role to team: ${response.status}`, response.status);
       }
       const backendRole = await response.json();
       const newRole = mapBackendRole(backendRole);
       // Add to the target team's roles (dedup by id to prevent duplicates)
       set((state) => {
         const existing = state.roles[teamId] || [];
-        const already = existing.some(r => r.id === newRole.id);
+        const already = existing.some((r) => r.id === newRole.id);
         return {
           roles: {
             ...state.roles,
@@ -604,16 +582,13 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         method: 'DELETE',
       });
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to remove role from team: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to remove role from team: ${response.status}`, response.status);
       }
       // Remove from local state
       set((state) => ({
         roles: {
           ...state.roles,
-          [teamId]: (state.roles[teamId] || []).filter(r => r.id !== roleId),
+          [teamId]: (state.roles[teamId] || []).filter((r) => r.id !== roleId),
         },
       }));
     } catch (error) {
@@ -633,10 +608,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to assign skill: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to assign skill: ${response.status}`, response.status);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -652,10 +624,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to remove skill: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to remove skill: ${response.status}`, response.status);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -671,22 +640,23 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       const response = await fetchWithTimeout(
         `${API_BASE}/api/v1/teams/${teamId}/messages`,
         { signal: controller.signal },
-        10000
+        10000,
       );
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to fetch messages: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to fetch messages: ${response.status}`, response.status);
       }
 
       const backendMessages: any[] = await response.json();
       // Map backend message_type to frontend role field
-      const messages: Message[] = backendMessages.map(m => ({
+      const messages: Message[] = backendMessages.map((m) => ({
         ...m,
-        role: m.message_type === 'User' ? 'user' :
-              m.message_type === 'Assistant' ? 'assistant' : 'system'
+        role:
+          m.message_type === 'User'
+            ? 'user'
+            : m.message_type === 'Assistant'
+              ? 'assistant'
+              : 'system',
       }));
       set({ messages });
     } catch (error) {
@@ -709,7 +679,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
     // auto_confirm: 监控模式 OFF = 自动确认，ON = 等待确认
     const autoConfirm = !isMonitor;
     if (isMonitor) {
-      const team = teams.find(t => t.id === teamId);
+      const team = teams.find((t) => t.id === teamId);
       set({
         activeTeamTask: {
           teamId,
@@ -807,7 +777,11 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
   setTeamMonitorMode: (teamId, enabled) => {
     set((state) => {
       const next = { ...state.teamMonitorMode, [teamId]: enabled };
-      try { localStorage.setItem('team_monitor_mode', JSON.stringify(next)); } catch { /* ignore */ }
+      try {
+        localStorage.setItem('team_monitor_mode', JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
       return { teamMonitorMode: next };
     });
   },
@@ -830,7 +804,11 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       } else {
         delete next[teamId];
       }
-      try { localStorage.setItem('team_terminal_sessions', JSON.stringify(next)); } catch { /* ignore */ }
+      try {
+        localStorage.setItem('team_terminal_sessions', JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
       return { terminalSessions: next };
     });
   },
@@ -845,10 +823,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to configure Telegram: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to configure Telegram: ${response.status}`, response.status);
       }
 
       const updatedConfig: TelegramConfig = await response.json();
@@ -863,17 +838,16 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
   getTelegramConfig: async (teamId) => {
     try {
       const response = await fetchWithTimeout(
-        `${API_BASE}/api/v1/teams/${teamId}/telegram`, {}, 10000
+        `${API_BASE}/api/v1/teams/${teamId}/telegram`,
+        {},
+        10000,
       );
 
       if (!response.ok) {
         if (response.status === 404) {
           return null;
         }
-        throw new ApiError(
-          `Failed to get Telegram config: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to get Telegram config: ${response.status}`, response.status);
       }
 
       const config: TelegramConfig = await response.json();
@@ -896,7 +870,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       if (!response.ok) {
         throw new ApiError(
           `Failed to update Telegram settings: ${response.status}`,
-          response.status
+          response.status,
         );
       }
     } catch (error) {
@@ -945,7 +919,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         throw new ApiError(`Failed to search memory: ${response.status}`, response.status);
       }
 
-      const result = await response.json() as MemorySearchResponse;
+      const result = (await response.json()) as MemorySearchResponse;
       console.log('[Memory] Search results:', result.results.length, 'results');
       return result;
     } catch (error) {
@@ -955,7 +929,14 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
   },
 
   storeMemory: async (teamId, userId, content, role = 'user', sessionId) => {
-    console.log('[Memory] Storing memory for team:', teamId, 'userId:', userId, 'content:', content.substring(0, 50));
+    console.log(
+      '[Memory] Storing memory for team:',
+      teamId,
+      'userId:',
+      userId,
+      'content:',
+      content.substring(0, 50),
+    );
     try {
       const url = `${API_BASE}/api/v1/teams/${teamId}/memories`;
       console.log('[Memory] POST URL:', url);

@@ -48,7 +48,7 @@ export function RoleCard({ role, onEdit, onDelete }: RoleCardProps) {
             onClick={onEdit}
             className={cn(
               'p-2 rounded-lg transition-all duration-200',
-              'hover:bg-indigo-500/10 text-muted-foreground hover:text-indigo-500'
+              'hover:bg-indigo-500/10 text-muted-foreground hover:text-indigo-500',
             )}
             title="编辑"
           >
@@ -58,7 +58,7 @@ export function RoleCard({ role, onEdit, onDelete }: RoleCardProps) {
             onClick={onDelete}
             className={cn(
               'p-2 rounded-lg transition-all duration-200',
-              'hover:bg-red-500/10 text-muted-foreground hover:text-red-500'
+              'hover:bg-red-500/10 text-muted-foreground hover:text-red-500',
             )}
             title="删除"
           >

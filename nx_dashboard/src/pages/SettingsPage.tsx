@@ -35,7 +35,12 @@ const sections: SettingsSection[] = [
 function ThemeSelector() {
   const { theme, setTheme } = useThemeStore();
 
-  const themes: { value: Theme; label: string; icon: React.ComponentType<{ className?: string }>; description: string }[] = [
+  const themes: {
+    value: Theme;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    description: string;
+  }[] = [
     { value: 'light', label: '浅色', icon: Sun, description: '明亮的浅色主题' },
     { value: 'dark', label: '深色', icon: Moon, description: '舒适的深色主题' },
     { value: 'system', label: '系统', icon: Monitor, description: '跟随系统设置' },
@@ -53,11 +58,18 @@ function ThemeSelector() {
               'flex flex-col items-center gap-2 p-4 rounded-xl border transition-all duration-200',
               theme === t.value
                 ? 'border-primary bg-primary/5 shadow-sm'
-                : 'border-border hover:border-primary/50'
+                : 'border-border hover:border-primary/50',
             )}
           >
-            <t.icon className={cn('w-6 h-6', theme === t.value ? 'text-primary' : 'text-muted-foreground')} />
-            <span className={cn('text-sm font-medium', theme === t.value && 'text-primary')}>{t.label}</span>
+            <t.icon
+              className={cn(
+                'w-6 h-6',
+                theme === t.value ? 'text-primary' : 'text-muted-foreground',
+              )}
+            />
+            <span className={cn('text-sm font-medium', theme === t.value && 'text-primary')}>
+              {t.label}
+            </span>
             <span className="text-xs text-muted-foreground">{t.description}</span>
           </button>
         ))}
@@ -99,10 +111,7 @@ function LayoutSettings() {
           <p className="text-sm font-medium">动画效果</p>
           <p className="text-xs text-muted-foreground">启用页面过渡和微交互</p>
         </div>
-        <ToggleSwitch
-          checked={layout.animations}
-          onChange={(v) => setLayout({ animations: v })}
-        />
+        <ToggleSwitch checked={layout.animations} onChange={(v) => setLayout({ animations: v })} />
       </div>
     </div>
   );
@@ -191,7 +200,7 @@ function ShortcutsSettings() {
             key={item.id}
             className={cn(
               'flex items-center justify-between px-4 py-3',
-              idx !== shortcutList.length - 1 && 'border-b border-border'
+              idx !== shortcutList.length - 1 && 'border-b border-border',
             )}
           >
             <span className="text-sm">{item.label}</span>
@@ -262,13 +271,13 @@ function ToggleSwitch({
       onClick={() => onChange(!checked)}
       className={cn(
         'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-        checked ? 'bg-primary' : 'bg-muted'
+        checked ? 'bg-primary' : 'bg-muted',
       )}
     >
       <span
         className={cn(
           'inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform',
-          checked ? 'translate-x-6' : 'translate-x-1'
+          checked ? 'translate-x-6' : 'translate-x-1',
         )}
       />
     </button>
@@ -322,7 +331,7 @@ export function SettingsPage() {
                   'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
                   activeSection === section.id
                     ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                 )}
               >
                 <section.icon className="w-4 h-4" />
@@ -338,10 +347,7 @@ export function SettingsPage() {
 
           {/* Actions */}
           <div className="flex items-center gap-3 mt-8 pt-6 border-t border-border">
-            <button
-              onClick={() => showSuccess('设置已保存')}
-              className="btn-primary"
-            >
+            <button onClick={() => showSuccess('设置已保存')} className="btn-primary">
               <Save className="w-4 h-4" />
               保存设置
             </button>

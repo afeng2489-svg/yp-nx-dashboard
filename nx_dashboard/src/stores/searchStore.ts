@@ -103,10 +103,11 @@ export const useSearchStore = create<SearchStore>((set, get) => ({
     }
   },
 
-  clearResults: () => set({
-    results: null,
-    error: null,
-    query: '',
-    lastSearchTime: null,
-  }),
+  clearResults: () =>
+    set({
+      results: null,
+      error: null,
+      query: '',
+      lastSearchTime: null,
+    }),
 }));

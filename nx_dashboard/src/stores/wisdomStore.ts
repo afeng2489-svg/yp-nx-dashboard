@@ -73,7 +73,7 @@ class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public body?: string
+    public body?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -84,7 +84,7 @@ class ApiError extends Error {
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
-  timeout = 5000
+  timeout = 5000,
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -139,7 +139,7 @@ export const useWisdomStore = create<WisdomStore>((set, get) => ({
       if (!response.ok) {
         throw new ApiError(
           `Failed to fetch wisdom entries: ${response.status} ${response.statusText}`,
-          response.status
+          response.status,
         );
       }
 
@@ -158,10 +158,7 @@ export const useWisdomStore = create<WisdomStore>((set, get) => ({
       const response = await fetchWithTimeout(`${API_BASE_URL}/api/v1/wisdom/categories`);
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to fetch categories: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to fetch categories: ${response.status}`, response.status);
       }
 
       const data: CategorySummary[] = await response.json();
@@ -204,10 +201,7 @@ export const useWisdomStore = create<WisdomStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to create wisdom entry: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to create wisdom entry: ${response.status}`, response.status);
       }
 
       const newEntry: WisdomEntry = await response.json();
@@ -248,7 +242,7 @@ export const useWisdomStore = create<WisdomStore>((set, get) => ({
   search: async (query: string, limit = 20) => {
     try {
       const response = await fetchWithTimeout(
-        `${API_BASE_URL}/api/v1/wisdom/search?q=${encodeURIComponent(query)}&limit=${limit}`
+        `${API_BASE_URL}/api/v1/wisdom/search?q=${encodeURIComponent(query)}&limit=${limit}`,
       );
 
       if (!response.ok) {

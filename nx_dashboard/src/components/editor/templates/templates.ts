@@ -9,7 +9,7 @@ const createAgentNode = (
   model: string,
   x: number,
   y: number,
-  prompt?: string
+  prompt?: string,
 ): Node<WorkflowNodeData> => ({
   id: generateId(),
   type: 'workflowNode',
@@ -30,7 +30,7 @@ const createStageNode = (
   name: string,
   x: number,
   y: number,
-  parallel: boolean = false
+  parallel: boolean = false,
 ): Node<WorkflowNodeData> => ({
   id: generateId(),
   type: 'workflowNode',
@@ -52,9 +52,7 @@ export const workflowTemplates: WorkflowTemplate[] = [
     name: '单智能体任务',
     description: '单个智能体执行任务',
     category: 'planning',
-    nodes: [
-      createAgentNode('planner', 'claude-opus-4-6', 400, 200),
-    ],
+    nodes: [createAgentNode('planner', 'claude-opus-4-6', 400, 200)],
     edges: [],
   },
   {
@@ -64,9 +62,27 @@ export const workflowTemplates: WorkflowTemplate[] = [
     category: 'development',
     nodes: [
       createStageNode('并行任务', 400, 100, true),
-      createAgentNode('developer', 'claude-sonnet-4-6', 250, 250, '你是一位开发工程师，负责编写代码。'),
-      createAgentNode('reviewer', 'claude-sonnet-4-6', 400, 250, '你是一位代码审查员，负责审查代码质量。'),
-      createAgentNode('tester', 'claude-sonnet-4-6', 550, 250, '你是一位测试工程师，负责编写和执行测试。'),
+      createAgentNode(
+        'developer',
+        'claude-sonnet-4-6',
+        250,
+        250,
+        '你是一位开发工程师，负责编写代码。',
+      ),
+      createAgentNode(
+        'reviewer',
+        'claude-sonnet-4-6',
+        400,
+        250,
+        '你是一位代码审查员，负责审查代码质量。',
+      ),
+      createAgentNode(
+        'tester',
+        'claude-sonnet-4-6',
+        550,
+        250,
+        '你是一位测试工程师，负责编写和执行测试。',
+      ),
     ],
     edges: [
       {
@@ -134,9 +150,27 @@ export const workflowTemplates: WorkflowTemplate[] = [
     category: 'planning',
     nodes: [
       createStageNode('头脑风暴', 400, 80, true),
-      createAgentNode('planner', 'claude-opus-4-6', 200, 200, '你是规划者，将问题拆解为可行动的步骤。'),
-      createAgentNode('researcher', 'claude-sonnet-4-6', 330, 200, '你是研究者，收集相关信息和背景知识。'),
-      createAgentNode('writer', 'claude-haiku-4-5', 460, 200, '你是写作者，将想法综合成清晰的方案。'),
+      createAgentNode(
+        'planner',
+        'claude-opus-4-6',
+        200,
+        200,
+        '你是规划者，将问题拆解为可行动的步骤。',
+      ),
+      createAgentNode(
+        'researcher',
+        'claude-sonnet-4-6',
+        330,
+        200,
+        '你是研究者，收集相关信息和背景知识。',
+      ),
+      createAgentNode(
+        'writer',
+        'claude-haiku-4-5',
+        460,
+        200,
+        '你是写作者，将想法综合成清晰的方案。',
+      ),
       createStageNode('审查', 400, 320, false),
     ],
     edges: [

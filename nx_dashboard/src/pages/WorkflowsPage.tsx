@@ -7,7 +7,24 @@ import { WorkflowLaunchModal } from '@/components/workflow/WorkflowLaunchModal';
 import { useExecutionStore } from '@/stores/executionStore';
 import { useSkillStore, type SkillSummary } from '@/stores/skillStore';
 import { useWorkspaceStore, onWorkspaceChange } from '@/stores/workspaceStore';
-import { Plus, Trash2, Play, Edit, X, Users, GitBranch, Clock, Sparkles, FileText, Wand2, Search, Eye, Palette, Bug, Code2 } from 'lucide-react';
+import {
+  Plus,
+  Trash2,
+  Play,
+  Edit,
+  X,
+  Users,
+  GitBranch,
+  Clock,
+  Sparkles,
+  FileText,
+  Wand2,
+  Search,
+  Eye,
+  Palette,
+  Bug,
+  Code2,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 import { showSuccess, showError } from '@/lib/toast';
@@ -30,14 +47,20 @@ const CATEGORY_ICONS: Record<WorkflowCategory, React.ReactNode> = {
   'ui-design': <Palette className="w-3.5 h-3.5" />,
 };
 
-const UI_DESIGN_NAMES = new Set(['style-extract', 'layout-extract', 'animation-extract', 'generate', 'codify-style', 'design-sync']);
+const UI_DESIGN_NAMES = new Set([
+  'style-extract',
+  'layout-extract',
+  'animation-extract',
+  'generate',
+  'codify-style',
+  'design-sync',
+]);
 
 function getWorkflowCategory(name: string): WorkflowCategory {
   if (name.startsWith('issue-')) return 'issue';
   if (UI_DESIGN_NAMES.has(name)) return 'ui-design';
   return 'dev';
 }
-
 
 function OperationGuide() {
   const [isVisible, setIsVisible] = useState(true);
@@ -105,8 +128,9 @@ function SkillSelectorModal({ isOpen, onClose, onSelect }: SkillSelectorModalPro
     }
   }, [isOpen, fetchSkills, fetchCategories]);
 
-  const filteredSkills = skills.filter(skill => {
-    const matchesSearch = !searchQuery ||
+  const filteredSkills = skills.filter((skill) => {
+    const matchesSearch =
+      !searchQuery ||
       skill.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       skill.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = !selectedCategory || skill.category === selectedCategory;
@@ -165,18 +189,22 @@ function SkillSelectorModal({ isOpen, onClose, onSelect }: SkillSelectorModalPro
             onClick={() => setSelectedCategory(null)}
             className={cn(
               'px-3 py-1 text-sm rounded-full whitespace-nowrap transition-colors',
-              !selectedCategory ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'
+              !selectedCategory
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted hover:bg-muted/80',
             )}
           >
             全部
           </button>
-          {categories.map(cat => (
+          {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
               className={cn(
                 'px-3 py-1 text-sm rounded-full whitespace-nowrap transition-colors',
-                selectedCategory === cat ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'
+                selectedCategory === cat
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted hover:bg-muted/80',
               )}
             >
               {cat.replace(/_/g, ' ')}
@@ -192,7 +220,7 @@ function SkillSelectorModal({ isOpen, onClose, onSelect }: SkillSelectorModalPro
             <div className="text-center py-8 text-muted-foreground">没有找到匹配的技能</div>
           ) : (
             <div className="grid gap-3">
-              {filteredSkills.map(skill => (
+              {filteredSkills.map((skill) => (
                 <button
                   key={skill.id}
                   onClick={() => handleGenerate(skill)}
@@ -200,7 +228,7 @@ function SkillSelectorModal({ isOpen, onClose, onSelect }: SkillSelectorModalPro
                   className={cn(
                     'p-4 rounded-xl border border-border/50 text-left transition-all',
                     'hover:border-primary/50 hover:bg-primary/5',
-                    'disabled:opacity-50 disabled:cursor-not-allowed'
+                    'disabled:opacity-50 disabled:cursor-not-allowed',
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -215,8 +243,11 @@ function SkillSelectorModal({ isOpen, onClose, onSelect }: SkillSelectorModalPro
                         {skill.description}
                       </p>
                       <div className="flex gap-2 mt-2">
-                        {skill.tags.slice(0, 3).map(tag => (
-                          <span key={tag} className="px-2 py-0.5 text-xs bg-indigo-500/10 text-indigo-600 rounded">
+                        {skill.tags.slice(0, 3).map((tag) => (
+                          <span
+                            key={tag}
+                            className="px-2 py-0.5 text-xs bg-indigo-500/10 text-indigo-600 rounded"
+                          >
                             {tag}
                           </span>
                         ))}
@@ -262,11 +293,14 @@ function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelP
   };
 
   const agentMap = new Map<string, Agent>();
-  workflow.agents?.forEach(agent => agentMap.set(agent.id, agent));
+  workflow.agents?.forEach((agent) => agentMap.set(agent.id, agent));
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-gradient-to-r from-black/20 to-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
       <div className="relative w-full max-w-lg bg-card rounded-l-2xl shadow-2xl border-l border-border/50 overflow-hidden flex flex-col animate-slide-in">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-gradient-to-r from-indigo-500/5 to-purple-500/5">
@@ -277,39 +311,24 @@ function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelP
           <div className="flex items-center gap-2">
             {isEditing ? (
               <>
-                <button
-                  onClick={handleSave}
-                  className="btn-primary text-sm py-1.5"
-                >
+                <button onClick={handleSave} className="btn-primary text-sm py-1.5">
                   保存
                 </button>
-                <button
-                  onClick={handleCancel}
-                  className="btn-secondary text-sm py-1.5"
-                >
+                <button onClick={handleCancel} className="btn-secondary text-sm py-1.5">
                   取消
                 </button>
               </>
             ) : (
               <>
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="btn-ghost text-sm gap-1.5"
-                >
+                <button onClick={() => setIsEditing(true)} className="btn-ghost text-sm gap-1.5">
                   <Edit className="w-3.5 h-3.5" /> 编辑
                 </button>
-                <button
-                  onClick={() => onEdit(workflow)}
-                  className="btn-primary text-sm py-1.5"
-                >
+                <button onClick={() => onEdit(workflow)} className="btn-primary text-sm py-1.5">
                   打开编辑器
                 </button>
               </>
             )}
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg hover:bg-accent transition-colors"
-            >
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-accent transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -363,7 +382,10 @@ function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelP
             </h4>
             <div className="space-y-3">
               {workflow.stages?.map((stage, index) => (
-                <div key={index} className="bg-gradient-to-r from-indigo-500/5 to-purple-500/5 rounded-xl p-4 border border-indigo-500/10">
+                <div
+                  key={index}
+                  className="bg-gradient-to-r from-indigo-500/5 to-purple-500/5 rounded-xl p-4 border border-indigo-500/10"
+                >
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{stage.name}</span>
                     {stage.parallel && (
@@ -396,10 +418,13 @@ function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelP
             <div className="space-y-3">
               {workflow.agents?.map((agent) => {
                 const dependsOnAgents = agent.depends_on
-                  .map(id => agentMap.get(id)?.role)
+                  .map((id) => agentMap.get(id)?.role)
                   .filter(Boolean);
                 return (
-                  <div key={agent.id} className="bg-gradient-to-r from-purple-500/5 to-pink-500/5 rounded-xl p-4 border border-purple-500/10">
+                  <div
+                    key={agent.id}
+                    className="bg-gradient-to-r from-purple-500/5 to-pink-500/5 rounded-xl p-4 border border-purple-500/10"
+                  >
                     <div className="flex items-center gap-2 mb-2">
                       <span className="font-semibold capitalize">{agent.role}</span>
                       <span className="px-2 py-0.5 text-xs bg-gradient-to-r from-indigo-500/10 to-purple-500/10 rounded-full border border-indigo-500/20 text-indigo-600">
@@ -413,7 +438,10 @@ function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelP
                       <div className="flex items-center gap-2 text-xs">
                         <span className="text-muted-foreground">依赖:</span>
                         {dependsOnAgents.map((role, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-card rounded border border-border">
+                          <span
+                            key={i}
+                            className="px-2 py-0.5 bg-card rounded border border-border"
+                          >
                             {role}
                           </span>
                         ))}
@@ -429,11 +457,21 @@ function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelP
           <div className="pt-4 border-t border-border/50">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Clock className="w-3.5 h-3.5" />
-              <span>创建: {workflow.created_at ? new Date(workflow.created_at).toLocaleString('zh-CN') : '未知'}</span>
+              <span>
+                创建:{' '}
+                {workflow.created_at
+                  ? new Date(workflow.created_at).toLocaleString('zh-CN')
+                  : '未知'}
+              </span>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
               <Clock className="w-3.5 h-3.5" />
-              <span>更新: {workflow.updated_at ? new Date(workflow.updated_at).toLocaleString('zh-CN') : '未知'}</span>
+              <span>
+                更新:{' '}
+                {workflow.updated_at
+                  ? new Date(workflow.updated_at).toLocaleString('zh-CN')
+                  : '未知'}
+              </span>
             </div>
           </div>
         </div>
@@ -450,7 +488,15 @@ const SAMPLE_WORKFLOWS: Workflow[] = [
     version: '1.0',
     description: '单智能体任务执行',
     stages: [{ name: '规划', agents: ['planner'], parallel: false }],
-    agents: [{ id: 'a1', role: 'planner', model: 'claude-opus-4-6', prompt: 'You are a helpful planner.', depends_on: [] }],
+    agents: [
+      {
+        id: 'a1',
+        role: 'planner',
+        model: 'claude-opus-4-6',
+        prompt: 'You are a helpful planner.',
+        depends_on: [],
+      },
+    ],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -461,9 +507,27 @@ const SAMPLE_WORKFLOWS: Workflow[] = [
     description: '多智能体并行执行',
     stages: [{ name: '并行任务', agents: ['dev', 'reviewer', 'tester'], parallel: true }],
     agents: [
-      { id: 'a1', role: 'developer', model: 'claude-sonnet-4-6', prompt: 'You are a developer.', depends_on: [] },
-      { id: 'a2', role: 'reviewer', model: 'claude-sonnet-4-6', prompt: 'You are a reviewer.', depends_on: [] },
-      { id: 'a3', role: 'tester', model: 'claude-sonnet-4-6', prompt: 'You are a tester.', depends_on: [] },
+      {
+        id: 'a1',
+        role: 'developer',
+        model: 'claude-sonnet-4-6',
+        prompt: 'You are a developer.',
+        depends_on: [],
+      },
+      {
+        id: 'a2',
+        role: 'reviewer',
+        model: 'claude-sonnet-4-6',
+        prompt: 'You are a reviewer.',
+        depends_on: [],
+      },
+      {
+        id: 'a3',
+        role: 'tester',
+        model: 'claude-sonnet-4-6',
+        prompt: 'You are a tester.',
+        depends_on: [],
+      },
     ],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -479,9 +543,27 @@ const SAMPLE_WORKFLOWS: Workflow[] = [
       { name: '审查', agents: ['reviewer'], parallel: false },
     ],
     agents: [
-      { id: 'a1', role: 'tester', model: 'claude-haiku-4-5', prompt: 'Write a failing test.', depends_on: [] },
-      { id: 'a2', role: 'developer', model: 'claude-opus-4-6', prompt: 'Implement the feature.', depends_on: ['a1'] },
-      { id: 'a3', role: 'reviewer', model: 'claude-sonnet-4-6', prompt: 'Review the code.', depends_on: ['a2'] },
+      {
+        id: 'a1',
+        role: 'tester',
+        model: 'claude-haiku-4-5',
+        prompt: 'Write a failing test.',
+        depends_on: [],
+      },
+      {
+        id: 'a2',
+        role: 'developer',
+        model: 'claude-opus-4-6',
+        prompt: 'Implement the feature.',
+        depends_on: ['a1'],
+      },
+      {
+        id: 'a3',
+        role: 'reviewer',
+        model: 'claude-sonnet-4-6',
+        prompt: 'Review the code.',
+        depends_on: ['a2'],
+      },
     ],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -510,7 +592,9 @@ export function WorkflowsPage() {
     const unsubscribe = onWorkspaceChange(() => {
       refetch();
     });
-    return () => { unsubscribe(); };
+    return () => {
+      unsubscribe();
+    };
   }, [refetch]);
 
   useEffect(() => {
@@ -617,10 +701,7 @@ export function WorkflowsPage() {
           <p className="text-muted-foreground mt-1">管理您的工作流和智能体编排</p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowSkillModal(true)}
-            className="btn-secondary"
-          >
+          <button onClick={() => setShowSkillModal(true)} className="btn-secondary">
             <Wand2 className="w-4 h-4" />
             从技能创建
           </button>
@@ -635,8 +716,11 @@ export function WorkflowsPage() {
 
       {/* 分类 Tab */}
       <div className="flex items-center gap-2 flex-wrap">
-        {(['all', 'dev', 'issue', 'ui-design'] as WorkflowCategory[]).map(cat => {
-          const count = cat === 'all' ? displayWorkflows.length : displayWorkflows.filter(w => getWorkflowCategory(w.name) === cat).length;
+        {(['all', 'dev', 'issue', 'ui-design'] as WorkflowCategory[]).map((cat) => {
+          const count =
+            cat === 'all'
+              ? displayWorkflows.length
+              : displayWorkflows.filter((w) => getWorkflowCategory(w.name) === cat).length;
           return (
             <button
               key={cat}
@@ -645,23 +729,38 @@ export function WorkflowsPage() {
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all border',
                 activeCategory === cat
                   ? 'bg-primary/10 text-primary border-primary/30 shadow-sm'
-                  : 'border-border/50 hover:bg-accent text-muted-foreground'
+                  : 'border-border/50 hover:bg-accent text-muted-foreground',
               )}
             >
               {CATEGORY_ICONS[cat]}
               {CATEGORY_LABELS[cat]}
-              <span className={cn('ml-0.5 text-xs px-1.5 py-0.5 rounded-full', activeCategory === cat ? 'bg-primary/20' : 'bg-muted')}>{count}</span>
+              <span
+                className={cn(
+                  'ml-0.5 text-xs px-1.5 py-0.5 rounded-full',
+                  activeCategory === cat ? 'bg-primary/20' : 'bg-muted',
+                )}
+              >
+                {count}
+              </span>
             </button>
           );
         })}
         {activeCategory === 'issue' && (
-          <button onClick={() => navigate('/tasks')} className="ml-auto flex items-center gap-1.5 text-xs text-indigo-600 hover:underline">
-            <Bug className="w-3.5 h-3.5" />前往 Issue 管理页
+          <button
+            onClick={() => navigate('/tasks')}
+            className="ml-auto flex items-center gap-1.5 text-xs text-indigo-600 hover:underline"
+          >
+            <Bug className="w-3.5 h-3.5" />
+            前往 Issue 管理页
           </button>
         )}
         {activeCategory === 'ui-design' && (
-          <button onClick={() => navigate('/ui-design')} className="ml-auto flex items-center gap-1.5 text-xs text-blue-600 hover:underline">
-            <Palette className="w-3.5 h-3.5" />前往 UI 设计工作台
+          <button
+            onClick={() => navigate('/ui-design')}
+            className="ml-auto flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
+          >
+            <Palette className="w-3.5 h-3.5" />
+            前往 UI 设计工作台
           </button>
         )}
       </div>
@@ -680,122 +779,131 @@ export function WorkflowsPage() {
         </div>
       ) : (
         <div className="grid gap-4 stagger-children">
-          {displayWorkflows.filter(w => activeCategory === 'all' || getWorkflowCategory(w.name) === activeCategory).map((workflow) => (
-            <div
-              key={workflow.id}
-              className={cn(
-                'bg-card rounded-2xl border border-border/50 p-5',
-                'hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20',
-                'transition-all duration-200 cursor-pointer group',
-                'hover:-translate-y-0.5'
-              )}
-              onClick={(e) => handleCardClick(workflow, e)}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-semibold text-lg group-hover:text-indigo-600 transition-colors">
-                      {workflow.name}
-                    </h3>
-                    <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 text-xs font-medium">
-                      v{workflow.version}
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    {workflow.description || '无描述'}
-                  </p>
+          {displayWorkflows
+            .filter(
+              (w) => activeCategory === 'all' || getWorkflowCategory(w.name) === activeCategory,
+            )
+            .map((workflow) => (
+              <div
+                key={workflow.id}
+                className={cn(
+                  'bg-card rounded-2xl border border-border/50 p-5',
+                  'hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20',
+                  'transition-all duration-200 cursor-pointer group',
+                  'hover:-translate-y-0.5',
+                )}
+                onClick={(e) => handleCardClick(workflow, e)}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="font-semibold text-lg group-hover:text-indigo-600 transition-colors">
+                        {workflow.name}
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 text-xs font-medium">
+                        v{workflow.version}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      {workflow.description || '无描述'}
+                    </p>
 
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gradient-to-r from-indigo-500/10 to-purple-500/10 text-xs font-medium text-indigo-600 border border-indigo-500/20">
-                      <GitBranch className="w-3 h-3" />
-                      {workflow.stage_count ?? workflow.stages?.length ?? 0} 阶段
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10 text-xs font-medium text-purple-600 border border-purple-500/20">
-                      <Users className="w-3 h-3" />
-                      {workflow.agent_count ?? workflow.agents?.length ?? 0} 智能体
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Clock className="w-3 h-3" />
-                      {workflow.updated_at ? new Date(workflow.updated_at).toLocaleString('zh-CN', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      }) : '未知'}
-                    </span>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gradient-to-r from-indigo-500/10 to-purple-500/10 text-xs font-medium text-indigo-600 border border-indigo-500/20">
+                        <GitBranch className="w-3 h-3" />
+                        {workflow.stage_count ?? workflow.stages?.length ?? 0} 阶段
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10 text-xs font-medium text-purple-600 border border-purple-500/20">
+                        <Users className="w-3 h-3" />
+                        {workflow.agent_count ?? workflow.agents?.length ?? 0} 智能体
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Clock className="w-3 h-3" />
+                        {workflow.updated_at
+                          ? new Date(workflow.updated_at).toLocaleString('zh-CN', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '未知'}
+                      </span>
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={(e) => handleShowTutorial(workflow, e)}
-                    disabled={tutorialLoading === workflow.id}
-                    className={cn(
-                      'p-2.5 rounded-xl transition-all duration-200',
-                      'bg-gradient-to-r from-sky-500 to-blue-500',
-                      'text-white shadow-lg shadow-sky-500/25',
-                      'hover:shadow-sky-500/40 hover:-translate-y-0.5 active:translate-y-0'
-                    )}
-                    title="查看使用教程"
+                  <div
+                    className="flex items-center gap-2 ml-4"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    {tutorialLoading === workflow.id ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                  <button
-                    onClick={(e) => handleExecute(workflow, e)}
-                    disabled={executingIds.has(workflow.id)}
-                    className={cn(
-                      'p-2.5 rounded-xl transition-all duration-200',
-                      executingIds.has(workflow.id)
-                        ? 'bg-gray-400 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-emerald-500 to-green-500 hover:shadow-emerald-500/40 hover:-translate-y-0.5 active:translate-y-0',
-                      'text-white shadow-lg shadow-emerald-500/25'
-                    )}
-                    title="执行"
-                  >
-                    {executingIds.has(workflow.id) ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Play className="w-4 h-4" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleEdit(workflow)}
-                    className={cn(
-                      'p-2.5 rounded-xl transition-all duration-200',
-                      'bg-gradient-to-r from-indigo-500 to-purple-500',
-                      'text-white shadow-lg shadow-indigo-500/25',
-                      'hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0'
-                    )}
-                    title="编辑"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button
-                    className={cn(
-                      'p-2.5 rounded-xl transition-all duration-200',
-                      'hover:bg-red-500/10 text-muted-foreground hover:text-red-500',
-                      'hover:-translate-y-0.5'
-                    )}
-                    title="删除"
-                    onClick={() => {
-                      showConfirm(
-                        '删除工作流',
-                        `确定删除工作流 "${workflow.name}"？`,
-                        () => deleteWorkflow(workflow.id),
-                        'danger'
-                      );
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                    <button
+                      onClick={(e) => handleShowTutorial(workflow, e)}
+                      disabled={tutorialLoading === workflow.id}
+                      className={cn(
+                        'p-2.5 rounded-xl transition-all duration-200',
+                        'bg-gradient-to-r from-sky-500 to-blue-500',
+                        'text-white shadow-lg shadow-sky-500/25',
+                        'hover:shadow-sky-500/40 hover:-translate-y-0.5 active:translate-y-0',
+                      )}
+                      title="查看使用教程"
+                    >
+                      {tutorialLoading === workflow.id ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                    <button
+                      onClick={(e) => handleExecute(workflow, e)}
+                      disabled={executingIds.has(workflow.id)}
+                      className={cn(
+                        'p-2.5 rounded-xl transition-all duration-200',
+                        executingIds.has(workflow.id)
+                          ? 'bg-gray-400 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-emerald-500 to-green-500 hover:shadow-emerald-500/40 hover:-translate-y-0.5 active:translate-y-0',
+                        'text-white shadow-lg shadow-emerald-500/25',
+                      )}
+                      title="执行"
+                    >
+                      {executingIds.has(workflow.id) ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Play className="w-4 h-4" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleEdit(workflow)}
+                      className={cn(
+                        'p-2.5 rounded-xl transition-all duration-200',
+                        'bg-gradient-to-r from-indigo-500 to-purple-500',
+                        'text-white shadow-lg shadow-indigo-500/25',
+                        'hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0',
+                      )}
+                      title="编辑"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      className={cn(
+                        'p-2.5 rounded-xl transition-all duration-200',
+                        'hover:bg-red-500/10 text-muted-foreground hover:text-red-500',
+                        'hover:-translate-y-0.5',
+                      )}
+                      title="删除"
+                      onClick={() => {
+                        showConfirm(
+                          '删除工作流',
+                          `确定删除工作流 "${workflow.name}"？`,
+                          () => deleteWorkflow(workflow.id),
+                          'danger',
+                        );
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
         </div>
       )}
 
@@ -840,10 +948,7 @@ export function WorkflowsPage() {
       )}
 
       {launchWorkflow && (
-        <WorkflowLaunchModal
-          workflow={launchWorkflow}
-          onClose={() => setLaunchWorkflow(null)}
-        />
+        <WorkflowLaunchModal workflow={launchWorkflow} onClose={() => setLaunchWorkflow(null)} />
       )}
     </div>
   );

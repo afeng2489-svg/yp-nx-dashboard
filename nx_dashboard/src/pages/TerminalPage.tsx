@@ -3,9 +3,21 @@ import { Allotment } from 'allotment';
 import { TerminalGrid } from '@/components/terminal';
 import { ExecutionMonitor } from '@/components/execution';
 import { FileSidebar } from '@/components/explorer';
-import { useTerminalStore, initWindowSync, requestSync, type TerminalState } from '@/stores/terminalStore';
+import {
+  useTerminalStore,
+  initWindowSync,
+  requestSync,
+  type TerminalState,
+} from '@/stores/terminalStore';
 import { useUIStore } from '@/stores/uiStore';
-import { Maximize2, Minimize2, PanelLeftClose, PanelLeft, ExternalLink, RefreshCw } from 'lucide-react';
+import {
+  Maximize2,
+  Minimize2,
+  PanelLeftClose,
+  PanelLeft,
+  ExternalLink,
+  RefreshCw,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type ViewMode = 'split' | 'terminal' | 'monitor';
@@ -15,7 +27,17 @@ const SYNC_CHANNEL_NAME = 'nexusflow-terminal-sync';
 
 // 同步消息类型
 interface SyncMessage {
-  type: 'ping' | 'pong' | 'new_window_opened' | 'sync_request' | 'sync_response' | 'tab_updated' | 'active_tab_changed' | 'layout_changed' | 'fullscreen_changed' | 'terminal_output';
+  type:
+    | 'ping'
+    | 'pong'
+    | 'new_window_opened'
+    | 'sync_request'
+    | 'sync_response'
+    | 'tab_updated'
+    | 'active_tab_changed'
+    | 'layout_changed'
+    | 'fullscreen_changed'
+    | 'terminal_output';
   windowId?: string;
   payload?: unknown;
 }
@@ -31,17 +53,23 @@ function useWindowSync() {
   otherWindowsRef.current = otherWindows;
 
   // 处理同步状态变化
-  const handleSyncStateChange = useCallback((state: Partial<TerminalState>) => {
-    // 只更新来自其他窗口的状态
-    setIsSyncing(true);
-    store.syncState(state);
-    setTimeout(() => setIsSyncing(false), 100);
-  }, [store]);
+  const handleSyncStateChange = useCallback(
+    (state: Partial<TerminalState>) => {
+      // 只更新来自其他窗口的状态
+      setIsSyncing(true);
+      store.syncState(state);
+      setTimeout(() => setIsSyncing(false), 100);
+    },
+    [store],
+  );
 
   // 处理终端输出（来自其他窗口，不重新广播）
-  const handleOutputReceive = useCallback((terminalId: string, output: string) => {
-    store.receiveLog(terminalId, output);
-  }, [store]);
+  const handleOutputReceive = useCallback(
+    (terminalId: string, output: string) => {
+      store.receiveLog(terminalId, output);
+    },
+    [store],
+  );
 
   useEffect(() => {
     // 初始化同步系统
@@ -168,9 +196,7 @@ export function TerminalPage() {
               onClick={() => setViewMode('split')}
               className={cn(
                 'px-3 py-1 rounded text-sm transition-colors',
-                viewMode === 'split'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-accent/80'
+                viewMode === 'split' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent/80',
               )}
             >
               分屏
@@ -181,7 +207,7 @@ export function TerminalPage() {
                 'px-3 py-1 rounded text-sm transition-colors',
                 viewMode === 'terminal'
                   ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-accent/80'
+                  : 'hover:bg-accent/80',
               )}
             >
               终端
@@ -192,7 +218,7 @@ export function TerminalPage() {
                 'px-3 py-1 rounded text-sm transition-colors',
                 viewMode === 'monitor'
                   ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-accent/80'
+                  : 'hover:bg-accent/80',
               )}
             >
               监控

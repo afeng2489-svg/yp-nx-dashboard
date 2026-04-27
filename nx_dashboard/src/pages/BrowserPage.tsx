@@ -122,7 +122,7 @@ export function BrowserPage() {
         }
       }
     },
-    [getGeometry]
+    [getGeometry],
   );
 
   // Initial mount: create webview with default URL
@@ -150,10 +150,10 @@ export function BrowserPage() {
           const { LogicalPosition, LogicalSize } = await import('@tauri-apps/api/dpi');
           const { x, y, w, h } = await getGeometry();
           await (wv as unknown as { setPosition: (p: unknown) => Promise<void> }).setPosition(
-            new LogicalPosition(x, y)
+            new LogicalPosition(x, y),
           );
           await (wv as unknown as { setSize: (s: unknown) => Promise<void> }).setSize(
-            new LogicalSize(w, h)
+            new LogicalSize(w, h),
           );
         } catch {
           // ignore
@@ -197,7 +197,7 @@ export function BrowserPage() {
       // Close and recreate webview with new URL
       openWebview(normalized);
     },
-    [openWebview]
+    [openWebview],
   );
 
   const goBack = useCallback(() => {
@@ -316,7 +316,7 @@ export function BrowserPage() {
             onClick={toggleBookmark}
             className={cn(
               'p-1.5 rounded-lg hover:bg-accent transition-colors',
-              isBookmarked && 'text-yellow-500'
+              isBookmarked && 'text-yellow-500',
             )}
             title={isBookmarked ? '移除书签' : '添加书签'}
           >
@@ -368,9 +368,7 @@ export function BrowserPage() {
         {!isTauri && (
           <div className="flex flex-col items-center justify-center h-full text-center gap-4">
             <Globe className="w-16 h-16 text-muted-foreground/30" />
-            <p className="text-sm text-muted-foreground">
-              浏览器功能仅在桌面应用中可用
-            </p>
+            <p className="text-sm text-muted-foreground">浏览器功能仅在桌面应用中可用</p>
           </div>
         )}
         {isTauri && error && (

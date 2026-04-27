@@ -65,7 +65,12 @@ interface EditorStore {
   setCommandPaletteOpen: (open: boolean) => void;
   setWorkflowName: (name: string) => void;
   loadTemplate: (template: { nodes: Node<NodeData>[]; edges: Edge[] }) => void;
-  loadWorkflow: (workflow: { id: string; name: string; stages?: { name: string; agents: string[]; parallel: boolean }[]; agents?: { id: string; role: string; model: string; prompt: string; depends_on: string[] }[] }) => void;
+  loadWorkflow: (workflow: {
+    id: string;
+    name: string;
+    stages?: { name: string; agents: string[]; parallel: boolean }[];
+    agents?: { id: string; role: string; model: string; prompt: string; depends_on: string[] }[];
+  }) => void;
   clearCanvas: () => void;
   exportWorkflow: () => { nodes: Node<NodeData>[]; edges: Edge[]; name: string; id?: string };
 }
@@ -152,7 +157,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           animated: true,
           style: { stroke: 'hsl(var(--primary))' },
         },
-        state.edges
+        state.edges,
       ),
       isDirty: true,
     }));
@@ -178,9 +183,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   updateNodeData: (nodeId, data) => {
     set((state) => ({
       nodes: state.nodes.map((node) =>
-        node.id === nodeId
-          ? { ...node, data: { ...node.data, ...data } }
-          : node
+        node.id === nodeId ? { ...node, data: { ...node.data, ...data } } : node,
       ),
       isDirty: true,
     }));
@@ -189,9 +192,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   deleteNode: (nodeId) => {
     set((state) => ({
       nodes: state.nodes.filter((node) => node.id !== nodeId),
-      edges: state.edges.filter(
-        (edge) => edge.source !== nodeId && edge.target !== nodeId
-      ),
+      edges: state.edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
       selectedNodeId: state.selectedNodeId === nodeId ? null : state.selectedNodeId,
       isDirty: true,
     }));
@@ -246,7 +247,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
         // Create agent nodes for this stage
         stage.agents.forEach((agentRole, agentIndex) => {
-          const agent = workflow.agents?.find(a => a.role === agentRole);
+          const agent = workflow.agents?.find((a) => a.role === agentRole);
           if (agent) {
             const agentNodeId = agent.id;
             agentIdToNodeId[agent.id] = agentNodeId;
@@ -279,8 +280,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       });
 
       // Create dependency edges
-      workflow.agents.forEach(agent => {
-        agent.depends_on.forEach(depId => {
+      workflow.agents.forEach((agent) => {
+        agent.depends_on.forEach((depId) => {
           const depNodeId = agentIdToNodeId[depId];
           const agentNodeId = agentIdToNodeId[agent.id];
           if (depNodeId && agentNodeId) {

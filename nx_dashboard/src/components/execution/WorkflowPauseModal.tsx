@@ -42,7 +42,7 @@ export function WorkflowPauseModal({ pause, onResume, onDismiss }: WorkflowPause
             className={cn(
               'w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-left text-sm',
               'border-border/50 bg-card hover:border-amber-500/40 hover:bg-amber-500/5',
-              'transition-all duration-150 group'
+              'transition-all duration-150 group',
             )}
           >
             <span className="font-medium group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors">

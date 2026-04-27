@@ -58,10 +58,7 @@ export function ConfirmModal({
               <h3 className="text-lg font-semibold mb-2">{title}</h3>
               <p className="text-sm text-muted-foreground">{message}</p>
             </div>
-            <button
-              onClick={onCancel}
-              className="p-2 rounded-lg hover:bg-accent transition-colors"
-            >
+            <button onClick={onCancel} className="p-2 rounded-lg hover:bg-accent transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -70,7 +67,10 @@ export function ConfirmModal({
           <button onClick={onCancel} className="btn-secondary">
             {cancelText}
           </button>
-          <button onClick={onConfirm} className={cn('px-4 py-2 rounded-lg font-medium transition-colors', styles.confirmBtn)}>
+          <button
+            onClick={onConfirm}
+            className={cn('px-4 py-2 rounded-lg font-medium transition-colors', styles.confirmBtn)}
+          >
             {confirmText}
           </button>
         </div>
@@ -98,7 +98,7 @@ export function useConfirmModal() {
     title: string,
     message: string,
     onConfirm: () => void,
-    variant: 'danger' | 'warning' | 'info' = 'danger'
+    variant: 'danger' | 'warning' | 'info' = 'danger',
   ) => {
     setConfirmState({ isOpen: true, title, message, onConfirm, variant });
   };

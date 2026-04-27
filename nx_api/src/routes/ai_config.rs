@@ -1935,3 +1935,60 @@ pub async fn get_current_workspace(
         path: current.clone(),
     }))
 }
+
+/// Claude CLI 真实使用的模型信息（从 ~/.claude/settings.json 读取）
+#[derive(Debug, serde::Serialize)]
+pub struct ClaudeCliModelResponse {
+    /// Sonnet 层模型（主模型）
+    pub sonnet_model: String,
+    /// Haiku 层模型
+    pub haiku_model: String,
+    /// Opus 层模型
+    pub opus_model: String,
+    /// API 代理地址
+    pub base_url: Option<String>,
+}
+
+/// 获取 Claude Code CLI 实际使用的模型
+pub async fn get_claude_cli_model() -> Json<ClaudeCliModelResponse> {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
+    let settings_path = std::path::Path::new(&home).join(".claude/settings.json");
+
+    let (sonnet, haiku, opus, base_url) = if settings_path.exists() {
+        match std::fs::read_to_string(&settings_path) {
+            Ok(content) => {
+                let json: serde_json::Value = serde_json::from_str(&content).unwrap_or(serde_json::json!({}));
+                let env = json.get("env").cloned().unwrap_or(serde_json::json!({}));
+                let sonnet = env.get("ANTHROPIC_DEFAULT_SONNET_MODEL")
+                    .and_then(|v| v.as_str()).unwrap_or("claude-sonnet-4-5").to_string();
+                let haiku = env.get("ANTHROPIC_DEFAULT_HAIKU_MODEL")
+                    .and_then(|v| v.as_str()).unwrap_or("claude-haiku-4-5").to_string();
+                let opus = env.get("ANTHROPIC_DEFAULT_OPUS_MODEL")
+                    .and_then(|v| v.as_str()).unwrap_or("claude-opus-4-5").to_string();
+                let base_url = env.get("ANTHROPIC_BASE_URL")
+                    .and_then(|v| v.as_str()).map(|s| s.to_string());
+                (sonnet, haiku, opus, base_url)
+            }
+            Err(_) => (
+                "claude-sonnet-4-5".to_string(),
+                "claude-haiku-4-5".to_string(),
+                "claude-opus-4-5".to_string(),
+                None,
+            ),
+        }
+    } else {
+        (
+            "claude-sonnet-4-5".to_string(),
+            "claude-haiku-4-5".to_string(),
+            "claude-opus-4-5".to_string(),
+            None,
+        )
+    };
+
+    Json(ClaudeCliModelResponse {
+        sonnet_model: sonnet,
+        haiku_model: haiku,
+        opus_model: opus,
+        base_url,
+    })
+}

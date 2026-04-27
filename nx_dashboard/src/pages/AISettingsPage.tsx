@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useAIConfigStore, ClaudeSwitchBackendInfo, ClaudeSwitchBackendConfig } from '@/stores/aiConfigStore';
+import {
+  useAIConfigStore,
+  ClaudeSwitchBackendInfo,
+  ClaudeSwitchBackendConfig,
+} from '@/stores/aiConfigStore';
 import { AddModelMappingRequest, api } from '@/api/client';
 import { ProviderGrid } from '@/components/provider/ProviderGrid';
 import { showSuccess, showError } from '@/lib/toast';
@@ -7,11 +11,36 @@ import { Loader2, Plus, Check, X, Bot, ArrowRightLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const CLAUDE_SWITCH_BACKENDS = [
-  { id: 'minimax', name: 'MiniMax', defaultModel: 'MiniMax-M2.7', baseUrl: 'https://api.minimax.chat/v1' },
-  { id: 'openai', name: 'OpenAI', defaultModel: 'gpt-4-turbo', baseUrl: 'https://api.openai.com/v1' },
-  { id: 'deepseek', name: 'DeepSeek', defaultModel: 'deepseek-chat', baseUrl: 'https://api.deepseek.com/v1' },
-  { id: 'zhipu', name: 'Zhipu (智谱)', defaultModel: 'glm-4', baseUrl: 'https://open.bigmodel.cn/api/paas/v1' },
-  { id: 'ollama', name: 'Ollama (本地)', defaultModel: 'llama2', baseUrl: 'http://localhost:11434' },
+  {
+    id: 'minimax',
+    name: 'MiniMax',
+    defaultModel: 'MiniMax-M2.7',
+    baseUrl: 'https://api.minimax.chat/v1',
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    defaultModel: 'gpt-4-turbo',
+    baseUrl: 'https://api.openai.com/v1',
+  },
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    defaultModel: 'deepseek-chat',
+    baseUrl: 'https://api.deepseek.com/v1',
+  },
+  {
+    id: 'zhipu',
+    name: 'Zhipu (智谱)',
+    defaultModel: 'glm-4',
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v1',
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama (本地)',
+    defaultModel: 'llama2',
+    baseUrl: 'http://localhost:11434',
+  },
 ];
 
 function ClaudeSwitchSection() {
@@ -79,7 +108,11 @@ function ClaudeSwitchSection() {
     }
     setTestingBackend(newBackend.backend);
     try {
-      const result = await api.testClaudeSwitchBackend(newBackend.backend, newBackend.api_key, newBackend.model);
+      const result = await api.testClaudeSwitchBackend(
+        newBackend.backend,
+        newBackend.api_key,
+        newBackend.model,
+      );
       if (result.success) {
         showSuccess('连接测试成功');
       } else {
@@ -98,18 +131,20 @@ function ClaudeSwitchSection() {
       return;
     }
     try {
-      await api.configureClaudeSwitch(backends.map(b => ({
-        backend: b.backend,
-        api_key: '', // Will use existing
-        model: b.model,
-      })));
+      await api.configureClaudeSwitch(
+        backends.map((b) => ({
+          backend: b.backend,
+          api_key: '', // Will use existing
+          model: b.model,
+        })),
+      );
       showSuccess('Claude Switch 配置成功');
     } catch (e) {
       showError('配置失败');
     }
   };
 
-  const selectedBackendInfo = CLAUDE_SWITCH_BACKENDS.find(b => b.id === newBackend.backend);
+  const selectedBackendInfo = CLAUDE_SWITCH_BACKENDS.find((b) => b.id === newBackend.backend);
 
   return (
     <div className="bg-card rounded-xl border border-border/50 p-6">
@@ -155,7 +190,7 @@ function ClaudeSwitchSection() {
                       'p-3 rounded-lg border transition-all text-left',
                       backend.is_active
                         ? 'border-primary bg-primary/10 ring-1 ring-primary/50'
-                        : 'border-border hover:border-primary/50 hover:bg-accent'
+                        : 'border-border hover:border-primary/50 hover:bg-accent',
                     )}
                   >
                     <div className="flex items-center justify-between">
@@ -177,16 +212,23 @@ function ClaudeSwitchSection() {
                 <label className="text-xs text-muted-foreground block mb-1">后端类型</label>
                 <select
                   value={newBackend.backend}
-                  onChange={(e) => setNewBackend({
-                    ...newBackend,
-                    backend: e.target.value,
-                    model: CLAUDE_SWITCH_BACKENDS.find(b => b.id === e.target.value)?.defaultModel || '',
-                    base_url: CLAUDE_SWITCH_BACKENDS.find(b => b.id === e.target.value)?.baseUrl,
-                  })}
+                  onChange={(e) =>
+                    setNewBackend({
+                      ...newBackend,
+                      backend: e.target.value,
+                      model:
+                        CLAUDE_SWITCH_BACKENDS.find((b) => b.id === e.target.value)?.defaultModel ||
+                        '',
+                      base_url: CLAUDE_SWITCH_BACKENDS.find((b) => b.id === e.target.value)
+                        ?.baseUrl,
+                    })
+                  }
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
                 >
                   {CLAUDE_SWITCH_BACKENDS.map((b) => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -248,10 +290,7 @@ function ClaudeSwitchSection() {
 
           {/* Configure Button */}
           {backends.length > 0 && (
-            <button
-              onClick={handleConfigure}
-              className="btn-secondary w-full mt-4"
-            >
+            <button onClick={handleConfigure} className="btn-secondary w-full mt-4">
               保存 Claude Switch 配置
             </button>
           )}
@@ -295,16 +334,17 @@ export function AISettingsPage() {
 
   const currentMappings = selectedProvider ? mappings[selectedProvider.id] || [] : [];
 
-  const handleAddMapping = async (providerId: string, mapping: { mapping_type: string; model_id: string; display_name?: string }) => {
+  const handleAddMapping = async (
+    providerId: string,
+    mapping: { mapping_type: string; model_id: string; display_name?: string },
+  ) => {
     await addMapping(providerId, mapping as AddModelMappingRequest);
   };
 
   return (
     <div className="page-container">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">
-          AI 提供商
-        </h1>
+        <h1 className="text-2xl font-bold tracking-tight">AI 提供商</h1>
         <p className="text-sm text-muted-foreground mt-1">
           管理 AI 服务提供商，配置 API 密钥和模型映射
         </p>

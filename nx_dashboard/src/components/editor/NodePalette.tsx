@@ -31,19 +31,14 @@ const paletteItems: PaletteItem[] = [
 ];
 
 export function NodePalette() {
-  const handleDragStart = (
-    event: React.DragEvent,
-    nodeType: NodeType
-  ) => {
+  const handleDragStart = (event: React.DragEvent, nodeType: NodeType) => {
     event.dataTransfer.setData('application/reactflow', nodeType);
     event.dataTransfer.effectAllowed = 'move';
   };
 
   return (
     <div className="w-64 bg-card border border-border rounded-lg shadow-md p-4">
-      <h3 className="font-semibold text-sm mb-3 text-foreground">
-        节点面板
-      </h3>
+      <h3 className="font-semibold text-sm mb-3 text-foreground">节点面板</h3>
       <div className="space-y-2">
         {paletteItems.map((item) => {
           const color = NODE_COLORS[item.type];
@@ -67,9 +62,7 @@ export function NodePalette() {
                 <span className="text-lg">{icon}</span>
                 <div className="flex flex-col">
                   <span className="font-medium text-sm">{item.label}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {item.description}
-                  </span>
+                  <span className="text-xs text-muted-foreground">{item.description}</span>
                 </div>
               </div>
             </div>

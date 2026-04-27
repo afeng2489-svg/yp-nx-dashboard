@@ -1,7 +1,13 @@
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
 
-export type IssueStatus = 'discovered' | 'planned' | 'queued' | 'executing' | 'completed' | 'failed';
+export type IssueStatus =
+  | 'discovered'
+  | 'planned'
+  | 'queued'
+  | 'executing'
+  | 'completed'
+  | 'failed';
 export type IssuePriority = 'critical' | 'high' | 'medium' | 'low';
 
 export interface Issue {

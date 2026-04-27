@@ -17,17 +17,15 @@ interface CommandPaletteProps {
 }
 
 export function CommandPalette({ templates }: CommandPaletteProps) {
-  const {
-    isCommandPaletteOpen,
-    setCommandPaletteOpen,
-    addNode,
-    clearCanvas,
-    loadTemplate,
-  } = useEditorStore();
+  const { isCommandPaletteOpen, setCommandPaletteOpen, addNode, clearCanvas, loadTemplate } =
+    useEditorStore();
 
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [position, setPosition] = useState({ x: window.innerWidth / 2 - 288, y: window.innerHeight / 4 });
+  const [position, setPosition] = useState({
+    x: window.innerWidth / 2 - 288,
+    y: window.innerHeight / 4,
+  });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isVisible, setIsVisible] = useState(true);
@@ -109,7 +107,7 @@ export function CommandPalette({ templates }: CommandPaletteProps) {
         category: 'template' as const,
       })),
     ],
-    [templates, addNode, clearCanvas, loadTemplate]
+    [templates, addNode, clearCanvas, loadTemplate],
   );
 
   const filteredCommands = useMemo(() => {
@@ -117,8 +115,7 @@ export function CommandPalette({ templates }: CommandPaletteProps) {
     const lower = query.toLowerCase();
     return commands.filter(
       (cmd) =>
-        cmd.label.toLowerCase().includes(lower) ||
-        cmd.description?.toLowerCase().includes(lower)
+        cmd.label.toLowerCase().includes(lower) || cmd.description?.toLowerCase().includes(lower),
     );
   }, [commands, query]);
 
@@ -129,7 +126,7 @@ export function CommandPalette({ templates }: CommandPaletteProps) {
       setQuery('');
       setSelectedIndex(0);
     },
-    [setCommandPaletteOpen]
+    [setCommandPaletteOpen],
   );
 
   const handleHide = useCallback(() => {
@@ -144,22 +141,28 @@ export function CommandPalette({ templates }: CommandPaletteProps) {
     setCommandPaletteOpen(true);
   }, [setCommandPaletteOpen]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('.no-drag')) return;
-    setIsDragging(true);
-    setDragOffset({
-      x: e.clientX - position.x,
-      y: e.clientY - position.y,
-    });
-  }, [position]);
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if ((e.target as HTMLElement).closest('.no-drag')) return;
+      setIsDragging(true);
+      setDragOffset({
+        x: e.clientX - position.x,
+        y: e.clientY - position.y,
+      });
+    },
+    [position],
+  );
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging) return;
-    setPosition({
-      x: e.clientX - dragOffset.x,
-      y: e.clientY - dragOffset.y,
-    });
-  }, [isDragging, dragOffset]);
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!isDragging) return;
+      setPosition({
+        x: e.clientX - dragOffset.x,
+        y: e.clientY - dragOffset.y,
+      });
+    },
+    [isDragging, dragOffset],
+  );
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -195,17 +198,23 @@ export function CommandPalette({ templates }: CommandPaletteProps) {
     setSelectedIndex(0);
   }, [query]);
 
-  if (!isCommandPaletteOpen || !isVisible) return (
-    <button
-      onClick={handleShow}
-      className="fixed bottom-4 right-4 z-40 p-3 rounded-full bg-card shadow-lg border border-border hover:bg-accent transition-colors"
-      title="打开命令面板 (Ctrl+K)"
-    >
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-      </svg>
-    </button>
-  );
+  if (!isCommandPaletteOpen || !isVisible)
+    return (
+      <button
+        onClick={handleShow}
+        className="fixed bottom-4 right-4 z-40 p-3 rounded-full bg-card shadow-lg border border-border hover:bg-accent transition-colors"
+        title="打开命令面板 (Ctrl+K)"
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
+        </svg>
+      </button>
+    );
 
   return (
     <div
@@ -221,8 +230,18 @@ export function CommandPalette({ templates }: CommandPaletteProps) {
           className="p-0.5 rounded hover:bg-accent transition-colors no-drag"
           title="隐藏"
         >
-          <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <svg
+            className="w-4 h-4 text-muted-foreground"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
         <svg
@@ -231,7 +250,12 @@ export function CommandPalette({ templates }: CommandPaletteProps) {
           viewBox="0 0 24 24"
           stroke="currentColor"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
         </svg>
         <input
           type="text"
@@ -246,9 +270,7 @@ export function CommandPalette({ templates }: CommandPaletteProps) {
 
       <div className="max-h-80 overflow-y-auto p-2">
         {filteredCommands.length === 0 ? (
-          <div className="px-4 py-8 text-center text-muted-foreground text-sm">
-            没有找到命令
-          </div>
+          <div className="px-4 py-8 text-center text-muted-foreground text-sm">没有找到命令</div>
         ) : (
           <div className="space-y-1">
             {filteredCommands.map((cmd, index) => (
@@ -266,7 +288,9 @@ export function CommandPalette({ templates }: CommandPaletteProps) {
                   )}
                 </div>
                 {cmd.shortcut && (
-                  <kbd className="px-2 py-1 text-xs bg-muted rounded border border-border shrink-0">{cmd.shortcut}</kbd>
+                  <kbd className="px-2 py-1 text-xs bg-muted rounded border border-border shrink-0">
+                    {cmd.shortcut}
+                  </kbd>
                 )}
               </button>
             ))}

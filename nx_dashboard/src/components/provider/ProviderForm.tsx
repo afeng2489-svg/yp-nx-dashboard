@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AIProvider, CreateProviderRequest, UpdateProviderRequest, APIFormat, MappingType } from '@/api/client';
+import {
+  AIProvider,
+  CreateProviderRequest,
+  UpdateProviderRequest,
+  APIFormat,
+  MappingType,
+} from '@/api/client';
 
 interface ProviderFormProps {
   provider?: AIProvider | null;
@@ -79,13 +85,8 @@ export function ProviderForm({ provider, onSubmit, onCancel, isLoading }: Provid
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">
-          {provider ? '编辑提供商' : '新建提供商'}
-        </h3>
-        <button
-          onClick={onCancel}
-          className="p-1 rounded-lg hover:bg-accent"
-        >
+        <h3 className="text-lg font-semibold">{provider ? '编辑提供商' : '新建提供商'}</h3>
+        <button onClick={onCancel} className="p-1 rounded-lg hover:bg-accent">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -102,7 +103,7 @@ export function ProviderForm({ provider, onSubmit, onCancel, isLoading }: Provid
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             className={cn(
               'w-full px-3 py-2 rounded-lg border bg-background',
-              errors.name ? 'border-red-500' : 'border-input'
+              errors.name ? 'border-red-500' : 'border-input',
             )}
             placeholder="例如：DeepSeek"
           />
@@ -120,11 +121,13 @@ export function ProviderForm({ provider, onSubmit, onCancel, isLoading }: Provid
             onChange={(e) => setFormData({ ...formData, provider_key: e.target.value })}
             className={cn(
               'w-full px-3 py-2 rounded-lg border bg-background',
-              errors.provider_key ? 'border-red-500' : 'border-input'
+              errors.provider_key ? 'border-red-500' : 'border-input',
             )}
             placeholder="例如：deepseek"
           />
-          {errors.provider_key && <p className="text-xs text-red-500 mt-1">{errors.provider_key}</p>}
+          {errors.provider_key && (
+            <p className="text-xs text-red-500 mt-1">{errors.provider_key}</p>
+          )}
         </div>
 
         {/* Description */}
@@ -162,7 +165,7 @@ export function ProviderForm({ provider, onSubmit, onCancel, isLoading }: Provid
             onChange={(e) => setFormData({ ...formData, base_url: e.target.value })}
             className={cn(
               'w-full px-3 py-2 rounded-lg border bg-background',
-              errors.base_url ? 'border-red-500' : 'border-input'
+              errors.base_url ? 'border-red-500' : 'border-input',
             )}
             placeholder="https://api.example.com/v1/chat/completions"
           />
@@ -208,7 +211,7 @@ export function ProviderForm({ provider, onSubmit, onCancel, isLoading }: Provid
             onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
             className={cn(
               'w-full px-3 py-2 rounded-lg border bg-background',
-              errors.api_key ? 'border-red-500' : 'border-input'
+              errors.api_key ? 'border-red-500' : 'border-input',
             )}
             placeholder={provider ? '留空保持不变' : '输入 API Key'}
           />
@@ -224,7 +227,9 @@ export function ProviderForm({ provider, onSubmit, onCancel, isLoading }: Provid
             onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
             className="w-4 h-4 rounded border-input text-primary focus:ring-primary"
           />
-          <label htmlFor="enabled" className="text-sm">启用此提供商</label>
+          <label htmlFor="enabled" className="text-sm">
+            启用此提供商
+          </label>
         </div>
 
         {/* Config JSON */}
@@ -253,7 +258,7 @@ export function ProviderForm({ provider, onSubmit, onCancel, isLoading }: Provid
             disabled={isLoading}
             className={cn(
               'px-4 py-2 rounded-lg bg-primary text-primary-foreground transition-colors',
-              'hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2'
+              'hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2',
             )}
           >
             {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}

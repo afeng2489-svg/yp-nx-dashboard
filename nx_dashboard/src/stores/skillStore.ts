@@ -83,15 +83,13 @@ export interface ExecuteSkillResponse {
 }
 
 // API 配置
-const API_BASE = import.meta.env.VITE_API_BASE_URL
-  ? import.meta.env.VITE_API_BASE_URL
-  : '';
+const API_BASE = import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL : '';
 
 // 带 timeout 的 fetch
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
-  timeout = 10000
+  timeout = 10000,
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -137,7 +135,11 @@ interface SkillStore {
   fetchByCategory: (category: string) => Promise<void>;
   fetchByTag: (tag: string) => Promise<void>;
   executeSkill: (request: ExecuteSkillRequest) => Promise<ExecuteSkillResponse>;
-  importSkill: (source: 'url' | 'file' | 'paste', content: string, filename?: string) => Promise<SkillDetail | null>;
+  importSkill: (
+    source: 'url' | 'file' | 'paste',
+    content: string,
+    filename?: string,
+  ) => Promise<SkillDetail | null>;
   clearSearch: () => void;
   clearError: () => void;
   clearCurrentSkill: () => void;
@@ -209,16 +211,19 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
       }
       const data: SkillDetail = await response.json();
       set((state) => ({
-        skills: [...state.skills, {
-          id: data.id,
-          name: data.name,
-          description: data.description,
-          category: data.category,
-          version: data.version,
-          tags: data.tags,
-          parameter_count: data.parameters.length,
-          is_preset: data.is_preset,
-        }],
+        skills: [
+          ...state.skills,
+          {
+            id: data.id,
+            name: data.name,
+            description: data.description,
+            category: data.category,
+            version: data.version,
+            tags: data.tags,
+            parameter_count: data.parameters.length,
+            is_preset: data.is_preset,
+          },
+        ],
         saving: false,
       }));
       return data;
@@ -256,7 +261,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
                 tags: data.tags,
                 parameter_count: data.parameters.length,
               }
-            : s
+            : s,
         ),
         currentSkill: state.currentSkill?.id === id ? data : state.currentSkill,
         saving: false,
@@ -343,7 +348,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await fetchWithTimeout(
-        `${API_BASE}/api/v1/skills/search?query=${encodeURIComponent(query)}`
+        `${API_BASE}/api/v1/skills/search?query=${encodeURIComponent(query)}`,
       );
       if (!response.ok) {
         throw new Error(`Failed to search skills: ${response.status}`);
@@ -362,7 +367,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await fetchWithTimeout(
-        `${API_BASE}/api/v1/skills/category/${encodeURIComponent(category)}`
+        `${API_BASE}/api/v1/skills/category/${encodeURIComponent(category)}`,
       );
       if (!response.ok) {
         throw new Error(`Failed to fetch skills by category: ${response.status}`);
@@ -381,7 +386,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const response = await fetchWithTimeout(
-        `${API_BASE}/api/v1/skills/tag/${encodeURIComponent(tag)}`
+        `${API_BASE}/api/v1/skills/tag/${encodeURIComponent(tag)}`,
       );
       if (!response.ok) {
         throw new Error(`Failed to fetch skills by tag: ${response.status}`);
@@ -405,7 +410,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(request),
-        }
+        },
       );
       if (!response.ok) {
         throw new Error(`Failed to execute skill: ${response.status}`);
@@ -436,16 +441,19 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
       }
       const data: SkillDetail = await response.json();
       set((state) => ({
-        skills: [...state.skills, {
-          id: data.id,
-          name: data.name,
-          description: data.description,
-          category: data.category,
-          version: data.version,
-          tags: data.tags,
-          parameter_count: data.parameters.length,
-          is_preset: data.is_preset,
-        }],
+        skills: [
+          ...state.skills,
+          {
+            id: data.id,
+            name: data.name,
+            description: data.description,
+            category: data.category,
+            version: data.version,
+            tags: data.tags,
+            parameter_count: data.parameters.length,
+            is_preset: data.is_preset,
+          },
+        ],
         saving: false,
       }));
       return data;

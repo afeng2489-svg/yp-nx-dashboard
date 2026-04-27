@@ -40,7 +40,7 @@ interface PipelineViewProps {
 }
 
 function StepCard({ step, pipelineId }: { step: PipelineStep; pipelineId: string }) {
-  const retryStep = usePipelineStore(s => s.retryStep);
+  const retryStep = usePipelineStore((s) => s.retryStep);
 
   return (
     <div className="flex items-center gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
@@ -65,13 +65,21 @@ function StepCard({ step, pipelineId }: { step: PipelineStep; pipelineId: string
   );
 }
 
-function PhaseGroup({ phase, steps, pipelineId }: { phase: string; steps: PipelineStep[]; pipelineId: string }) {
+function PhaseGroup({
+  phase,
+  steps,
+  pipelineId,
+}: {
+  phase: string;
+  steps: PipelineStep[];
+  pipelineId: string;
+}) {
   return (
     <div className="space-y-1">
       <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
         {PHASE_LABELS[phase] || phase}
       </h4>
-      {steps.map(step => (
+      {steps.map((step) => (
         <StepCard key={step.id} step={step} pipelineId={pipelineId} />
       ))}
     </div>
@@ -79,7 +87,8 @@ function PhaseGroup({ phase, steps, pipelineId }: { phase: string; steps: Pipeli
 }
 
 export default function PipelineView({ projectId }: PipelineViewProps) {
-  const { pipeline, loading, error, fetchPipeline, startPipeline, pausePipeline, resumePipeline } = usePipelineStore();
+  const { pipeline, loading, error, fetchPipeline, startPipeline, pausePipeline, resumePipeline } =
+    usePipelineStore();
 
   React.useEffect(() => {
     if (projectId) fetchPipeline(projectId);
@@ -110,12 +119,18 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
 
   // Order: Phase 1 → Phase 2 → Phase 3
   const phaseOrder = [
-    'requirements_analysis', 'architecture_design', 'project_init',
-    'backend_dev', 'frontend_dev',
-    'api_integration', 'testing', 'documentation', 'packaging',
+    'requirements_analysis',
+    'architecture_design',
+    'project_init',
+    'backend_dev',
+    'frontend_dev',
+    'api_integration',
+    'testing',
+    'documentation',
+    'packaging',
   ];
 
-  const orderedPhases = phaseOrder.filter(p => stepsByPhase.has(p));
+  const orderedPhases = phaseOrder.filter((p) => stepsByPhase.has(p));
 
   return (
     <div className="space-y-4 p-4">
@@ -160,7 +175,9 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
       {/* Progress bar */}
       <div>
         <div className="flex justify-between text-xs text-gray-500 mb-1">
-          <span>{pipeline.progress.completed_steps}/{pipeline.progress.total_steps} 步骤</span>
+          <span>
+            {pipeline.progress.completed_steps}/{pipeline.progress.total_steps} 步骤
+          </span>
           <span>{pipeline.progress.progress_pct}%</span>
         </div>
         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
@@ -175,31 +192,54 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Phase 1: Serial */}
         <div className="space-y-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-sm font-bold text-gray-600 dark:text-gray-400">Phase 1 - 前置 (串行)</h3>
+          <h3 className="text-sm font-bold text-gray-600 dark:text-gray-400">
+            Phase 1 - 前置 (串行)
+          </h3>
           {orderedPhases
-            .filter(p => ['requirements_analysis', 'architecture_design', 'project_init'].includes(p))
-            .map(phase => (
-              <PhaseGroup key={phase} phase={phase} steps={stepsByPhase.get(phase)!} pipelineId={pipeline.id} />
+            .filter((p) =>
+              ['requirements_analysis', 'architecture_design', 'project_init'].includes(p),
+            )
+            .map((phase) => (
+              <PhaseGroup
+                key={phase}
+                phase={phase}
+                steps={stepsByPhase.get(phase)!}
+                pipelineId={pipeline.id}
+              />
             ))}
         </div>
 
         {/* Phase 2: Parallel */}
         <div className="space-y-2 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
-          <h3 className="text-sm font-bold text-blue-600 dark:text-blue-400">Phase 2 - 核心 (并行)</h3>
+          <h3 className="text-sm font-bold text-blue-600 dark:text-blue-400">
+            Phase 2 - 核心 (并行)
+          </h3>
           {orderedPhases
-            .filter(p => ['backend_dev', 'frontend_dev'].includes(p))
-            .map(phase => (
-              <PhaseGroup key={phase} phase={phase} steps={stepsByPhase.get(phase)!} pipelineId={pipeline.id} />
+            .filter((p) => ['backend_dev', 'frontend_dev'].includes(p))
+            .map((phase) => (
+              <PhaseGroup
+                key={phase}
+                phase={phase}
+                steps={stepsByPhase.get(phase)!}
+                pipelineId={pipeline.id}
+              />
             ))}
         </div>
 
         {/* Phase 3: Serial */}
         <div className="space-y-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-sm font-bold text-gray-600 dark:text-gray-400">Phase 3 - 收尾 (串行)</h3>
+          <h3 className="text-sm font-bold text-gray-600 dark:text-gray-400">
+            Phase 3 - 收尾 (串行)
+          </h3>
           {orderedPhases
-            .filter(p => ['api_integration', 'testing', 'documentation', 'packaging'].includes(p))
-            .map(phase => (
-              <PhaseGroup key={phase} phase={phase} steps={stepsByPhase.get(phase)!} pipelineId={pipeline.id} />
+            .filter((p) => ['api_integration', 'testing', 'documentation', 'packaging'].includes(p))
+            .map((phase) => (
+              <PhaseGroup
+                key={phase}
+                phase={phase}
+                steps={stepsByPhase.get(phase)!}
+                pipelineId={pipeline.id}
+              />
             ))}
         </div>
       </div>

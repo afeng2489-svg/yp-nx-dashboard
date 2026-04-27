@@ -77,7 +77,7 @@ export function SearchBar({
         onSearch?.(query.trim(), mode);
       }
     },
-    [query, mode, onSearch]
+    [query, mode, onSearch],
   );
 
   const handleClear = useCallback(() => {
@@ -113,7 +113,7 @@ export function SearchBar({
             'placeholder:text-muted-foreground',
             'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
             'disabled:cursor-not-allowed disabled:opacity-50',
-            'transition-shadow'
+            'transition-shadow',
           )}
         />
 
@@ -136,7 +136,7 @@ export function SearchBar({
             className={cn(
               'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium',
               'bg-secondary hover:bg-secondary/80 transition-colors',
-              'border border-transparent hover:border-border'
+              'border border-transparent hover:border-border',
             )}
           >
             <span>{currentMode.icon}</span>
@@ -157,7 +157,7 @@ export function SearchBar({
                   className={cn(
                     'w-full flex items-center gap-2 px-3 py-2 text-sm',
                     'hover:bg-accent transition-colors',
-                    mode === searchMode.value && 'bg-accent'
+                    mode === searchMode.value && 'bg-accent',
                   )}
                 >
                   <span>{searchMode.icon}</span>

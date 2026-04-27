@@ -195,16 +195,12 @@ function MessageBubble({
     <div
       className={cn(
         'p-4 rounded-lg border',
-        message.pending
-          ? 'bg-yellow-50 border-yellow-200'
-          : 'bg-card border-border'
+        message.pending ? 'bg-yellow-50 border-yellow-200' : 'bg-card border-border',
       )}
     >
       <div className="flex items-center gap-2 mb-3">
         {MESSAGE_ICONS[messageType]}
-        <span className="text-xs font-medium text-muted-foreground">
-          {message.source}
-        </span>
+        <span className="text-xs font-medium text-muted-foreground">{message.source}</span>
         <span className="text-xs text-muted-foreground">
           {new Date(message.timestamp).toLocaleTimeString()}
         </span>
@@ -220,18 +216,10 @@ function MessageBubble({
         <AskMessage message={message} onRespond={onRespond} disabled={disabled} />
       )}
       {messageType === 'confirm' && (
-        <ConfirmMessage
-          message={message}
-          onRespond={onRespond}
-          disabled={disabled}
-        />
+        <ConfirmMessage message={message} onRespond={onRespond} disabled={disabled} />
       )}
       {messageType === 'select' && (
-        <SelectMessage
-          message={message}
-          onRespond={onRespond}
-          disabled={disabled}
-        />
+        <SelectMessage message={message} onRespond={onRespond} disabled={disabled} />
       )}
       {messageType === 'inform' && <InformMessage message={message} />}
     </div>
@@ -295,9 +283,7 @@ export function A2UIPanel({ executionId, className }: A2UIPanelProps) {
       setIsSubmitting(true);
       try {
         const updatedMessage = await respondToMessage(sessionId, messageId, response);
-        setMessages((prev) =>
-          prev.map((m) => (m.id === messageId ? updatedMessage : m))
-        );
+        setMessages((prev) => prev.map((m) => (m.id === messageId ? updatedMessage : m)));
         setPendingCount((prev) => Math.max(0, prev - 1));
       } catch (err) {
         console.error('Failed to send response:', err);
@@ -305,7 +291,7 @@ export function A2UIPanel({ executionId, className }: A2UIPanelProps) {
         setIsSubmitting(false);
       }
     },
-    [sessionId, respondToMessage]
+    [sessionId, respondToMessage],
   );
 
   // Update messages when store changes
@@ -337,10 +323,7 @@ export function A2UIPanel({ executionId, className }: A2UIPanelProps) {
         <div className="flex items-center gap-2 text-red-500 text-sm">
           <AlertCircle className="w-4 h-4" />
           <span>{error}</span>
-          <button
-            onClick={clearError}
-            className="ml-auto text-xs underline"
-          >
+          <button onClick={clearError} className="ml-auto text-xs underline">
             Dismiss
           </button>
         </div>
@@ -366,8 +349,7 @@ export function A2UIPanel({ executionId, className }: A2UIPanelProps) {
       <div className="flex-1 overflow-auto p-4 space-y-4">
         {messages.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground text-sm">
-            No messages yet. The agent will send messages here when interaction
-            is needed.
+            No messages yet. The agent will send messages here when interaction is needed.
           </div>
         ) : (
           messages.map((message) => (

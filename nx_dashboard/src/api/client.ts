@@ -18,10 +18,7 @@ class ApiClient {
     return endpoint;
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = this.getUrl(endpoint);
     const response = await fetch(url, {
       ...options,
@@ -137,6 +134,10 @@ class ApiClient {
     return this.request<SelectedModelResponse>('/api/v1/ai/selected');
   }
 
+  async getClaudeCliModel() {
+    return this.request<ClaudeCliModelResponse>('/api/v1/ai/cli-model');
+  }
+
   async setSelectedModel(modelId: string) {
     return this.request<{ success: boolean; model_id: string }>('/api/v1/ai/selected', {
       method: 'PUT',
@@ -203,7 +204,13 @@ class ApiClient {
   }
 
   // Execute CLI command
-  async executeCLI(request: { prompt: string; cli?: string; working_directory?: string; timeout_secs?: number; auto_yes?: boolean }) {
+  async executeCLI(request: {
+    prompt: string;
+    cli?: string;
+    working_directory?: string;
+    timeout_secs?: number;
+    auto_yes?: boolean;
+  }) {
     return this.request<ExecuteCLIResponse>('/api/v1/ai/execute', {
       method: 'POST',
       body: JSON.stringify(request),
@@ -269,15 +276,21 @@ class ApiClient {
   }
 
   async removeModelMapping(providerId: string, mappingId: string) {
-    return this.request<{ success: boolean }>(`/api/v1/ai/v2/providers/${providerId}/models/${mappingId}/main`, {
-      method: 'DELETE',
-    });
+    return this.request<{ success: boolean }>(
+      `/api/v1/ai/v2/providers/${providerId}/models/${mappingId}/main`,
+      {
+        method: 'DELETE',
+      },
+    );
   }
 
   async testProviderConnection(providerId: string) {
-    return this.request<ConnectionTestResult>(`/api/v1/ai/v2/providers/${providerId}/test-connection`, {
-      method: 'POST',
-    });
+    return this.request<ConnectionTestResult>(
+      `/api/v1/ai/v2/providers/${providerId}/test-connection`,
+      {
+        method: 'POST',
+      },
+    );
   }
 
   async enableProvider(providerId: string, model?: string) {
@@ -286,7 +299,7 @@ class ApiClient {
       {
         method: 'POST',
         body: JSON.stringify({ model }),
-      }
+      },
     );
   }
 
@@ -295,7 +308,7 @@ class ApiClient {
       `/api/v1/ai/v2/providers/${providerId}/disable`,
       {
         method: 'POST',
-      }
+      },
     );
   }
 
@@ -312,10 +325,13 @@ class ApiClient {
 
   // Claude Switch APIs
   async configureClaudeSwitch(backends: ClaudeSwitchBackendConfig[]) {
-    return this.request<{ success: boolean; message: string }>('/api/v1/ai/claude-switch/configure', {
-      method: 'POST',
-      body: JSON.stringify({ backends }),
-    });
+    return this.request<{ success: boolean; message: string }>(
+      '/api/v1/ai/claude-switch/configure',
+      {
+        method: 'POST',
+        body: JSON.stringify({ backends }),
+      },
+    );
   }
 
   async listClaudeSwitchBackends() {
@@ -323,17 +339,23 @@ class ApiClient {
   }
 
   async addClaudeSwitchBackend(backend: ClaudeSwitchBackendConfig) {
-    return this.request<{ success: boolean; message: string }>('/api/v1/ai/claude-switch/backends', {
-      method: 'POST',
-      body: JSON.stringify(backend),
-    });
+    return this.request<{ success: boolean; message: string }>(
+      '/api/v1/ai/claude-switch/backends',
+      {
+        method: 'POST',
+        body: JSON.stringify(backend),
+      },
+    );
   }
 
   async switchClaudeSwitchBackend(backend: string) {
-    return this.request<{ success: boolean; message: string }>('/api/v1/ai/claude-switch/backends/switch', {
-      method: 'POST',
-      body: JSON.stringify({ backend }),
-    });
+    return this.request<{ success: boolean; message: string }>(
+      '/api/v1/ai/claude-switch/backends/switch',
+      {
+        method: 'POST',
+        body: JSON.stringify({ backend }),
+      },
+    );
   }
 
   async getActiveClaudeSwitchBackend() {
@@ -384,6 +406,13 @@ export interface SelectedModelResponse {
   model_id: string;
   provider: string;
   display_name: string;
+}
+
+export interface ClaudeCliModelResponse {
+  sonnet_model: string;
+  haiku_model: string;
+  opus_model: string;
+  base_url: string | null;
 }
 
 export interface ProviderInfo {

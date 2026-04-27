@@ -36,10 +36,7 @@ export const useThemeStore = create<ThemeStore>()(
         // Update meta theme-color for mobile browsers
         const metaThemeColor = document.querySelector('meta[name="theme-color"]');
         if (metaThemeColor) {
-          metaThemeColor.setAttribute(
-            'content',
-            resolvedTheme === 'dark' ? '#0f172a' : '#ffffff'
-          );
+          metaThemeColor.setAttribute('content', resolvedTheme === 'dark' ? '#0f172a' : '#ffffff');
         }
       },
     }),
@@ -54,8 +51,8 @@ export const useThemeStore = create<ThemeStore>()(
           root.classList.add(resolvedTheme);
         }
       },
-    }
-  )
+    },
+  ),
 );
 
 // Listen for system theme changes

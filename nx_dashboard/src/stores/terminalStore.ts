@@ -19,7 +19,16 @@ const SYNC_CHANNEL_NAME = 'nexusflow-terminal-sync';
 
 // 同步消息类型
 export interface SyncMessage {
-  type: 'tab_updated' | 'active_tab_changed' | 'layout_changed' | 'terminal_output' | 'sync_request' | 'sync_response' | 'fullscreen_changed' | 'ping' | 'pong';
+  type:
+    | 'tab_updated'
+    | 'active_tab_changed'
+    | 'layout_changed'
+    | 'terminal_output'
+    | 'sync_request'
+    | 'sync_response'
+    | 'fullscreen_changed'
+    | 'ping'
+    | 'pong';
   windowId: string;
   payload?: unknown;
 }
@@ -70,7 +79,7 @@ let onSyncOutputReceive: ((terminalId: string, output: string) => void) | null =
 export function initWindowSync(
   windowId: string,
   onStateChange: (state: Partial<TerminalState>) => void,
-  onOutputReceive: (terminalId: string, output: string) => void
+  onOutputReceive: (terminalId: string, output: string) => void,
 ) {
   syncWindowId = windowId;
   onSyncStateChange = onStateChange;
@@ -160,19 +169,15 @@ export function getCurrentTerminalState(
   activeTabId: string | null,
   terminals: TerminalInstance[],
   gridLayout: GridLayout,
-  isFullscreen: boolean
+  isFullscreen: boolean,
 ): TerminalState {
   return { tabs, activeTabId, terminals, gridLayout, isFullscreen };
 }
 
 export const useTerminalStore = create<TerminalStore>((set) => ({
-  tabs: [
-    { id: 'default', title: '终端 1' },
-  ],
+  tabs: [{ id: 'default', title: '终端 1' }],
   activeTabId: 'default',
-  terminals: [
-    { id: 'term-1', tabId: 'default', title: '终端 1' },
-  ],
+  terminals: [{ id: 'term-1', tabId: 'default', title: '终端 1' }],
   gridLayout: '2x2',
   isFullscreen: false,
   logs: new Map(),
@@ -193,9 +198,7 @@ export const useTerminalStore = create<TerminalStore>((set) => ({
     set((state) => {
       const newTabs = state.tabs.filter((t) => t.id !== id);
       const newTerminals = state.terminals.filter((t) => t.tabId !== id);
-      const newActiveTabId = state.activeTabId === id
-        ? newTabs[0]?.id || null
-        : state.activeTabId;
+      const newActiveTabId = state.activeTabId === id ? newTabs[0]?.id || null : state.activeTabId;
       const newState = {
         tabs: newTabs,
         terminals: newTerminals,
@@ -214,9 +217,7 @@ export const useTerminalStore = create<TerminalStore>((set) => ({
   updateTabTitle: (id, title) => {
     set((state) => {
       const newTabs = state.tabs.map((t) => (t.id === id ? { ...t, title } : t));
-      const newTerminals = state.terminals.map((t) =>
-        t.tabId === id ? { ...t, title } : t
-      );
+      const newTerminals = state.terminals.map((t) => (t.tabId === id ? { ...t, title } : t));
       const newState = { tabs: newTabs, terminals: newTerminals };
       broadcastStateChange('tab_updated', newState);
       return newState;

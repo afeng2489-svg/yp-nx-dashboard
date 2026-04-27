@@ -26,13 +26,18 @@ export function ClaudeStreamPanel({
   const [input, setInput] = useState(initialPrompt || '');
   const [inputDir, setInputDir] = useState(workingDirectory || '');
 
-  const { isConnected, isExecuting, output, error, execute, cancel, clear, error: connectionError } = useClaudeStream({
+  const {
+    isConnected,
+    isExecuting,
+    output,
+    error,
+    execute,
+    cancel,
+    clear,
+    error: connectionError,
+  } = useClaudeStream({
     onOutput: (line, isError) => {
-      xtermRef.current?.write(
-        isError
-          ? `\x1b[31m${line}\r\n\x1b[0m`
-          : `${line}\r\n`
-      );
+      xtermRef.current?.write(isError ? `\x1b[31m${line}\r\n\x1b[0m` : `${line}\r\n`);
     },
   });
 

@@ -84,9 +84,26 @@ type ExecutionEvent =
   | { type: 'output'; execution_id: string; line: string }
   | { type: 'completed'; execution_id: string }
   | { type: 'failed'; execution_id: string; error: string }
-  | { type: 'workflow_paused'; execution_id: string; stage_name: string; question: string; options: WorkflowPauseOption[] }
+  | {
+      type: 'workflow_paused';
+      execution_id: string;
+      stage_name: string;
+      question: string;
+      options: WorkflowPauseOption[];
+    }
   | { type: 'workflow_resumed'; execution_id: string; stage_name: string; chosen_value: string }
-  | { type: 'snapshot'; execution_id: string; status: string; current_stage?: string; output_log?: string[]; pending_pause?: { stage_name: string; question: string; options: WorkflowPauseOption[] } | null }
+  | {
+      type: 'snapshot';
+      execution_id: string;
+      status: string;
+      current_stage?: string;
+      output_log?: string[];
+      pending_pause?: {
+        stage_name: string;
+        question: string;
+        options: WorkflowPauseOption[];
+      } | null;
+    }
   | { type: 'pong' }; // heartbeat response
 
 export interface WorkflowPauseOption {
@@ -106,7 +123,7 @@ class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public body?: string
+    public body?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -117,7 +134,7 @@ class ApiError extends Error {
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
-  timeout = 5000
+  timeout = 5000,
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -180,7 +197,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       if (!response.ok) {
         throw new ApiError(
           `Failed to fetch executions: ${response.status} ${response.statusText}`,
-          response.status
+          response.status,
         );
       }
 
@@ -203,10 +220,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         if (response.status === 404) {
           return null;
         }
-        throw new ApiError(
-          `Failed to fetch execution: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to fetch execution: ${response.status}`, response.status);
       }
 
       return await response.json();
@@ -227,10 +241,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to start execution: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to start execution: ${response.status}`, response.status);
       }
 
       const execution = await response.json();
@@ -252,7 +263,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
     // Optimistic update
     set((state) => ({
       executions: state.executions.map((e) =>
-        e.id === id ? { ...e, status: 'cancelled' as const } : e
+        e.id === id ? { ...e, status: 'cancelled' as const } : e,
       ),
     }));
 
@@ -262,10 +273,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to cancel execution: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to cancel execution: ${response.status}`, response.status);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -285,7 +293,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       set((state) => ({
         pendingPause: state.pendingPause?.execution_id === executionId ? null : state.pendingPause,
         executions: state.executions.map((e) =>
-          e.id === executionId ? { ...e, status: 'running' as const } : e
+          e.id === executionId ? { ...e, status: 'running' as const } : e,
         ),
       }));
     }
@@ -356,7 +364,11 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
 
           // Check if execution is completed/failed - if so, don't reconnect
           const currentExec = get().executions.find((e) => e.id === executionId);
-          if (currentExec?.status === 'completed' || currentExec?.status === 'failed' || currentExec?.status === 'cancelled') {
+          if (
+            currentExec?.status === 'completed' ||
+            currentExec?.status === 'failed' ||
+            currentExec?.status === 'cancelled'
+          ) {
             cleanupConnection(executionId);
             return;
           }
@@ -462,12 +474,14 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       // Handle snapshot (catch-up when connecting to already-running execution)
       if (event.type === 'snapshot') {
         if (event.pending_pause) {
-          set({ pendingPause: {
-            execution_id: event.execution_id,
-            stage_name: event.pending_pause.stage_name,
-            question: event.pending_pause.question,
-            options: event.pending_pause.options,
-          }});
+          set({
+            pendingPause: {
+              execution_id: event.execution_id,
+              stage_name: event.pending_pause.stage_name,
+              question: event.pending_pause.question,
+              options: event.pending_pause.options,
+            },
+          });
         }
         if (event.output_log && event.output_log.length > 0) {
           set((state) => {
@@ -494,13 +508,21 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
           appendLine(event.execution_id, { type: 'info', content: '工作流已启动' });
           break;
         case 'stage_started':
-          appendLine(event.execution_id, { type: 'stage_started', content: '', stageName: event.stage_name });
+          appendLine(event.execution_id, {
+            type: 'stage_started',
+            content: '',
+            stageName: event.stage_name,
+          });
           break;
         case 'output':
           appendLine(event.execution_id, { type: 'output', content: event.line });
           break;
         case 'stage_completed':
-          appendLine(event.execution_id, { type: 'stage_completed', content: '', stageName: event.stage_name });
+          appendLine(event.execution_id, {
+            type: 'stage_completed',
+            content: '',
+            stageName: event.stage_name,
+          });
           break;
         case 'completed':
           appendLine(event.execution_id, { type: 'completed', content: '工作流执行完成 ✓' });
@@ -520,7 +542,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
             options: event.options,
           },
           executions: state.executions.map((e) =>
-            e.id === event.execution_id ? { ...e, status: 'running' as const } : e
+            e.id === event.execution_id ? { ...e, status: 'running' as const } : e,
           ),
         }));
         return;
@@ -529,7 +551,8 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       if (event.type === 'workflow_resumed') {
         // Clear pause state if it matches
         set((state) => ({
-          pendingPause: state.pendingPause?.execution_id === event.execution_id ? null : state.pendingPause,
+          pendingPause:
+            state.pendingPause?.execution_id === event.execution_id ? null : state.pendingPause,
         }));
         return;
       }

@@ -110,7 +110,7 @@ class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public body?: string
+    public body?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -121,7 +121,7 @@ class ApiError extends Error {
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
-  timeout = 30000
+  timeout = 30000,
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -190,7 +190,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
       if (!response.ok) {
         throw new ApiError(
           `Failed to fetch sessions: ${response.status} ${response.statusText}`,
-          response.status
+          response.status,
         );
       }
 
@@ -303,14 +303,11 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
   startDiscussion: async (id: string, request: StartDiscussionRequest) => {
     set({ error: null });
     try {
-      const response = await fetchWithTimeout(
-        `${API_BASE_URL}/api/v1/group-sessions/${id}/start`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(request),
-        }
-      );
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/v1/group-sessions/${id}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      });
 
       if (!response.ok) {
         throw new ApiError(`Failed to start discussion: ${response.status}`, response.status);
@@ -333,7 +330,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(request),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -353,7 +350,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
   getNextSpeaker: async (id: string) => {
     try {
       const response = await fetchWithTimeout(
-        `${API_BASE_URL}/api/v1/group-sessions/${id}/next-speaker`
+        `${API_BASE_URL}/api/v1/group-sessions/${id}/next-speaker`,
       );
 
       if (!response.ok) {
@@ -372,7 +369,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
     try {
       const response = await fetchWithTimeout(
         `${API_BASE_URL}/api/v1/group-sessions/${id}/advance`,
-        { method: 'POST' }
+        { method: 'POST' },
       );
 
       if (!response.ok) {
@@ -390,7 +387,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
     try {
       const response = await fetchWithTimeout(
         `${API_BASE_URL}/api/v1/group-sessions/${id}/execute-turn/${encodeURIComponent(roleId)}`,
-        { method: 'POST' }
+        { method: 'POST' },
       );
 
       if (!response.ok) {
@@ -416,7 +413,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(request),
-        }
+        },
       );
 
       if (!response.ok) {

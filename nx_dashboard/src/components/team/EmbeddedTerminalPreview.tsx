@@ -1,5 +1,14 @@
 import { memo, useEffect, useRef } from 'react';
-import { Terminal as TerminalIcon, FileText, Edit3, FilePlus, Play, Search, Brain, Wrench } from 'lucide-react';
+import {
+  Terminal as TerminalIcon,
+  FileText,
+  Edit3,
+  FilePlus,
+  Play,
+  Search,
+  Brain,
+  Wrench,
+} from 'lucide-react';
 import type { ProgressItem } from '@/hooks/useAgentExecution';
 
 interface EmbeddedTerminalPreviewProps {
@@ -10,17 +19,21 @@ interface EmbeddedTerminalPreviewProps {
 }
 
 const ACTION_CONFIG: Record<string, { icon: typeof FileText; label: string; color: string }> = {
-  reading:   { icon: FileText,  label: '读取文件',  color: 'text-blue-400' },
-  editing:   { icon: Edit3,     label: '编辑文件',  color: 'text-amber-400' },
-  writing:   { icon: FilePlus,  label: '写入文件',  color: 'text-green-400' },
-  running:   { icon: Play,      label: '运行命令',  color: 'text-cyan-400' },
-  searching: { icon: Search,    label: '搜索',      color: 'text-purple-400' },
-  thinking:  { icon: Brain,     label: '思考中',    color: 'text-emerald-400' },
-  tool_use:  { icon: Wrench,    label: '工具调用',  color: 'text-orange-400' },
+  reading: { icon: FileText, label: '读取文件', color: 'text-blue-400' },
+  editing: { icon: Edit3, label: '编辑文件', color: 'text-amber-400' },
+  writing: { icon: FilePlus, label: '写入文件', color: 'text-green-400' },
+  running: { icon: Play, label: '运行命令', color: 'text-cyan-400' },
+  searching: { icon: Search, label: '搜索', color: 'text-purple-400' },
+  thinking: { icon: Brain, label: '思考中', color: 'text-emerald-400' },
+  tool_use: { icon: Wrench, label: '工具调用', color: 'text-orange-400' },
 };
 
 function ActionIcon({ action }: { action: string }) {
-  const config = ACTION_CONFIG[action] ?? { icon: TerminalIcon, label: action, color: 'text-white/60' };
+  const config = ACTION_CONFIG[action] ?? {
+    icon: TerminalIcon,
+    label: action,
+    color: 'text-white/60',
+  };
   const Icon = config.icon;
   return (
     <div className={`w-5 h-5 flex items-center justify-center flex-shrink-0 ${config.color}`}>
@@ -65,13 +78,18 @@ export const EmbeddedTerminalPreview = memo(function EmbeddedTerminalPreview({
         {hasProgress ? (
           <div ref={timelineRef} className="space-y-1.5">
             {progress.map((item, i) => {
-              const config = ACTION_CONFIG[item.action] ?? { label: item.action, color: 'text-white/60' };
+              const config = ACTION_CONFIG[item.action] ?? {
+                label: item.action,
+                color: 'text-white/60',
+              };
               const isLast = i === progress.length - 1;
               return (
                 <div key={i} className="flex items-start gap-2">
                   <ActionIcon action={item.action} />
                   <div className="flex-1 min-w-0">
-                    <span className={`text-xs font-medium ${isLast ? 'text-white/90' : 'text-white/60'}`}>
+                    <span
+                      className={`text-xs font-medium ${isLast ? 'text-white/90' : 'text-white/60'}`}
+                    >
                       {config.label}
                     </span>
                     {item.detail && (

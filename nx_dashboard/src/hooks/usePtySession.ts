@@ -22,7 +22,12 @@ interface UsePtySessionReturn {
   resize: (rows: number, cols: number) => void;
 }
 
-export function usePtySession({ teamId, sessionId, terminal, onSessionLost }: PtySessionOptions): UsePtySessionReturn {
+export function usePtySession({
+  teamId,
+  sessionId,
+  terminal,
+  onSessionLost,
+}: PtySessionOptions): UsePtySessionReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   // Keep current sessionId accessible inside stable callbacks
@@ -59,7 +64,9 @@ export function usePtySession({ teamId, sessionId, terminal, onSessionLost }: Pt
               } else if (msg.type === 'error') {
                 terminal.write(`\r\n\x1b[31m[错误] ${msg.message ?? '未知错误'}\x1b[0m\r\n`);
               }
-            } catch { /* ignore non-JSON */ }
+            } catch {
+              /* ignore non-JSON */
+            }
           });
 
           if (!active) {
@@ -111,7 +118,10 @@ export function usePtySession({ teamId, sessionId, terminal, onSessionLost }: Pt
       };
 
       let connected = false;
-      ws.onopen = () => { connected = true; setIsConnected(true); };
+      ws.onopen = () => {
+        connected = true;
+        setIsConnected(true);
+      };
       ws.onclose = () => {
         setIsConnected(false);
         // 从未成功建立连接 → session 已不存在，清除 stale 记录

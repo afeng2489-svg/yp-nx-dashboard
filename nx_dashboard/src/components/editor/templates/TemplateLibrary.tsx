@@ -8,14 +8,18 @@ interface TemplateLibraryProps {
 }
 
 // Template Preview Modal Component
-function TemplatePreviewModal({ template, onClose, onLoad }: {
+function TemplatePreviewModal({
+  template,
+  onClose,
+  onLoad,
+}: {
   template: WorkflowTemplate;
   onClose: () => void;
   onLoad: () => void;
 }) {
   // Analyze template structure
-  const stageNodes = template.nodes.filter(n => n.data.type === 'stage');
-  const agentNodes = template.nodes.filter(n => n.data.type === 'agent');
+  const stageNodes = template.nodes.filter((n) => n.data.type === 'stage');
+  const agentNodes = template.nodes.filter((n) => n.data.type === 'agent');
 
   // Get stage config
   const getStageConfig = (node: WorkflowNode) => {
@@ -36,9 +40,9 @@ function TemplatePreviewModal({ template, onClose, onLoad }: {
   // Find agents for a stage
   const getAgentsForStage = (stageId: string) => {
     const agentConfigs: ReturnType<typeof getAgentConfig>[] = [];
-    template.edges.forEach(edge => {
+    template.edges.forEach((edge) => {
       if (edge.source === stageId) {
-        const agentNode = agentNodes.find(n => n.id === edge.target);
+        const agentNode = agentNodes.find((n) => n.id === edge.target);
         if (agentNode) {
           agentConfigs.push(getAgentConfig(agentNode));
         }
@@ -85,13 +89,17 @@ function TemplatePreviewModal({ template, onClose, onLoad }: {
                     </div>
                     {stageAgents.length > 0 && (
                       <div className="flex flex-wrap gap-1">
-                        {stageAgents.map((agent, i) => (
-                          agent && (
-                            <span key={i} className="px-2 py-0.5 text-xs bg-background rounded border border-border capitalize">
-                              {agent.role}
-                            </span>
-                          )
-                        ))}
+                        {stageAgents.map(
+                          (agent, i) =>
+                            agent && (
+                              <span
+                                key={i}
+                                className="px-2 py-0.5 text-xs bg-background rounded border border-border capitalize"
+                              >
+                                {agent.role}
+                              </span>
+                            ),
+                        )}
                       </div>
                     )}
                   </div>
@@ -165,12 +173,7 @@ export function TemplateLibrary({ templates }: TemplateLibraryProps) {
           hover:bg-primary/90 transition-colors
         "
       >
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -195,12 +198,7 @@ export function TemplateLibrary({ templates }: TemplateLibraryProps) {
                 onClick={() => setIsOpen(false)}
                 className="p-1 rounded hover:bg-accent transition-colors"
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -218,9 +216,10 @@ export function TemplateLibrary({ templates }: TemplateLibraryProps) {
                   onClick={() => setSelectedCategory(cat)}
                   className={`
                     px-4 py-2 text-sm font-medium capitalize transition-colors
-                    ${selectedCategory === cat
-                      ? 'text-primary border-b-2 border-primary'
-                      : 'text-muted-foreground hover:text-foreground'
+                    ${
+                      selectedCategory === cat
+                        ? 'text-primary border-b-2 border-primary'
+                        : 'text-muted-foreground hover:text-foreground'
                     }
                   `}
                 >

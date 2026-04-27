@@ -34,10 +34,11 @@ export function AddExistingRoleModal({ teamId, onClose, onAdded }: AddExistingRo
   }, [listAllRoles]);
 
   // Filter out roles that are already in this team
-  const currentTeamRoleIds = new Set((roles[teamId] || []).map(r => r.id));
-  const availableRoles = allRoles.filter(role => {
+  const currentTeamRoleIds = new Set((roles[teamId] || []).map((r) => r.id));
+  const availableRoles = allRoles.filter((role) => {
     const notInTeam = !currentTeamRoleIds.has(role.id);
-    const matchesSearch = searchTerm === '' ||
+    const matchesSearch =
+      searchTerm === '' ||
       role.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       role.description?.toLowerCase().includes(searchTerm.toLowerCase());
     return notInTeam && matchesSearch;
@@ -109,7 +110,7 @@ export function AddExistingRoleModal({ teamId, onClose, onAdded }: AddExistingRo
             </div>
           ) : (
             <div className="space-y-2">
-              {availableRoles.map(role => (
+              {availableRoles.map((role) => (
                 <div
                   key={role.id}
                   className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors"
@@ -120,7 +121,9 @@ export function AddExistingRoleModal({ teamId, onClose, onAdded }: AddExistingRo
                     </div>
                     <div>
                       <p className="font-medium text-sm">{role.name}</p>
-                      <p className="text-xs text-muted-foreground">{role.description || '无描述'}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {role.description || '无描述'}
+                      </p>
                     </div>
                   </div>
                   <button
@@ -128,11 +131,7 @@ export function AddExistingRoleModal({ teamId, onClose, onAdded }: AddExistingRo
                     disabled={adding !== null}
                     className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
                   >
-                    {adding === role.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      '添加'
-                    )}
+                    {adding === role.id ? <Loader2 className="w-4 h-4 animate-spin" /> : '添加'}
                   </button>
                 </div>
               ))}

@@ -14,7 +14,8 @@ function TaskCardContent() {
   const isRunning = status === 'running';
 
   // Distinguish server heartbeat placeholder from real CLI output
-  const isThinkingPlaceholder = isRunning && typeof partialOutput === 'string' && partialOutput.startsWith('思考中...');
+  const isThinkingPlaceholder =
+    isRunning && typeof partialOutput === 'string' && partialOutput.startsWith('思考中...');
   const hasRealOutput = isRunning && !!partialOutput && !isThinkingPlaceholder;
   // Extract elapsed secs from "思考中... (Xs)" placeholder
   const serverElapsed = isThinkingPlaceholder
@@ -25,9 +26,12 @@ function TaskCardContent() {
 
   // Local elapsed timer
   useEffect(() => {
-    if (!isRunning) { setElapsed(0); return; }
+    if (!isRunning) {
+      setElapsed(0);
+      return;
+    }
     setElapsed(0);
-    const timer = setInterval(() => setElapsed(s => s + 1), 1000);
+    const timer = setInterval(() => setElapsed((s) => s + 1), 1000);
     return () => clearInterval(timer);
   }, [isRunning]);
 
@@ -46,7 +50,7 @@ function TaskCardContent() {
         'w-80 rounded-2xl border shadow-2xl overflow-hidden bg-card',
         isDone && 'border-emerald-500/30 shadow-emerald-500/10',
         isError && 'border-red-500/30 shadow-red-500/10',
-        isRunning && 'border-indigo-500/30 shadow-indigo-500/10'
+        isRunning && 'border-indigo-500/30 shadow-indigo-500/10',
       )}
     >
       <div
@@ -54,7 +58,7 @@ function TaskCardContent() {
           'h-1 bg-gradient-to-r',
           isDone && 'from-emerald-400 to-teal-400',
           isError && 'from-red-400 to-rose-400',
-          isRunning && 'from-indigo-400 to-purple-400'
+          isRunning && 'from-indigo-400 to-purple-400',
         )}
       />
 
@@ -65,7 +69,7 @@ function TaskCardContent() {
               'w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0',
               isDone && 'bg-emerald-500/15',
               isError && 'bg-red-500/15',
-              isRunning && 'bg-indigo-500/15'
+              isRunning && 'bg-indigo-500/15',
             )}
           >
             {isRunning && <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />}
@@ -82,7 +86,7 @@ function TaskCardContent() {
                     'text-sm font-semibold truncate',
                     isDone && 'text-emerald-600 dark:text-emerald-400',
                     isError && 'text-red-600 dark:text-red-400',
-                    isRunning && 'text-indigo-600 dark:text-indigo-400'
+                    isRunning && 'text-indigo-600 dark:text-indigo-400',
                   )}
                 >
                   {teamName}
@@ -104,7 +108,9 @@ function TaskCardContent() {
                 ? hasRealOutput
                   ? `输出中... (${elapsed}s)`
                   : `执行中... (${serverElapsed ?? elapsed}s)`
-                : isDone ? '执行完成' : '执行失败'}
+                : isDone
+                  ? '执行完成'
+                  : '执行失败'}
             </p>
           </div>
         </div>
@@ -127,9 +133,7 @@ function TaskCardContent() {
 
         {/* Slow warning — shown when backend hasn't responded for 60s */}
         {showSlowWarning && (
-          <p className="text-xs text-amber-500/80 mb-2">
-            已等待 {elapsed}s，任务可能需要较长时间
-          </p>
+          <p className="text-xs text-amber-500/80 mb-2">已等待 {elapsed}s，任务可能需要较长时间</p>
         )}
 
         {hasRealOutput && (
@@ -137,7 +141,9 @@ function TaskCardContent() {
             ref={outputRef}
             className="rounded-xl bg-indigo-500/5 border border-indigo-500/20 px-3 py-2 max-h-28 overflow-y-auto"
           >
-            <p className="text-xs text-foreground/80 whitespace-pre-wrap font-mono leading-relaxed">{partialOutput}</p>
+            <p className="text-xs text-foreground/80 whitespace-pre-wrap font-mono leading-relaxed">
+              {partialOutput}
+            </p>
           </div>
         )}
         {isDone && result && (

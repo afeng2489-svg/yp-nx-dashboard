@@ -36,9 +36,7 @@ export function RoleEditor({ role, teamId, onClose, onSave }: RoleEditorProps) {
   }, [models.length, fetchModels]);
 
   // Get skill names from IDs
-  const selectedSkillNames = skillIds.map(id =>
-    skillList.find(s => s.id === id)?.name || id
-  );
+  const selectedSkillNames = skillIds.map((id) => skillList.find((s) => s.id === id)?.name || id);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,11 +46,11 @@ export function RoleEditor({ role, teamId, onClose, onSave }: RoleEditorProps) {
     try {
       const roleData = {
         name: name.trim(),
-        description: description.trim() || "",
-        system_prompt: instructions.trim() || "",
+        description: description.trim() || '',
+        system_prompt: instructions.trim() || '',
         model_config: {
           model_id: model,
-          provider: "anthropic",
+          provider: 'anthropic',
           max_tokens: 4096,
           temperature,
           stop_sequences: [],
@@ -85,9 +83,7 @@ export function RoleEditor({ role, teamId, onClose, onSave }: RoleEditorProps) {
               <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 shadow-lg shadow-indigo-500/25">
                 <Bot className="w-5 h-5 text-white" />
               </div>
-              <h2 className="text-lg font-semibold">
-                {role ? '编辑角色' : '新建角色'}
-              </h2>
+              <h2 className="text-lg font-semibold">{role ? '编辑角色' : '新建角色'}</h2>
             </div>
             <button onClick={onClose} className="p-2 rounded-lg hover:bg-accent transition-colors">
               <X className="w-5 h-5" />
@@ -141,7 +137,9 @@ export function RoleEditor({ role, teamId, onClose, onSave }: RoleEditorProps) {
                 >
                   {models.length > 0 ? (
                     models.map((m) => (
-                      <option key={m.model_id} value={m.model_id}>{m.display_name} ({m.model_id})</option>
+                      <option key={m.model_id} value={m.model_id}>
+                        {m.display_name} ({m.model_id})
+                      </option>
                     ))
                   ) : (
                     <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
@@ -184,7 +182,9 @@ export function RoleEditor({ role, teamId, onClose, onSave }: RoleEditorProps) {
                       {skillName}
                       <button
                         type="button"
-                        onClick={() => setSkillIds(prev => prev.filter(id => id !== skillIds[idx]))}
+                        onClick={() =>
+                          setSkillIds((prev) => prev.filter((id) => id !== skillIds[idx]))
+                        }
                         className="hover:text-red-500"
                       >
                         <X className="w-3 h-3" />

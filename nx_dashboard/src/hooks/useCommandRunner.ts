@@ -59,23 +59,28 @@ export function useCommandRunner(): UseCommandRunnerReturn {
     }
   }, []);
 
-  const execute = useCallback((command: string, workingDirectory: string) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      setError('WebSocket 未连接');
-      return;
-    }
+  const execute = useCallback(
+    (command: string, workingDirectory: string) => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        setError('WebSocket 未连接');
+        return;
+      }
 
-    clear();
-    setIsRunning(true);
-    setExitCode(null);
-    appendOutput({ type: 'system', data: `$ ${command}`, timestamp: Date.now() });
+      clear();
+      setIsRunning(true);
+      setExitCode(null);
+      appendOutput({ type: 'system', data: `$ ${command}`, timestamp: Date.now() });
 
-    wsRef.current.send(JSON.stringify({
-      type: 'execute',
-      command,
-      working_directory: workingDirectory,
-    }));
-  }, [clear, appendOutput]);
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'execute',
+          command,
+          working_directory: workingDirectory,
+        }),
+      );
+    },
+    [clear, appendOutput],
+  );
 
   // Connect WebSocket
   useEffect(() => {

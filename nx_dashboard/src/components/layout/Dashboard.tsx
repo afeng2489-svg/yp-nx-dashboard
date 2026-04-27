@@ -28,7 +28,7 @@ export function Dashboard() {
               onClick={() => setShowFileSidebar(!showFileSidebar)}
               className={cn(
                 'p-2 rounded-lg hover:bg-accent transition-colors',
-                showFileSidebar && 'bg-accent'
+                showFileSidebar && 'bg-accent',
               )}
               title={showFileSidebar ? '隐藏文件浏览器' : '显示文件浏览器'}
             >

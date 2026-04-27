@@ -10,7 +10,13 @@ interface ProviderCardProps {
   isSelected?: boolean;
 }
 
-export function ProviderCard({ provider, onEdit, onDelete, onSelect, isSelected }: ProviderCardProps) {
+export function ProviderCard({
+  provider,
+  onEdit,
+  onDelete,
+  onSelect,
+  isSelected,
+}: ProviderCardProps) {
   const getFormatLabel = (format: AIProvider['api_format']) => {
     if (typeof format === 'string') {
       return format === 'openai' ? 'OpenAI' : format === 'anthropic' ? 'Anthropic' : format;
@@ -24,7 +30,7 @@ export function ProviderCard({ provider, onEdit, onDelete, onSelect, isSelected 
         'bg-gradient-to-br from-card to-muted/20 rounded-xl p-4 border transition-all duration-200 cursor-pointer',
         isSelected
           ? 'border-primary/50 shadow-lg shadow-primary/10'
-          : 'border-border hover:border-primary/30 hover:shadow-md'
+          : 'border-border hover:border-primary/30 hover:shadow-md',
       )}
       onClick={onSelect}
     >
@@ -76,7 +82,7 @@ export function ProviderCard({ provider, onEdit, onDelete, onSelect, isSelected 
             onClick={onEdit}
             className={cn(
               'p-2 rounded-lg transition-all duration-200',
-              'hover:bg-indigo-500/10 text-muted-foreground hover:text-indigo-500'
+              'hover:bg-indigo-500/10 text-muted-foreground hover:text-indigo-500',
             )}
             title="编辑"
           >
@@ -86,7 +92,7 @@ export function ProviderCard({ provider, onEdit, onDelete, onSelect, isSelected 
             onClick={onDelete}
             className={cn(
               'p-2 rounded-lg transition-all duration-200',
-              'hover:bg-red-500/10 text-muted-foreground hover:text-red-500'
+              'hover:bg-red-500/10 text-muted-foreground hover:text-red-500',
             )}
             title="删除"
           >

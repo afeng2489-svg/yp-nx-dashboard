@@ -1,5 +1,18 @@
 import { create } from 'zustand';
-import { api, AIProvider, ModelMapping, ProviderPreset, APIFormat, MappingType, CreateProviderRequest, UpdateProviderRequest, AddModelMappingRequest, ConnectionTestResult, ClaudeSwitchBackendInfo, ClaudeSwitchBackendConfig } from '@/api/client';
+import {
+  api,
+  AIProvider,
+  ModelMapping,
+  ProviderPreset,
+  APIFormat,
+  MappingType,
+  CreateProviderRequest,
+  UpdateProviderRequest,
+  AddModelMappingRequest,
+  ConnectionTestResult,
+  ClaudeSwitchBackendInfo,
+  ClaudeSwitchBackendConfig,
+} from '@/api/client';
 
 // CLI types
 export type CLI = 'claude' | 'gemini' | 'codex' | 'qwen' | 'opencode';
@@ -164,8 +177,13 @@ interface AIConfigState {
   addMapping: (providerId: string, mapping: AddModelMappingRequest) => Promise<void>;
   removeMapping: (providerId: string, mappingId: string) => Promise<void>;
   testConnection: (providerId: string) => Promise<ConnectionTestResult>;
-  enableProvider: (providerId: string, model?: string) => Promise<{ success: boolean; message: string; model: string } | null>;
-  disableProvider: (providerId: string) => Promise<{ success: boolean; message: string; model: string } | null>;
+  enableProvider: (
+    providerId: string,
+    model?: string,
+  ) => Promise<{ success: boolean; message: string; model: string } | null>;
+  disableProvider: (
+    providerId: string,
+  ) => Promise<{ success: boolean; message: string; model: string } | null>;
 
   reset: () => void;
 }
@@ -523,14 +541,14 @@ export const useAIConfigStore = create<AIConfigState>((set, get) => {
       console.log('[Store] enable provider result:', result);
       if (result?.success) {
         // Update the selected model state to reflect the change
-        const selectedProvider = get().providersV2.find(p => p.id === providerId);
+        const selectedProvider = get().providersV2.find((p) => p.id === providerId);
         if (selectedProvider && result.model) {
           set({
             selectedModel: {
               model_id: `claude-switch-${selectedProvider.provider_key}`,
               provider: selectedProvider.provider_key,
               display_name: result.model,
-            }
+            },
           });
         }
       }
@@ -548,7 +566,7 @@ export const useAIConfigStore = create<AIConfigState>((set, get) => {
             model_id: 'claude-sonnet-4-5',
             provider: 'anthropic',
             display_name: 'Claude Sonnet 4.5',
-          }
+          },
         });
       }
       return result;

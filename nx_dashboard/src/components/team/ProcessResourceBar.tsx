@@ -39,7 +39,8 @@ export default function ProcessResourceBar() {
 
   const memMB = Math.round(stats.total_memory_bytes / 1024 / 1024);
   const maxMemMB = Math.round(stats.max_memory_bytes / 1024 / 1024);
-  const procPct = stats.max_processes > 0 ? (stats.active_processes / stats.max_processes) * 100 : 0;
+  const procPct =
+    stats.max_processes > 0 ? (stats.active_processes / stats.max_processes) * 100 : 0;
   const memPct = maxMemMB > 0 ? (memMB / maxMemMB) * 100 : 0;
 
   return (

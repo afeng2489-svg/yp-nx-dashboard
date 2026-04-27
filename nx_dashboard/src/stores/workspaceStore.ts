@@ -68,7 +68,7 @@ function notifyListeners(workspace: Workspace | null) {
   // This prevents multiple rapid fetches when workspace changes
   pendingWorkspace = workspace;
   debounceTimer = setTimeout(() => {
-    listeners.forEach(listener => listener(pendingWorkspace));
+    listeners.forEach((listener) => listener(pendingWorkspace));
     debounceTimer = null;
   }, 300);
 }
@@ -88,7 +88,11 @@ interface WorkspaceStore {
 
   fetchWorkspaces: () => Promise<void>;
   selectWorkspace: (workspace: Workspace | null) => void;
-  createWorkspace: (name: string, description?: string, rootPath?: string) => Promise<Workspace | null>;
+  createWorkspace: (
+    name: string,
+    description?: string,
+    rootPath?: string,
+  ) => Promise<Workspace | null>;
   updateWorkspace: (id: string, updates: Partial<Workspace>) => Promise<Workspace | null>;
   clearError: () => void;
 
@@ -115,16 +119,14 @@ interface WorkspaceStore {
 }
 
 // Use relative path for Vite dev server proxy, or full URL for production
-const API_BASE = import.meta.env.VITE_API_BASE_URL
-  ? import.meta.env.VITE_API_BASE_URL
-  : '';
+const API_BASE = import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL : '';
 
 // Custom error type
 class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public body?: string
+    public body?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -135,7 +137,7 @@ class ApiError extends Error {
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
-  timeout = 8000
+  timeout = 8000,
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -268,8 +270,9 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           }
           const workspace: Workspace = await response.json();
           set((state) => ({
-            workspaces: state.workspaces.map(w => w.id === id ? workspace : w),
-            currentWorkspace: state.currentWorkspace?.id === id ? workspace : state.currentWorkspace,
+            workspaces: state.workspaces.map((w) => (w.id === id ? workspace : w)),
+            currentWorkspace:
+              state.currentWorkspace?.id === id ? workspace : state.currentWorkspace,
           }));
           // Re-browse if root_path changed
           if (updates.root_path && get().currentWorkspace?.id === id) {
@@ -288,7 +291,14 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
 
       browseFiles: async (path) => {
         const ws = get().currentWorkspace;
-        console.log('[browseFiles] called, ws.id:', ws?.id, 'ws.root_path:', ws?.root_path, 'path:', path);
+        console.log(
+          '[browseFiles] called, ws.id:',
+          ws?.id,
+          'ws.root_path:',
+          ws?.root_path,
+          'path:',
+          path,
+        );
         if (!ws?.id) {
           console.log('[browseFiles] early return - no ws.id');
           set({ files: [], currentPath: '' });
@@ -310,7 +320,12 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             throw new ApiError(`Failed to browse files: ${response.status}`, response.status);
           }
           const files: FileNode[] = await response.json();
-          console.log('[browseFiles] files count:', files.length, 'names:', files.map(f => f.name));
+          console.log(
+            '[browseFiles] files count:',
+            files.length,
+            'names:',
+            files.map((f) => f.name),
+          );
           set({
             files,
             currentPath: path || '',
@@ -390,9 +405,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           let newActiveFile = state.activeFilePath;
           if (state.activeFilePath === path) {
             // Activate the last remaining tab, or null
-            newActiveFile = newOpenFiles.length > 0
-              ? newOpenFiles[newOpenFiles.length - 1].path
-              : null;
+            newActiveFile =
+              newOpenFiles.length > 0 ? newOpenFiles[newOpenFiles.length - 1].path : null;
           }
           return { openFiles: newOpenFiles, activeFilePath: newActiveFile };
         });
@@ -412,16 +426,14 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ content: file.content }),
-            }
+            },
           );
           if (!response.ok) {
             throw new ApiError(`Failed to save file: ${response.status}`, response.status);
           }
           set((state) => ({
             openFiles: state.openFiles.map((f) =>
-              f.path === path
-                ? { ...f, isDirty: false, originalContent: f.content }
-                : f
+              f.path === path ? { ...f, isDirty: false, originalContent: f.content } : f,
             ),
           }));
           return true;
@@ -440,7 +452,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         try {
           const response = await fetchWithTimeout(
             `${API_BASE}/api/v1/workspaces/${ws.id}/file?path=${encodeURIComponent(path)}`,
-            { method: 'DELETE' }
+            { method: 'DELETE' },
           );
           if (!response.ok) {
             throw new ApiError(`Failed to delete file: ${response.status}`, response.status);
@@ -450,9 +462,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             const newOpenFiles = state.openFiles.filter((f) => f.path !== path);
             let newActiveFile = state.activeFilePath;
             if (state.activeFilePath === path) {
-              newActiveFile = newOpenFiles.length > 0
-                ? newOpenFiles[newOpenFiles.length - 1].path
-                : null;
+              newActiveFile =
+                newOpenFiles.length > 0 ? newOpenFiles[newOpenFiles.length - 1].path : null;
             }
             return { openFiles: newOpenFiles, activeFilePath: newActiveFile };
           });
@@ -474,9 +485,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       updateFileContent: (path: string, content: string) => {
         set((state) => ({
           openFiles: state.openFiles.map((f) =>
-            f.path === path
-              ? { ...f, content, isDirty: content !== f.originalContent }
-              : f
+            f.path === path ? { ...f, content, isDirty: content !== f.originalContent } : f,
           ),
         }));
       },
@@ -494,7 +503,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           const response = await fetchWithTimeout(
             `${API_BASE}/api/v1/workspaces/${workspace.id}/diffs`,
             {},
-            10000
+            10000,
           );
           if (!response.ok) {
             throw new ApiError(`Failed to fetch git diffs: ${response.status}`, response.status);
@@ -516,7 +525,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           const response = await fetchWithTimeout(
             `${API_BASE}/api/v1/workspaces/${workspace.id}/diff/${encodeURIComponent(filePath)}`,
             {},
-            10000
+            10000,
           );
           if (!response.ok) {
             return '';
@@ -539,7 +548,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           const response = await fetchWithTimeout(
             `${API_BASE}/api/v1/workspaces/${workspace.id}/git/status`,
             {},
-            10000
+            10000,
           );
           if (!response.ok) {
             throw new ApiError(`Failed to fetch git status: ${response.status}`, response.status);
@@ -566,6 +575,6 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           });
         }
       },
-    }
-  )
+    },
+  ),
 );

@@ -42,7 +42,9 @@ export function WorkflowLaunchModal({ workflow, onClose }: WorkflowLaunchModalPr
         const wfInputs: Record<string, WorkflowInput> = triggers[0]?.inputs ?? {};
         setInputs(wfInputs);
         const initial: Record<string, string> = {};
-        Object.keys(wfInputs).forEach(k => { initial[k] = ''; });
+        Object.keys(wfInputs).forEach((k) => {
+          initial[k] = '';
+        });
         setValues(initial);
       } finally {
         setLoading(false);
@@ -84,7 +86,9 @@ export function WorkflowLaunchModal({ workflow, onClose }: WorkflowLaunchModalPr
             </div>
             <div>
               <h2 className="font-semibold">{workflow.name}</h2>
-              <p className="text-xs text-muted-foreground">{workflow.description || '启动工作流'}</p>
+              <p className="text-xs text-muted-foreground">
+                {workflow.description || '启动工作流'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-accent transition-colors">
@@ -116,7 +120,7 @@ export function WorkflowLaunchModal({ workflow, onClose }: WorkflowLaunchModalPr
                     className="w-full bg-background border border-border/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none min-h-[80px]"
                     placeholder={input.description ?? `输入 ${key}…`}
                     value={values[key] ?? ''}
-                    onChange={e => setValues(prev => ({ ...prev, [key]: e.target.value }))}
+                    onChange={(e) => setValues((prev) => ({ ...prev, [key]: e.target.value }))}
                   />
                 </div>
               ))}
@@ -125,13 +129,19 @@ export function WorkflowLaunchModal({ workflow, onClose }: WorkflowLaunchModalPr
         </div>
 
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/50">
-          <button onClick={onClose} className="btn-secondary">取消</button>
+          <button onClick={onClose} className="btn-secondary">
+            取消
+          </button>
           <button
             onClick={handleExecute}
             disabled={executing || loading}
             className="btn-primary flex items-center gap-2"
           >
-            {executing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+            {executing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Play className="w-4 h-4" />
+            )}
             {executing ? '启动中…' : '执行'}
           </button>
         </div>

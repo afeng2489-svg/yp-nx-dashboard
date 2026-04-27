@@ -2,7 +2,18 @@ import { useEffect, useState } from 'react';
 import { useSessionStore, Session } from '@/stores/sessionStore';
 import { onWorkspaceChange } from '@/stores/workspaceStore';
 import { useSessionsQuery } from '@/hooks/useReactQuery';
-import { Clock, AlertCircle, Loader2, X, ChevronRight, Activity, Pause, Play, Copy, CheckCircle } from 'lucide-react';
+import {
+  Clock,
+  AlertCircle,
+  Loader2,
+  X,
+  ChevronRight,
+  Activity,
+  Pause,
+  Play,
+  Copy,
+  CheckCircle,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 
@@ -84,16 +95,11 @@ function SessionCard({
         'w-full flex items-center justify-between p-5 rounded-2xl transition-all duration-200',
         'bg-gradient-to-r from-card to-accent/30 border border-border/50',
         'hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20 hover:-translate-y-0.5',
-        'text-left group'
+        'text-left group',
       )}
     >
       <div className="flex items-center gap-4">
-        <div
-          className={cn(
-            'p-3 rounded-xl bg-gradient-to-br shadow-lg',
-            config.gradient
-          )}
-        >
+        <div className={cn('p-3 rounded-xl bg-gradient-to-br shadow-lg', config.gradient)}>
           <Icon className="w-5 h-5 text-white" />
         </div>
         <div className="flex-1 min-w-0">
@@ -124,7 +130,7 @@ function SessionCard({
           className={cn(
             'px-3 py-1.5 rounded-full text-xs font-medium shadow-md',
             'bg-gradient-to-r ' + config.gradient,
-            'text-white'
+            'text-white',
           )}
         >
           {config.label}
@@ -153,13 +159,7 @@ function SessionCard({
   );
 }
 
-function SessionDetailPanel({
-  session,
-  onClose,
-}: {
-  session: Session;
-  onClose: () => void;
-}) {
+function SessionDetailPanel({ session, onClose }: { session: Session; onClose: () => void }) {
   const { setCurrentSession, terminateSession, activateSession } = useSessionStore();
   const { confirmState, showConfirm, hideConfirm } = useConfirmModal();
   const status = session.status as keyof typeof STATUS_CONFIG;
@@ -177,7 +177,7 @@ function SessionDetailPanel({
       async () => {
         await terminateSession(session.id);
         onClose();
-      }
+      },
     );
   };
 
@@ -187,67 +187,68 @@ function SessionDetailPanel({
 
   return (
     <>
-    <ConfirmModal
-      isOpen={confirmState.isOpen}
-      title={confirmState.title}
-      message={confirmState.message}
-      onConfirm={confirmState.onConfirm}
-      onCancel={hideConfirm}
-      variant="danger"
-    />
-    <div className="fixed inset-y-0 right-0 w-96 bg-card border-l border-border shadow-xl z-50 flex flex-col animate-in slide-in-from-right">
-      <div className="flex items-center justify-between p-4 border-b border-border">
-        <h2 className="text-lg font-semibold">会话详情</h2>
-        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
-          <X className="w-5 h-5" />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        <div className="flex items-center gap-3">
-          <div className={cn('p-3 rounded-xl bg-gradient-to-br shadow-lg', config.gradient)}>
-            <Icon className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <p className="font-semibold">{session.workflow_id || '未指定工作流'}</p>
-            <span className={cn(
-              'inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium',
-              'bg-gradient-to-r ' + config.gradient, 'text-white'
-            )}>
-              {config.label}
-            </span>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <DetailRow label="ID" value={session.id} mono />
-          {session.resume_key && (
-            <DetailRow label="Resume Key" value={session.resume_key} mono />
-          )}
-          <DetailRow label="创建时间" value={new Date(session.created_at).toLocaleString()} />
-          <DetailRow label="更新时间" value={new Date(session.updated_at).toLocaleString()} />
-        </div>
-
-        <div className="space-y-2">
-          <button onClick={handleSetCurrent} className="w-full btn-primary text-sm">
-            设为当前会话
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={confirmState.onConfirm}
+        onCancel={hideConfirm}
+        variant="danger"
+      />
+      <div className="fixed inset-y-0 right-0 w-96 bg-card border-l border-border shadow-xl z-50 flex flex-col animate-in slide-in-from-right">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h2 className="text-lg font-semibold">会话详情</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
+            <X className="w-5 h-5" />
           </button>
-          {(session.status === 'pending' || session.status === 'paused') && (
-            <button onClick={handleActivate} className="w-full btn-secondary text-sm">
-              <Play className="w-4 h-4" /> 激活
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          <div className="flex items-center gap-3">
+            <div className={cn('p-3 rounded-xl bg-gradient-to-br shadow-lg', config.gradient)}>
+              <Icon className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold">{session.workflow_id || '未指定工作流'}</p>
+              <span
+                className={cn(
+                  'inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium',
+                  'bg-gradient-to-r ' + config.gradient,
+                  'text-white',
+                )}
+              >
+                {config.label}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <DetailRow label="ID" value={session.id} mono />
+            {session.resume_key && <DetailRow label="Resume Key" value={session.resume_key} mono />}
+            <DetailRow label="创建时间" value={new Date(session.created_at).toLocaleString()} />
+            <DetailRow label="更新时间" value={new Date(session.updated_at).toLocaleString()} />
+          </div>
+
+          <div className="space-y-2">
+            <button onClick={handleSetCurrent} className="w-full btn-primary text-sm">
+              设为当前会话
             </button>
-          )}
-          {session.status !== 'terminated' && (
-            <button
-              onClick={handleTerminate}
-              className="w-full px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 text-red-600 hover:bg-red-500/20 transition-colors"
-            >
-              <X className="w-4 h-4 inline mr-1" /> 终止会话
-            </button>
-          )}
+            {(session.status === 'pending' || session.status === 'paused') && (
+              <button onClick={handleActivate} className="w-full btn-secondary text-sm">
+                <Play className="w-4 h-4" /> 激活
+              </button>
+            )}
+            {session.status !== 'terminated' && (
+              <button
+                onClick={handleTerminate}
+                className="w-full px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 text-red-600 hover:bg-red-500/20 transition-colors"
+              >
+                <X className="w-4 h-4 inline mr-1" /> 终止会话
+              </button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
     </>
   );
 }
@@ -274,7 +275,9 @@ export function SessionsPage() {
     const unsubscribe = onWorkspaceChange(() => {
       refetch();
     });
-    return () => { unsubscribe(); };
+    return () => {
+      unsubscribe();
+    };
   }, [refetch]);
 
   // Use querySessions when available, fallback to sessions store
@@ -353,10 +356,7 @@ export function SessionsPage() {
       )}
 
       {selectedSession && (
-        <SessionDetailPanel
-          session={selectedSession}
-          onClose={() => setSelectedSession(null)}
-        />
+        <SessionDetailPanel session={selectedSession} onClose={() => setSelectedSession(null)} />
       )}
     </div>
   );

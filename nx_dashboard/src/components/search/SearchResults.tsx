@@ -42,14 +42,14 @@ export function SearchResults({
 }: SearchResultsProps) {
   const displayedResults = useMemo(
     () => results.results.slice(0, maxResults),
-    [results.results, maxResults]
+    [results.results, maxResults],
   );
 
   const handleClick = useCallback(
     (result: SearchHit) => {
       onResultClick?.(result, result.file, result.line_number);
     },
-    [onResultClick]
+    [onResultClick],
   );
 
   // Group results by file
@@ -71,9 +71,7 @@ export function SearchResults({
           <FileText className="w-6 h-6 text-muted-foreground" />
         </div>
         <p className="text-sm text-muted-foreground">No results found</p>
-        <p className="text-xs text-muted-foreground mt-1">
-          Try different keywords or search mode
-        </p>
+        <p className="text-xs text-muted-foreground mt-1">Try different keywords or search mode</p>
       </div>
     );
   }
@@ -118,7 +116,7 @@ export function SearchResults({
             <div className="divide-y">
               {hits.map((hit, hitIndex) => {
                 const globalIndex = displayedResults.findIndex(
-                  (r) => r.file === file && r.line_number === hit.line_number
+                  (r) => r.file === file && r.line_number === hit.line_number,
                 );
                 const isSelected = globalIndex === selectedIndex;
 
@@ -129,7 +127,7 @@ export function SearchResults({
                     className={cn(
                       'w-full text-left px-3 py-2 transition-colors',
                       'hover:bg-accent',
-                      isSelected && 'bg-accent'
+                      isSelected && 'bg-accent',
                     )}
                   >
                     <div className="flex items-start gap-2">
@@ -196,9 +194,7 @@ export function SearchResultsEmpty({ className }: { className?: string }) {
         <Search className="w-6 h-6 text-muted-foreground" />
       </div>
       <p className="text-sm text-muted-foreground">Start typing to search</p>
-      <p className="text-xs text-muted-foreground mt-1">
-        Use Ctrl+Shift+F to focus search
-      </p>
+      <p className="text-xs text-muted-foreground mt-1">Use Ctrl+Shift+F to focus search</p>
     </div>
   );
 }
@@ -214,13 +210,7 @@ export function SearchResultsLoading({ className }: { className?: string }) {
 }
 
 // Error state
-export function SearchResultsError({
-  error,
-  className,
-}: {
-  error: string;
-  className?: string;
-}) {
+export function SearchResultsError({ error, className }: { error: string; className?: string }) {
   return (
     <div className={cn('flex flex-col items-center justify-center py-12', className)}>
       <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">

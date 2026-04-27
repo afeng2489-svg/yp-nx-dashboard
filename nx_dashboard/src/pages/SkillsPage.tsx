@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react';
-import { useSkillStore, type SkillSummary, type CreateSkillRequest, type UpdateSkillRequest } from '@/stores/skillStore';
-import { useSkillsQuery, useSkillDetailQuery, useSkillCategoriesQuery } from '@/hooks/useReactQuery';
+import {
+  useSkillStore,
+  type SkillSummary,
+  type CreateSkillRequest,
+  type UpdateSkillRequest,
+} from '@/stores/skillStore';
+import {
+  useSkillsQuery,
+  useSkillDetailQuery,
+  useSkillCategoriesQuery,
+} from '@/hooks/useReactQuery';
 import { showSuccess, showError } from '@/lib/toast';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 import { Pencil, Trash2, Plus, X, Download, Link, FileText, ClipboardPaste } from 'lucide-react';
@@ -42,7 +51,12 @@ export default function SkillsPage() {
   const [importContent, setImportContent] = useState('');
   const [importFilename, setImportFilename] = useState('');
   const [importing, setImporting] = useState(false);
-  const [importPreview, setImportPreview] = useState<{ name: string; description: string; category: string; tags: string[] } | null>(null);
+  const [importPreview, setImportPreview] = useState<{
+    name: string;
+    description: string;
+    category: string;
+    tags: string[];
+  } | null>(null);
 
   // Edit form state
   const [editForm, setEditForm] = useState<CreateSkillRequest>({
@@ -89,7 +103,6 @@ export default function SkillsPage() {
 
   const handleCategoryClick = (category: string) => {
     if (selectedCategory === category) {
-      // Toggle off - show all
       setSelectedCategory('');
       setSearchQuery('');
       clearSearch();
@@ -98,17 +111,15 @@ export default function SkillsPage() {
       setSelectedCategory(category);
       setSearchQuery('');
       clearSearch();
-      // Fetch skills filtered by category
       useSkillStore.getState().fetchByCategory(category);
     }
   };
 
   const handleSkillClick = async (skill: SkillSummary) => {
     setSelectedSkill(skill);
-    // Fetch full detail
     const detail = await useSkillStore.getState().fetchSkill(skill.id);
     if (detail) {
-      setSelectedSkill(skill); // Keep the summary for display
+      setSelectedSkill(skill);
     }
   };
 
@@ -210,7 +221,7 @@ export default function SkillsPage() {
         } else {
           showError('删除失败', '请稍后重试');
         }
-      }
+      },
     );
   };
 
@@ -225,8 +236,10 @@ export default function SkillsPage() {
 
     for (const line of lines) {
       if (line.trim() === '---') {
-        if (!inFrontmatter) { inFrontmatter = true; continue; }
-        else break;
+        if (!inFrontmatter) {
+          inFrontmatter = true;
+          continue;
+        } else break;
       }
       if (!inFrontmatter) continue;
       const match = line.match(/^(\w+):\s*(.+)/);
@@ -236,7 +249,11 @@ export default function SkillsPage() {
       else if (key === 'description') description = value.trim();
       else if (key === 'category') category = value.trim();
       else if (key === 'tags') {
-        try { tags = JSON.parse(value.trim()); } catch { tags = value.split(',').map(t => t.trim()); }
+        try {
+          tags = JSON.parse(value.trim());
+        } catch {
+          tags = value.split(',').map((t) => t.trim());
+        }
       }
     }
     return name ? { name, description, category, tags } : null;
@@ -282,11 +299,7 @@ export default function SkillsPage() {
       return;
     }
     setImporting(true);
-    const result = await importSkill(
-      importMode,
-      importContent,
-      importFilename || undefined,
-    );
+    const result = await importSkill(importMode, importContent, importFilename || undefined);
     setImporting(false);
     if (result) {
       showSuccess('导入成功', `技能 "${result.name}" 已导入`);
@@ -303,7 +316,6 @@ export default function SkillsPage() {
 
   const handleOpenExecuteDialog = () => {
     if (!currentSkill) return;
-    // Initialize param values with defaults
     const initialValues: Record<string, string> = {};
     currentSkill.parameters.forEach((param) => {
       if (param.default !== null && param.default !== undefined) {
@@ -326,7 +338,6 @@ export default function SkillsPage() {
   const handleExecuteSkill = async () => {
     if (!currentSkill) return;
 
-    // Build params object
     const params: Record<string, unknown> = {};
     currentSkill.parameters.forEach((param) => {
       const value = paramValues[param.name];
@@ -350,7 +361,7 @@ export default function SkillsPage() {
         setExecutionResult(
           result.output !== null
             ? JSON.stringify(result.output, null, 2)
-            : '执行完成，无输出'
+            : '执行完成，无输出',
         );
       } else {
         showError('技能执行失败', result.error || '未知错误');
@@ -369,258 +380,27 @@ export default function SkillsPage() {
       ? filteredSkills
       : skills;
 
+  // Common input class
+  const inputCls =
+    'w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground';
+
   return (
     <>
-    <div className="flex h-full">
-      {/* 左侧列表 */}
-      <div className="w-80 border-r border-gray-200 flex flex-col bg-white">
-        {/* 搜索框 */}
-        <form onSubmit={handleSearch} className="p-4 border-b border-gray-200">
-          <div className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索技能..."
-              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <svg
-              className="absolute left-3 top-2.5 w-5 h-5 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+      <div className="flex h-full">
+        {/* 左侧列表 */}
+        <div className="w-80 border-r border-border flex flex-col bg-card">
+          {/* 搜索框 */}
+          <form onSubmit={handleSearch} className="p-4 border-b border-border">
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="搜索技能..."
+                className={inputCls + ' pl-10'}
               />
-            </svg>
-          </div>
-        </form>
-
-        {/* 新建 & 导入按钮 */}
-        <div className="p-4 border-b border-gray-200 flex gap-2">
-          <button
-            onClick={handleOpenCreateDialog}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            新建
-          </button>
-          <button
-            onClick={() => { setShowImportDialog(true); setImportMode('url'); setImportContent(''); setImportFilename(''); setImportPreview(null); }}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            导入
-          </button>
-        </div>
-
-        {/* 统计信息 */}
-        {stats && (
-          <div className="p-4 border-b border-gray-200 bg-gray-50">
-            <div className="text-sm text-gray-600">
-              共 <span className="font-semibold text-blue-600">{stats.total_skills}</span> 个技能
-            </div>
-          </div>
-        )}
-
-        {/* 类别标签 */}
-        {categories.length > 0 && (
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">类别</h3>
-            <div className="flex flex-wrap gap-2">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => handleCategoryClick(cat)}
-                  className={`px-2 py-1 text-xs rounded-full transition-colors ${
-                    selectedCategory === cat
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {cat.replace('_', ' ')}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 技能列表 */}
-        <div className="flex-1 overflow-y-auto">
-          {isLoading ? (
-            <div className="p-4 text-center text-gray-500">加载中...</div>
-          ) : error ? (
-            <div className="p-4 text-center text-red-500">{error}</div>
-          ) : displaySkills.length === 0 ? (
-            <div className="p-4 text-center text-gray-500">没有找到技能</div>
-          ) : (
-            <div className="divide-y divide-gray-100">
-              {displaySkills.map((skill) => (
-                <button
-                  key={skill.id}
-                  onClick={() => handleSkillClick(skill)}
-                  className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
-                    selectedSkill?.id === skill.id ? 'bg-blue-50' : ''
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="font-medium text-gray-900">{skill.name}</div>
-                    {skill.is_preset && (
-                      <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-600 rounded">
-                        预设
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm text-gray-500 mt-1 line-clamp-2">
-                    {skill.description}
-                  </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
-                      {skill.category.replace('_', ' ')}
-                    </span>
-                    {skill.tags.slice(0, 2).map((tag) => (
-                      <span
-                        key={tag}
-                        className="px-2 py-0.5 text-xs bg-blue-50 text-blue-600 rounded"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 右侧详情 */}
-      <div className="flex-1 bg-white overflow-y-auto">
-        {currentSkill ? (
-          <div className="p-6">
-            {/* 头部操作按钮 */}
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">{currentSkill.name}</h1>
-                <div className="flex items-center gap-2 mt-1">
-                  <p className="text-gray-500">版本 {currentSkill.version}</p>
-                  {currentSkill.is_preset && (
-                    <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-600 rounded">
-                      预设技能
-                    </span>
-                  )}
-                  {!currentSkill.enabled && (
-                    <span className="px-2 py-0.5 text-xs bg-red-100 text-red-600 rounded">
-                      已禁用
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleOpenEditDialog}
-                  className="flex items-center gap-1 px-3 py-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                >
-                  <Pencil className="w-4 h-4" />
-                  编辑
-                </button>
-                {!currentSkill.is_preset && (
-                  <button
-                    onClick={handleDeleteSkill}
-                    className="flex items-center gap-1 px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    删除
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <h2 className="text-sm font-medium text-gray-700 mb-2">描述</h2>
-              <p className="text-gray-900">{currentSkill.description}</p>
-            </div>
-
-            <div className="mb-6">
-              <h2 className="text-sm font-medium text-gray-700 mb-2">标签</h2>
-              <div className="flex flex-wrap gap-2">
-                {currentSkill.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded-full"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {currentSkill.parameters.length > 0 && (
-              <div className="mb-6">
-                <h2 className="text-sm font-medium text-gray-700 mb-3">参数</h2>
-                <div className="space-y-3">
-                  {currentSkill.parameters.map((param) => (
-                    <div
-                      key={param.name}
-                      className="p-3 bg-gray-50 rounded-lg border border-gray-200"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900">{param.name}</span>
-                        {param.required ? (
-                          <span className="px-2 py-0.5 text-xs bg-red-100 text-red-600 rounded">
-                            必需
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 text-xs bg-gray-200 text-gray-600 rounded">
-                            可选
-                          </span>
-                        )}
-                        <span className="px-2 py-0.5 text-xs bg-gray-200 text-gray-600 rounded">
-                          {param.param_type}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 mt-1">{param.description}</p>
-                      {param.default !== null && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          默认值: {JSON.stringify(param.default)}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 技能内容 */}
-            {currentSkill.code && (
-              <div className="mb-6">
-                <h2 className="text-sm font-medium text-gray-700 mb-2">技能内容</h2>
-                <pre className="w-full p-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">
-                  {currentSkill.code}
-                </pre>
-              </div>
-            )}
-
-            {/* 执行按钮 */}
-            <div className="mt-8 pt-6 border-t border-gray-200">
-              <button
-                onClick={handleOpenExecuteDialog}
-                disabled={executing}
-                className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {executing ? '执行中...' : '执行技能'}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="h-full flex items-center justify-center text-gray-400">
-            <div className="text-center">
               <svg
-                className="w-16 h-16 mx-auto mb-4 text-gray-300"
+                className="absolute left-3 top-2.5 w-5 h-5 text-muted-foreground"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -628,387 +408,680 @@ export default function SkillsPage() {
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                 />
               </svg>
-              <p>选择一个技能查看详情</p>
+            </div>
+          </form>
+
+          {/* 新建 & 导入按钮 */}
+          <div className="p-4 border-b border-border flex gap-2">
+            <button
+              onClick={handleOpenCreateDialog}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 btn-primary rounded-lg"
+            >
+              <Plus className="w-4 h-4" />
+              新建
+            </button>
+            <button
+              onClick={() => {
+                setShowImportDialog(true);
+                setImportMode('url');
+                setImportContent('');
+                setImportFilename('');
+                setImportPreview(null);
+              }}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              导入
+            </button>
+          </div>
+
+          {/* 统计信息 */}
+          {stats && (
+            <div className="p-4 border-b border-border bg-accent/50">
+              <div className="text-sm text-muted-foreground">
+                共 <span className="font-semibold text-primary">{stats.total_skills}</span> 个技能
+              </div>
+            </div>
+          )}
+
+          {/* 类别标签 */}
+          {categories.length > 0 && (
+            <div className="p-4 border-b border-border">
+              <h3 className="text-sm font-medium text-foreground mb-2">类别</h3>
+              <div className="flex flex-wrap gap-2">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => handleCategoryClick(cat)}
+                    className={`px-2 py-1 text-xs rounded-full transition-colors ${
+                      selectedCategory === cat
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-accent text-muted-foreground hover:bg-accent/80'
+                    }`}
+                  >
+                    {cat.replace('_', ' ')}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 技能列表 */}
+          <div className="flex-1 overflow-y-auto">
+            {isLoading ? (
+              <div className="p-4 text-center text-muted-foreground">加载中...</div>
+            ) : error ? (
+              <div className="p-4 text-center text-destructive">{error}</div>
+            ) : displaySkills.length === 0 ? (
+              <div className="p-4 text-center text-muted-foreground">没有找到技能</div>
+            ) : (
+              <div className="divide-y divide-border">
+                {displaySkills.map((skill) => (
+                  <button
+                    key={skill.id}
+                    onClick={() => handleSkillClick(skill)}
+                    className={`w-full p-4 text-left hover:bg-accent transition-colors ${
+                      selectedSkill?.id === skill.id ? 'bg-primary/5' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium text-foreground">{skill.name}</div>
+                      {skill.is_preset && (
+                        <span className="px-2 py-0.5 text-xs bg-purple-500/10 text-purple-500 rounded">
+                          预设
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                      {skill.description}
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="px-2 py-0.5 text-xs bg-accent text-muted-foreground rounded">
+                        {skill.category.replace('_', ' ')}
+                      </span>
+                      {skill.tags.slice(0, 2).map((tag) => (
+                        <span
+                          key={tag}
+                          className="px-2 py-0.5 text-xs bg-primary/10 text-primary rounded"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 右侧详情 */}
+        <div className="flex-1 bg-card overflow-y-auto">
+          {currentSkill ? (
+            <div className="p-6">
+              {/* 头部操作按钮 */}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h1 className="text-2xl font-bold text-foreground">{currentSkill.name}</h1>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-muted-foreground">版本 {currentSkill.version}</p>
+                    {currentSkill.is_preset && (
+                      <span className="px-2 py-0.5 text-xs bg-purple-500/10 text-purple-500 rounded">
+                        预设技能
+                      </span>
+                    )}
+                    {!currentSkill.enabled && (
+                      <span className="px-2 py-0.5 text-xs bg-destructive/10 text-destructive rounded">
+                        已禁用
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleOpenEditDialog}
+                    className="flex items-center gap-1 px-3 py-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                  >
+                    <Pencil className="w-4 h-4" />
+                    编辑
+                  </button>
+                  {!currentSkill.is_preset && (
+                    <button
+                      onClick={handleDeleteSkill}
+                      className="flex items-center gap-1 px-3 py-1.5 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      删除
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <h2 className="text-sm font-medium text-muted-foreground mb-2">描述</h2>
+                <p className="text-foreground">{currentSkill.description}</p>
+              </div>
+
+              <div className="mb-6">
+                <h2 className="text-sm font-medium text-muted-foreground mb-2">标签</h2>
+                <div className="flex flex-wrap gap-2">
+                  {currentSkill.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="px-3 py-1 text-sm bg-primary/10 text-primary rounded-full"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {currentSkill.parameters.length > 0 && (
+                <div className="mb-6">
+                  <h2 className="text-sm font-medium text-muted-foreground mb-3">参数</h2>
+                  <div className="space-y-3">
+                    {currentSkill.parameters.map((param) => (
+                      <div
+                        key={param.name}
+                        className="p-3 bg-accent/50 rounded-lg border border-border"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-foreground">{param.name}</span>
+                          {param.required ? (
+                            <span className="px-2 py-0.5 text-xs bg-destructive/10 text-destructive rounded">
+                              必需
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 text-xs bg-accent text-muted-foreground rounded">
+                              可选
+                            </span>
+                          )}
+                          <span className="px-2 py-0.5 text-xs bg-accent text-muted-foreground rounded">
+                            {param.param_type}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">{param.description}</p>
+                        {param.default !== null && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            默认值: {JSON.stringify(param.default)}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 技能内容 */}
+              {currentSkill.code && (
+                <div className="mb-6">
+                  <h2 className="text-sm font-medium text-muted-foreground mb-2">技能内容</h2>
+                  <pre className="w-full p-4 bg-background border border-border rounded-lg text-sm text-foreground whitespace-pre-wrap overflow-x-auto max-h-96 overflow-y-auto">
+                    {currentSkill.code}
+                  </pre>
+                </div>
+              )}
+
+              {/* 执行按钮 */}
+              <div className="mt-8 pt-6 border-t border-border">
+                <button
+                  onClick={handleOpenExecuteDialog}
+                  disabled={executing}
+                  className="px-6 py-2 btn-primary rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {executing ? '执行中...' : '执行技能'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="h-full flex items-center justify-center text-muted-foreground">
+              <div className="text-center">
+                <svg
+                  className="w-16 h-16 mx-auto mb-4 text-muted-foreground/30"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                  />
+                </svg>
+                <p>选择一个技能查看详情</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 编辑弹窗 */}
+        {showEditDialog && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-card rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+              <div className="p-6 border-b border-border flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-foreground">
+                    {isCreating ? '新建技能' : '编辑技能'}
+                  </h2>
+                  {!isCreating && (
+                    <p className="text-sm text-muted-foreground mt-1">ID: {editForm.id}</p>
+                  )}
+                </div>
+                <button
+                  onClick={handleCloseEditDialog}
+                  className="p-1 hover:bg-accent rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto flex-1 space-y-4">
+                {isCreating && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">
+                      技能 ID <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.id}
+                      onChange={(e) => setEditForm({ ...editForm, id: e.target.value })}
+                      placeholder="例如: my-custom-skill"
+                      className={inputCls}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      唯一标识符，只能使用字母、数字和连字符
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    名称 <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    placeholder="技能显示名称"
+                    className={inputCls}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    描述
+                  </label>
+                  <textarea
+                    value={editForm.description}
+                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                    placeholder="技能的详细描述"
+                    rows={3}
+                    className={inputCls + ' resize-none'}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    类别
+                  </label>
+                  <select
+                    value={editForm.category}
+                    onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                    className={inputCls}
+                  >
+                    <option value="workflow_planning">工作流规划 (workflow_planning)</option>
+                    <option value="collaboration">协作 (collaboration)</option>
+                    <option value="development">开发 (development)</option>
+                    <option value="testing">测试 (testing)</option>
+                    <option value="review">审查 (review)</option>
+                    <option value="documentation">文档 (documentation)</option>
+                    <option value="research">研究 (research)</option>
+                    <option value="general">通用 (general)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    标签 (逗号分隔)
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.tags?.join(', ') || ''}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        tags: e.target.value
+                          .split(',')
+                          .map((t) => t.trim())
+                          .filter(Boolean),
+                      })
+                    }
+                    placeholder="例如: test, demo, api"
+                    className={inputCls}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    技能内容 (instruction)
+                  </label>
+                  <textarea
+                    value={editForm.code || ''}
+                    onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
+                    placeholder="技能的指令内容，支持多行 Markdown 格式"
+                    rows={10}
+                    className={inputCls + ' font-mono text-sm resize-none'}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    技能的完整指令内容，会作为 agent 的 system prompt
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-border flex justify-end gap-3">
+                <button
+                  onClick={handleCloseEditDialog}
+                  className="btn-secondary"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleSaveSkill}
+                  disabled={saving}
+                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {saving ? '保存中...' : '保存'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 执行弹窗 */}
+        {showExecuteDialog && currentSkill && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-card rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+              <div className="p-6 border-b border-border">
+                <h2 className="text-xl font-bold text-foreground">执行技能</h2>
+                <p className="text-sm text-muted-foreground mt-1">{currentSkill.name}</p>
+              </div>
+
+              <div className="p-6 overflow-y-auto flex-1">
+                {currentSkill.parameters.length > 0 ? (
+                  <div className="space-y-4">
+                    {currentSkill.parameters.map((param) => (
+                      <div key={param.name}>
+                        <label className="block text-sm font-medium text-foreground mb-1">
+                          {param.name}
+                          {param.required && <span className="text-destructive ml-1">*</span>}
+                        </label>
+                        <input
+                          type="text"
+                          value={paramValues[param.name] || ''}
+                          onChange={(e) =>
+                            setParamValues((prev) => ({
+                              ...prev,
+                              [param.name]: e.target.value,
+                            }))
+                          }
+                          placeholder={
+                            param.default !== null ? String(param.default) : param.description
+                          }
+                          className={inputCls}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">{param.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-center py-4">此技能无需参数</p>
+                )}
+
+                {executionResult && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-foreground mb-1">
+                      执行结果
+                    </label>
+                    <pre className="w-full px-3 py-2 border border-border rounded-lg bg-background text-sm overflow-x-auto max-h-48">
+                      {executionResult}
+                    </pre>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-6 border-t border-border flex justify-end gap-3">
+                <button
+                  onClick={handleCloseExecuteDialog}
+                  className="btn-secondary"
+                >
+                  关闭
+                </button>
+                <button
+                  onClick={handleExecuteSkill}
+                  disabled={executing}
+                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {executing ? '执行中...' : '执行'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 导入弹窗 */}
+        {showImportDialog && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-card rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+              <div className="p-6 border-b border-border flex items-center justify-between">
+                <h2 className="text-xl font-bold text-foreground">导入技能</h2>
+                <button
+                  onClick={() => setShowImportDialog(false)}
+                  className="p-1 hover:bg-accent rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto flex-1 space-y-4">
+                {/* 模式切换 */}
+                <div className="flex gap-1 bg-accent rounded-lg p-1">
+                  <button
+                    onClick={() => {
+                      setImportMode('url');
+                      setImportContent('');
+                      setImportPreview(null);
+                    }}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      importMode === 'url'
+                        ? 'bg-card text-primary shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Link className="w-4 h-4" />
+                    URL
+                  </button>
+                  <button
+                    onClick={() => {
+                      setImportMode('file');
+                      setImportContent('');
+                      setImportPreview(null);
+                      setImportFilename('');
+                    }}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      importMode === 'file'
+                        ? 'bg-card text-primary shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <FileText className="w-4 h-4" />
+                    文件
+                  </button>
+                  <button
+                    onClick={() => {
+                      setImportMode('paste');
+                      setImportContent('');
+                      setImportPreview(null);
+                    }}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      importMode === 'paste'
+                        ? 'bg-card text-primary shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <ClipboardPaste className="w-4 h-4" />
+                    粘贴
+                  </button>
+                </div>
+
+                {/* URL 模式 */}
+                {importMode === 'url' && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">
+                      .md 文件 URL
+                    </label>
+                    <input
+                      type="url"
+                      value={importContent}
+                      onChange={(e) => setImportContent(e.target.value)}
+                      placeholder="https://raw.githubusercontent.com/.../skill.md"
+                      className={inputCls + ' text-sm'}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      支持 GitHub raw 链接等可直接访问的 .md 文件 URL
+                    </p>
+                  </div>
+                )}
+
+                {/* 文件模式 */}
+                {importMode === 'file' && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">
+                      选择 .md 文件
+                    </label>
+                    <div
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={handleFileDrop}
+                      className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                      onClick={() => document.getElementById('import-file-input')?.click()}
+                    >
+                      <input
+                        id="import-file-input"
+                        type="file"
+                        accept=".md"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                      />
+                      {importFilename ? (
+                        <div>
+                          <FileText className="w-8 h-8 mx-auto text-primary mb-2" />
+                          <p className="text-sm font-medium text-foreground">{importFilename}</p>
+                          <p className="text-xs text-muted-foreground mt-1">点击更换文件</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <Download className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                          <p className="text-sm text-muted-foreground">拖拽 .md 文件到此处</p>
+                          <p className="text-xs text-muted-foreground/60 mt-1">或点击选择文件</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 粘贴模式 */}
+                {importMode === 'paste' && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">
+                      Markdown 内容
+                    </label>
+                    <textarea
+                      value={importContent}
+                      onChange={(e) => handleImportContentChange(e.target.value)}
+                      placeholder={
+                        '---\nname: My Skill\ndescription: 技能描述\ncategory: development\ntags: ["agent"]\ninstruction: |\n  技能指令内容...\n---'
+                      }
+                      rows={12}
+                      className={inputCls + ' font-mono text-sm resize-none'}
+                    />
+                  </div>
+                )}
+
+                {/* 预览区 */}
+                {importPreview && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4">
+                    <h3 className="text-sm font-medium text-emerald-600 dark:text-emerald-400 mb-2">
+                      解析预览
+                    </h3>
+                    <div className="space-y-1 text-sm">
+                      <div>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                          名称:
+                        </span>{' '}
+                        {importPreview.name}
+                      </div>
+                      {importPreview.description && (
+                        <div>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                            描述:
+                          </span>{' '}
+                          {importPreview.description}
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                          分类:
+                        </span>{' '}
+                        {importPreview.category}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                          标签:
+                        </span>
+                        {importPreview.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="px-1.5 py-0.5 text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-6 border-t border-border flex justify-end gap-3">
+                <button
+                  onClick={() => setShowImportDialog(false)}
+                  className="btn-secondary"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleImport}
+                  disabled={importing || !importContent.trim()}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {importing ? '导入中...' : '导入'}
+                </button>
+              </div>
             </div>
           </div>
         )}
       </div>
-
-      {/* 编辑弹窗 */}
-      {showEditDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {isCreating ? '新建技能' : '编辑技能'}
-                </h2>
-                {!isCreating && (
-                  <p className="text-sm text-gray-500 mt-1">ID: {editForm.id}</p>
-                )}
-              </div>
-              <button
-                onClick={handleCloseEditDialog}
-                className="p-1 hover:bg-gray-100 rounded"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto flex-1 space-y-4">
-              {isCreating && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    技能 ID <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.id}
-                    onChange={(e) => setEditForm({ ...editForm, id: e.target.value })}
-                    placeholder="例如: my-custom-skill"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    唯一标识符，只能使用字母、数字和连字符
-                  </p>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  名称 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  placeholder="技能显示名称"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  描述
-                </label>
-                <textarea
-                  value={editForm.description}
-                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                  placeholder="技能的详细描述"
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  类别
-                </label>
-                <select
-                  value={editForm.category}
-                  onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="workflow_planning">工作流规划 (workflow_planning)</option>
-                  <option value="collaboration">协作 (collaboration)</option>
-                  <option value="development">开发 (development)</option>
-                  <option value="testing">测试 (testing)</option>
-                  <option value="review">审查 (review)</option>
-                  <option value="documentation">文档 (documentation)</option>
-                  <option value="research">研究 (research)</option>
-                  <option value="general">通用 (general)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  标签 (逗号分隔)
-                </label>
-                <input
-                  type="text"
-                  value={editForm.tags?.join(', ') || ''}
-                  onChange={(e) =>
-                    setEditForm({
-                      ...editForm,
-                      tags: e.target.value.split(',').map((t) => t.trim()).filter(Boolean),
-                    })
-                  }
-                  placeholder="例如: test, demo, api"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  技能内容 (instruction)
-                </label>
-                <textarea
-                  value={editForm.code || ''}
-                  onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
-                  placeholder="技能的指令内容，支持多行 Markdown 格式"
-                  rows={10}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  技能的完整指令内容，会作为 agent 的 system prompt
-                </p>
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
-              <button
-                onClick={handleCloseEditDialog}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleSaveSkill}
-                disabled={saving}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {saving ? '保存中...' : '保存'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 执行弹窗 */}
-      {showExecuteDialog && currentSkill && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900">执行技能</h2>
-              <p className="text-sm text-gray-500 mt-1">{currentSkill.name}</p>
-            </div>
-
-            <div className="p-6 overflow-y-auto flex-1">
-              {currentSkill.parameters.length > 0 ? (
-                <div className="space-y-4">
-                  {currentSkill.parameters.map((param) => (
-                    <div key={param.name}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        {param.name}
-                        {param.required && <span className="text-red-500 ml-1">*</span>}
-                      </label>
-                      <input
-                        type="text"
-                        value={paramValues[param.name] || ''}
-                        onChange={(e) =>
-                          setParamValues((prev) => ({
-                            ...prev,
-                            [param.name]: e.target.value,
-                          }))
-                        }
-                        placeholder={param.default !== null ? String(param.default) : param.description}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">{param.description}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-center py-4">此技能无需参数</p>
-              )}
-
-              {executionResult && (
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">执行结果</label>
-                  <pre className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm overflow-x-auto max-h-48">
-                    {executionResult}
-                  </pre>
-                </div>
-              )}
-            </div>
-
-            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
-              <button
-                onClick={handleCloseExecuteDialog}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                关闭
-              </button>
-              <button
-                onClick={handleExecuteSkill}
-                disabled={executing}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {executing ? '执行中...' : '执行'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 导入弹窗 */}
-      {showImportDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900">导入技能</h2>
-              <button
-                onClick={() => setShowImportDialog(false)}
-                className="p-1 hover:bg-gray-100 rounded"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto flex-1 space-y-4">
-              {/* 模式切换 */}
-              <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => { setImportMode('url'); setImportContent(''); setImportPreview(null); }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    importMode === 'url' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Link className="w-4 h-4" />
-                  URL
-                </button>
-                <button
-                  onClick={() => { setImportMode('file'); setImportContent(''); setImportPreview(null); setImportFilename(''); }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    importMode === 'file' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <FileText className="w-4 h-4" />
-                  文件
-                </button>
-                <button
-                  onClick={() => { setImportMode('paste'); setImportContent(''); setImportPreview(null); }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    importMode === 'paste' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <ClipboardPaste className="w-4 h-4" />
-                  粘贴
-                </button>
-              </div>
-
-              {/* URL 模式 */}
-              {importMode === 'url' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    .md 文件 URL
-                  </label>
-                  <input
-                    type="url"
-                    value={importContent}
-                    onChange={(e) => setImportContent(e.target.value)}
-                    placeholder="https://raw.githubusercontent.com/.../skill.md"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    支持 GitHub raw 链接等可直接访问的 .md 文件 URL
-                  </p>
-                </div>
-              )}
-
-              {/* 文件模式 */}
-              {importMode === 'file' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    选择 .md 文件
-                  </label>
-                  <div
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={handleFileDrop}
-                    className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
-                    onClick={() => document.getElementById('import-file-input')?.click()}
-                  >
-                    <input
-                      id="import-file-input"
-                      type="file"
-                      accept=".md"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                    />
-                    {importFilename ? (
-                      <div>
-                        <FileText className="w-8 h-8 mx-auto text-blue-500 mb-2" />
-                        <p className="text-sm font-medium text-gray-900">{importFilename}</p>
-                        <p className="text-xs text-gray-500 mt-1">点击更换文件</p>
-                      </div>
-                    ) : (
-                      <div>
-                        <Download className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-                        <p className="text-sm text-gray-600">拖拽 .md 文件到此处</p>
-                        <p className="text-xs text-gray-400 mt-1">或点击选择文件</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* 粘贴模式 */}
-              {importMode === 'paste' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Markdown 内容
-                  </label>
-                  <textarea
-                    value={importContent}
-                    onChange={(e) => handleImportContentChange(e.target.value)}
-                    placeholder={"---\nname: My Skill\ndescription: 技能描述\ncategory: development\ntags: [\"agent\"]\ninstruction: |\n  技能指令内容...\n---"}
-                    rows={12}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                  />
-                </div>
-              )}
-
-              {/* 预览区 */}
-              {importPreview && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-green-800 mb-2">解析预览</h3>
-                  <div className="space-y-1 text-sm">
-                    <div><span className="text-green-600 font-medium">名称:</span> {importPreview.name}</div>
-                    {importPreview.description && (
-                      <div><span className="text-green-600 font-medium">描述:</span> {importPreview.description}</div>
-                    )}
-                    <div><span className="text-green-600 font-medium">分类:</span> {importPreview.category}</div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-green-600 font-medium">标签:</span>
-                      {importPreview.tags.map(tag => (
-                        <span key={tag} className="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">{tag}</span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
-              <button
-                onClick={() => setShowImportDialog(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleImport}
-                disabled={importing || !importContent.trim()}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {importing ? '导入中...' : '导入'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-    <ConfirmModal
-      isOpen={confirmState.isOpen}
-      title={confirmState.title}
-      message={confirmState.message}
-      onConfirm={confirmState.onConfirm}
-      onCancel={hideConfirm}
-    />
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={confirmState.onConfirm}
+        onCancel={hideConfirm}
+      />
     </>
   );
 }

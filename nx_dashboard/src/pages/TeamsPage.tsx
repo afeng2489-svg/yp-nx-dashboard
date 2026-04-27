@@ -2,7 +2,24 @@ import { useEffect, useState } from 'react';
 import { useTeamStore, Team, Role, Message, TelegramConfig } from '@/stores/teamStore';
 import { useWorkspaceStore, onWorkspaceChange } from '@/stores/workspaceStore';
 import { useTeamsQuery } from '@/hooks/useReactQuery';
-import { Plus, Trash2, Edit, X, Users, Clock, Sparkles, Settings, Send, MessageCircle, Bot, Zap, Loader2, UserPlus, Eye, Radio } from 'lucide-react';
+import {
+  Plus,
+  Trash2,
+  Edit,
+  X,
+  Users,
+  Clock,
+  Sparkles,
+  Settings,
+  Send,
+  MessageCircle,
+  Bot,
+  Zap,
+  Loader2,
+  UserPlus,
+  Eye,
+  Radio,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TeamDetailPanel } from '@/components/team/TeamDetailPanel';
 import { RoleCard } from '@/components/team/RoleCard';
@@ -14,7 +31,16 @@ import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 import { showError } from '@/lib/toast';
 
 export function TeamsPage() {
-  const { getTeam, deleteTeam, setCurrentTeam, currentTeam, roles, fetchRoles, teamMonitorMode, setTeamMonitorMode } = useTeamStore();
+  const {
+    getTeam,
+    deleteTeam,
+    setCurrentTeam,
+    currentTeam,
+    roles,
+    fetchRoles,
+    teamMonitorMode,
+    setTeamMonitorMode,
+  } = useTeamStore();
   const { currentWorkspace } = useWorkspaceStore();
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -33,7 +59,9 @@ export function TeamsPage() {
     const unsubscribe = onWorkspaceChange(() => {
       refetch();
     });
-    return () => { unsubscribe(); };
+    return () => {
+      unsubscribe();
+    };
   }, [refetch]);
 
   const handleCreateTeam = async (teamData: { name: string; description?: string }) => {
@@ -82,7 +110,7 @@ export function TeamsPage() {
         deleteTeam(team.id);
         refetch();
       },
-      'danger'
+      'danger',
     );
   };
 
@@ -168,7 +196,7 @@ export function TeamsPage() {
                 'bg-card rounded-2xl border border-border/50 p-5',
                 'hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20',
                 'transition-all duration-200 cursor-pointer group',
-                'hover:-translate-y-0.5'
+                'hover:-translate-y-0.5',
               )}
               onClick={(e) => handleCardClick(team, e)}
             >
@@ -192,12 +220,14 @@ export function TeamsPage() {
                     </span>
                     <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                       <Clock className="w-3 h-3" />
-                      {team.updated_at ? new Date(team.updated_at).toLocaleString('zh-CN', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      }) : '未知'}
+                      {team.updated_at
+                        ? new Date(team.updated_at).toLocaleString('zh-CN', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '未知'}
                     </span>
                   </div>
                 </div>
@@ -215,7 +245,7 @@ export function TeamsPage() {
                       'p-2.5 rounded-xl transition-all duration-200',
                       'bg-gradient-to-r from-emerald-500 to-green-500',
                       'text-white shadow-lg shadow-emerald-500/25',
-                      'hover:shadow-emerald-500/40 hover:-translate-y-0.5'
+                      'hover:shadow-emerald-500/40 hover:-translate-y-0.5',
                     )}
                     title="对话"
                   >
@@ -233,7 +263,7 @@ export function TeamsPage() {
                       'p-2.5 rounded-xl transition-all duration-200',
                       'bg-gradient-to-r from-blue-500 to-cyan-500',
                       'text-white shadow-lg shadow-blue-500/25',
-                      'hover:shadow-blue-500/40 hover:-translate-y-0.5'
+                      'hover:shadow-blue-500/40 hover:-translate-y-0.5',
                     )}
                     title="Telegram"
                   >
@@ -245,7 +275,7 @@ export function TeamsPage() {
                       'p-2.5 rounded-xl transition-all duration-200',
                       'bg-gradient-to-r from-indigo-500 to-purple-500',
                       'text-white shadow-lg shadow-indigo-500/25',
-                      'hover:shadow-indigo-500/40 hover:-translate-y-0.5'
+                      'hover:shadow-indigo-500/40 hover:-translate-y-0.5',
                     )}
                     title="详情"
                   >
@@ -256,7 +286,7 @@ export function TeamsPage() {
                     className={cn(
                       'p-2.5 rounded-xl transition-all duration-200',
                       'hover:bg-red-500/10 text-muted-foreground hover:text-red-500',
-                      'hover:-translate-y-0.5'
+                      'hover:-translate-y-0.5',
                     )}
                     title="删除"
                   >
@@ -264,15 +294,21 @@ export function TeamsPage() {
                   </button>
                   {/* 监控模式开关 */}
                   <button
-                    onClick={() => setTeamMonitorMode(team.id, !(teamMonitorMode[team.id] ?? false))}
+                    onClick={() =>
+                      setTeamMonitorMode(team.id, !(teamMonitorMode[team.id] ?? false))
+                    }
                     className={cn(
                       'p-2.5 rounded-xl transition-all duration-200',
                       teamMonitorMode[team.id]
                         ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40'
                         : 'hover:bg-accent text-muted-foreground hover:text-foreground',
-                      'hover:-translate-y-0.5'
+                      'hover:-translate-y-0.5',
                     )}
-                    title={teamMonitorMode[team.id] ? '监控模式（点击切换为自动模式）' : '自动模式（点击切换为监控模式）'}
+                    title={
+                      teamMonitorMode[team.id]
+                        ? '监控模式（点击切换为自动模式）'
+                        : '自动模式（点击切换为监控模式）'
+                    }
                   >
                     <Radio className="w-4 h-4" />
                   </button>
@@ -292,12 +328,12 @@ export function TeamsPage() {
           onEditRole={handleEditRole}
           onCreateRole={() => handleCreateRole()}
           onDeleteRole={(roleId) => {
-            const role = roles[selectedTeam.id]?.find(r => r.id === roleId);
+            const role = roles[selectedTeam.id]?.find((r) => r.id === roleId);
             showConfirm(
               '移除角色',
               `确定要从团队中移除角色「${role?.name ?? roleId}」吗？`,
               () => useTeamStore.getState().unassignRoleFromTeam(roleId, selectedTeam.id),
-              'warning'
+              'warning',
             );
           }}
           onOpenConversation={() => setShowConversation(true)}
@@ -317,10 +353,7 @@ export function TeamsPage() {
 
       {/* Create Team Modal */}
       {showCreateModal && (
-        <CreateTeamModal
-          onClose={() => setShowCreateModal(false)}
-          onCreate={handleCreateTeam}
-        />
+        <CreateTeamModal onClose={() => setShowCreateModal(false)} onCreate={handleCreateTeam} />
       )}
 
       {/* Role Editor Modal */}
@@ -357,10 +390,7 @@ export function TeamsPage() {
 
       {/* Conversation View */}
       {showConversation && selectedTeam && (
-        <ConversationView
-          teamId={selectedTeam.id}
-          onClose={() => setShowConversation(false)}
-        />
+        <ConversationView teamId={selectedTeam.id} onClose={() => setShowConversation(false)} />
       )}
 
       {/* Telegram Config Panel */}

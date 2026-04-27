@@ -1,7 +1,27 @@
 import { useEffect, useState } from 'react';
-import { useWisdomStore, WisdomEntry, WisdomCategory, CategorySummary, getCategoryDisplayName, getCategoryColor } from '@/stores/wisdomStore';
+import {
+  useWisdomStore,
+  WisdomEntry,
+  WisdomCategory,
+  CategorySummary,
+  getCategoryDisplayName,
+  getCategoryColor,
+} from '@/stores/wisdomStore';
 import { useWisdomEntriesQuery, useWisdomCategoriesQuery } from '@/hooks/useReactQuery';
-import { Search, Plus, Trash2, X, BookOpen, Lightbulb, Shield, Puzzle, Wrench, Tag, Clock, ChevronRight } from 'lucide-react';
+import {
+  Search,
+  Plus,
+  Trash2,
+  X,
+  BookOpen,
+  Lightbulb,
+  Shield,
+  Puzzle,
+  Wrench,
+  Tag,
+  Clock,
+  ChevronRight,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Category icons mapping
@@ -26,7 +46,14 @@ const categoryColors: Record<WisdomCategory, { bg: string; text: string; border:
 interface CreateWisdomModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (entry: { category: WisdomCategory; title: string; content: string; tags: string[]; source_session: string; confidence: number }) => void;
+  onCreate: (entry: {
+    category: WisdomCategory;
+    title: string;
+    content: string;
+    tags: string[];
+    source_session: string;
+    confidence: number;
+  }) => void;
 }
 
 function CreateWisdomModal({ isOpen, onClose, onCreate }: CreateWisdomModalProps) {
@@ -39,7 +66,10 @@ function CreateWisdomModal({ isOpen, onClose, onCreate }: CreateWisdomModalProps
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const tags = tagsInput.split(',').map(t => t.trim()).filter(Boolean);
+    const tags = tagsInput
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
     onCreate({ category, title, content, tags, source_session: sessionId || 'manual', confidence });
     setCategory('learning');
     setTitle('');
@@ -67,22 +97,24 @@ function CreateWisdomModal({ isOpen, onClose, onCreate }: CreateWisdomModalProps
           <div>
             <label className="block text-sm font-medium mb-1.5">分类</label>
             <div className="flex gap-2 flex-wrap">
-              {(['learning', 'decision', 'convention', 'pattern', 'fix'] as WisdomCategory[]).map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setCategory(cat)}
-                  className={cn(
-                    'px-3 py-1.5 rounded-lg text-sm font-medium border transition-all flex items-center gap-1.5',
-                    category === cat
-                      ? `${categoryColors[cat].bg} ${categoryColors[cat].text} ${categoryColors[cat].border}`
-                      : 'bg-muted text-muted-foreground border-border hover:border-muted-foreground/50'
-                  )}
-                >
-                  {categoryIcons[cat]}
-                  {getCategoryDisplayName(cat)}
-                </button>
-              ))}
+              {(['learning', 'decision', 'convention', 'pattern', 'fix'] as WisdomCategory[]).map(
+                (cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setCategory(cat)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-lg text-sm font-medium border transition-all flex items-center gap-1.5',
+                      category === cat
+                        ? `${categoryColors[cat].bg} ${categoryColors[cat].text} ${categoryColors[cat].border}`
+                        : 'bg-muted text-muted-foreground border-border hover:border-muted-foreground/50',
+                    )}
+                  >
+                    {categoryIcons[cat]}
+                    {getCategoryDisplayName(cat)}
+                  </button>
+                ),
+              )}
             </div>
           </div>
 
@@ -121,7 +153,9 @@ function CreateWisdomModal({ isOpen, onClose, onCreate }: CreateWisdomModalProps
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1.5">置信度 ({Math.round(confidence * 100)}%)</label>
+            <label className="block text-sm font-medium mb-1.5">
+              置信度 ({Math.round(confidence * 100)}%)
+            </label>
             <input
               type="range"
               min="0"
@@ -160,7 +194,7 @@ function WisdomEntryCard({ entry, onClick, onDelete }: WisdomEntryCardProps) {
     <div
       className={cn(
         'bg-card rounded-xl border p-4 cursor-pointer hover:shadow-md transition-all group',
-        'border-border/50 hover:border-border'
+        'border-border/50 hover:border-border',
       )}
       onClick={onClick}
     >
@@ -172,7 +206,7 @@ function WisdomEntryCard({ entry, onClick, onDelete }: WisdomEntryCardProps) {
                 'inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border',
                 colors.bg,
                 colors.text,
-                colors.border
+                colors.border,
               )}
             >
               {categoryIcons[entry.category]}
@@ -233,10 +267,17 @@ function WisdomDetailPanel({ entry, onClose }: WisdomDetailPanelProps) {
       <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-card rounded-l-2xl shadow-2xl border-l border-border/50 overflow-hidden flex flex-col animate-slide-in">
         {/* Header */}
-        <div className={cn('flex items-center justify-between px-6 py-4 border-b border-border/50', colors.bg)}>
+        <div
+          className={cn(
+            'flex items-center justify-between px-6 py-4 border-b border-border/50',
+            colors.bg,
+          )}
+        >
           <div className="flex items-center gap-2">
             {categoryIcons[entry.category]}
-            <h2 className={cn('font-semibold', colors.text)}>{getCategoryDisplayName(entry.category)}</h2>
+            <h2 className={cn('font-semibold', colors.text)}>
+              {getCategoryDisplayName(entry.category)}
+            </h2>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-accent transition-colors">
             <X className="w-5 h-5" />
@@ -289,13 +330,7 @@ function WisdomDetailPanel({ entry, onClose }: WisdomDetailPanelProps) {
 
 // Main wisdom page
 export function WisdomPage() {
-  const {
-    createEntry,
-    deleteEntry,
-    search,
-    error,
-    clearError,
-  } = useWisdomStore();
+  const { createEntry, deleteEntry, search, error, clearError } = useWisdomStore();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<WisdomEntry | null>(null);
@@ -321,7 +356,14 @@ export function WisdomPage() {
     refetchEntries();
   };
 
-  const handleCreate = async (data: { category: WisdomCategory; title: string; content: string; tags: string[]; source_session: string; confidence: number }) => {
+  const handleCreate = async (data: {
+    category: WisdomCategory;
+    title: string;
+    content: string;
+    tags: string[];
+    source_session: string;
+    confidence: number;
+  }) => {
     try {
       await createEntry(data);
       refetchCategories();
@@ -351,9 +393,7 @@ export function WisdomPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">智慧库</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                共 {totalEntries} 条智慧条目
-              </p>
+              <p className="text-sm text-muted-foreground mt-0.5">共 {totalEntries} 条智慧条目</p>
             </div>
             <button onClick={() => setShowCreateModal(true)} className="btn-primary gap-2">
               <Plus className="w-4 h-4" />
@@ -383,7 +423,7 @@ export function WisdomPage() {
               'px-3 py-1.5 rounded-lg text-sm font-medium border transition-all',
               selectedCategory === null
                 ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-muted text-muted-foreground border-border hover:border-muted-foreground/50'
+                : 'bg-muted text-muted-foreground border-border hover:border-muted-foreground/50',
             )}
           >
             全部 ({totalEntries})
@@ -396,7 +436,7 @@ export function WisdomPage() {
                 'px-3 py-1.5 rounded-lg text-sm font-medium border transition-all flex items-center gap-1.5',
                 selectedCategory === cat.category
                   ? `${categoryColors[cat.category].bg} ${categoryColors[cat.category].text} ${categoryColors[cat.category].border}`
-                  : 'bg-muted text-muted-foreground border-border hover:border-muted-foreground/50'
+                  : 'bg-muted text-muted-foreground border-border hover:border-muted-foreground/50',
               )}
             >
               {categoryIcons[cat.category]}
@@ -427,9 +467,7 @@ export function WisdomPage() {
               <BookOpen className="w-8 h-8 text-muted-foreground" />
             </div>
             <h3 className="font-medium mb-1">暂无智慧条目</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              开始记录学习心得、决策和模式
-            </p>
+            <p className="text-sm text-muted-foreground mb-4">开始记录学习心得、决策和模式</p>
             <button onClick={() => setShowCreateModal(true)} className="btn-primary gap-2">
               <Plus className="w-4 h-4" />
               添加第一条记录
@@ -457,10 +495,7 @@ export function WisdomPage() {
       />
 
       {selectedEntry && (
-        <WisdomDetailPanel
-          entry={selectedEntry}
-          onClose={() => setSelectedEntry(null)}
-        />
+        <WisdomDetailPanel entry={selectedEntry} onClose={() => setSelectedEntry(null)} />
       )}
     </div>
   );

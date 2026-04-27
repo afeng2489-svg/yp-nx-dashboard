@@ -80,7 +80,7 @@ function RealFileNode({
       onClick={handleClick}
       className={cn(
         'w-full flex items-center gap-1.5 px-2 py-1 hover:bg-accent rounded text-sm transition-colors',
-        selectedPath === file.path && 'bg-accent'
+        selectedPath === file.path && 'bg-accent',
       )}
       style={{ paddingLeft: `${depth * 16 + 8}px` }}
     >
@@ -96,13 +96,7 @@ function RealFileNode({
 }
 
 // 变更行组件
-function DiffLine({
-  type,
-  content,
-}: {
-  type: 'added' | 'deleted' | 'context';
-  content: string;
-}) {
+function DiffLine({ type, content }: { type: 'added' | 'deleted' | 'context'; content: string }) {
   const bgMap = {
     added: 'bg-green-500/10',
     deleted: 'bg-red-500/10',
@@ -123,9 +117,7 @@ function DiffLine({
 
   return (
     <div className={cn('font-mono text-xs leading-6', bgMap[type], textColorMap[type])}>
-      <span className="w-6 inline-block text-center text-muted-foreground">
-        {prefixMap[type]}
-      </span>
+      <span className="w-6 inline-block text-center text-muted-foreground">{prefixMap[type]}</span>
       <span>{content}</span>
     </div>
   );
@@ -156,26 +148,16 @@ function DiffViewer({ diff, onExpand }: { diff: GitDiff; onExpand: (diff: GitDif
           <span className="text-sm font-medium truncate">{diff.filename}</span>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {diff.additions > 0 && (
-            <span className="text-green-500">+{diff.additions}</span>
-          )}
-          {diff.deletions > 0 && (
-            <span className="text-red-500">-{diff.deletions}</span>
-          )}
-          {isExpanded ? (
-            <ChevronDown className="w-4 h-4" />
-          ) : (
-            <ChevronRight className="w-4 h-4" />
-          )}
+          {diff.additions > 0 && <span className="text-green-500">+{diff.additions}</span>}
+          {diff.deletions > 0 && <span className="text-red-500">-{diff.deletions}</span>}
+          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </div>
       </button>
 
       {/* 差异内容 */}
       {isExpanded && (
         <div className="bg-[#1e1e1e] p-2 overflow-auto max-h-48">
-          <div className="text-xs text-muted-foreground p-2">
-            {diff.path}
-          </div>
+          <div className="text-xs text-muted-foreground p-2">{diff.path}</div>
         </div>
       )}
     </div>
@@ -217,14 +199,12 @@ function SessionGroup() {
             'flex items-center gap-1.5 px-2 py-1 rounded-full text-xs transition-colors',
             selectedTag === null
               ? 'bg-primary text-primary-foreground'
-              : 'bg-accent hover:bg-accent/80'
+              : 'bg-accent hover:bg-accent/80',
           )}
         >
           <GitBranch className="w-3 h-3" />
           全部
-          <span className="ml-1 px-1.5 py-0.5 rounded-full bg-black/20">
-            {sessions.length}
-          </span>
+          <span className="ml-1 px-1.5 py-0.5 rounded-full bg-black/20">{sessions.length}</span>
         </button>
         {MOCK_TAGS.map((tag) => (
           <button
@@ -234,14 +214,12 @@ function SessionGroup() {
               'flex items-center gap-1.5 px-2 py-1 rounded-full text-xs transition-colors',
               selectedTag === tag.name
                 ? 'bg-primary text-primary-foreground'
-                : 'bg-accent hover:bg-accent/80'
+                : 'bg-accent hover:bg-accent/80',
             )}
           >
             <Tag className={cn('w-3 h-3', tag.color)} />
             {tag.name}
-            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-black/20">
-              {tag.sessionCount}
-            </span>
+            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-black/20">{tag.sessionCount}</span>
           </button>
         ))}
       </div>
@@ -255,16 +233,14 @@ function SessionGroup() {
           >
             <div className="flex items-center gap-2 min-w-0">
               <GitBranch className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              <span className="text-sm truncate">
-                {session.workflow_id || '未命名会话'}
-              </span>
+              <span className="text-sm truncate">{session.workflow_id || '未命名会话'}</span>
             </div>
             <span
               className={cn(
                 'px-2 py-0.5 rounded text-xs flex-shrink-0',
                 session.status === 'active' || session.status === 'idle'
                   ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                  : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                  : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
               )}
             >
               {session.status}
@@ -272,9 +248,7 @@ function SessionGroup() {
           </div>
         ))}
         {filteredSessions.length === 0 && (
-          <div className="text-center py-4 text-sm text-muted-foreground">
-            暂无会话
-          </div>
+          <div className="text-center py-4 text-sm text-muted-foreground">暂无会话</div>
         )}
       </div>
     </div>
@@ -347,7 +321,7 @@ export function FileSidebar() {
 
   // 过滤文件
   const filteredFiles = searchQuery
-    ? files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    ? files.filter((f) => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : files;
 
   // 无工作区状态
@@ -396,7 +370,7 @@ export function FileSidebar() {
               'flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors',
               activeTab === id
                 ? 'border-b-2 border-primary text-primary'
-                : 'text-muted-foreground hover:text-foreground'
+                : 'text-muted-foreground hover:text-foreground',
             )}
           >
             <Icon className="w-4 h-4" />
@@ -464,10 +438,7 @@ export function FileSidebar() {
               <div className="flex items-center gap-2 px-3 py-2 text-sm text-red-500">
                 <AlertCircle className="w-4 h-4" />
                 <span>{error}</span>
-                <button
-                  onClick={() => browseFiles(currentPath)}
-                  className="ml-auto underline"
-                >
+                <button onClick={() => browseFiles(currentPath)} className="ml-auto underline">
                   重试
                 </button>
               </div>
@@ -480,14 +451,16 @@ export function FileSidebar() {
               </div>
             )}
 
-            {!filesLoading && !error && filteredFiles.map((file) => (
-              <RealFileNode
-                key={file.id}
-                file={{ name: file.name, path: file.path, is_directory: file.is_directory }}
-                onClick={handleFileClick}
-                selectedPath={activeFilePath ?? undefined}
-              />
-            ))}
+            {!filesLoading &&
+              !error &&
+              filteredFiles.map((file) => (
+                <RealFileNode
+                  key={file.id}
+                  file={{ name: file.name, path: file.path, is_directory: file.is_directory }}
+                  onClick={handleFileClick}
+                  selectedPath={activeFilePath ?? undefined}
+                />
+              ))}
           </div>
         )}
 
@@ -517,9 +490,10 @@ export function FileSidebar() {
               </div>
             ) : (
               gitDiffs
-                .filter((d) =>
-                  d.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                  d.path.toLowerCase().includes(searchQuery.toLowerCase())
+                .filter(
+                  (d) =>
+                    d.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    d.path.toLowerCase().includes(searchQuery.toLowerCase()),
                 )
                 .map((diff) => (
                   <DiffViewer key={diff.path} diff={diff} onExpand={handleDiffExpand} />
@@ -534,9 +508,7 @@ export function FileSidebar() {
           </div>
         )}
 
-        {activeTab === 'runner' && (
-          <ProjectRunner />
-        )}
+        {activeTab === 'runner' && <ProjectRunner />}
       </div>
     </div>
   );

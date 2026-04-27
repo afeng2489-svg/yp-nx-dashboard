@@ -1,5 +1,11 @@
 import { useMemo } from 'react';
-import { useEditorStore, AgentConfig, StageConfig, ConditionConfig, LoopConfig } from '@/stores/editorStore';
+import {
+  useEditorStore,
+  AgentConfig,
+  StageConfig,
+  ConditionConfig,
+  LoopConfig,
+} from '@/stores/editorStore';
 import { AGENT_ROLES, CLI_PROVIDERS, MODEL_OPTIONS, NODE_COLORS, NODE_ICONS } from './types';
 
 export function PropertyPanel() {
@@ -7,7 +13,7 @@ export function PropertyPanel() {
 
   const selectedNode = useMemo(
     () => nodes.find((n) => n.id === selectedNodeId),
-    [nodes, selectedNodeId]
+    [nodes, selectedNodeId],
   );
 
   if (!selectedNode) {
@@ -43,7 +49,9 @@ export function PropertyPanel() {
     updateNodeData(selectedNode.id, { label });
   };
 
-  const handleConfigChange = (config: Partial<AgentConfig | StageConfig | ConditionConfig | LoopConfig>) => {
+  const handleConfigChange = (
+    config: Partial<AgentConfig | StageConfig | ConditionConfig | LoopConfig>,
+  ) => {
     updateNodeData(selectedNode.id, {
       config: { ...data.config, ...config },
     });
@@ -70,9 +78,7 @@ export function PropertyPanel() {
 
       <div className="p-4 space-y-4">
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-            标签
-          </label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">标签</label>
           <input
             type="text"
             value={data.label}
@@ -86,17 +92,11 @@ export function PropertyPanel() {
         </div>
 
         {data.type === 'agent' && (
-          <AgentConfigPanel
-            config={data.config as AgentConfig}
-            onChange={handleConfigChange}
-          />
+          <AgentConfigPanel config={data.config as AgentConfig} onChange={handleConfigChange} />
         )}
 
         {data.type === 'stage' && (
-          <StageConfigPanel
-            config={data.config as StageConfig}
-            onChange={handleConfigChange}
-          />
+          <StageConfigPanel config={data.config as StageConfig} onChange={handleConfigChange} />
         )}
 
         {data.type === 'condition' && (
@@ -107,10 +107,7 @@ export function PropertyPanel() {
         )}
 
         {data.type === 'loop' && (
-          <LoopConfigPanel
-            config={data.config as LoopConfig}
-            onChange={handleConfigChange}
-          />
+          <LoopConfigPanel config={data.config as LoopConfig} onChange={handleConfigChange} />
         )}
 
         <button
@@ -138,9 +135,7 @@ function AgentConfigPanel({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          角色
-        </label>
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">角色</label>
         <select
           value={config.role}
           onChange={(e) => onChange({ role: e.target.value })}
@@ -159,9 +154,7 @@ function AgentConfigPanel({
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          模型
-        </label>
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">模型</label>
         <select
           value={config.model}
           onChange={(e) => onChange({ model: e.target.value })}
@@ -180,9 +173,7 @@ function AgentConfigPanel({
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          CLI 提供商
-        </label>
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">CLI 提供商</label>
         <select
           value={config.cliProvider}
           onChange={(e) => onChange({ cliProvider: e.target.value as AgentConfig['cliProvider'] })}
@@ -201,9 +192,7 @@ function AgentConfigPanel({
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          系统提示词
-        </label>
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">系统提示词</label>
         <textarea
           value={config.prompt}
           onChange={(e) => onChange({ prompt: e.target.value })}
@@ -230,9 +219,7 @@ function StageConfigPanel({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          阶段名称
-        </label>
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">阶段名称</label>
         <input
           type="text"
           value={config.name}
@@ -271,9 +258,7 @@ function ConditionConfigPanel({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-          条件表达式
-        </label>
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">条件表达式</label>
         <input
           type="text"
           value={config.expression}
@@ -285,9 +270,7 @@ function ConditionConfigPanel({
           "
           placeholder="e.g., result.status === 'success'"
         />
-        <p className="mt-1 text-xs text-muted-foreground">
-          返回 true/false 的 JavaScript 表达式
-        </p>
+        <p className="mt-1 text-xs text-muted-foreground">返回 true/false 的 JavaScript 表达式</p>
       </div>
 
       <div className="grid grid-cols-2 gap-2">

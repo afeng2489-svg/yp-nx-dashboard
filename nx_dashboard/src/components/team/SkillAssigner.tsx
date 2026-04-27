@@ -12,7 +12,13 @@ interface SkillAssignerProps {
   onSkillsChange?: (skillIds: string[]) => void;
 }
 
-export function SkillAssigner({ roleId, currentSkills, onClose, onSave, onSkillsChange }: SkillAssignerProps) {
+export function SkillAssigner({
+  roleId,
+  currentSkills,
+  onClose,
+  onSave,
+  onSkillsChange,
+}: SkillAssignerProps) {
   const { assignSkill, removeSkill } = useTeamStore();
   const { skills: availableSkills, fetchSkills, loading } = useSkillStore();
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,9 +28,10 @@ export function SkillAssigner({ roleId, currentSkills, onClose, onSave, onSkills
     fetchSkills();
   }, [fetchSkills]);
 
-  const filteredSkills = availableSkills.filter(skill =>
-    skill.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    skill.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredSkills = availableSkills.filter(
+    (skill) =>
+      skill.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      skill.description?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const handleToggleSkill = async (skillId: string) => {
@@ -106,7 +113,7 @@ export function SkillAssigner({ roleId, currentSkills, onClose, onSave, onSkills
                     'w-full text-left p-3 rounded-lg border transition-all',
                     isSelected
                       ? 'bg-primary/5 border-primary/30'
-                      : 'bg-card border-border/50 hover:border-primary/20'
+                      : 'bg-card border-border/50 hover:border-primary/20',
                   )}
                 >
                   <div className="flex items-center justify-between">
@@ -117,7 +124,7 @@ export function SkillAssigner({ roleId, currentSkills, onClose, onSave, onSkills
                     <div
                       className={cn(
                         'w-5 h-5 rounded border flex items-center justify-center',
-                        isSelected ? 'bg-primary border-primary text-white' : 'border-muted'
+                        isSelected ? 'bg-primary border-primary text-white' : 'border-muted',
                       )}
                     >
                       {isSelected && <Plus className="w-3 h-3" />}
@@ -131,9 +138,7 @@ export function SkillAssigner({ roleId, currentSkills, onClose, onSave, onSkills
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-border/50 flex justify-between items-center">
-          <p className="text-sm text-muted-foreground">
-            已选择 {selectedSkillIds.size} 个技能
-          </p>
+          <p className="text-sm text-muted-foreground">已选择 {selectedSkillIds.size} 个技能</p>
           <button onClick={onClose} className="btn-primary">
             完成
           </button>

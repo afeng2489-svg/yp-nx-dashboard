@@ -51,13 +51,22 @@ function useLogStream(executionId: string | undefined) {
               setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] 执行已启动`]);
               break;
             case 'status_changed':
-              setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] 状态变更: ${msg.status}`]);
+              setLogs((prev) => [
+                ...prev,
+                `[${new Date().toLocaleTimeString()}] 状态变更: ${msg.status}`,
+              ]);
               break;
             case 'stage_started':
-              setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] 阶段开始: ${msg.stage_name}`]);
+              setLogs((prev) => [
+                ...prev,
+                `[${new Date().toLocaleTimeString()}] 阶段开始: ${msg.stage_name}`,
+              ]);
               break;
             case 'stage_completed':
-              setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] 阶段完成: ${msg.stage_name}`]);
+              setLogs((prev) => [
+                ...prev,
+                `[${new Date().toLocaleTimeString()}] 阶段完成: ${msg.stage_name}`,
+              ]);
               break;
             case 'output':
               setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg.line}`]);
@@ -66,10 +75,16 @@ function useLogStream(executionId: string | undefined) {
               setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] 执行完成`]);
               break;
             case 'failed':
-              setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] 执行失败: ${msg.error}`]);
+              setLogs((prev) => [
+                ...prev,
+                `[${new Date().toLocaleTimeString()}] 执行失败: ${msg.error}`,
+              ]);
               break;
             default:
-              setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${JSON.stringify(msg)}`]);
+              setLogs((prev) => [
+                ...prev,
+                `[${new Date().toLocaleTimeString()}] ${JSON.stringify(msg)}`,
+              ]);
           }
         } catch {
           setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${event.data}`]);
@@ -151,11 +166,7 @@ function StageCard({
         className="w-full flex items-center justify-between px-4 py-3 bg-accent hover:bg-accent/80 transition-colors"
       >
         <div className="flex items-center gap-3">
-          {isExpanded ? (
-            <ChevronDown className="w-4 h-4" />
-          ) : (
-            <ChevronRight className="w-4 h-4" />
-          )}
+          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           <span className="font-medium">{stageName}</span>
           <span className="text-sm text-muted-foreground">
             {completedAgents}/{totalAgents} 代理
@@ -206,10 +217,7 @@ function AgentRow({ agentStatus }: { agentStatus: AgentStatus }) {
         {status === 'running' && (
           <div className="flex items-center gap-2">
             <div className="w-20 h-1.5 bg-secondary rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary animate-pulse"
-                style={{ width: `${progress}%` }}
-              />
+              <div className="h-full bg-primary animate-pulse" style={{ width: `${progress}%` }} />
             </div>
             <span className="text-xs text-muted-foreground">{progress}%</span>
           </div>
@@ -249,19 +257,19 @@ function LogStreamPanel({ executionId }: { executionId: string }) {
           ) : (
             <Loader2 className="w-3.5 h-3.5 text-yellow-500 animate-spin" />
           )}
-          <span className={cn(
-            'text-xs',
-            isConnected ? 'text-green-500' : error ? 'text-red-500' : 'text-yellow-500'
-          )}>
+          <span
+            className={cn(
+              'text-xs',
+              isConnected ? 'text-green-500' : error ? 'text-red-500' : 'text-yellow-500',
+            )}
+          >
             {isConnected ? '已连接' : error ? '连接失败' : '连接中...'}
           </span>
         </div>
       </div>
       <div className="flex-1 overflow-auto p-3 font-mono text-xs">
         {logs.length === 0 ? (
-          <div className="text-center text-gray-500 py-4">
-            等待日志数据...
-          </div>
+          <div className="text-center text-gray-500 py-4">等待日志数据...</div>
         ) : (
           logs.map((log, index) => (
             <div key={index} className="text-gray-300 leading-relaxed whitespace-pre-wrap">
@@ -315,9 +323,7 @@ function ExecutionDetail({ execution }: { execution: Execution }) {
           <div>
             <span className="text-muted-foreground">开始时间: </span>
             <span>
-              {execution.started_at
-                ? new Date(execution.started_at).toLocaleString()
-                : '-'}
+              {execution.started_at ? new Date(execution.started_at).toLocaleString() : '-'}
             </span>
           </div>
         </div>
@@ -331,7 +337,7 @@ function ExecutionDetail({ execution }: { execution: Execution }) {
             'flex-1 px-4 py-2 text-sm font-medium transition-colors',
             activeTab === 'stages'
               ? 'border-b-2 border-primary text-primary'
-              : 'text-muted-foreground hover:text-foreground'
+              : 'text-muted-foreground hover:text-foreground',
           )}
         >
           阶段进度
@@ -342,7 +348,7 @@ function ExecutionDetail({ execution }: { execution: Execution }) {
             'flex-1 px-4 py-2 text-sm font-medium transition-colors',
             activeTab === 'logs'
               ? 'border-b-2 border-primary text-primary'
-              : 'text-muted-foreground hover:text-foreground'
+              : 'text-muted-foreground hover:text-foreground',
           )}
         >
           实时日志
@@ -376,9 +382,7 @@ function ExecutionDetail({ execution }: { execution: Execution }) {
               />
             ))}
             {(!execution.stage_results || execution.stage_results.length === 0) && (
-              <div className="text-center py-8 text-muted-foreground">
-                暂无阶段数据
-              </div>
+              <div className="text-center py-8 text-muted-foreground">暂无阶段数据</div>
             )}
           </div>
         ) : (
@@ -448,9 +452,7 @@ function AgentListView({ execution }: { execution: Execution }) {
               {STATUS_ICONS[agentStatus.status]}
               <div>
                 <p className="font-medium">{agentStatus.agent.role}</p>
-                <p className="text-sm text-muted-foreground">
-                  {agentStatus.agent.model}
-                </p>
+                <p className="text-sm text-muted-foreground">{agentStatus.agent.model}</p>
                 {agentStatus.output && (
                   <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                     {agentStatus.output}
@@ -466,9 +468,7 @@ function AgentListView({ execution }: { execution: Execution }) {
                     style={{ width: `${agentStatus.progress}%` }}
                   />
                 </div>
-                <span className="text-xs text-muted-foreground">
-                  {agentStatus.progress}%
-                </span>
+                <span className="text-xs text-muted-foreground">{agentStatus.progress}%</span>
               </div>
             )}
           </div>
@@ -518,10 +518,7 @@ export function ExecutionMonitor() {
           {executions.map((exec) => (
             <option key={exec.id} value={exec.id}>
               {exec.workflow_id} - {exec.status} (
-              {exec.started_at
-                ? new Date(exec.started_at).toLocaleString()
-                : '未开始'}
-              )
+              {exec.started_at ? new Date(exec.started_at).toLocaleString() : '未开始'})
             </option>
           ))}
         </select>
@@ -535,7 +532,7 @@ export function ExecutionMonitor() {
             'flex-1 px-4 py-2 text-sm font-medium transition-colors',
             viewMode === 'detail'
               ? 'border-b-2 border-primary text-primary'
-              : 'text-muted-foreground hover:text-foreground'
+              : 'text-muted-foreground hover:text-foreground',
           )}
         >
           详细信息
@@ -546,7 +543,7 @@ export function ExecutionMonitor() {
             'flex-1 px-4 py-2 text-sm font-medium transition-colors',
             viewMode === 'agents'
               ? 'border-b-2 border-primary text-primary'
-              : 'text-muted-foreground hover:text-foreground'
+              : 'text-muted-foreground hover:text-foreground',
           )}
         >
           代理视图
@@ -557,7 +554,7 @@ export function ExecutionMonitor() {
             'flex-1 px-4 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-2',
             viewMode === 'interaction'
               ? 'border-b-2 border-primary text-primary'
-              : 'text-muted-foreground hover:text-foreground'
+              : 'text-muted-foreground hover:text-foreground',
           )}
         >
           <MessageSquare className="w-4 h-4" />

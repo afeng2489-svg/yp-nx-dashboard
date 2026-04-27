@@ -20,8 +20,7 @@ export const useUIStore = create<UIStore>((set) => ({
   activeTab: 'dashboard',
   terminalGrid: { columns: 2, rows: 2 },
 
-  toggleSidebar: () =>
-    set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
+import type { CreateWorkflowRequest } from '../api/client';
 import { onWorkspaceChange } from './workspaceStore';
 
 export interface Workflow {
@@ -66,7 +67,7 @@ interface WorkflowStore {
 
   fetchWorkflows: () => Promise<void>;
   getWorkflow: (id: string) => Promise<Workflow | null>;
-  createWorkflow: (workflow: Omit<Workflow, 'id'>) => Promise<Workflow>;
+  createWorkflow: (workflow: CreateWorkflowRequest) => Promise<Workflow>;
   updateWorkflow: (id: string, workflow: Partial<Workflow>) => Promise<void>;
   deleteWorkflow: (id: string) => Promise<void>;
   setCurrentWorkflow: (workflow: Workflow | null) => void;
@@ -78,7 +79,7 @@ class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public body?: string
+    public body?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -89,7 +90,7 @@ class ApiError extends Error {
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
-  timeout = 5000
+  timeout = 5000,
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -124,7 +125,7 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
       if (!response.ok) {
         throw new ApiError(
           `Failed to fetch workflows: ${response.status} ${response.statusText}`,
-          response.status
+          response.status,
         );
       }
 
@@ -161,18 +162,13 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
 
   getWorkflow: async (id) => {
     try {
-      const response = await fetchWithTimeout(
-        `${API_BASE_URL}/api/v1/workflows/${id}`, {}, 10000
-      );
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/v1/workflows/${id}`, {}, 10000);
 
       if (!response.ok) {
         if (response.status === 404) {
           return null;
         }
-        throw new ApiError(
-          `Failed to fetch workflow: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to fetch workflow: ${response.status}`, response.status);
       }
 
       // 后端返回 { id, name, version, description, definition: { stages, agents, triggers, ... }, created_at, updated_at }
@@ -207,10 +203,7 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to create workflow: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to create workflow: ${response.status}`, response.status);
       }
 
       const newWorkflow = await response.json();
@@ -227,7 +220,7 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
     // Optimistic update
     set((state) => ({
       workflows: state.workflows.map((w) =>
-        w.id === id ? { ...w, ...updates, updated_at: new Date().toISOString() } : w
+        w.id === id ? { ...w, ...updates, updated_at: new Date().toISOString() } : w,
       ),
     }));
 
@@ -239,10 +232,7 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to update workflow: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to update workflow: ${response.status}`, response.status);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -264,10 +254,7 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
       });
 
       if (!response.ok) {
-        throw new ApiError(
-          `Failed to delete workflow: ${response.status}`,
-          response.status
-        );
+        throw new ApiError(`Failed to delete workflow: ${response.status}`, response.status);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';

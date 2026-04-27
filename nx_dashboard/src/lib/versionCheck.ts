@@ -64,7 +64,7 @@ export function useVersionCheck() {
         title: '发现新版本',
         kind: 'info',
         okLabel: '知道了',
-      }
+      },
     );
   };
 

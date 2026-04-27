@@ -7,11 +7,7 @@ interface PageTransitionProps {
   animation?: 'fade' | 'slide' | 'scale' | 'none';
 }
 
-export function PageTransition({
-  children,
-  className,
-  animation = 'fade',
-}: PageTransitionProps) {
+export function PageTransition({ children, className, animation = 'fade' }: PageTransitionProps) {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -26,7 +22,7 @@ export function PageTransition({
         animation === 'fade' && isVisible && 'animate-fade-in',
         animation === 'slide' && isVisible && 'animate-slide-in',
         animation === 'scale' && isVisible && 'animate-scale-in',
-        className
+        className,
       )}
     >
       {children}
@@ -58,7 +54,7 @@ export function RouteChangeIndicator() {
     <div
       className={cn(
         'fixed top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 z-50 transition-all duration-300',
-        isChanging ? 'opacity-100' : 'opacity-0'
+        isChanging ? 'opacity-100' : 'opacity-0',
       )}
     />
   );

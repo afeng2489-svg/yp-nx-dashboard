@@ -58,16 +58,12 @@ const AVAILABLE_COMMANDS: CommandSuggestion[] = [
   {
     command: 'issue:discover',
     description: 'Discover issues in the codebase',
-    arguments: [
-      { name: 'path', description: 'Path to scan', required: false },
-    ],
+    arguments: [{ name: 'path', description: 'Path to scan', required: false }],
   },
   {
     command: 'issue:plan',
     description: 'Create a plan for resolving an issue',
-    arguments: [
-      { name: 'id', description: 'Issue ID (e.g., ISS-001)', required: true },
-    ],
+    arguments: [{ name: 'id', description: 'Issue ID (e.g., ISS-001)', required: true }],
   },
   {
     command: 'issue:list',
@@ -77,9 +73,7 @@ const AVAILABLE_COMMANDS: CommandSuggestion[] = [
   {
     command: 'issue:get',
     description: 'Get issue details',
-    arguments: [
-      { name: 'id', description: 'Issue ID', required: true },
-    ],
+    arguments: [{ name: 'id', description: 'Issue ID', required: true }],
   },
   {
     command: 'workflow:execute',
@@ -107,16 +101,12 @@ const AVAILABLE_COMMANDS: CommandSuggestion[] = [
   {
     command: 'session:resume',
     description: 'Resume a paused session',
-    arguments: [
-      { name: 'key', description: 'Session key', required: true },
-    ],
+    arguments: [{ name: 'key', description: 'Session key', required: true }],
   },
   {
     command: 'session:pause',
     description: 'Pause the current session',
-    arguments: [
-      { name: 'key', description: 'Session key', required: false },
-    ],
+    arguments: [{ name: 'key', description: 'Session key', required: false }],
   },
   {
     command: 'session:list',
@@ -126,16 +116,12 @@ const AVAILABLE_COMMANDS: CommandSuggestion[] = [
   {
     command: 'session:get',
     description: 'Get session details',
-    arguments: [
-      { name: 'key', description: 'Session key', required: true },
-    ],
+    arguments: [{ name: 'key', description: 'Session key', required: true }],
   },
   {
     command: 'session:delete',
     description: 'Delete a session',
-    arguments: [
-      { name: 'key', description: 'Session key', required: true },
-    ],
+    arguments: [{ name: 'key', description: 'Session key', required: true }],
   },
 ];
 
@@ -167,10 +153,10 @@ export function CommandPalette() {
 
   // Save recent commands to localStorage
   const saveRecentCommand = useCallback((command: string, success: boolean) => {
-    setRecentCommands(prev => {
+    setRecentCommands((prev) => {
       const newHistory: CommandHistoryItem[] = [
         { command, timestamp: Date.now(), success },
-        ...prev.filter(item => item.command !== command),
+        ...prev.filter((item) => item.command !== command),
       ].slice(0, MAX_RECENT_COMMANDS);
       localStorage.setItem(RECENT_COMMANDS_KEY, JSON.stringify(newHistory));
       return newHistory;
@@ -184,15 +170,21 @@ export function CommandPalette() {
     }
     const query = input.slice(1).toLowerCase();
     if (!query) {
-      return [...NAV_COMMANDS.map(n => ({ command: n.command, description: n.description, arguments: [] })), ...AVAILABLE_COMMANDS];
+      return [
+        ...NAV_COMMANDS.map((n) => ({
+          command: n.command,
+          description: n.description,
+          arguments: [],
+        })),
+        ...AVAILABLE_COMMANDS,
+      ];
     }
-    const navFiltered = NAV_COMMANDS
-      .filter(n => n.command.toLowerCase().includes(query) || n.description.toLowerCase().includes(query))
-      .map(n => ({ command: n.command, description: n.description, arguments: [] }));
+    const navFiltered = NAV_COMMANDS.filter(
+      (n) => n.command.toLowerCase().includes(query) || n.description.toLowerCase().includes(query),
+    ).map((n) => ({ command: n.command, description: n.description, arguments: [] }));
     const cmdFiltered = AVAILABLE_COMMANDS.filter(
-      cmd =>
-        cmd.command.toLowerCase().includes(query) ||
-        cmd.description.toLowerCase().includes(query)
+      (cmd) =>
+        cmd.command.toLowerCase().includes(query) || cmd.description.toLowerCase().includes(query),
     );
     return [...navFiltered, ...cmdFiltered];
   }, [input]);
@@ -256,11 +248,11 @@ export function CommandPalette() {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setSelectedIndex(prev => Math.min(prev + 1, items.length - 1));
+        setSelectedIndex((prev) => Math.min(prev + 1, items.length - 1));
         break;
       case 'ArrowUp':
         e.preventDefault();
-        setSelectedIndex(prev => Math.max(prev - 1, 0));
+        setSelectedIndex((prev) => Math.max(prev - 1, 0));
         break;
       case 'Enter':
         e.preventDefault();
@@ -293,7 +285,7 @@ export function CommandPalette() {
 
     // Navigation commands
     if (command.startsWith('go:')) {
-      const navCmd = NAV_COMMANDS.find(n => n.command === command);
+      const navCmd = NAV_COMMANDS.find((n) => n.command === command);
       if (navCmd) {
         navigate(navCmd.path);
         return;
@@ -417,9 +409,7 @@ export function CommandPalette() {
 
           {!showRecent && filteredCommands.length > 0 && (
             <div className="py-2">
-              <div className="px-4 py-1 text-xs font-medium text-gray-500 uppercase">
-                Commands
-              </div>
+              <div className="px-4 py-1 text-xs font-medium text-gray-500 uppercase">Commands</div>
               {filteredCommands.map((cmd, index) => (
                 <button
                   key={cmd.command}
@@ -431,7 +421,11 @@ export function CommandPalette() {
                   {getCommandIcon(cmd.command)}
                   <div className="flex-1">
                     <div className="text-gray-200">
-                      <span className={`font-mono ${cmd.command.startsWith('go:') ? 'text-indigo-400' : 'text-blue-400'}`}>/{cmd.command}</span>
+                      <span
+                        className={`font-mono ${cmd.command.startsWith('go:') ? 'text-indigo-400' : 'text-blue-400'}`}
+                      >
+                        /{cmd.command}
+                      </span>
                     </div>
                     <div className="text-sm text-gray-500">{cmd.description}</div>
                   </div>

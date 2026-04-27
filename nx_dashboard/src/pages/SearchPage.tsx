@@ -49,17 +49,18 @@ export function SearchPage() {
               onClick={handleReindex}
               disabled={isIndexing || !currentWorkspace?.root_path}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
-              title={currentWorkspace?.root_path ? `重建索引: ${currentWorkspace.root_path}` : '请先选择工作区'}
+              title={
+                currentWorkspace?.root_path
+                  ? `重建索引: ${currentWorkspace.root_path}`
+                  : '请先选择工作区'
+              }
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isIndexing ? 'animate-spin' : ''}`} />
               {isIndexing ? '索引中...' : '重建索引'}
             </button>
           </div>
         </div>
-        <SearchBar
-          onSearch={handleSearch}
-          isLoading={loading}
-        />
+        <SearchBar onSearch={handleSearch} isLoading={loading} />
       </div>
       <div className="flex-1 overflow-auto p-4">
         {isIndexing && (
@@ -91,9 +92,7 @@ export function SearchPage() {
             )}
           </div>
         )}
-        {!isIndexing && !loading && results && (
-          <SearchResults results={results} />
-        )}
+        {!isIndexing && !loading && results && <SearchResults results={results} />}
       </div>
     </div>
   );

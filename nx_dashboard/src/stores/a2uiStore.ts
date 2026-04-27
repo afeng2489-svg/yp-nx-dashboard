@@ -16,7 +16,7 @@ class A2UIError extends Error {
   constructor(
     message: string,
     public status: number,
-    public body?: string
+    public body?: string,
   ) {
     super(message);
     this.name = 'A2UIError';
@@ -42,7 +42,7 @@ interface A2UIStore {
   respondToMessage: (
     sessionId: string,
     messageId: string,
-    response: U2AMessage
+    response: U2AMessage,
   ) => Promise<InteractiveMessage>;
   connectWebSocket: (executionId: string) => void;
   disconnectWebSocket: (executionId: string) => void;
@@ -76,21 +76,18 @@ export const useA2UIStore = create<A2UIStore>((set, get) => ({
         {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
-        }
+        },
       );
 
       if (!response.ok) {
-        throw new A2UIError(
-          `Failed to get session: ${response.status}`,
-          response.status
-        );
+        throw new A2UIError(`Failed to get session: ${response.status}`, response.status);
       }
 
       const sessions: A2UISession[] = await response.json();
 
       // Find existing or use first
       const existingSession = sessions.find(
-        (s) => s.execution_id === executionId && s.state !== 'ended'
+        (s) => s.execution_id === executionId && s.state !== 'ended',
       );
 
       if (existingSession) {
@@ -119,19 +116,13 @@ export const useA2UIStore = create<A2UIStore>((set, get) => ({
   fetchMessages: async (sessionId: string) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/v1/a2ui/sessions/${sessionId}/messages`,
-        {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/v1/a2ui/sessions/${sessionId}/messages`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
 
       if (!response.ok) {
-        throw new A2UIError(
-          `Failed to fetch messages: ${response.status}`,
-          response.status
-        );
+        throw new A2UIError(`Failed to fetch messages: ${response.status}`, response.status);
       }
 
       const data = await response.json();
@@ -152,11 +143,7 @@ export const useA2UIStore = create<A2UIStore>((set, get) => ({
     }
   },
 
-  respondToMessage: async (
-    sessionId: string,
-    messageId: string,
-    response: U2AMessage
-  ) => {
+  respondToMessage: async (sessionId: string, messageId: string, response: U2AMessage) => {
     set({ error: null });
     try {
       const fetchResponse = await fetch(
@@ -168,13 +155,13 @@ export const useA2UIStore = create<A2UIStore>((set, get) => ({
             message_id: messageId,
             response,
           }),
-        }
+        },
       );
 
       if (!fetchResponse.ok) {
         throw new A2UIError(
           `Failed to send response: ${fetchResponse.status}`,
-          fetchResponse.status
+          fetchResponse.status,
         );
       }
 
@@ -183,20 +170,15 @@ export const useA2UIStore = create<A2UIStore>((set, get) => ({
       // Update local state
       set((state) => {
         const messages = state.messages.get(sessionId) || [];
-        const updatedMessages = messages.map((m) =>
-          m.id === messageId ? updatedMessage : m
-        );
+        const updatedMessages = messages.map((m) => (m.id === messageId ? updatedMessage : m));
 
         const pendingMessages = (state.pendingMessages.get(sessionId) || []).filter(
-          (m) => m.id !== messageId
+          (m) => m.id !== messageId,
         );
 
         return {
           messages: new Map(state.messages).set(sessionId, updatedMessages),
-          pendingMessages: new Map(state.pendingMessages).set(
-            sessionId,
-            pendingMessages
-          ),
+          pendingMessages: new Map(state.pendingMessages).set(sessionId, pendingMessages),
         };
       });
 
@@ -250,8 +232,7 @@ export const useA2UIStore = create<A2UIStore>((set, get) => ({
 
   clearError: () => set({ error: null }),
 
-  setCurrentSession: (sessionId: string | null) =>
-    set({ currentSessionId: sessionId }),
+  setCurrentSession: (sessionId: string | null) => set({ currentSessionId: sessionId }),
 }));
 
 // Helper function to handle WebSocket events
@@ -278,10 +259,7 @@ function handleWsEvent(event: A2UIWsEvent, executionId: string) {
 
         useA2UIStore.setState((state) => ({
           messages: new Map(state.messages).set(sessionId, updatedMessages),
-          pendingMessages: new Map(state.pendingMessages).set(
-            sessionId,
-            pendingMessages
-          ),
+          pendingMessages: new Map(state.pendingMessages).set(sessionId, pendingMessages),
         }));
       }
       break;
@@ -329,11 +307,7 @@ export const useA2UISession = (executionId: string) =>
   });
 
 export const useA2UIPendingMessages = (sessionId: string | null) =>
-  useA2UIStore((state) =>
-    sessionId ? state.pendingMessages.get(sessionId) || [] : []
-  );
+  useA2UIStore((state) => (sessionId ? state.pendingMessages.get(sessionId) || [] : []));
 
 export const useA2UIMessages = (sessionId: string | null) =>
-  useA2UIStore((state) =>
-    sessionId ? state.messages.get(sessionId) || [] : []
-  );
+  useA2UIStore((state) => (sessionId ? state.messages.get(sessionId) || [] : []));

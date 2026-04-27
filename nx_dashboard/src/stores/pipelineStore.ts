@@ -3,7 +3,14 @@ import { API_BASE_URL } from '../api/constants';
 
 // --- Types ---
 
-export type StepStatus = 'pending' | 'ready' | 'running' | 'completed' | 'failed' | 'skipped' | 'blocked';
+export type StepStatus =
+  | 'pending'
+  | 'ready'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'skipped'
+  | 'blocked';
 export type PipelineStatusType = 'idle' | 'running' | 'paused' | 'completed' | 'failed';
 
 export interface PipelineStep {
@@ -147,7 +154,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
     try {
       const res = await fetch(
         `${API_BASE_URL}/api/v1/pipelines/${pipelineId}/steps/${stepId}/retry`,
-        { method: 'POST' }
+        { method: 'POST' },
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

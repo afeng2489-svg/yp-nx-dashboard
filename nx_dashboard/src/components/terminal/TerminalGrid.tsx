@@ -48,7 +48,12 @@ function TerminalPane({
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const wsRef = useRef<WsConnection>({ ws: null, terminal: null, reconnectAttempts: 0, reconnectTimeout: null });
+  const wsRef = useRef<WsConnection>({
+    ws: null,
+    terminal: null,
+    reconnectAttempts: 0,
+    reconnectTimeout: null,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -178,13 +183,16 @@ function TerminalPane({
 
       // 计算延迟时间（指数退避）
       const delay = Math.min(
-        WS_RECONNECT_CONFIG.baseDelay * Math.pow(WS_RECONNECT_CONFIG.backoffMultiplier, reconnectAttempts),
-        WS_RECONNECT_CONFIG.maxDelay
+        WS_RECONNECT_CONFIG.baseDelay *
+          Math.pow(WS_RECONNECT_CONFIG.backoffMultiplier, reconnectAttempts),
+        WS_RECONNECT_CONFIG.maxDelay,
       );
 
       wsRef.current.reconnectAttempts += 1;
 
-      term.writeln(`\x1b[33m[重连]\x1b[0m ${delay/1000}秒后尝试第${wsRef.current.reconnectAttempts}次重连...`);
+      term.writeln(
+        `\x1b[33m[重连]\x1b[0m ${delay / 1000}秒后尝试第${wsRef.current.reconnectAttempts}次重连...`,
+      );
 
       wsRef.current.reconnectTimeout = setTimeout(() => {
         connectWebSocket();
@@ -234,10 +242,16 @@ function TerminalPane({
       <div className="flex items-center justify-between px-3 py-1.5 bg-[#252526] border-b border-[#3c3c3c]">
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400 truncate">{title}</span>
-          <span className={cn(
-            'w-2 h-2 rounded-full transition-colors',
-            isConnected ? 'bg-green-500' : connectionError ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'
-          )} />
+          <span
+            className={cn(
+              'w-2 h-2 rounded-full transition-colors',
+              isConnected
+                ? 'bg-green-500'
+                : connectionError
+                  ? 'bg-red-500'
+                  : 'bg-yellow-500 animate-pulse',
+            )}
+          />
           {connectionError && (
             <span className="text-xs text-red-400 truncate">{connectionError}</span>
           )}
@@ -290,7 +304,7 @@ function LayoutSwitcher({
             'p-1.5 rounded transition-colors',
             currentLayout === id
               ? 'bg-primary text-primary-foreground'
-              : 'hover:bg-accent text-muted-foreground'
+              : 'hover:bg-accent text-muted-foreground',
           )}
           title={label}
         >
@@ -325,9 +339,7 @@ function TabBar() {
             key={tab.id}
             className={cn(
               'flex items-center gap-2 px-3 py-1 rounded-md text-sm cursor-pointer transition-colors group',
-              activeTabId === tab.id
-                ? 'bg-primary text-primary-foreground'
-                : 'hover:bg-accent'
+              activeTabId === tab.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
             )}
             onClick={() => setActiveTab(tab.id)}
           >
@@ -378,7 +390,7 @@ export function TerminalGrid() {
     <div
       className={cn(
         'flex flex-col bg-card border rounded-lg overflow-hidden',
-        isFullscreen ? 'fixed inset-4 z-50' : 'h-full'
+        isFullscreen ? 'fixed inset-4 z-50' : 'h-full',
       )}
     >
       {/* 工具栏 */}
@@ -408,20 +420,12 @@ export function TerminalGrid() {
           {Array.from({ length: totalPanes }).map((_, index) => {
             const terminal = activeTerminals[index];
             return (
-              <Allotment.Pane
-                key={terminal?.id || `empty-${index}`}
-                minSize={100}
-              >
+              <Allotment.Pane key={terminal?.id || `empty-${index}`} minSize={100}>
                 {terminal ? (
-                  <TerminalPane
-                    terminalId={terminal.id}
-                    title={terminal.title}
-                  />
+                  <TerminalPane terminalId={terminal.id} title={terminal.title} />
                 ) : (
                   <div className="h-full flex items-center justify-center bg-[#1e1e1e]">
-                    <div className="text-gray-500 text-sm">
-                      暂无终端 - 点击 + 添加
-                    </div>
+                    <div className="text-gray-500 text-sm">暂无终端 - 点击 + 添加</div>
                   </div>
                 )}
               </Allotment.Pane>
