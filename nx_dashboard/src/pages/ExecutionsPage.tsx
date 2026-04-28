@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useExecutionsQuery } from '@/hooks/useReactQuery';
 import { useExecutionStore, Execution, StageResult } from '@/stores/executionStore';
 import { onWorkspaceChange } from '@/stores/workspaceStore';
+import { useWorkflowStore } from '@/stores/workflowStore';
 import {
   XCircle,
   Clock,
@@ -86,6 +87,20 @@ function formatTime(dateStr?: string): string {
   });
 }
 
+/**
+ * 把 workflow_id 渲染成"工作流名字"。找不到时回退显示截短 UUID。
+ * 在组件渲染期间调用 useWorkflowStore，自动响应 workflows 变化。
+ */
+function useWorkflowName() {
+  const workflows = useWorkflowStore((s) => s.workflows);
+  return (workflowId: string): string => {
+    const found = workflows.find((w) => w.id === workflowId);
+    if (found) return found.name;
+    // 兜底：找不到（工作流被删 或 还没加载完）显示前 8 位 UUID
+    return workflowId.length > 12 ? `${workflowId.slice(0, 8)}...` : workflowId;
+  };
+}
+
 // 执行详情弹窗
 function ExecutionDetailModal({
   execution,
@@ -98,6 +113,7 @@ function ExecutionDetailModal({
 }) {
   const [activeTab, setActiveTab] = useState<'stages' | 'logs'>('stages');
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
+  const workflowName = useWorkflowName();
 
   const config = STATUS_CONFIG[execution.status];
   const Icon = config.icon;
@@ -156,7 +172,9 @@ function ExecutionDetailModal({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">工作流</p>
-              <p className="font-semibold truncate">{execution.workflow_id}</p>
+              <p className="font-semibold truncate" title={execution.workflow_id}>
+                {workflowName(execution.workflow_id)}
+              </p>
             </div>
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">状态</p>
@@ -554,6 +572,7 @@ function ExecutionCard({
 }) {
   const config = STATUS_CONFIG[execution.status];
   const Icon = config.icon;
+  const workflowName = useWorkflowName();
 
   return (
     <div
@@ -576,8 +595,11 @@ function ExecutionCard({
             <Icon className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-semibold group-hover:text-indigo-600 transition-colors">
-              {execution.workflow_id}
+            <h3
+              className="font-semibold group-hover:text-indigo-600 transition-colors"
+              title={execution.workflow_id}
+            >
+              {workflowName(execution.workflow_id)}
             </h3>
             <p className="text-xs text-muted-foreground font-mono">
               ID: {execution.id.slice(0, 8)}...
@@ -658,9 +680,15 @@ export function ExecutionsPage() {
   const location = useLocation();
   const { cancelExecution, connectWebSocket } = useExecutionStore();
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
+  const fetchWorkflows = useWorkflowStore((s) => s.fetchWorkflows);
 
   // Use React Query for fetching
   const { executions, loading, refetch } = useExecutionsQuery();
+
+  // 加载工作流列表，让 useWorkflowName 能把 UUID 翻译成名字
+  useEffect(() => {
+    fetchWorkflows();
+  }, [fetchWorkflows]);
 
   // Auto-open execution detail when navigated from template launch
   useEffect(() => {
