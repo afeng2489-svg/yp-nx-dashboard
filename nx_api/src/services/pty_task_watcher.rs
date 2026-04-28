@@ -12,6 +12,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::services::agent_team_service::strip_ansi;
 use crate::services::claude_terminal::ClaudeTerminalSession;
+use crate::services::screen_emu::ScreenEmu;
 use crate::ws::agent_execution::AgentExecutionEvent;
 
 /// Maximum execution time (30 minutes)
@@ -35,6 +36,7 @@ pub async fn watch_pty_task(
     let start = Instant::now();
     let mut output_rx = session.subscribe_output();
     let mut accumulated = String::new();
+    let mut emu = ScreenEmu::new();
     let mut last_output_time = Instant::now();
     let mut has_received_output = false;
     let mut last_progress_time = Instant::now() - Duration::from_millis(PROGRESS_DEBOUNCE_MILLIS);
@@ -52,32 +54,48 @@ pub async fn watch_pty_task(
             output = output_rx.recv() => {
                 match output {
                     Ok(raw_bytes) => {
-                        let text = String::from_utf8_lossy(&raw_bytes);
-                        let clean = strip_ansi(&text);
+                        // 喂给屏幕模拟器：按 VT100 协议在内存里渲染屏幕
+                        emu.feed(&raw_bytes);
 
-                        if !clean.trim().is_empty() {
-                            let preview: String = clean.chars().take(200).collect();
-                            tracing::debug!("[PtyWatcher] chunk: {:?}", preview);
-                        }
+                        // 取出已"凝固"的行（光标已离开，不会再被覆盖）
+                        // 这就是用户实际能看到的稳定文字，干净 markdown
+                        let committed = emu.drain_committed();
 
                         last_output_time = Instant::now();
                         has_received_output = true;
 
-                        if accumulated.len() + clean.len() < MAX_ACCUMULATED_BYTES {
-                            accumulated.push_str(&clean);
-                        } else {
-                            let excess = (accumulated.len() + clean.len()) - MAX_ACCUMULATED_BYTES;
-                            if excess < accumulated.len() {
-                                accumulated = accumulated[excess..].to_string();
+                        if !committed.is_empty() {
+                            let preview: String = committed.chars().take(200).collect();
+                            tracing::debug!("[PtyWatcher] committed: {:?}", preview);
+
+                            // 累积用于最终结果提取（保持与原 strip_ansi 路径相同的下游接口）
+                            if accumulated.len() + committed.len() < MAX_ACCUMULATED_BYTES {
+                                accumulated.push_str(&committed);
+                            } else {
+                                let excess = (accumulated.len() + committed.len()) - MAX_ACCUMULATED_BYTES;
+                                if excess < accumulated.len() {
+                                    accumulated = accumulated[excess..].to_string();
+                                }
+                                accumulated.push_str(&committed);
                             }
-                            accumulated.push_str(&clean);
+
+                            let _ = event_tx.send(AgentExecutionEvent::Output {
+                                execution_id: execution_id.clone(),
+                                partial_output: committed,
+                            });
                         }
 
-                        // Progress events
+                        // Progress detection 仍然用原始字节流（带 ANSI），更敏感
+                        // claude 的 progress 标记（"⏵ Reading..."、"● Searching..."）会出现在
+                        // spinner 行，那行不会被 commit，但我们想及早探测到
                         let progress_event = {
                             let now = Instant::now();
-                            if now.duration_since(last_progress_time).as_millis() as u64 >= PROGRESS_DEBOUNCE_MILLIS {
-                                if let Some((action, detail)) = detect_claude_action(&clean) {
+                            if now.duration_since(last_progress_time).as_millis() as u64
+                                >= PROGRESS_DEBOUNCE_MILLIS
+                            {
+                                let raw_text = String::from_utf8_lossy(&raw_bytes);
+                                let raw_clean = strip_ansi(&raw_text);
+                                if let Some((action, detail)) = detect_claude_action(&raw_clean) {
                                     last_progress_time = now;
                                     Some(AgentExecutionEvent::Progress {
                                         execution_id: execution_id.clone(),
@@ -92,11 +110,6 @@ pub async fn watch_pty_task(
                             }
                         };
 
-                        let _ = event_tx.send(AgentExecutionEvent::Output {
-                            execution_id: execution_id.clone(),
-                            partial_output: clean,
-                        });
-
                         if let Some(evt) = progress_event {
                             let _ = event_tx.send(evt);
                         }
@@ -105,7 +118,19 @@ pub async fn watch_pty_task(
                         tracing::warn!("[PtyWatcher] 落后 {} 帧, execution_id: {}", n, exec_id_for_log);
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                        tracing::info!("[PtyWatcher] PTY 通道关闭, execution_id: {}", exec_id_for_log);
+                        tracing::info!(
+                            "[PtyWatcher] PTY 通道关闭, execution_id: {}",
+                            exec_id_for_log
+                        );
+                        // Flush emu 里剩余的所有行（包括 cursor 当前所在行）
+                        let remaining = emu.drain_remaining();
+                        if !remaining.is_empty() {
+                            accumulated.push_str(&remaining);
+                            let _ = event_tx.send(AgentExecutionEvent::Output {
+                                execution_id: execution_id.clone(),
+                                partial_output: remaining,
+                            });
+                        }
                         let result = extract_result_best_effort(&accumulated);
                         emit_completed(&execution_id, result, &start, &event_tx, &manager);
                         return;
@@ -129,8 +154,19 @@ pub async fn watch_pty_task(
                 if elapsed_secs >= MIN_EXECUTION_SECS && quiet_ms >= QUIET_TIMEOUT_MS {
                     tracing::info!(
                         "[PtyWatcher] 静默超时完成 (elapsed={}s, quiet={}ms), execution_id: {}",
-                        elapsed_secs, quiet_ms, exec_id_for_log
+                        elapsed_secs,
+                        quiet_ms,
+                        exec_id_for_log
                     );
+                    // Flush emu 里剩余的所有行（cursor 当前行也算）
+                    let remaining = emu.drain_remaining();
+                    if !remaining.is_empty() {
+                        accumulated.push_str(&remaining);
+                        let _ = event_tx.send(AgentExecutionEvent::Output {
+                            execution_id: execution_id.clone(),
+                            partial_output: remaining,
+                        });
+                    }
                     let result = extract_result_best_effort(&accumulated);
                     emit_completed(&execution_id, result, &start, &event_tx, &manager);
                     return;

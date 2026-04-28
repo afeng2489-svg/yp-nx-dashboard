@@ -17,6 +17,7 @@ pub mod plugin_service;
 pub mod project_repository;
 pub mod project_service;
 pub mod pty_task_watcher;
+pub mod screen_emu;
 pub mod session_repository;
 pub mod session_service;
 pub mod skill_repository;

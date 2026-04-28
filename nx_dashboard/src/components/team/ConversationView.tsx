@@ -5,6 +5,7 @@ import { useTeamStore, Message } from '@/stores/teamStore';
 import { useAgentExecution } from '@/hooks/useAgentExecution';
 import { TerminalPanel } from './TerminalPanel';
 import { EmbeddedTerminalPreview } from './EmbeddedTerminalPreview';
+import { MarkdownMessage } from '@/components/common/MarkdownMessage';
 
 // ── 独立输入组件，隔离重渲染 ──────────────────────────────
 interface ChatInputProps {
@@ -87,7 +88,13 @@ const MessageBubble = memo(function MessageBubble({ message }: { message: Messag
             : 'bg-muted',
         )}
       >
-        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        {/* 用户消息保留纯文本（不渲染 markdown，避免误把用户输入当语法解析）；
+            AI 回复用 MarkdownMessage 渲染为结构化文档 */}
+        {message.role === 'user' ? (
+          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        ) : (
+          <MarkdownMessage content={message.content} variant="assistant" />
+        )}
         {message.created_at && (
           <p
             className={cn(

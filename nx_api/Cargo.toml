@@ -53,6 +53,9 @@ portable-pty.workspace = true
 # Cross-platform user dirs (for Claude CLI config persistence)
 dirs = "5"
 
+# Terminal emulator parser (for clean PTY → chat extraction)
+vte = "0.13"
+
 # File watching
 notify = "7"
 

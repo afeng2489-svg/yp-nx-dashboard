@@ -635,6 +635,91 @@ pub async fn execute_team_task(
 /// Try to dispatch a task to an existing or auto-created PTY session.
 /// Returns Ok(session_id) if dispatch succeeded, Err with reason if fallback needed.
 /// Public wrapper used by pipeline dispatch and other modules.
+/// 智能处理 claude 启动时的对话框，处理完后 dispatch 任务
+///
+/// 监听 PTY 输出 15 秒，识别两种 dialog：
+/// - `Bypass Permissions`：默认选中 "No, exit"，需要发 ↓ + Enter 选 Yes
+/// - `trust this folder`：默认选中 "Yes, I trust"，直接发 Enter 即可
+///
+/// 看到输入框就绪标志或 15 秒超时后，发任务文本。
+fn handle_startup_dialogs_and_dispatch(
+    session: std::sync::Arc<crate::services::claude_terminal::ClaudeTerminalSession>,
+    prompt: String,
+) {
+    use std::time::{Duration, Instant};
+    use tokio::sync::broadcast::error::TryRecvError;
+
+    let mut rx = session.subscribe_output();
+    let mut buffer = String::new();
+    let start = Instant::now();
+    let dialog_timeout = Duration::from_secs(15);
+    let mut handled_bypass = false;
+    let mut handled_trust = false;
+
+    loop {
+        if start.elapsed() > dialog_timeout {
+            tracing::info!("[StartupDialog] 超时未发现 dialog 或就绪标志，直接 dispatch");
+            break;
+        }
+
+        match rx.try_recv() {
+            Ok(bytes) => {
+                let chunk = String::from_utf8_lossy(&bytes);
+                buffer.push_str(&chunk);
+                let clean = crate::services::agent_team_service::strip_ansi(&buffer);
+
+                // 1. Bypass Permissions dialog —— 默认 "1. No, exit"，需要 ↓ + Enter 选 Yes
+                if !handled_bypass && clean.contains("Bypass Permissions") {
+                    tracing::info!("[StartupDialog] 检测到 Bypass Permissions dialog，选 Yes");
+                    std::thread::sleep(Duration::from_millis(300));
+                    // ↓ 键: ESC [ B
+                    session.send_input(vec![0x1B, 0x5B, 0x42]);
+                    std::thread::sleep(Duration::from_millis(200));
+                    session.send_enter();
+                    handled_bypass = true;
+                    buffer.clear();
+                    std::thread::sleep(Duration::from_millis(800));
+                    continue;
+                }
+
+                // 2. workspace trust dialog —— 默认 "1. Yes, I trust"，直接 Enter
+                if !handled_trust && clean.contains("trust this folder") {
+                    tracing::info!("[StartupDialog] 检测到 trust folder dialog，发 Enter 确认");
+                    std::thread::sleep(Duration::from_millis(300));
+                    session.send_enter();
+                    handled_trust = true;
+                    buffer.clear();
+                    std::thread::sleep(Duration::from_millis(800));
+                    continue;
+                }
+
+                // 3. 输入框就绪：claude TUI prompt 区域显示 ">"
+                // 至少等 3 秒（避免 banner 里的 "> " 被误判）
+                if (handled_bypass || handled_trust || start.elapsed() > Duration::from_secs(3))
+                    && (clean.contains("\n> ") || clean.contains("│ >"))
+                {
+                    tracing::info!("[StartupDialog] 检测到输入框就绪，开始 dispatch");
+                    break;
+                }
+            }
+            Err(TryRecvError::Empty) => {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            Err(TryRecvError::Closed) => {
+                tracing::warn!("[StartupDialog] PTY 通道已关闭，放弃 dispatch");
+                return;
+            }
+            Err(TryRecvError::Lagged(_)) => {
+                // 落后了无所谓，继续
+            }
+        }
+    }
+
+    // 短暂延迟让 claude 完成最后的渲染，然后 dispatch
+    std::thread::sleep(Duration::from_millis(500));
+    session.dispatch_task(&prompt);
+}
+
 pub fn try_pty_dispatch_pub(
     state: &Arc<AppState>,
     team_id: &str,
@@ -680,10 +765,14 @@ pub fn try_pty_dispatch_pub(
         working_dir,
     );
 
-    // 先发 Enter 确认可能存在的 workspace trust dialog，等 Claude 就绪后再发任务
-    session.send_enter();
-    std::thread::sleep(std::time::Duration::from_secs(3));
-    session.dispatch_task(&full_prompt);
+    // 智能 dialog 处理：在后台 thread 里监听 PTY 输出，检测启动 dialog（trust folder / bypass
+    // permissions），按 dialog 类型选择正确的按键，等 claude 输入框就绪后再 dispatch_task。
+    // 这样不会因为 claude 启动慢、dialog 出现时机不可预测而卡住。
+    let session_for_dialog = session.clone();
+    let prompt_clone = full_prompt.clone();
+    std::thread::spawn(move || {
+        handle_startup_dialogs_and_dispatch(session_for_dialog, prompt_clone);
+    });
 
     // Start the PTY task watcher in a background task
     let session_clone = session.clone();

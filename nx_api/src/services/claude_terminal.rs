@@ -67,16 +67,25 @@ impl ClaudeTerminalSession {
         let _ = self.input_tx.send(PtyInput::Data(data));
     }
 
-    /// 发送一个 Enter 键（用于确认 workspace trust dialog 等）
+    /// 发送一个 Enter 键（CR，用于确认 workspace trust dialog 等）
     pub fn send_enter(&self) {
-        let _ = self.input_tx.send(PtyInput::Data(vec![b'\n']));
+        let _ = self.input_tx.send(PtyInput::Data(vec![b'\r']));
     }
 
-    /// 向 PTY 发送一行任务文本（追加换行）
+    /// 向 PTY 发送一段任务文本并自动提交
+    ///
+    /// claude code 的 TUI 输入框：
+    /// - `\n` 是输入框内换行（不提交）
+    /// - `\r` (CR / Enter) 才是提交
+    /// - 大段文字会被识别为粘贴，需要 Enter 才会 submit
+    ///
+    /// 流程：写入文字 → 等 claude 回显 → 发 Enter 提交
     pub fn dispatch_task(&self, task: &str) {
-        let mut data = task.as_bytes().to_vec();
-        data.push(b'\n');
-        let _ = self.input_tx.send(PtyInput::Data(data));
+        let _ = self.input_tx.send(PtyInput::Data(task.as_bytes().to_vec()));
+        // 等 claude 把输入文字回显到屏幕（粘贴大段文字时尤其需要）
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        // 发 Enter (CR) 提交输入
+        let _ = self.input_tx.send(PtyInput::Data(vec![b'\r']));
     }
 
     /// 调整 PTY 终端尺寸
