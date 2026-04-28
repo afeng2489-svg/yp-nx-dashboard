@@ -61,14 +61,11 @@ export function ModelMappingEditor({
   const { confirmState, showConfirm, hideConfirm } = useConfirmModal();
 
   const handleAdd = async () => {
-    console.log('[ModelMappingEditor] handleAdd clicked', { providerId: provider.id, newMapping });
     if (!newMapping.model_id.trim()) return;
     setIsSubmitting(true);
     setError(null);
     try {
-      console.log('[ModelMappingEditor] calling onAddMapping...');
       await onAddMapping(provider.id, newMapping);
-      console.log('[ModelMappingEditor] onAddMapping success');
       setShowAddForm(false);
       setNewMapping({ mapping_type: 'main', model_id: '', display_name: '' });
     } catch (err) {

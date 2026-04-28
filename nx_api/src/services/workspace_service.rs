@@ -173,7 +173,7 @@ impl WorkspaceService {
         self.repository.find_by_owner(owner_id).map_err(Into::into)
     }
 
-    /// 创建工作区
+    /// 创建工作区（如果同 root_path 已存在则直接返回已有的，避免重复注册）
     pub fn create_workspace(
         &self,
         name: String,
@@ -181,6 +181,20 @@ impl WorkspaceService {
         description: Option<String>,
         root_path: Option<String>,
     ) -> Result<Workspace, WorkspaceServiceError> {
+        // 去重：如果传入 root_path 且数据库已有同路径 workspace，直接返回已有的
+        if let Some(ref path) = root_path {
+            if let Some(existing) = self.repository.find_by_root_path(path).map_err(|e| {
+                WorkspaceServiceError::CreationFailed(format!("查询去重失败: {}", e))
+            })? {
+                tracing::info!(
+                    "[Workspace] 复用已存在的 workspace: id={}, root_path={}",
+                    existing.id,
+                    path
+                );
+                return Ok(existing);
+            }
+        }
+
         let workspace = Workspace::new(name, owner_id, description, root_path);
         self.repository
             .create(&workspace)

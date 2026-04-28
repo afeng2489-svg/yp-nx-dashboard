@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useWorkspaceStore, type Workspace } from '@/stores/workspaceStore';
-import { FolderOpen, ChevronDown, Check, FolderPlus, X } from 'lucide-react';
+import { FolderOpen, ChevronDown, Check, FolderPlus, X, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { open } from '@tauri-apps/plugin-dialog';
+import { showSuccess, showError } from '@/lib/toast';
+import { useConfirmModal, ConfirmModal } from '@/lib/ConfirmModal';
 
 export function WorkspaceSelector() {
   const {
@@ -12,12 +14,14 @@ export function WorkspaceSelector() {
     fetchWorkspaces,
     selectWorkspace,
     createWorkspace,
+    deleteWorkspace,
   } = useWorkspaceStore();
 
   const [isOpen, setIsOpen] = useState(false);
   const [showPathInput, setShowPathInput] = useState(false);
   const [inputPath, setInputPath] = useState('');
   const [inputError, setInputError] = useState('');
+  const { confirmState, showConfirm, hideConfirm } = useConfirmModal();
 
   useEffect(() => {
     fetchWorkspaces();
@@ -73,6 +77,24 @@ export function WorkspaceSelector() {
       setInputError('创建失败，请检查路径是否正确');
       console.error('创建失败:', err);
     }
+  };
+
+  // 删除工作区（仅从列表移除，不会删除本地文件夹）
+  const handleDelete = (e: React.MouseEvent, ws: Workspace) => {
+    e.stopPropagation(); // 别触发外层 selectWorkspace
+    showConfirm(
+      '从列表移除',
+      `确定从列表移除 "${ws.name}" 吗？\n\n仅会从应用列表中移除，本地文件夹「${ws.root_path ?? ''}」不会被删除。`,
+      async () => {
+        const ok = await deleteWorkspace(ws.id);
+        if (ok) {
+          showSuccess('已从列表移除');
+        } else {
+          showError('移除失败');
+        }
+      },
+      'danger',
+    );
   };
 
   return (
@@ -132,14 +154,22 @@ export function WorkspaceSelector() {
                   <div className="p-4 text-center text-muted-foreground text-sm">暂无项目</div>
                 ) : (
                   workspaces.map((ws) => (
-                    <button
+                    <div
                       key={ws.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => {
                         selectWorkspace(ws);
                         setIsOpen(false);
                       }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          selectWorkspace(ws);
+                          setIsOpen(false);
+                        }
+                      }}
                       className={cn(
-                        'w-full flex items-center gap-3 px-4 py-3 text-left transition-colors',
+                        'group w-full flex items-center gap-3 px-4 py-3 text-left transition-colors cursor-pointer',
                         'hover:bg-accent',
                         currentWorkspace?.id === ws.id && 'bg-primary/5',
                       )}
@@ -156,7 +186,15 @@ export function WorkspaceSelector() {
                       {currentWorkspace?.id === ws.id && (
                         <Check className="w-4 h-4 text-primary flex-shrink-0" />
                       )}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDelete(e, ws)}
+                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-red-500/10 hover:text-red-500 transition-all flex-shrink-0"
+                        title="从列表移除（不删除本地文件夹）"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   ))
                 )}
               </div>
@@ -223,6 +261,18 @@ export function WorkspaceSelector() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        variant={confirmState.variant}
+        onConfirm={() => {
+          confirmState.onConfirm();
+          hideConfirm();
+        }}
+        onCancel={hideConfirm}
+      />
     </div>
   );
 }

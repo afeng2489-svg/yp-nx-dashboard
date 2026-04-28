@@ -277,7 +277,6 @@ export function CommandPalette() {
 
   // Execute a command
   const executeCommand = (command: string) => {
-    console.log('Executing command:', command);
     saveRecentCommand(command, true);
     setIsOpen(false);
     setInput('');

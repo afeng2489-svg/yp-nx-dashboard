@@ -6,6 +6,7 @@ interface UIStore {
   terminalGrid: TerminalGridLayout;
 
   toggleSidebar: () => void;
+  setSidebarOpen: (open: boolean) => void;
   setActiveTab: (tab: UIStore['activeTab']) => void;
   setTerminalGrid: (layout: Partial<TerminalGridLayout>) => void;
 }
@@ -21,6 +22,8 @@ export const useUIStore = create<UIStore>((set) => ({
   terminalGrid: { columns: 2, rows: 2 },
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 

@@ -94,6 +94,8 @@ interface WorkspaceStore {
     rootPath?: string,
   ) => Promise<Workspace | null>;
   updateWorkspace: (id: string, updates: Partial<Workspace>) => Promise<Workspace | null>;
+  /** 仅从数据库列表移除（不删除本地文件夹） */
+  deleteWorkspace: (id: string) => Promise<boolean>;
   clearError: () => void;
 
   // File browsing
@@ -284,6 +286,42 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             error: error instanceof Error ? error.message : 'Failed to update workspace',
           });
           return null;
+        }
+      },
+
+      // 仅从数据库列表移除（不删除本地文件夹）
+      deleteWorkspace: async (id) => {
+        const prev = get().workspaces;
+        const wasCurrent = get().currentWorkspace?.id === id;
+
+        // 乐观删除
+        set((state) => ({
+          workspaces: state.workspaces.filter((w) => w.id !== id),
+          currentWorkspace: wasCurrent ? null : state.currentWorkspace,
+          error: null,
+        }));
+
+        try {
+          const response = await fetchWithTimeout(`${API_BASE}/api/v1/workspaces/${id}`, {
+            method: 'DELETE',
+          });
+          if (!response.ok && response.status !== 404) {
+            throw new ApiError(`Failed to delete workspace: ${response.status}`, response.status);
+          }
+
+          // 如果删的就是当前 workspace，通知后端清掉 current_workspace_path
+          if (wasCurrent) {
+            notifyListeners(null);
+          }
+
+          return true;
+        } catch (error) {
+          // 失败回滚
+          set({
+            workspaces: prev,
+            error: error instanceof Error ? error.message : 'Failed to delete workspace',
+          });
+          return false;
         }
       },
 

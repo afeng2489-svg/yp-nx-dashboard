@@ -78,6 +78,9 @@ pub trait WorkspaceRepository: Send + Sync {
     /// 根据 ID 查找工作区
     fn find_by_id(&self, id: &str) -> Result<Option<Workspace>, RepositoryError>;
 
+    /// 根据 root_path 查找工作区（用于"打开文件夹时去重"）
+    fn find_by_root_path(&self, root_path: &str) -> Result<Option<Workspace>, RepositoryError>;
+
     /// 查找所有工作区
     fn find_all(&self) -> Result<Vec<Workspace>, RepositoryError>;
 
@@ -206,6 +209,45 @@ impl WorkspaceRepository for SqliteWorkspaceRepository {
         )?;
 
         let result = stmt.query_row(params![id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, String>(6)?,
+                row.get::<_, String>(7)?,
+            ))
+        });
+
+        match result {
+            Ok((id, name, description, owner_id, root_path, settings, created_at, updated_at)) => {
+                Ok(Some(Self::deserialize_row(
+                    id,
+                    name,
+                    description,
+                    owner_id,
+                    root_path,
+                    settings,
+                    created_at,
+                    updated_at,
+                )?))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn find_by_root_path(&self, root_path: &str) -> Result<Option<Workspace>, RepositoryError> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, description, owner_id, root_path, settings, created_at, updated_at
+             FROM workspaces WHERE root_path = ?1
+             ORDER BY updated_at DESC LIMIT 1",
+        )?;
+
+        let result = stmt.query_row(params![root_path], |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
