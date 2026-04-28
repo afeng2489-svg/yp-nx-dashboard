@@ -42,6 +42,7 @@ import {
   Zap,
   ChevronRight,
   Edit2,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
@@ -58,13 +59,14 @@ interface CreateTaskModalProps {
     payload: Record<string, unknown>,
     delaySeconds?: number,
     maxRetries?: number,
-  ) => void;
+  ) => Promise<void> | void;
 }
 
 function CreateTaskModal({ isOpen, onClose, onSubmit }: CreateTaskModalProps) {
   const [taskType, setTaskType] = useState<TaskType>('workflow_execution');
   const [delaySeconds, setDelaySeconds] = useState('');
   const [maxRetries, setMaxRetries] = useState('3');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // workflow_execution fields
   const [selectedWorkflowId, setSelectedWorkflowId] = useState('');
@@ -131,13 +133,20 @@ function CreateTaskModal({ isOpen, onClose, onSubmit }: CreateTaskModalProps) {
       payload = { cleanup_type: cleanupType };
     }
 
-    onSubmit(
-      taskType,
-      payload,
-      delaySeconds ? parseInt(delaySeconds, 10) : undefined,
-      maxRetries ? parseInt(maxRetries, 10) : undefined,
-    );
-    onClose();
+    setIsSubmitting(true);
+    try {
+      await onSubmit(
+        taskType,
+        payload,
+        delaySeconds ? parseInt(delaySeconds, 10) : undefined,
+        maxRetries ? parseInt(maxRetries, 10) : undefined,
+      );
+      onClose();
+    } catch (e) {
+      showError(`提交失败: ${(e as Error).message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const typeIcons: Record<TaskType, React.ReactNode> = {
@@ -286,12 +295,16 @@ function CreateTaskModal({ isOpen, onClose, onSubmit }: CreateTaskModalProps) {
         </div>
 
         <div className="flex items-center justify-end gap-3 mt-6">
-          <button onClick={onClose} className="btn-secondary">
+          <button onClick={onClose} disabled={isSubmitting} className="btn-secondary">
             取消
           </button>
-          <button onClick={handleSubmit} className="btn-primary">
-            <Play className="w-4 h-4" />
-            提交任务
+          <button onClick={handleSubmit} disabled={isSubmitting} className="btn-primary">
+            {isSubmitting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Play className="w-4 h-4" />
+            )}
+            {isSubmitting ? '提交中...' : '提交任务'}
           </button>
         </div>
       </div>

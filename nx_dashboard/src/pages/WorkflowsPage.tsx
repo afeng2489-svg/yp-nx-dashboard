@@ -636,6 +636,10 @@ export function WorkflowsPage() {
   };
 
   const handleEdit = (workflow: Workflow) => {
+    if (workflow.id.startsWith('sample-')) {
+      showError('这是系统示例，无法编辑。请基于它"复制为新工作流"或在编辑器里创建。');
+      return;
+    }
     setCurrentWorkflow(workflow);
     navigate('/editor');
   };
@@ -673,6 +677,10 @@ export function WorkflowsPage() {
 
   const handleExecute = (workflow: Workflow, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (workflow.id.startsWith('sample-')) {
+      showError('这是系统示例，无法执行。请先在编辑器里创建一个真实的工作流。');
+      return;
+    }
     setLaunchWorkflow(workflow);
   };
 
@@ -796,13 +804,18 @@ export function WorkflowsPage() {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <h3 className="font-semibold text-lg group-hover:text-indigo-600 transition-colors">
                         {workflow.name}
                       </h3>
                       <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 text-xs font-medium">
                         v{workflow.version}
                       </span>
+                      {workflow.id.startsWith('sample-') && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 text-xs font-medium border border-amber-500/30">
+                          示例
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-muted-foreground mb-3">
                       {workflow.description || '无描述'}

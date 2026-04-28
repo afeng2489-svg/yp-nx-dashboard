@@ -242,11 +242,20 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
   },
 
   deleteWorkflow: async (id) => {
-    // Optimistic delete
-    set((state) => ({
-      workflows: state.workflows.filter((w) => w.id !== id),
-      currentWorkflow: state.currentWorkflow?.id === id ? null : state.currentWorkflow,
-    }));
+    // 备份：失败时回滚（避免后端没删但 UI 已经删掉造成的"删除幻觉"）
+    let prevState: { workflows: Workflow[]; currentWorkflow: Workflow | null } | null = null;
+
+    // 乐观更新：先 UI 删掉，同时记下原状态
+    set((state) => {
+      prevState = {
+        workflows: state.workflows,
+        currentWorkflow: state.currentWorkflow,
+      };
+      return {
+        workflows: state.workflows.filter((w) => w.id !== id),
+        currentWorkflow: state.currentWorkflow?.id === id ? null : state.currentWorkflow,
+      };
+    });
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/workflows/${id}`, {
@@ -257,8 +266,12 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
         throw new ApiError(`Failed to delete workflow: ${response.status}`, response.status);
       }
     } catch (error) {
+      // 回滚 UI 状态，让用户看到的与后端实际一致
+      if (prevState) {
+        set(prevState);
+      }
       const message = error instanceof Error ? error.message : 'Unknown error';
-      set({ error: `Failed to sync with backend: ${message}` });
+      set({ error: `删除失败: ${message}` });
       throw error;
     }
   },

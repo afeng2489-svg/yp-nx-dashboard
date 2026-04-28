@@ -17,6 +17,7 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useTeamStore } from '@/stores/teamStore';
 import { useSkillStore, SkillSummary } from '@/stores/skillStore';
 import { WS_BASE_URL } from '@/api/constants';
+import { showError, showSuccess } from '@/lib/toast';
 import {
   Plus,
   Trash2,
@@ -345,8 +346,9 @@ export function GroupChatPage() {
         consensus_strategy: 'majority',
         max_turns: 10,
       });
+      showSuccess('会话创建成功');
     } catch (err) {
-      // Failed to create session
+      showError(`创建会话失败: ${(err as Error).message}`);
     }
   };
 
@@ -357,8 +359,9 @@ export function GroupChatPage() {
       setTurnInfo(info);
       setShowStartModal(false);
       fetchSession(selectedSessionId);
+      showSuccess('讨论已开始');
     } catch (err) {
-      // Failed to start discussion
+      showError(`开始讨论失败: ${(err as Error).message}`);
     }
   };
 
@@ -375,7 +378,7 @@ export function GroupChatPage() {
       // 刷新文件列表，以便显示 Claude CLI 创建的文件
       browseFiles().catch(() => {});
     } catch (err) {
-      // Failed to send message
+      showError(`发送消息失败: ${(err as Error).message}`);
     }
   };
 
@@ -956,8 +959,8 @@ export function GroupChatPage() {
 
       {/* Create Session Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-card rounded-lg border w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-lg border w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
             <h2 className="text-xl font-bold mb-4">新建讨论会话</h2>
             <div className="space-y-4">
               <div>
@@ -1047,8 +1050,8 @@ export function GroupChatPage() {
 
       {/* Start Discussion Modal */}
       {showStartModal && currentSession && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-card rounded-lg border w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-lg border w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
             <h2 className="text-xl font-bold mb-4">开始讨论</h2>
             <p className="text-sm text-muted-foreground mb-4">
               选择参与讨论的角色（当前团队中的角色将作为讨论参与者）
@@ -1102,8 +1105,8 @@ export function GroupChatPage() {
 
       {/* Conclude Modal */}
       {showConclusionModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-card rounded-lg border w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-lg border w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
             <h2 className="text-xl font-bold mb-4">结束讨论</h2>
             <p className="text-sm text-muted-foreground mb-4">
               确定要结束当前讨论吗？系统将基于讨论内容生成最终结论。
