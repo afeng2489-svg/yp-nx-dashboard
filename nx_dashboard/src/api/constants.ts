@@ -13,7 +13,9 @@ function buildApiBaseUrl(): string {
     }
   }
   // 生产环境 — 直连后端
-  return 'http://localhost:8080';
+  // 使用 127.0.0.1 而非 localhost，避免 Windows 上 localhost 解析为 IPv6 ::1
+  // 而后端仅绑定 IPv4 127.0.0.1 导致连接失败
+  return 'http://127.0.0.1:8080';
 }
 
 export const API_BASE_URL = buildApiBaseUrl();
@@ -33,7 +35,7 @@ function buildWsBaseUrl(): string {
     }
   }
   // 生产环境（Tauri bundle）— 直连后端
-  return 'ws://localhost:8080';
+  return 'ws://127.0.0.1:8080';
 }
 
 export const WS_BASE_URL = buildWsBaseUrl();

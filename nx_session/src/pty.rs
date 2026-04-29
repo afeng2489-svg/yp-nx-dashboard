@@ -9,7 +9,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use uuid::Uuid;
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use portable_pty::{native_pty_system, Child, CommandBuilder, PtyPair, PtySize};
 
 /// PTY 错误类型
@@ -115,8 +115,14 @@ pub struct PtyManager {
     /// PTY 主端
     #[cfg(unix)]
     masters: Arc<RwLock<HashMap<String, PtyPair>>>,
+    /// PTY 主端
+    #[cfg(windows)]
+    masters: Arc<RwLock<HashMap<String, PtyPair>>>,
     /// 子进程
     #[cfg(unix)]
+    children: Arc<RwLock<HashMap<String, Box<dyn Child + Send>>>>,
+    /// 子进程
+    #[cfg(windows)]
     children: Arc<RwLock<HashMap<String, Box<dyn Child + Send>>>>,
     /// 输出缓冲
     outputs: Arc<RwLock<HashMap<String, Vec<PtyOutput>>>>,
@@ -139,7 +145,11 @@ impl PtyManager {
             sessions: Arc::new(RwLock::new(HashMap::new())),
             #[cfg(unix)]
             masters: Arc::new(RwLock::new(HashMap::new())),
+            #[cfg(windows)]
+            masters: Arc::new(RwLock::new(HashMap::new())),
             #[cfg(unix)]
+            children: Arc::new(RwLock::new(HashMap::new())),
+            #[cfg(windows)]
             children: Arc::new(RwLock::new(HashMap::new())),
             outputs: Arc::new(RwLock::new(HashMap::new())),
         }
@@ -221,8 +231,80 @@ impl PtyManager {
         Ok(session_id)
     }
 
+    /// 创建新的 PTY 会话 (Windows)
+    #[cfg(windows)]
+    pub fn create_session(
+        &self,
+        command: Option<&str>,
+        args: Option<&[&str]>,
+        cwd: Option<&str>,
+        env_vars: Option<&HashMap<String, String>>,
+    ) -> Result<String, PtyError> {
+        let pty_system = native_pty_system();
+
+        let pair = pty_system
+            .openpty(PtySize {
+                rows: 24,
+                cols: 80,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|e| PtyError::CreateFailed(e.to_string()))?;
+
+        let mut session = PtySession::new();
+        let session_id = session.id.clone();
+
+        let mut cmd = CommandBuilder::new(command.unwrap_or("cmd.exe"));
+
+        if let Some(args) = args {
+            for arg in args {
+                cmd.arg(arg);
+            }
+        }
+
+        if let Some(cwd) = cwd {
+            cmd.cwd(cwd);
+        }
+
+        if let Some(env_vars) = env_vars {
+            for (key, value) in env_vars {
+                cmd.env(key, value);
+            }
+        }
+
+        let child = pair
+            .slave
+            .spawn_command(cmd)
+            .map_err(|e| PtyError::ProcessStartFailed(e.to_string()))?;
+
+        session.state = PtySessionState::Running;
+        session.pid = child.process_id();
+
+        {
+            let mut sessions = self.sessions.write();
+            sessions.insert(session_id.clone(), session);
+        }
+
+        {
+            let mut masters = self.masters.write();
+            masters.insert(session_id.clone(), pair);
+        }
+
+        {
+            let mut children = self.children.write();
+            children.insert(session_id.clone(), child);
+        }
+
+        {
+            let mut outputs = self.outputs.write();
+            outputs.insert(session_id.clone(), Vec::new());
+        }
+
+        Ok(session_id)
+    }
+
     /// 创建新的 PTY 会话（不支持的平台）
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     pub fn create_session(
         &self,
         _command: Option<&str>,
@@ -259,8 +341,33 @@ impl PtyManager {
         }
     }
 
+    /// 写入 PTY (Windows)
+    #[cfg(windows)]
+    pub fn write(&self, session_id: &str, data: &[u8]) -> Result<(), PtyError> {
+        let mut masters = self.masters.write();
+
+        if let Some(pair) = masters.get_mut(session_id) {
+            let mut writer = pair.master.take_writer().map_err(|e| {
+                PtyError::IoError(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("writer not available: {}", e),
+                ))
+            })?;
+            writer.write_all(data).map_err(PtyError::IoError)?;
+
+            let mut sessions = self.sessions.write();
+            if let Some(session) = sessions.get_mut(session_id) {
+                session.touch();
+            }
+
+            Ok(())
+        } else {
+            Err(PtyError::SessionNotFound(session_id.to_string()))
+        }
+    }
+
     /// 写入 PTY（不支持的平台）
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     pub fn write(&self, _session_id: &str, _data: &[u8]) -> Result<(), PtyError> {
         Err(PtyError::UnsupportedPlatform)
     }
@@ -309,8 +416,50 @@ impl PtyManager {
         }
     }
 
+    /// 读取 PTY 输出 (Windows)
+    #[cfg(windows)]
+    pub fn read(&self, session_id: &str, timeout_ms: u64) -> Result<Vec<PtyOutput>, PtyError> {
+        use std::time::{Duration, Instant};
+
+        let start = Instant::now();
+        let deadline = Duration::from_millis(timeout_ms);
+
+        let mut outputs = self.outputs.write();
+
+        if let Some(buffer) = outputs.get_mut(session_id) {
+            let mut result = Vec::new();
+
+            while !buffer.is_empty() && start.elapsed() < deadline {
+                if let Some(output) = buffer.first() {
+                    if output.timestamp <= start {
+                        result.push(buffer.remove(0));
+                    } else {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            if result.is_empty() {
+                drop(outputs);
+                std::thread::sleep(Duration::from_millis(10));
+                let mut outputs = self.outputs.write();
+                if let Some(buffer) = outputs.get_mut(session_id) {
+                    while !buffer.is_empty() {
+                        result.push(buffer.remove(0));
+                    }
+                }
+            }
+
+            Ok(result)
+        } else {
+            Err(PtyError::SessionNotFound(session_id.to_string()))
+        }
+    }
+
     /// 读取 PTY 输出（不支持的平台）
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     pub fn read(&self, _session_id: &str, _timeout_ms: u64) -> Result<Vec<PtyOutput>, PtyError> {
         Err(PtyError::UnsupportedPlatform)
     }
@@ -336,8 +485,29 @@ impl PtyManager {
         }
     }
 
+    /// 调整 PTY 大小 (Windows)
+    #[cfg(windows)]
+    pub fn resize(&self, session_id: &str, rows: u16, cols: u16) -> Result<(), PtyError> {
+        let mut masters = self.masters.write();
+
+        if let Some(pair) = masters.get_mut(session_id) {
+            pair.master
+                .resize(PtySize {
+                    rows,
+                    cols,
+                    pixel_width: 0,
+                    pixel_height: 0,
+                })
+                .map_err(|e| PtyError::CreateFailed(e.to_string()))?;
+
+            Ok(())
+        } else {
+            Err(PtyError::SessionNotFound(session_id.to_string()))
+        }
+    }
+
     /// 调整 PTY 大小（不支持的平台）
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     pub fn resize(&self, _session_id: &str, _rows: u16, _cols: u16) -> Result<(), PtyError> {
         Err(PtyError::UnsupportedPlatform)
     }
@@ -357,8 +527,23 @@ impl PtyManager {
         Err(PtyError::SessionNotFound(session_id.to_string()))
     }
 
+    /// 暂停会话 (Windows)
+    #[cfg(windows)]
+    pub fn pause(&self, session_id: &str) -> Result<(), PtyError> {
+        let mut sessions = self.sessions.write();
+
+        if let Some(session) = sessions.get_mut(session_id) {
+            if session.state == PtySessionState::Running {
+                session.state = PtySessionState::Paused;
+                return Ok(());
+            }
+        }
+
+        Err(PtyError::SessionNotFound(session_id.to_string()))
+    }
+
     /// 暂停会话（不支持的平台）
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     pub fn pause(&self, _session_id: &str) -> Result<(), PtyError> {
         Err(PtyError::UnsupportedPlatform)
     }
@@ -378,8 +563,23 @@ impl PtyManager {
         Err(PtyError::SessionNotFound(session_id.to_string()))
     }
 
+    /// 恢复会话 (Windows)
+    #[cfg(windows)]
+    pub fn resume(&self, session_id: &str) -> Result<(), PtyError> {
+        let mut sessions = self.sessions.write();
+
+        if let Some(session) = sessions.get_mut(session_id) {
+            if session.state == PtySessionState::Paused {
+                session.state = PtySessionState::Running;
+                return Ok(());
+            }
+        }
+
+        Err(PtyError::SessionNotFound(session_id.to_string()))
+    }
+
     /// 恢复会话（不支持的平台）
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     pub fn resume(&self, _session_id: &str) -> Result<(), PtyError> {
         Err(PtyError::UnsupportedPlatform)
     }
@@ -431,8 +631,50 @@ impl PtyManager {
         Ok(None)
     }
 
+    /// 终止会话 (Windows)
+    #[cfg(windows)]
+    pub fn terminate(&self, session_id: &str) -> Result<Option<i32>, PtyError> {
+        {
+            let mut children = self.children.write();
+            if let Some(mut child) = children.remove(session_id) {
+                let _ = child.kill();
+                match child.wait() {
+                    Ok(exit_status) => {
+                        let exit_code = exit_status.exit_code() as i32;
+
+                        let mut sessions = self.sessions.write();
+                        if let Some(session) = sessions.get_mut(session_id) {
+                            session.state = PtySessionState::Terminated;
+                            session.exit_code = Some(exit_code);
+                        }
+
+                        return Ok(Some(exit_code));
+                    }
+                    Err(_) => {}
+                }
+            }
+        }
+
+        {
+            let mut masters = self.masters.write();
+            masters.remove(session_id);
+        }
+
+        {
+            let mut outputs = self.outputs.write();
+            outputs.remove(session_id);
+        }
+
+        {
+            let mut sessions = self.sessions.write();
+            sessions.remove(session_id);
+        }
+
+        Ok(None)
+    }
+
     /// 终止会话（不支持的平台）
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     pub fn terminate(&self, _session_id: &str) -> Result<Option<i32>, PtyError> {
         Err(PtyError::UnsupportedPlatform)
     }
@@ -444,8 +686,15 @@ impl PtyManager {
         sessions.get(session_id).cloned()
     }
 
+    /// 获取会话状态 (Windows)
+    #[cfg(windows)]
+    pub fn get_session(&self, session_id: &str) -> Option<PtySession> {
+        let sessions = self.sessions.read();
+        sessions.get(session_id).cloned()
+    }
+
     /// 获取会话状态（不支持的平台）
-    #[cfg(not(unix))]
+    #[cfg(not(any(unix, windows)))]
     pub fn get_session(&self, _session_id: &str) -> Option<PtySession> {
         None
     }

@@ -176,8 +176,32 @@ pub fn run() {
             let claude_cli_env = if cfg!(debug_assertions) {
                 // Debug: let nx_api find it from shell PATH
                 None
+            } else if cfg!(target_os = "windows") {
+                // Windows: use 'where' command to locate claude.exe
+                let output = Command::new("cmd")
+                    .args(["/c", "where claude 2>nul"])
+                    .output();
+                if let Ok(out) = output {
+                    if out.status.success() {
+                        let path = String::from_utf8_lossy(&out.stdout)
+                            .lines()
+                            .next()
+                            .unwrap_or("")
+                            .trim()
+                            .to_string();
+                        if !path.is_empty() {
+                            Some(path)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
             } else {
-                // Release: resolve from Tauri shell and pass directly
+                // macOS / Linux: resolve from login shell PATH
                 let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
                 let output = Command::new(&shell)
                     .args(["-l", "-c", "which claude 2>/dev/null || echo ''"])
