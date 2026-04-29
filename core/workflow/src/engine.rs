@@ -25,6 +25,8 @@ pub struct WorkflowEngine {
     working_directory: Option<String>,
     /// user_input stage 用：前端通过此 channel 发回用户选择的值
     resume_rx: Option<Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<String>>>>,
+    /// stage 执行前后的观察者（产物追踪、token 监控等扩展点）
+    stage_watchers: crate::watcher::StageWatchers,
 }
 
 impl WorkflowEngine {
@@ -34,6 +36,7 @@ impl WorkflowEngine {
             event_emitter,
             working_directory: None,
             resume_rx: None,
+            stage_watchers: crate::watcher::StageWatchers::new(),
         }
     }
 
@@ -46,6 +49,7 @@ impl WorkflowEngine {
             event_emitter,
             working_directory,
             resume_rx: None,
+            stage_watchers: crate::watcher::StageWatchers::new(),
         }
     }
 
@@ -59,7 +63,13 @@ impl WorkflowEngine {
             event_emitter,
             working_directory,
             resume_rx: Some(Arc::new(tokio::sync::Mutex::new(resume_rx))),
+            stage_watchers: crate::watcher::StageWatchers::new(),
         }
+    }
+
+    /// 注册 stage 观察者（用于产物追踪、token 监控等）
+    pub fn add_stage_watcher(&mut self, watcher: Arc<dyn crate::watcher::StageWatcher>) {
+        self.stage_watchers.push(watcher);
     }
 
     /// 执行工作流
@@ -105,6 +115,7 @@ impl WorkflowEngine {
                 }
             };
 
+            let exec_id_str = state.read().execution_id.to_string();
             {
                 let s = state.read();
                 self.event_emitter.emit(WorkflowEvent::StageStarted {
@@ -113,6 +124,9 @@ impl WorkflowEngine {
                     stage_index: stage_idx.unwrap_or(0),
                 });
             }
+
+            // 通知所有观察者：stage 开始（用于产物追踪等）
+            self.stage_watchers.notify_before(&exec_id_str, &stage.name);
 
             // 根据 stage 类型分发执行
             let outputs = match stage.stage_type {
@@ -257,6 +271,9 @@ impl WorkflowEngine {
                     outputs: outputs.clone(),
                 });
             }
+
+            // 通知所有观察者：stage 完成（用于产物 diff 计算等）
+            self.stage_watchers.notify_after(&exec_id_str, &stage.name);
 
             // ── 计算下一个 stage ──
             if stage.stage_type == StageType::Loop || stage.next.is_empty() {
@@ -640,6 +657,7 @@ impl Clone for WorkflowEngine {
             event_emitter: self.event_emitter.clone(),
             working_directory: self.working_directory.clone(),
             resume_rx: self.resume_rx.clone(),
+            stage_watchers: self.stage_watchers.clone(),
         }
     }
 }

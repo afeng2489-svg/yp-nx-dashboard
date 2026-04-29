@@ -7,9 +7,11 @@ pub mod engine;
 pub mod events;
 pub mod parser;
 pub mod state;
+pub mod watcher;
 
 #[allow(ambiguous_glob_reexports)]
 pub use engine::*;
 pub use events::*;
 pub use parser::*;
 pub use state::*;
+pub use watcher::*;

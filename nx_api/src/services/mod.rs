@@ -4,10 +4,14 @@ pub mod agent_team_service;
 pub mod ai_provider_repository;
 pub mod ai_provider_service;
 pub mod api_key_repository;
+pub mod artifact_repository;
+pub mod artifact_tracker;
+pub mod artifact_watcher;
 pub mod claude_cli;
 pub mod claude_terminal;
 pub mod events;
 pub mod execution_bridge;
+pub mod execution_repository;
 pub mod execution_service;
 pub mod file_skill_repository;
 pub mod group_chat_repository;
@@ -43,6 +47,7 @@ pub use ai_provider_service::{
 pub use api_key_repository::{ApiKeyRepository, ApiKeyRepositoryError, SqliteApiKeyRepository};
 pub use claude_terminal::{ClaudeTerminalManager, TerminalSessionInfo};
 pub use events::{ExecutionEvent, ExecutionStatus};
+pub use execution_repository::SqliteExecutionRepository;
 pub use execution_service::ExecutionService;
 pub use file_skill_repository::{FileSkillRepository, FileSkillRepositoryError, SkillFileInfo};
 pub use group_chat_repository::{

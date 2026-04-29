@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WS_BASE_URL } from '@/api/constants';
+import { ArtifactsPanel } from '@/components/execution/ArtifactsPanel';
 
 // 工作流操作说明
 const WORKFLOW_OPERATIONS = [
@@ -111,7 +112,7 @@ function ExecutionDetailModal({
   onClose: () => void;
   onCancel: (id: string) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<'stages' | 'logs'>('stages');
+  const [activeTab, setActiveTab] = useState<'stages' | 'logs' | 'artifacts'>('stages');
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
   const workflowName = useWorkflowName();
 
@@ -231,6 +232,20 @@ function ExecutionDetailModal({
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500" />
             )}
           </button>
+          <button
+            onClick={() => setActiveTab('artifacts')}
+            className={cn(
+              'flex-1 px-4 py-3 text-sm font-medium transition-all relative',
+              activeTab === 'artifacts'
+                ? 'text-indigo-600'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            产物变更
+            {activeTab === 'artifacts' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500" />
+            )}
+          </button>
         </div>
 
         {/* 内容区域 */}
@@ -255,8 +270,10 @@ function ExecutionDetailModal({
                 ))
               )}
             </div>
-          ) : (
+          ) : activeTab === 'logs' ? (
             <ExecutionLogs executionId={execution.id} />
+          ) : (
+            <ArtifactsPanel executionId={execution.id} />
           )}
         </div>
 

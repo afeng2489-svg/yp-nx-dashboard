@@ -17,10 +17,11 @@ use crate::routes::teams_state::TeamsAppState;
 use crate::services::{
     AgentTeamService, ClaudeTerminalManager, ExecutionService, GroupChatService, PluginService,
     ProjectService, ProviderService, SessionService, SharedWisdomService, SkillService,
-    SqliteApiKeyRepository, SqliteGroupChatRepository, SqliteIssueRepository,
-    SqliteProjectRepository, SqliteProviderRepository, SqliteSessionRepository,
-    SqliteTeamRepository, SqliteWorkflowRepository, SqliteWorkspaceRepository, TelegramService,
-    TestGenerator, WisdomService, WorkflowService, WorkspaceService,
+    SqliteApiKeyRepository, SqliteExecutionRepository, SqliteGroupChatRepository,
+    SqliteIssueRepository, SqliteProjectRepository, SqliteProviderRepository,
+    SqliteSessionRepository, SqliteTeamRepository, SqliteWorkflowRepository,
+    SqliteWorkspaceRepository, TelegramService, TestGenerator, WisdomService, WorkflowService,
+    WorkspaceService,
 };
 use crate::ws::AgentExecutionManager;
 use crate::ws::ClaudeStreamWsHandler;
@@ -29,6 +30,7 @@ use crate::ws::TerminalWsHandler;
 use nexus_ai::{AIManagerConfig, AIModelManager, APIConfig, ModelConfig, ProviderType};
 
 pub mod ai_config;
+pub mod artifacts;
 pub mod executions;
 pub mod feature_flags;
 pub mod file_watch;
@@ -390,6 +392,8 @@ pub struct AppState {
     pub claude_terminal_manager: ClaudeTerminalManager,
     /// 当前工作区路径，用于 Claude CLI --project 参数
     pub current_workspace_path: Arc<RwLock<Option<String>>>,
+    /// 产物仓储（每次工作流执行的文件 diff，可选）
+    pub artifact_repo: Option<Arc<crate::services::artifact_repository::SqliteArtifactRepository>>,
     /// API 密钥（用于认证中间件）
     pub api_key_config: Option<String>,
     /// Issue 仓储
@@ -449,8 +453,37 @@ impl AppState {
         // 启动时将 config/workflows/*.yaml 种子文件导入数据库
         seed_workflows_from_yaml(&workflow_service);
 
-        // 创建执行服务
-        let execution_service = ExecutionService::new();
+        // 创建执行服务（带持久化）
+        let execution_repo = Arc::new(
+            crate::services::execution_repository::SqliteExecutionRepository::new(
+                std::path::Path::new(&config.db_path),
+            )
+            .expect("Failed to create execution repository"),
+        );
+        let execution_service = ExecutionService::with_repository(execution_repo);
+
+        // 注册产物追踪 watcher：每个 stage 执行前后自动 diff working_dir
+        let artifact_repo_arc =
+            match crate::services::artifact_repository::SqliteArtifactRepository::new(
+                std::path::Path::new(&config.db_path),
+            ) {
+                Ok(artifact_repo) => {
+                    let repo = Arc::new(artifact_repo);
+                    let watcher = Arc::new(
+                        crate::services::artifact_watcher::ArtifactStageWatcher::new(
+                            repo.clone(),
+                            current_workspace_path.clone(),
+                        ),
+                    );
+                    execution_service.add_stage_watcher(watcher);
+                    tracing::info!("[Bootstrap] 产物追踪 watcher 已注册");
+                    Some(repo)
+                }
+                Err(e) => {
+                    tracing::warn!("[Bootstrap] 产物追踪 watcher 启用失败: {}", e);
+                    None
+                }
+            };
 
         // 创建测试生成器
         let ai_registry = Arc::new(nexus_ai::AIProviderRegistry::new());
@@ -721,6 +754,7 @@ impl AppState {
             agent_execution_manager,
             claude_terminal_manager,
             current_workspace_path,
+            artifact_repo: artifact_repo_arc,
             api_key_config,
             issue_repository,
             feature_flag_service,
@@ -817,6 +851,19 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         .route(
             "/api/v1/executions/start",
             post(executions::start_execution),
+        )
+        // 产物路由
+        .route(
+            "/api/v1/executions/:id/artifacts",
+            get(artifacts::list_artifacts),
+        )
+        .route(
+            "/api/v1/executions/:id/artifacts/summary",
+            get(artifacts::artifacts_summary),
+        )
+        .route(
+            "/api/v1/executions/:id/artifacts/file",
+            get(artifacts::get_artifact_by_path),
         )
         // 会话路由
         .route("/api/v1/sessions", get(sessions::list_sessions))

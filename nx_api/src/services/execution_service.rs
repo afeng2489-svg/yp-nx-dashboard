@@ -95,6 +95,8 @@ fn load_ai_config_from_env() -> NexusAIManagerConfig {
 }
 use crate::services::execution_bridge::WorkflowEventBridge;
 
+use crate::services::execution_repository::SqliteExecutionRepository;
+
 /// 执行服务
 #[derive(Clone)]
 pub struct ExecutionService {
@@ -102,6 +104,10 @@ pub struct ExecutionService {
     event_sender: broadcast::Sender<ExecutionEvent>,
     /// user_input pause/resume channel 注册表（execution_id → sender）
     resume_channels: Arc<Mutex<HashMap<String, tokio::sync::mpsc::Sender<String>>>>,
+    /// stage 观察者列表（产物追踪、token 监控等）
+    stage_watchers: Arc<Mutex<Vec<Arc<dyn nexus_workflow::watcher::StageWatcher>>>>,
+    /// 持久化仓储（重启后历史记录不丢失）
+    repo: Option<Arc<SqliteExecutionRepository>>,
 }
 
 impl std::fmt::Debug for ExecutionService {
@@ -111,14 +117,33 @@ impl std::fmt::Debug for ExecutionService {
 }
 
 impl ExecutionService {
-    /// 创建新的执行服务
+    /// 创建新的执行服务（无持久化）
     pub fn new() -> Self {
         let (event_sender, _) = broadcast::channel(1000);
         Self {
             executions: Arc::new(Mutex::new(HashMap::new())),
             event_sender,
             resume_channels: Arc::new(Mutex::new(HashMap::new())),
+            stage_watchers: Arc::new(Mutex::new(Vec::new())),
+            repo: None,
         }
+    }
+
+    /// 创建带持久化的执行服务
+    pub fn with_repository(repo: Arc<SqliteExecutionRepository>) -> Self {
+        let (event_sender, _) = broadcast::channel(1000);
+        Self {
+            executions: Arc::new(Mutex::new(HashMap::new())),
+            event_sender,
+            resume_channels: Arc::new(Mutex::new(HashMap::new())),
+            stage_watchers: Arc::new(Mutex::new(Vec::new())),
+            repo: Some(repo),
+        }
+    }
+
+    /// 注册一个 stage 观察者（启动期调用一次即可，运行期共享）
+    pub fn add_stage_watcher(&self, watcher: Arc<dyn nexus_workflow::watcher::StageWatcher>) {
+        self.stage_watchers.lock().push(watcher);
     }
 
     /// 订阅执行事件
@@ -197,6 +222,13 @@ impl ExecutionService {
         executions.insert(execution.id.clone(), execution);
         drop(executions);
 
+        // 写入数据库
+        if let Some(ref repo) = self.repo {
+            if let Err(e) = repo.insert(&exec_clone) {
+                tracing::error!("持久化执行记录失败: {}", e);
+            }
+        }
+
         // 广播事件
         self.broadcast(ExecutionEvent::Started {
             execution_id: exec_clone.id.clone(),
@@ -210,16 +242,49 @@ impl ExecutionService {
         exec_clone
     }
 
-    /// 获取执行状态
+    /// 获取执行状态（优先查内存，再查 DB）
     pub fn get_execution(&self, id: &str) -> Option<Execution> {
         let executions = self.executions.lock();
-        executions.get(id).cloned()
+        if let Some(exec) = executions.get(id) {
+            return Some(exec.clone());
+        }
+        drop(executions);
+        // 内存没有，尝试从 DB 恢复
+        self.repo
+            .as_ref()
+            .and_then(|repo| repo.find_by_id(id).ok())
+            .flatten()
     }
 
-    /// 获取所有执行
+    /// 获取所有执行（合并 DB 历史 + 内存中的活跃记录）
     pub fn get_all_executions(&self) -> Vec<Execution> {
+        let mut all: Vec<Execution> = if let Some(ref repo) = self.repo {
+            repo.find_all().unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+
+        // 合并内存中的记录：DB 中没有的追加，DB 中有的用内存版本覆盖（状态更新）
         let executions = self.executions.lock();
-        executions.values().cloned().collect()
+        for (id, exec) in executions.iter() {
+            if let Some(existing) = all.iter_mut().find(|e| e.id == *id) {
+                // 用内存中更新的状态覆盖 DB 记录
+                existing.status = exec.status;
+                existing.error = exec.error.clone();
+                existing.stage_results = exec.stage_results.clone();
+                existing.started_at = exec.started_at;
+                existing.finished_at = exec.finished_at;
+                existing.output_log = exec.output_log.clone();
+                existing.current_stage = exec.current_stage.clone();
+                existing.running_agents = exec.running_agents.clone();
+                existing.pending_pause = exec.pending_pause.clone();
+            } else {
+                all.push(exec.clone());
+            }
+        }
+        // 按 started_at 降序排列
+        all.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+        all
     }
 
     /// 取消执行
@@ -228,7 +293,17 @@ impl ExecutionService {
         if let Some(execution) = executions.get_mut(id) {
             execution.cancel();
             let status = execution.status;
+            let status_str = status_to_db_str(status);
+            let finished_at = execution.finished_at.map(|t| t.to_rfc3339());
             drop(executions);
+
+            // 同步到数据库
+            if let Some(ref repo) = self.repo {
+                if let Err(e) = repo.update_status(id, status_str, None, finished_at.as_deref()) {
+                    tracing::error!("持久化取消状态失败: {}", e);
+                }
+            }
+
             self.broadcast(ExecutionEvent::StatusChanged {
                 execution_id: id.to_string(),
                 status,
@@ -248,8 +323,24 @@ impl ExecutionService {
             if matches!(status, ExecutionStatus::Completed | ExecutionStatus::Failed) {
                 execution.finished_at = Some(chrono::Utc::now());
             }
+            let status_str = status_to_db_str(status);
+            let error = execution.error.clone();
+            let finished_at = execution.finished_at.map(|t| t.to_rfc3339());
             let exec_id = execution.id.clone();
             drop(executions);
+
+            // 同步到数据库
+            if let Some(ref repo) = self.repo {
+                if let Err(e) = repo.update_status(
+                    &exec_id,
+                    status_str,
+                    error.as_deref(),
+                    finished_at.as_deref(),
+                ) {
+                    tracing::error!("持久化状态更新失败: {}", e);
+                }
+            }
+
             self.broadcast(ExecutionEvent::StatusChanged {
                 execution_id: exec_id,
                 status,
@@ -269,13 +360,22 @@ impl ExecutionService {
     pub fn add_stage_output(&self, id: &str, stage_name: String, output: serde_json::Value) {
         let mut executions = self.executions.lock();
         if let Some(execution) = executions.get_mut(id) {
-            execution.stage_results.push(StageResult {
+            let sr = StageResult {
                 stage_name: stage_name.clone(),
                 outputs: vec![output.clone()],
                 completed_at: Some(chrono::Utc::now()),
-            });
+            };
+            execution.stage_results.push(sr.clone());
             let exec_id = execution.id.clone();
             drop(executions);
+
+            // 同步阶段结果到数据库
+            if let Some(ref repo) = self.repo {
+                if let Err(e) = repo.insert_stage_result(&exec_id, &sr) {
+                    tracing::error!("持久化阶段结果失败: {}", e);
+                }
+            }
+
             self.broadcast(ExecutionEvent::StageCompleted {
                 execution_id: exec_id,
                 stage_name,
@@ -409,8 +509,13 @@ impl ExecutionService {
         let (resume_tx, resume_rx) = tokio::sync::mpsc::channel::<String>(1);
 
         // 6. 创建工作流引擎（使用 Claude CLI，附带 resume channel）
-        let engine =
+        let mut engine =
             WorkflowEngine::with_resume_channel(event_emitter, working_directory, resume_rx);
+
+        // 6.1 注入注册过的 stage 观察者（产物追踪等）
+        for watcher in self.stage_watchers.lock().iter() {
+            engine.add_stage_watcher(watcher.clone());
+        }
 
         // 7. 注册 resume channel
         {
@@ -451,6 +556,17 @@ impl ExecutionService {
         });
 
         Ok(execution.id)
+    }
+}
+
+fn status_to_db_str(status: ExecutionStatus) -> &'static str {
+    match status {
+        ExecutionStatus::Pending => "pending",
+        ExecutionStatus::Running => "running",
+        ExecutionStatus::Paused => "paused",
+        ExecutionStatus::Completed => "completed",
+        ExecutionStatus::Failed => "failed",
+        ExecutionStatus::Cancelled => "cancelled",
     }
 }
 

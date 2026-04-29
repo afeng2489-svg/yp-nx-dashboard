@@ -104,6 +104,17 @@ class ApiClient {
     });
   }
 
+  async listArtifacts(executionId: string, stage?: string) {
+    const query = stage ? `?stage=${encodeURIComponent(stage)}` : '';
+    return this.request<ArtifactsResponse>(`/api/v1/executions/${executionId}/artifacts${query}`);
+  }
+
+  async getArtifactsSummary(executionId: string) {
+    return this.request<ArtifactsSummaryResponse>(
+      `/api/v1/executions/${executionId}/artifacts/summary`,
+    );
+  }
+
   async listSessions() {
     return this.request<Session[]>('/api/v1/sessions');
   }
@@ -624,6 +635,37 @@ export interface Session {
   resume_key?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface ArtifactRecord {
+  id: string;
+  execution_id: string;
+  stage_name: string | null;
+  relative_path: string;
+  change_type: 'added' | 'modified' | 'deleted';
+  size_bytes: number;
+  sha256: string | null;
+  mime_type: string | null;
+  created_at: string;
+}
+
+export interface ArtifactsResponse {
+  ok: boolean;
+  data?: ArtifactRecord[];
+  error?: string;
+}
+
+export interface ArtifactSummary {
+  stage_name: string | null;
+  added: number;
+  modified: number;
+  deleted: number;
+}
+
+export interface ArtifactsSummaryResponse {
+  ok: boolean;
+  data?: ArtifactSummary[];
+  error?: string;
 }
 
 export const api = new ApiClient(API_BASE);

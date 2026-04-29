@@ -56,6 +56,11 @@ dirs = "5"
 # Terminal emulator parser (for clean PTY → chat extraction)
 vte = "0.13"
 
+# Artifact tracking (workflow execution diff)
+walkdir = "2"
+sha2 = "0.10"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
 # File watching
 notify = "7"
 
