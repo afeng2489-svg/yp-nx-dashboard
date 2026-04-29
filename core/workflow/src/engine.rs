@@ -593,7 +593,12 @@ impl WorkflowEngine {
             .or_else(|_| {
                 // Try common paths as fallback
                 let candidates = if cfg!(target_os = "windows") {
-                    vec!["claude.exe".to_string()]
+                    // npm 安装的是 claude.cmd，不是 claude.exe
+                    vec![
+                        "claude.cmd".to_string(),
+                        "claude.exe".to_string(),
+                        "claude".to_string(),
+                    ]
                 } else {
                     vec![
                         "/opt/homebrew/bin/claude".to_string(),
@@ -609,7 +614,13 @@ impl WorkflowEngine {
                 Err(std::env::VarError::NotPresent)
             })
             .unwrap_or_else(|_| "claude".to_string());
-        let mut cmd = Command::new(&claude_bin);
+        let mut cmd = if cfg!(target_os = "windows") && claude_bin.ends_with(".js") {
+            let mut c = Command::new("node");
+            c.arg(&claude_bin);
+            c
+        } else {
+            Command::new(&claude_bin)
+        };
         cmd.args(["-p", "--dangerously-skip-permissions", prompt]);
 
         // 如果设置了 working_directory，设置当前工作目录

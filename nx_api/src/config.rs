@@ -158,9 +158,40 @@ fn resolve_default_db_path() -> String {
         }
     }
 
-    // 最终 fallback: 绝对路径 ~/.nexus/nexus.db（绝不使用相对路径）
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-    let fallback_dir = std::path::Path::new(&home).join(".nexus");
+    // 策略4(仅Windows): Tauri 桌面应用标准数据目录
+    //   %APPDATA%/com.nx.dashboard/nexus.db
+    // Tauri 首次启动将模板 DB 复制到此位置。手动启动 nx_api 时走此策略找到同一数据库。
+    if cfg!(target_os = "windows") {
+        if let Some(data_dir) = dirs::data_dir() {
+            let tauri_db = data_dir.join("com.nx.dashboard").join("nexus.db");
+            if tauri_db.exists() {
+                eprintln!(
+                    "[DB resolve] 策略4(Windows data_dir): {}",
+                    tauri_db.display()
+                );
+                return tauri_db.to_string_lossy().to_string();
+            }
+            eprintln!(
+                "[DB resolve] 策略4(Windows data_dir) 未找到: {}",
+                tauri_db.display()
+            );
+        }
+    }
+
+    // 最终 fallback: 绝对路径（绝不使用相对路径）
+    // Windows: USERPROFILE  →  Unix: HOME
+    let fallback_dir = if cfg!(target_os = "windows") {
+        let base = std::env::var("USERPROFILE")
+            .or_else(|_| std::env::var("LOCALAPPDATA"))
+            .unwrap_or_else(|_| {
+                eprintln!("[DB resolve] WARNING: USERPROFILE 和 LOCALAPPDATA 均未设置");
+                "C:\\nexus_data".to_string()
+            });
+        std::path::Path::new(&base).join(".nexus")
+    } else {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        std::path::Path::new(&home).join(".nexus")
+    };
     let _ = std::fs::create_dir_all(&fallback_dir);
     let db_path = fallback_dir.join("nexus.db");
     eprintln!("[DB resolve] 最终fallback: {}", db_path.display());

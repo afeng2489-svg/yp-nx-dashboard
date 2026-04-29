@@ -177,7 +177,7 @@ pub fn run() {
                 // Debug: let nx_api find it from shell PATH
                 None
             } else if cfg!(target_os = "windows") {
-                // Windows: use 'where' command to locate claude.exe
+                // Windows: use 'where' command to locate claude (finds claude.cmd)
                 let output = Command::new("cmd")
                     .args(["/c", "where claude 2>nul"])
                     .output();
@@ -222,10 +222,17 @@ pub fn run() {
                 }
             };
 
+            let app_handle = app.handle().clone();
             // Start nx_api in background
             thread::spawn(move || {
-                if let Err(e) = start_nx_api(&resource_dir, claude_cli_env.as_deref()) {
-                    eprintln!("[ERROR] Failed to start nx_api: {}", e);
+                match start_nx_api(&resource_dir, claude_cli_env.as_deref()) {
+                    Ok(()) => {}
+                    Err(e) => {
+                        let msg = format!("后台服务启动失败: {}\n请查看日志: %TEMP%/nx_startup.log", e);
+                        write_startup_error(&msg);
+                        // 尝试通知前端（app_handle 可能还不可用，忽略错误）
+                        let _ = app_handle.emit("nx-api-startup-error", &msg);
+                    }
                 }
             });
 
@@ -235,11 +242,21 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
+/// 将启动错误写入用户可见的日志文件
+fn write_startup_error(msg: &str) {
+    let log_path = std::env::temp_dir().join("nx_startup.log");
+    let entry = format!("{}\n", msg);
+    let _ = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .and_then(|mut f| std::io::Write::write_all(&mut f, entry.as_bytes()));
+    eprintln!("{}", msg);
+}
+
 // ── nx_api Subprocess ───────────────────────────────────────────────────────
 
 fn kill_stale_nx_api() {
-    // Kill any previous nx_api process occupying port 8080
-    // This prevents "Address already in use" when relaunching the app
     let port = 8080;
     if cfg!(target_os = "windows") {
         let _ = Command::new("powershell")
@@ -255,11 +272,43 @@ fn kill_stale_nx_api() {
                 let pids = String::from_utf8_lossy(&out.stdout);
                 for pid in pids.lines().filter(|l| !l.trim().is_empty()) {
                     let _ = Command::new("kill").args(["-9", pid.trim()]).output();
-                    eprintln!("[NX Dashboard] Killed stale process {} on port {}", pid.trim(), port);
                 }
             }
         }
     }
+}
+
+/// 查找 workspace root：包含 Cargo.toml（含 [workspace]）和 nx_dashboard/ 的目录
+#[allow(dead_code)]
+fn find_workspace_root() -> Option<PathBuf> {
+    let is_workspace = |dir: &std::path::Path| -> bool {
+        if !dir.join("Cargo.toml").exists() || !dir.join("nx_dashboard").is_dir() {
+            return false;
+        }
+        // 确认 Cargo.toml 包含 [workspace]
+        std::fs::read_to_string(dir.join("Cargo.toml"))
+            .map(|c| c.contains("[workspace]"))
+            .unwrap_or(false)
+    };
+
+    // 从可执行文件位置向上查找
+    if let Ok(exe) = std::env::current_exe() {
+        let exe = exe.canonicalize().unwrap_or(exe);
+        for ancestor in exe.ancestors().skip(1) {
+            if is_workspace(ancestor) {
+                return Some(ancestor.to_path_buf());
+            }
+        }
+    }
+    // 从 CWD 向上查找
+    if let Ok(cwd) = std::env::current_dir() {
+        for ancestor in cwd.ancestors() {
+            if is_workspace(ancestor) {
+                return Some(ancestor.to_path_buf());
+            }
+        }
+    }
+    None
 }
 
 fn start_nx_api(resource_dir: &std::path::Path, claude_cli_path: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {

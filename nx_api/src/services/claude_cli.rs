@@ -66,16 +66,19 @@ fn find_claude_cli() -> Option<String> {
     tracing::info!("[Claude CLI] shell PATH 包含 {} 个目录", shell_paths.len());
 
     // 2. 在完整 PATH 中搜索 claude
-    let cli_name = if cfg!(target_os = "windows") {
-        "claude.exe"
+    // Windows: npm 安装的是 claude.cmd（批处理包装），不是 claude.exe
+    let cli_names: &[&str] = if cfg!(target_os = "windows") {
+        &["claude.cmd", "claude.exe", "claude"]
     } else {
-        "claude"
+        &["claude"]
     };
     for dir in &shell_paths {
-        let candidate = std::path::Path::new(dir).join(cli_name);
-        if candidate.exists() {
-            tracing::info!("[Claude CLI] 发现于: {}", candidate.display());
-            return Some(candidate.to_string_lossy().to_string());
+        for name in cli_names {
+            let candidate = std::path::Path::new(dir).join(name);
+            if candidate.exists() {
+                tracing::info!("[Claude CLI] 发现于: {}", candidate.display());
+                return Some(candidate.to_string_lossy().to_string());
+            }
         }
     }
 
@@ -229,21 +232,29 @@ fn get_common_paths() -> Vec<String> {
     let mut paths = Vec::new();
 
     if cfg!(target_os = "windows") {
-        // Windows: npm global, user profile
+        // Windows: npm global (claude.cmd 是 npm 安装的主入口), user profile
         if let Ok(userprofile) = std::env::var("USERPROFILE") {
-            paths.push(format!(r"{}\AppData\Roaming\npm\claude.exe", userprofile));
+            // npm 全局安装: claude.cmd（批处理包装脚本）
+            paths.push(format!(r"{}\AppData\Roaming\npm\claude.cmd", userprofile));
+            paths.push(format!(r"{}\AppData\Roaming\npm\claude", userprofile));
+            // 直接安装
             paths.push(format!(
                 r"{}\AppData\Local\Programs\claude\claude.exe",
                 userprofile
             ));
             // fnm (Fast Node Manager)
             paths.push(format!(
-                r"{}\AppData\Roaming\fnm\node\versions\{}\claude.exe",
+                r"{}\AppData\Roaming\fnm\node\versions\{}\claude.cmd",
+                userprofile, "latest"
+            ));
+            paths.push(format!(
+                r"{}\AppData\Roaming\fnm\node\versions\{}\claude",
                 userprofile, "latest"
             ));
         }
         if let Ok(appdata) = std::env::var("APPDATA") {
-            paths.push(format!(r"{}\npm\claude.exe", appdata));
+            paths.push(format!(r"{}\npm\claude.cmd", appdata));
+            paths.push(format!(r"{}\npm\claude", appdata));
         }
         paths.push(r"C:\Program Files\claude\claude.exe".to_string());
     } else if cfg!(target_os = "macos") {
@@ -312,9 +323,37 @@ fn get_common_paths() -> Vec<String> {
     paths
 }
 
-/// 获取 Claude CLI 路径
+/// 获取 Claude CLI 路径（原始存储路径，用于显示）
 pub fn get_claude_cli_path() -> Option<String> {
     CLAUDE_CLI_STATE.read().ok().and_then(|s| s.path.clone())
+}
+
+/// 获取可用于 spawn 的 Claude CLI 可执行文件路径和前置参数
+///
+/// Windows 上如果路径是 .js 文件，返回 (node.exe, [cli.js]) 以便 CreateProcessW 能
+/// 正确执行。.cmd/.bat 文件由 Rust stdlib 自动处理，无需额外包装。
+pub fn get_claude_cli_executable() -> Option<(String, Vec<String>)> {
+    let path = get_claude_cli_path()?;
+    Some(resolve_claude_executable(&path))
+}
+
+/// 将 Claude CLI 路径解析为可执行文件 + 前置参数
+///
+/// Windows: .js → 用 node.exe 执行；.cmd/.bat/.exe → 直接执行
+/// Unix:   所有文件由 shebang 或直接执行处理
+fn resolve_claude_executable(path: &str) -> (String, Vec<String>) {
+    let p = std::path::Path::new(path);
+    if cfg!(target_os = "windows") {
+        match p.extension().and_then(|e| e.to_str()) {
+            Some("js") => {
+                tracing::info!("[Claude CLI] 检测到 .js 入口文件，使用 node 执行: {}", path);
+                ("node".to_string(), vec![p.to_string_lossy().to_string()])
+            }
+            _ => (path.to_string(), Vec::new()),
+        }
+    } else {
+        (path.to_string(), Vec::new())
+    }
 }
 
 /// 获取当前解析状态（路径 + 来源）
@@ -556,10 +595,13 @@ pub async fn call_claude_cli_with_timeout(
     timeout_secs: u64,
     working_directory: Option<&str>,
 ) -> ClaudeCliResult {
-    let cli_path = get_claude_cli_path().ok_or("Claude CLI not found")?;
+    let (exe_path, prefix_args) = get_claude_cli_executable().ok_or("Claude CLI not found")?;
 
     let timeout = tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), async {
-        let mut cmd = AsyncCommand::new(&cli_path);
+        let mut cmd = AsyncCommand::new(&exe_path);
+        for arg in &prefix_args {
+            cmd.arg(arg);
+        }
         cmd.args([
             "-p",
             "--dangerously-skip-permissions",
@@ -571,14 +613,16 @@ pub async fn call_claude_cli_with_timeout(
         if let Some(dir) = working_directory {
             cmd.current_dir(dir);
             tracing::info!(
-                "[Claude CLI] 执行命令: cd {} && {} -p --dangerously-skip-permissions <prompt>",
+                "[Claude CLI] 执行命令: cd {} && {} {} -p --dangerously-skip-permissions <prompt>",
                 dir,
-                cli_path
+                exe_path,
+                prefix_args.join(" ")
             );
         } else {
             tracing::info!(
-                "[Claude CLI] 执行命令: {} -p --dangerously-skip-permissions <prompt>",
-                cli_path
+                "[Claude CLI] 执行命令: {} {} -p --dangerously-skip-permissions <prompt>",
+                exe_path,
+                prefix_args.join(" ")
             );
         }
 
@@ -605,9 +649,13 @@ pub async fn call_claude_cli_with_timeout(
 /// 调用 Claude CLI，返回带工具调用的完整响应
 /// 适用于需要解析 Claude 的 tool_use 等结构的场景
 pub async fn call_claude_cli_with_tools(prompt: &str) -> ClaudeCliResult {
-    let cli_path = get_claude_cli_path().ok_or("Claude CLI not found")?;
+    let (exe_path, prefix_args) = get_claude_cli_executable().ok_or("Claude CLI not found")?;
 
-    let output = AsyncCommand::new(&cli_path)
+    let mut cmd = AsyncCommand::new(&exe_path);
+    for arg in &prefix_args {
+        cmd.arg(arg);
+    }
+    let output = cmd
         .args([
             "-p",
             "--dangerously-skip-permissions",

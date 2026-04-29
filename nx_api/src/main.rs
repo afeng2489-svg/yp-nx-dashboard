@@ -8,6 +8,42 @@ use nx_api::{create_router, ApiConfig};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // 解析命令行参数（--db-path 优先级高于环境变量 NEXUS_DB_PATH）
+    let args: Vec<String> = std::env::args().collect();
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--db-path" => {
+                if i + 1 < args.len() {
+                    std::env::set_var("NEXUS_DB_PATH", &args[i + 1]);
+                    i += 1;
+                } else {
+                    eprintln!("[ERROR] --db-path 需要指定路径参数");
+                    std::process::exit(1);
+                }
+            }
+            "--help" | "-h" => {
+                println!("NexusFlow API 服务器");
+                println!("用法: nx_api [选项]");
+                println!();
+                println!("选项:");
+                println!("  --db-path <PATH>   指定数据库文件路径");
+                println!("  --help, -h         显示此帮助信息");
+                println!();
+                println!("环境变量:");
+                println!("  NEXUS_DB_PATH       数据库路径（--db-path 覆盖）");
+                println!("  NEXUS_API_PORT      监听端口（默认 8080）");
+                println!("  CLAUDE_CLI_PATH_OVERRIDE  手动指定 Claude CLI 路径");
+                println!("  RUST_LOG            日志级别（默认 info）");
+                std::process::exit(0);
+            }
+            unknown => {
+                eprintln!("[ERROR] 未知参数: {}（使用 --help 查看帮助）", unknown);
+                std::process::exit(1);
+            }
+        }
+        i += 1;
+    }
     // 初始化日志
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())

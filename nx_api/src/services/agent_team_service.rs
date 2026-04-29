@@ -73,9 +73,12 @@ async fn run_claude_interactive(
 ) -> Result<(Option<u32>, bool, String), String> {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
-    let cli_path = crate::services::claude_cli::get_claude_cli_path()
+    let (exe_path, prefix_args) = crate::services::claude_cli::get_claude_cli_executable()
         .ok_or_else(|| "Claude CLI not found".to_string())?;
-    let mut cmd = tokio::process::Command::new(&cli_path);
+    let mut cmd = tokio::process::Command::new(&exe_path);
+    for arg in &prefix_args {
+        cmd.arg(arg);
+    }
     cmd.args(args);
     cmd.stdin(std::process::Stdio::piped());
     cmd.stdout(std::process::Stdio::piped());
@@ -1127,9 +1130,12 @@ impl AgentTeamService {
         // (which Claude Switch updates when switching models)
         let working_dir = self.current_workspace_path.read().clone();
 
-        let cli_path = crate::services::claude_cli::get_claude_cli_path()
+        let (exe_path, prefix_args) = crate::services::claude_cli::get_claude_cli_executable()
             .ok_or_else(|| AgentTeamServiceError::AiError("Claude CLI not found".to_string()))?;
-        let mut cmd = tokio::process::Command::new(&cli_path);
+        let mut cmd = tokio::process::Command::new(&exe_path);
+        for arg in &prefix_args {
+            cmd.arg(arg);
+        }
         cmd.args(["-p", "--dangerously-skip-permissions", &full_prompt]);
         cmd.kill_on_drop(true);
         if let Some(ref dir) = working_dir {

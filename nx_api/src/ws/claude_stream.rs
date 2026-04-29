@@ -161,7 +161,8 @@ impl ClaudeStreamWsHandler {
         output_tx: mpsc::Sender<String>,
         _executing_tx: mpsc::Sender<()>,
     ) {
-        let cli_path = match crate::services::claude_cli::get_claude_cli_path() {
+        let (exe_path, prefix_args) = match crate::services::claude_cli::get_claude_cli_executable()
+        {
             Some(p) => p,
             None => {
                 let msg = ClaudeStreamServerMsg::Failed {
@@ -174,7 +175,10 @@ impl ClaudeStreamWsHandler {
                 return;
             }
         };
-        let mut cmd = Command::new(&cli_path);
+        let mut cmd = Command::new(&exe_path);
+        for arg in &prefix_args {
+            cmd.arg(arg);
+        }
         cmd.args(["-p", "--no-session-persistence", &prompt])
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
