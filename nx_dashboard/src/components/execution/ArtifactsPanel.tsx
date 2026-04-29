@@ -82,7 +82,9 @@ export function ArtifactsPanel({ executionId }: { executionId: string }) {
       }
     }
     fetchArtifacts();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [executionId, stageFilter]);
 
   // Group records by stage
@@ -216,10 +218,7 @@ export function ArtifactsPanel({ executionId }: { executionId: string }) {
         {Array.from(grouped.entries()).map(([stage, files]) => {
           const isExpanded = expandedStages.has(stage) || expandedStages.size === 0;
           return (
-            <div
-              key={stage}
-              className="border border-border/50 rounded-xl overflow-hidden bg-card"
-            >
+            <div key={stage} className="border border-border/50 rounded-xl overflow-hidden bg-card">
               <button
                 onClick={() => toggleStage(stage)}
                 className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-accent/30 transition-colors"
@@ -242,7 +241,10 @@ export function ArtifactsPanel({ executionId }: { executionId: string }) {
                       className="flex items-center gap-3 px-4 py-2 hover:bg-accent/20 transition-colors"
                     >
                       {getFileIcon(file.mime_type, file.change_type)}
-                      <span className="text-sm font-mono flex-1 truncate" title={file.relative_path}>
+                      <span
+                        className="text-sm font-mono flex-1 truncate"
+                        title={file.relative_path}
+                      >
                         {file.relative_path}
                       </span>
                       <span className="text-xs text-muted-foreground tabular-nums w-16 text-right">
