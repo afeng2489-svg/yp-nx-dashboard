@@ -774,6 +774,7 @@ mod tests {
             stage_name: "test-stage".to_string(),
             outputs: vec![serde_json::json!({"result": "ok"})],
             completed_at: Some(Utc::now()),
+            quality_gate_result: None,
         };
         assert_eq!(result.stage_name, "test-stage");
         assert_eq!(result.outputs.len(), 1);

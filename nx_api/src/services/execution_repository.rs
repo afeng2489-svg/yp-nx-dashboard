@@ -320,6 +320,7 @@ mod tests {
             stage_name: "plan".into(),
             outputs: vec![serde_json::json!({"ok": true})],
             completed_at: Some(chrono::Utc::now()),
+            quality_gate_result: None,
         };
         repo.insert_stage_result("exec-1", &sr).unwrap();
 
