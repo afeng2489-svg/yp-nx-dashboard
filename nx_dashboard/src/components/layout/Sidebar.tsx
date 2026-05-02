@@ -42,6 +42,7 @@ const tabs = [
   { id: 'search' as const, label: '搜索', icon: Search, path: '/search' },
   { id: 'skills' as const, label: '技能', icon: Wrench, path: '/skills' },
   { id: 'teams' as const, label: '团队', icon: Users, path: '/teams' },
+  { id: 'teams-v2' as const, label: '团队 CLI', icon: Users, path: '/teams-v2' },
   { id: 'roles' as const, label: '角色', icon: Bot, path: '/roles' },
   { id: 'projects' as const, label: '项目', icon: FolderPlus, path: '/projects' },
   { id: 'group-chat' as const, label: '群组讨论', icon: MessageSquare, path: '/group-chat' },

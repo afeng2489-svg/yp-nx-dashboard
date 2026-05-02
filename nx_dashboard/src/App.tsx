@@ -48,6 +48,9 @@ const TemplatesPage = lazy(() =>
 );
 const SkillsPage = lazy(() => import('@/pages/SkillsPage').then((m) => ({ default: m.default })));
 const TeamsPage = lazy(() => import('@/pages/TeamsPage').then((m) => ({ default: m.TeamsPage })));
+const TeamsPageV2 = lazy(() =>
+  import('@/pages/TeamsPageV2').then((m) => ({ default: m.TeamsPageV2 })),
+);
 const RolesPage = lazy(() => import('@/pages/RolesPage').then((m) => ({ default: m.RolesPage })));
 const ProjectsPage = lazy(() =>
   import('@/pages/ProjectsPage').then((m) => ({ default: m.ProjectsPage })),
@@ -242,6 +245,14 @@ function App() {
                 element={
                   <PageWrapper>
                     <TeamsPage />
+                  </PageWrapper>
+                }
+              />
+              <Route
+                path="/teams-v2"
+                element={
+                  <PageWrapper>
+                    <TeamsPageV2 />
                   </PageWrapper>
                 }
               />

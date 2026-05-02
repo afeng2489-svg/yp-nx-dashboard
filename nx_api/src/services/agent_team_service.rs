@@ -67,7 +67,7 @@ async fn run_claude_interactive(
         broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>,
         String,
     )>,
-    confirm_rx: Option<tokio::sync::oneshot::Receiver<String>>,
+    confirm_rx: Option<tokio::sync::mpsc::Receiver<String>>,
     auto_confirm: bool,
     timeout_secs: u64,
 ) -> Result<(Option<u32>, bool, String), String> {
@@ -120,7 +120,7 @@ async fn run_claude_interactive(
 
     // Clone stdin for the confirmation handler
     let mut stdin_clone = stdin;
-    let mut confirm_rx_opt = confirm_rx.map(|rx| rx);
+    let mut confirm_rx_opt = confirm_rx;
 
     let mut stdout_lines = tokio::io::BufReader::new(stdout).lines();
     let mut full_output = String::new();
@@ -188,10 +188,10 @@ async fn run_claude_interactive(
                     );
                 }
 
-                // Wait for user confirmation response (only once)
-                if let Some(mut confirm_rx) = confirm_rx_opt.take() {
-                    match tokio::time::timeout(Duration::from_secs(300), &mut confirm_rx).await {
-                        Ok(Ok(response)) => {
+                // Wait for user confirmation response (supports multiple rounds via mpsc)
+                if let Some(ref mut rx) = confirm_rx_opt {
+                    match tokio::time::timeout(Duration::from_secs(300), rx.recv()).await {
+                        Ok(Some(response)) => {
                             // Write response to stdin
                             let response_line = format!("{}\n", response.trim());
                             if let Err(e) = stdin_clone.write_all(response_line.as_bytes()).await {
@@ -200,7 +200,7 @@ async fn run_claude_interactive(
                             let _ = stdin_clone.flush().await;
                             tracing::info!("[run_claude] Sent confirmation response: {}", response);
                         }
-                        Ok(Err(_)) => {
+                        Ok(None) => {
                             tracing::info!("[run_claude] Confirmation channel closed, aborting");
                             break;
                         }
@@ -546,7 +546,7 @@ impl AgentTeamService {
             broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>,
             String,
         )>,
-        confirm_rx: Option<tokio::sync::oneshot::Receiver<String>>,
+        confirm_rx: Option<tokio::sync::mpsc::Receiver<String>>,
         auto_confirm: bool,
     ) -> Result<ExecuteTeamTaskResponse, AgentTeamServiceError> {
         // Load team
@@ -573,7 +573,9 @@ impl AgentTeamService {
 
         // Save initial user message immediately
         let user_msg = TeamMessage::user_message(team.id.clone(), request.task.clone());
-        let _ = self.team_service.add_message(user_msg.clone());
+        if let Err(e) = self.team_service.add_message(user_msg.clone()) {
+            tracing::warn!("[TeamMsg] Failed to save user message: {}", e);
+        }
 
         // 提取记忆上下文
         let memory_context = request
@@ -691,7 +693,9 @@ IMPORTANT: When asked to generate documents, reports, or design files, write the
             .unwrap_or_default();
         let assistant_msg =
             TeamMessage::assistant_message(team.id.clone(), responder_id, response.clone());
-        let _ = self.team_service.add_message(assistant_msg);
+        if let Err(e) = self.team_service.add_message(assistant_msg) {
+            tracing::warn!("[TeamMsg] Failed to save assistant message: {}", e);
+        }
 
         // Return the actual response
         Ok(ExecuteTeamTaskResponse {
@@ -848,7 +852,9 @@ impl AgentTeamService {
 
         // Save user message immediately
         let user_msg = TeamMessage::user_message(team_id.clone(), request.task.clone());
-        let _ = self.team_service.add_message(user_msg);
+        if let Err(e) = self.team_service.add_message(user_msg) {
+            tracing::warn!("[TeamMsg] Failed to save user message (role task): {}", e);
+        }
 
         // Build skill contexts from skills list
         let skill_contexts = Self::build_skill_contexts_from_skills(&role_with_skills.skills);
@@ -952,7 +958,12 @@ impl AgentTeamService {
         // Save assistant message
         let assistant_msg =
             TeamMessage::assistant_message(team_id.clone(), role.id.clone(), response.clone());
-        let _ = self.team_service.add_message(assistant_msg);
+        if let Err(e) = self.team_service.add_message(assistant_msg) {
+            tracing::warn!(
+                "[TeamMsg] Failed to save assistant message (role task): {}",
+                e
+            );
+        }
 
         // Return the actual response
         Ok(ExecuteRoleTaskResponse {
@@ -1024,14 +1035,21 @@ impl AgentTeamService {
         // Save conversation
         let user_msg =
             TeamMessage::user_message(role.team_id.clone().unwrap_or_default(), message.text);
-        let _ = self.team_service.add_message(user_msg);
+        if let Err(e) = self.team_service.add_message(user_msg) {
+            tracing::warn!("[TeamMsg] Failed to save user message (telegram): {}", e);
+        }
 
         let assistant_msg = TeamMessage::assistant_message(
             role.team_id.clone().unwrap_or_default(),
             role.id.clone(),
             response.clone(),
         );
-        let _ = self.team_service.add_message(assistant_msg);
+        if let Err(e) = self.team_service.add_message(assistant_msg) {
+            tracing::warn!(
+                "[TeamMsg] Failed to save assistant message (telegram): {}",
+                e
+            );
+        }
 
         // Send response via Telegram (reply to the original message in groups)
         if let Some(chat_id) = &config.chat_id {

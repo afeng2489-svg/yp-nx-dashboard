@@ -120,11 +120,9 @@ pub struct AgentExecutionManager {
     /// 已完成执行的最终事件缓存（供晚连接的 WS 客户端回放）
     terminal_events:
         std::sync::Arc<parking_lot::RwLock<std::collections::HashMap<String, AgentExecutionEvent>>>,
-    /// 确认响应等待器：execution_id -> channel to send confirmation response
+    /// 确认响应等待器：execution_id -> channel to send confirmation responses (mpsc for multi-confirm)
     confirmations: std::sync::Arc<
-        parking_lot::RwLock<
-            std::collections::HashMap<String, tokio::sync::oneshot::Sender<String>>,
-        >,
+        parking_lot::RwLock<std::collections::HashMap<String, tokio::sync::mpsc::Sender<String>>>,
     >,
 }
 
@@ -189,13 +187,10 @@ impl AgentExecutionManager {
         self.terminal_events.read().get(execution_id).cloned()
     }
 
-    /// 注册确认响应等待器，返回 channel 接收端
+    /// 注册确认响应等待器，返回 channel 接收端 (mpsc supports multiple confirmations)
     /// 调用方通过 receiver 等待用户确认响应
-    pub fn register_confirmation(
-        &self,
-        execution_id: &str,
-    ) -> tokio::sync::oneshot::Receiver<String> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
+    pub fn register_confirmation(&self, execution_id: &str) -> tokio::sync::mpsc::Receiver<String> {
+        let (tx, rx) = tokio::sync::mpsc::channel(16);
         self.confirmations
             .write()
             .insert(execution_id.to_string(), tx);
@@ -203,14 +198,18 @@ impl AgentExecutionManager {
     }
 
     /// 发送确认响应给等待者
-    /// 如果没有等待者，返回 None
+    /// Returns true if the response was sent successfully
     pub fn send_confirmation_response(&self, execution_id: &str, response: String) -> bool {
-        if let Some(tx) = self.confirmations.write().remove(execution_id) {
-            let _ = tx.send(response);
-            true
+        if let Some(tx) = self.confirmations.read().get(execution_id) {
+            tx.try_send(response).is_ok()
         } else {
             false
         }
+    }
+
+    /// 移除确认通道（执行结束时调用）
+    pub fn remove_confirmation(&self, execution_id: &str) {
+        self.confirmations.write().remove(execution_id);
     }
 }
 

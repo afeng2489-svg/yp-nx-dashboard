@@ -53,6 +53,7 @@ pub mod skills;
 pub mod snapshots;
 pub mod teams;
 pub mod teams_state;
+pub mod teams_v2;
 pub mod templates;
 pub mod test_gen;
 pub mod wisdom;
@@ -1215,6 +1216,11 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         .route(
             "/api/v1/teams/:team_id/execute",
             post(teams::execute_team_task),
+        )
+        // v2: CLI-first team execution
+        .route(
+            "/api/v2/teams/:team_id/execute",
+            post(teams_v2::execute_team_task),
         )
         .route(
             "/api/v1/teams/:team_id/telegram",
