@@ -1,3 +1,4 @@
+import { unwrapEnvelope } from '../api/response';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -164,7 +165,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
       if (!response.ok) {
         throw new Error(`Failed to fetch skills: ${response.status}`);
       }
-      const data: SkillSummary[] = await response.json();
+      const data: SkillSummary[] = unwrapEnvelope(await response.json());
       set({ skills: data, loading: false });
     } catch (error) {
       set({
@@ -185,7 +186,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
         }
         throw new Error(`Failed to fetch skill: ${response.status}`);
       }
-      const data: SkillDetail = await response.json();
+      const data: SkillDetail = unwrapEnvelope(await response.json());
       set({ loading: false, currentSkill: data });
       return data;
     } catch (error) {
@@ -209,7 +210,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
         const err = await response.text();
         throw new Error(err || `Failed to create skill: ${response.status}`);
       }
-      const data: SkillDetail = await response.json();
+      const data: SkillDetail = unwrapEnvelope(await response.json());
       set((state) => ({
         skills: [
           ...state.skills,
@@ -248,7 +249,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
         const err = await response.text();
         throw new Error(err || `Failed to update skill: ${response.status}`);
       }
-      const data: SkillDetail = await response.json();
+      const data: SkillDetail = unwrapEnvelope(await response.json());
       set((state) => ({
         skills: state.skills.map((s) =>
           s.id === id
@@ -307,7 +308,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
       if (!response.ok) {
         throw new Error(`Failed to fetch stats: ${response.status}`);
       }
-      const data: SkillStats = await response.json();
+      const data: SkillStats = unwrapEnvelope(await response.json());
       set({ stats: data });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to fetch stats' });
@@ -320,7 +321,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
       if (!response.ok) {
         throw new Error(`Failed to fetch categories: ${response.status}`);
       }
-      const data: string[] = await response.json();
+      const data: string[] = unwrapEnvelope(await response.json());
       set({ categories: data });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to fetch categories' });
@@ -333,7 +334,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
       if (!response.ok) {
         throw new Error(`Failed to fetch tags: ${response.status}`);
       }
-      const data: string[] = await response.json();
+      const data: string[] = unwrapEnvelope(await response.json());
       set({ tags: data });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to fetch tags' });
@@ -353,7 +354,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
       if (!response.ok) {
         throw new Error(`Failed to search skills: ${response.status}`);
       }
-      const data: SkillSummary[] = await response.json();
+      const data: SkillSummary[] = unwrapEnvelope(await response.json());
       set({ searchResults: data, loading: false });
     } catch (error) {
       set({
@@ -372,7 +373,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
       if (!response.ok) {
         throw new Error(`Failed to fetch skills by category: ${response.status}`);
       }
-      const data: SkillSummary[] = await response.json();
+      const data: SkillSummary[] = unwrapEnvelope(await response.json());
       set({ skills: data, loading: false });
     } catch (error) {
       set({
@@ -391,7 +392,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
       if (!response.ok) {
         throw new Error(`Failed to fetch skills by tag: ${response.status}`);
       }
-      const data: SkillSummary[] = await response.json();
+      const data: SkillSummary[] = unwrapEnvelope(await response.json());
       set({ skills: data, loading: false });
     } catch (error) {
       set({
@@ -415,7 +416,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
       if (!response.ok) {
         throw new Error(`Failed to execute skill: ${response.status}`);
       }
-      const data: ExecuteSkillResponse = await response.json();
+      const data: ExecuteSkillResponse = unwrapEnvelope(await response.json());
       set({ executing: false });
       return data;
     } catch (error) {
@@ -439,7 +440,7 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
         const err = await response.text();
         throw new Error(err || `导入失败: ${response.status}`);
       }
-      const data: SkillDetail = await response.json();
+      const data: SkillDetail = unwrapEnvelope(await response.json());
       set((state) => ({
         skills: [
           ...state.skills,

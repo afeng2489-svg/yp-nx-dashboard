@@ -44,19 +44,6 @@ impl SqliteSessionRepository {
     /// 创建新的 SQLite 仓库
     pub fn new<P: AsRef<Path>>(db_path: P) -> Result<Self, RepositoryError> {
         let conn = Connection::open(db_path)?;
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS sessions (
-                id TEXT PRIMARY KEY,
-                workflow_id TEXT,
-                status TEXT NOT NULL,
-                resume_key TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
-            CREATE INDEX IF NOT EXISTS idx_sessions_updated_at ON sessions(updated_at);
-            CREATE INDEX IF NOT EXISTS idx_sessions_resume_key ON sessions(resume_key);",
-        )?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
@@ -66,16 +53,7 @@ impl SqliteSessionRepository {
     #[allow(dead_code)]
     pub fn in_memory() -> Result<Self, RepositoryError> {
         let conn = Connection::open_in_memory()?;
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS sessions (
-                id TEXT PRIMARY KEY,
-                workflow_id TEXT,
-                status TEXT NOT NULL,
-                resume_key TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );",
-        )?;
+        conn.execute_batch(crate::migrations::SESSION_SCHEMA)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })

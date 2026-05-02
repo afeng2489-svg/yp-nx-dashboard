@@ -8,19 +8,20 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use futures_util::{SinkExt, StreamExt};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
-use futures_util::StreamExt;
 
+use super::AppState;
 use crate::a2ui::{
-    A2UIService, A2UISession, InteractiveMessage, UserResponseRequest, MessagesResponse,
-    A2UIMessage, U2AMessage, A2UISessionEvent, A2UIMessageExt,
+    A2UIMessage, A2UIMessageExt, A2UIService, A2UISession, A2UISessionEvent, InteractiveMessage,
+    MessagesResponse, U2AMessage, UserResponseRequest,
 };
 use crate::error::{ApiError, ApiResult};
-use super::AppState;
 
 /// Application state for A2UI
+#[derive(Clone)]
 pub struct A2UIState {
     pub service: Arc<A2UIService>,
 }
@@ -31,7 +32,10 @@ pub fn create_a2ui_router(service: Arc<A2UIService>) -> Router {
 
     Router::new()
         .route("/api/v1/a2ui/sessions/:id/messages", get(get_messages))
-        .route("/api/v1/a2ui/sessions/:id/respond", post(respond_to_message))
+        .route(
+            "/api/v1/a2ui/sessions/:id/respond",
+            post(respond_to_message),
+        )
         .route("/api/v1/a2ui/sessions", get(list_sessions))
         .route("/api/v1/a2ui/sessions/:id", get(get_session))
         .route("/ws/a2ui/:execution_id", get(a2ui_ws_handler))
@@ -97,7 +101,7 @@ async fn a2ui_ws_handler(
     let service = state.service.clone();
 
     ws.on_upgrade(async move |socket| {
-        let (sender, receiver) = socket.split();
+        let (mut sender, receiver) = socket.split();
         let service = service.clone();
 
         // Get or create session for this execution
@@ -128,7 +132,10 @@ async fn a2ui_ws_handler(
                             "data": msg
                         })
                     }
-                    A2UISessionEvent::UserResponse { message_id, response } => {
+                    A2UISessionEvent::UserResponse {
+                        message_id,
+                        response,
+                    } => {
                         serde_json::json!({
                             "type": "response",
                             "message_id": message_id,
@@ -143,7 +150,11 @@ async fn a2ui_ws_handler(
                     }
                 };
 
-                if sender.send(axum::extract::ws::Message::Text(msg.to_string())).is_err() {
+                if sender
+                    .send(axum::extract::ws::Message::Text(msg.to_string()))
+                    .await
+                    .is_err()
+                {
                     break;
                 }
             }

@@ -94,11 +94,8 @@ pub struct Issue {
 pub struct CreateIssueRequest {
     pub title: String,
     pub description: String,
-    #[serde(default)]
     pub priority: IssuePriority,
-    #[serde(default)]
     pub perspectives: Vec<String>,
-    #[serde(default)]
     pub depends_on: Vec<String>,
 }
 

@@ -1,44 +1,104 @@
-//! Scheduler API routes
+//! Scheduler API routes — backed by core/orchestrator TaskScheduler
 
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    Json, Router,
+    Json,
 };
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+
+use nexus_orchestrator::{
+    CliManager, MessageBus, QueueStatus, QueuedTask, SchedulerStats, TaskPriority, TaskScheduler,
+    TeamId, TeamManager, WorkflowDefinition,
+};
 
 use crate::routes::AppState;
-use crate::scheduler::{CreateTaskRequest, QueueStats, SchedulerService, TaskResponse};
-use crate::services::ExecutionService;
 
-/// Scheduler state wrapper for route handlers
-pub struct SchedulerState {
-    pub scheduler: RwLock<Option<SchedulerService>>,
+/// Wrapper to hold the orchestrator TaskScheduler in AppState
+pub struct OrchestratorScheduler {
+    pub scheduler: Arc<TaskScheduler>,
 }
 
-impl SchedulerState {
-    pub fn new() -> Self {
+impl OrchestratorScheduler {
+    pub fn new(db_path: &str) -> anyhow::Result<Self> {
+        let message_bus = Arc::new(MessageBus::new());
+        let team_manager = Arc::new(TeamManager::new(message_bus.clone()));
+        let cli_manager = Arc::new(CliManager::new());
+
+        let scheduler = TaskScheduler::new(cli_manager, team_manager, message_bus, 4);
+        scheduler
+            .init_database(db_path)
+            .map_err(|e| anyhow::anyhow!("Failed to init scheduler database: {e}"))?;
+
+        Ok(Self {
+            scheduler: Arc::new(scheduler),
+        })
+    }
+
+    /// Start the scheduler event loop as a background task
+    pub fn start_background(self: &Arc<Self>) {
+        let scheduler = self.scheduler.clone();
+        tokio::spawn(async move {
+            scheduler.run().await;
+        });
+    }
+}
+
+/// POST /api/v1/tasks - Enqueue a new task
+#[derive(Debug, Deserialize)]
+pub struct CreateTaskRequest {
+    pub name: String,
+    pub description: String,
+    #[serde(default)]
+    pub stages: Vec<StageRequest>,
+    #[serde(default)]
+    pub variables: std::collections::HashMap<String, Value>,
+    #[serde(default = "default_priority")]
+    pub priority: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StageRequest {
+    pub name: String,
+    pub agents: Vec<String>,
+    #[serde(default)]
+    pub prompt_template: String,
+    #[serde(default)]
+    pub parallel: bool,
+}
+
+fn default_priority() -> String {
+    "normal".to_string()
+}
+
+#[derive(Debug, Serialize)]
+pub struct TaskResponse {
+    pub id: String,
+    pub name: String,
+    pub status: String,
+    pub priority: String,
+    pub retry_count: u32,
+    pub created_at: String,
+    pub started_at: Option<String>,
+    pub finished_at: Option<String>,
+    pub error: Option<String>,
+}
+
+impl From<&QueuedTask> for TaskResponse {
+    fn from(task: &QueuedTask) -> Self {
         Self {
-            scheduler: RwLock::new(None),
+            id: task.id.to_string(),
+            name: task.workflow.name.clone(),
+            status: task.status.to_string(),
+            priority: task.priority.to_string(),
+            retry_count: task.retry_count,
+            created_at: task.created_at.to_rfc3339(),
+            started_at: task.started_at.map(|t| t.to_rfc3339()),
+            finished_at: task.finished_at.map(|t| t.to_rfc3339()),
+            error: task.error.clone(),
         }
-    }
-
-    pub fn init(&self, execution_service: Option<ExecutionService>) {
-        let service = SchedulerService::new(execution_service);
-        *self.scheduler.write().unwrap() = Some(service);
-    }
-
-    pub fn start_workers(&self, num_workers: u32) {
-        if let Some(scheduler) = self.scheduler.read().unwrap().as_ref() {
-            scheduler.start_workers(num_workers);
-        }
-    }
-}
-
-impl Default for SchedulerState {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -47,27 +107,46 @@ pub async fn create_task(
     State(state): State<Arc<AppState>>,
     Json(request): Json<CreateTaskRequest>,
 ) -> Result<Json<TaskResponse>, StatusCode> {
-    let guard = state
-        .scheduler_state
-        .scheduler
-        .read()
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    let scheduler = guard.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let scheduler = &state.task_scheduler.scheduler;
 
-    let task = scheduler.submit_task(request);
-    let response = TaskResponse::from(&task);
+    let workflow = WorkflowDefinition {
+        id: uuid::Uuid::new_v4(),
+        name: request.name,
+        description: request.description,
+        stages: request
+            .stages
+            .into_iter()
+            .map(|s| nexus_orchestrator::StageDefinition {
+                name: s.name,
+                agents: s.agents,
+                parallel: s.parallel,
+                continue_on_error: false,
+                prompt_template: s.prompt_template,
+            })
+            .collect(),
+    };
 
-    Ok(Json(response))
+    let priority = match request.priority.to_lowercase().as_str() {
+        "high" => TaskPriority::High,
+        "critical" => TaskPriority::Critical,
+        "low" => TaskPriority::Low,
+        _ => TaskPriority::Normal,
+    };
+
+    let team_id = TeamId::new();
+    let task_id = scheduler.enqueue(workflow, team_id, request.variables, priority);
+
+    // Fetch the enqueued task to build response
+    let task = scheduler
+        .get_task(task_id)
+        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(TaskResponse::from(&task)))
 }
 
 /// GET /api/v1/tasks - List all tasks
 pub async fn list_tasks(State(state): State<Arc<AppState>>) -> Result<Json<Value>, StatusCode> {
-    let guard = state
-        .scheduler_state
-        .scheduler
-        .read()
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    let scheduler = guard.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let scheduler = &state.task_scheduler.scheduler;
 
     let tasks: Vec<TaskResponse> = scheduler
         .list_tasks()
@@ -79,23 +158,25 @@ pub async fn list_tasks(State(state): State<Arc<AppState>>) -> Result<Json<Value
 
     Ok(Json(json!({
         "tasks": tasks,
-        "stats": stats,
+        "stats": {
+            "queued": stats.queued_count,
+            "running": stats.running_count,
+            "completed": stats.completed_count,
+            "failed": stats.failed_count,
+            "scheduled_jobs": stats.scheduled_jobs_count,
+        },
     })))
 }
 
-/// GET /api/v1/tasks/:id - Get task status
+/// GET /api/v1/tasks/:id - Get task by ID
 pub async fn get_task(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<TaskResponse>, StatusCode> {
-    let guard = state
-        .scheduler_state
-        .scheduler
-        .read()
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    let scheduler = guard.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let scheduler = &state.task_scheduler.scheduler;
 
-    let task = scheduler.get_task(&id).ok_or(StatusCode::NOT_FOUND)?;
+    let uuid = uuid::Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let task = scheduler.get_task(uuid).ok_or(StatusCode::NOT_FOUND)?;
 
     Ok(Json(TaskResponse::from(&task)))
 }
@@ -105,14 +186,10 @@ pub async fn cancel_task(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
-    let guard = state
-        .scheduler_state
-        .scheduler
-        .read()
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    let scheduler = guard.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let scheduler = &state.task_scheduler.scheduler;
 
-    if scheduler.cancel_task(&id) {
+    let uuid = uuid::Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    if scheduler.cancel_task(uuid) {
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err(StatusCode::NOT_FOUND)
@@ -120,25 +197,17 @@ pub async fn cancel_task(
 }
 
 /// GET /api/v1/tasks/stats - Get queue statistics
-pub async fn get_stats(State(state): State<Arc<AppState>>) -> Result<Json<QueueStats>, StatusCode> {
-    let guard = state
-        .scheduler_state
-        .scheduler
-        .read()
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    let scheduler = guard.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+pub async fn get_stats(State(state): State<Arc<AppState>>) -> Result<Json<Value>, StatusCode> {
+    let scheduler = &state.task_scheduler.scheduler;
+    let stats = scheduler.get_stats();
 
-    Ok(Json(scheduler.get_stats()))
-}
-
-/// Create scheduler routes
-pub fn create_scheduler_routes() -> Router<Arc<AppState>> {
-    Router::new()
-        .route("/api/v1/tasks", axum::routing::post(create_task))
-        .route("/api/v1/tasks", axum::routing::get(list_tasks))
-        .route("/api/v1/tasks/stats", axum::routing::get(get_stats))
-        .route("/api/v1/tasks/:id", axum::routing::get(get_task))
-        .route("/api/v1/tasks/:id", axum::routing::delete(cancel_task))
+    Ok(Json(json!({
+        "queued": stats.queued_count,
+        "running": stats.running_count,
+        "completed": stats.completed_count,
+        "failed": stats.failed_count,
+        "scheduled_jobs": stats.scheduled_jobs_count,
+    })))
 }
 
 #[cfg(test)]
@@ -146,39 +215,56 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_create_task_request_serialization() {
-        let json = r#"{
-            "task_type": "workflow_execution",
-            "payload": {"workflow_id": "test-123"},
-            "delay_seconds": 60,
-            "max_retries": 3
-        }"#;
+    fn test_create_task_request_deserialization() {
+        let data = json!({
+            "name": "test-task",
+            "description": "A test task",
+            "stages": [
+                {
+                    "name": "run",
+                    "agents": ["claude"],
+                    "prompt_template": "do something"
+                }
+            ],
+            "variables": {},
+            "priority": "high"
+        });
 
-        let request: CreateTaskRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(
-            request.task_type,
-            crate::scheduler::TaskType::WorkflowExecution
-        );
-        assert_eq!(request.delay_seconds, Some(60));
-        assert_eq!(request.max_retries, 3);
+        let req: CreateTaskRequest = serde_json::from_value(data).unwrap();
+        assert_eq!(req.name, "test-task");
+        assert_eq!(req.priority, "high");
+        assert_eq!(req.stages.len(), 1);
     }
 
     #[test]
-    fn test_task_response_serialization() {
-        use crate::scheduler::{ScheduledTask, TaskType};
+    fn test_task_response_from_queued_task() {
+        use chrono::Utc;
 
-        let task = ScheduledTask::new(
-            TaskType::CodeReview,
-            serde_json::json!({"repo_url": "https://github.com/test/repo"}),
-            chrono::Utc::now(),
-            3,
-        );
+        let task = QueuedTask {
+            id: uuid::Uuid::new_v4(),
+            workflow: WorkflowDefinition {
+                id: uuid::Uuid::new_v4(),
+                name: "my-workflow".to_string(),
+                description: "desc".to_string(),
+                stages: vec![],
+            },
+            team_id: TeamId::new(),
+            variables: Default::default(),
+            priority: TaskPriority::Normal,
+            status: QueueStatus::Queued,
+            retry_count: 0,
+            retry_config: Default::default(),
+            timeout_secs: None,
+            created_at: Utc::now(),
+            started_at: None,
+            finished_at: None,
+            result: None,
+            error: None,
+        };
 
-        let response = TaskResponse::from(&task);
-        let json = serde_json::to_string(&response).unwrap();
-
-        assert!(json.contains("\"id\""));
-        assert!(json.contains("\"task_type\":\"code_review\""));
-        assert!(json.contains("\"status\":\"pending\""));
+        let resp = TaskResponse::from(&task);
+        assert_eq!(resp.name, "my-workflow");
+        assert_eq!(resp.status, "queued");
+        assert_eq!(resp.priority, "normal");
     }
 }

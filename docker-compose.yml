@@ -1,0 +1,15 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - nexus-data:/data
+    environment:
+      NEXUS_API_HOST: "0.0.0.0"
+      NEXUS_API_PORT: "8080"
+      NEXUS_DB_PATH: /data/nexus.db
+    restart: unless-stopped
+
+volumes:
+  nexus-data:

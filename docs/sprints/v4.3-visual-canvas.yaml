@@ -1,0 +1,163 @@
+sprint_id: v4.3
+status: pending
+priority: P2
+estimated_hours: 80
+depends_on: [v4.2]
+
+title: "低代码可视化画布 — 拖拽搭建 AI 流水线"
+objective: |
+  不用写 YAML，5 分钟拖拽搭建一条"自动写+测+修代码"流水线。
+  开发者 + 业务人员都能用。
+
+remaining_tasks:
+  - id: L1
+    name: 画布基础框架
+    priority: P0
+    estimated_hours: 16
+    description: |
+      引入 React Flow（已是主流低代码画布库）：
+        npm install @xyflow/react
+
+      新页面 /canvas：
+        左侧节点面板（按类型分组）
+        中间画布（拖拽、连线、缩放）
+        右侧属性面板（选中节点后配置）
+        顶部工具栏（保存/运行/导出YAML/导入YAML）
+
+      画布状态用 Zustand 管理：
+        nodes: Node[]
+        edges: Edge[]
+        → 实时转换为工作流 YAML
+        → 保存到 workflows 表
+    acceptance:
+      - /canvas 页面能打开
+      - 能拖拽节点到画布
+      - 节点间能连线
+
+  - id: L2
+    name: 核心节点类型实现
+    priority: P0
+    estimated_hours: 24
+    description: |
+      每种节点类型对应工作流 YAML 的一个 stage：
+
+      AI 调用节点（最核心）：
+        配置：模型选择 / system prompt / 输入变量 / 输出变量
+        显示：模型名 badge + 预估 token 数
+        颜色：蓝色
+
+      代码执行节点：
+        配置：shell 命令 / 超时时间 / 工作目录
+        显示：命令预览
+        颜色：灰色
+
+      质量门节点：
+        配置：检查命令列表 / 失败策略(retry/block/continue) / 最大重试
+        显示：检查命令数量
+        颜色：绿色（通过）/ 红色（失败）
+
+      条件分支节点：
+        配置：条件表达式（变量比较）
+        显示：条件预览
+        颜色：黄色
+        特殊：有两个输出端口（true/false）
+
+      HTTP 请求节点：
+        配置：method / url / headers / body / 输出变量
+        颜色：紫色
+
+      人工审批节点：
+        配置：审批问题 / 选项列表 / 超时时间 / 超时策略
+        颜色：橙色
+
+      循环节点：
+        配置：循环变量 / 终止条件 / 最大次数
+        颜色：青色
+    acceptance:
+      - 7种节点都能拖到画布
+      - 每种节点有对应的属性配置面板
+      - 节点配置实时转换为 YAML
+
+  - id: L3
+    name: YAML 双向同步
+    priority: P0
+    estimated_hours: 12
+    description: |
+      画布 ↔ YAML 双向实时同步：
+        画布改动 → 实时生成 YAML（右侧预览面板）
+        粘贴/导入 YAML → 自动渲染为画布节点
+
+      YAML 预览面板：
+        语法高亮
+        一键复制
+        一键下载 .yaml 文件
+
+      导入功能：
+        支持粘贴 YAML 文本
+        支持上传 .yaml 文件
+        解析错误时高亮出错行
+    acceptance:
+      - 画布操作实时反映到 YAML 预览
+      - 粘贴现有 YAML 能正确渲染为画布
+
+  - id: L4
+    name: 实时执行状态可视化
+    priority: P0
+    estimated_hours: 16
+    description: |
+      运行工作流时，画布节点实时显示执行状态：
+        待执行：灰色边框
+        执行中：蓝色边框 + 旋转动画 + 已用时间
+        成功：绿色边框 + ✅
+        失败：红色边框 + ❌ + hover 看错误
+        重试中：橙色边框 + 重试次数
+
+      数据来源：WebSocket /ws/executions/:id
+      节点上显示：
+        AI 节点：实时 token 计数
+        代码节点：命令输出最后一行
+        质量门节点：通过/失败的检查数
+
+      执行完成后：
+        每个节点显示耗时
+        点击节点看完整输出
+    acceptance:
+      - 执行中节点有动画效果
+      - 失败节点能看到错误信息
+      - 执行完成后能看到每个节点的耗时
+
+  - id: L5
+    name: 模板库
+    priority: P1
+    estimated_hours: 12
+    description: |
+      内置 5 个常用流水线模板（可直接用，也可作为起点修改）：
+
+      1. "全栈功能开发"
+         需求分析 → 后端API(Claude) → 前端页面(MiMo) → 测试(Qwen) → 代码审查
+
+      2. "Bug 修复流水线"
+         问题分析 → 定位代码 → 修复 → 测试验证 → 生成修复报告
+
+      3. "代码审查流水线"
+         读取 PR diff → 安全检查 → 性能检查 → 代码质量 → 生成审查报告
+
+      4. "文档生成流水线"
+         读取代码 → 生成 API 文档 → 生成使用示例 → 生成 README
+
+      5. "数据处理流水线"
+         读取数据 → 清洗 → 分析 → 生成报告 → 发送通知
+
+      模板选择页：
+        卡片展示（名称 + 描述 + 节点数 + 预估时间）
+        点击预览画布
+        一键使用（复制到我的工作流）
+    acceptance:
+      - 5个模板都能正常加载到画布
+      - 模板可以直接运行
+
+quality_gates:
+  - npx tsc --noEmit 无 error
+  - 画布能保存并重新加载
+  - 工作流能从画布直接运行
+  - 执行状态实时反映在画布节点上

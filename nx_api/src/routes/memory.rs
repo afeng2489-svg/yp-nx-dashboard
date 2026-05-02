@@ -6,6 +6,7 @@
 //! - GET    /api/v1/teams/{team_id}/memories/stats    获取统计
 //! - DELETE /api/v1/teams/{team_id}/memories          清空记忆
 
+use anyhow::Context;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -31,8 +32,11 @@ pub struct MemoryState {
 pub fn create_memory_state(
     db_path: &str,
     embedding_provider: Option<Arc<dyn EmbeddingProvider>>,
-) -> MemoryState {
-    let store = Arc::new(MemoryStore::new(db_path).expect("Failed to create memory store"));
+) -> anyhow::Result<MemoryState> {
+    let store = Arc::new(
+        MemoryStore::new(db_path)
+            .map_err(|e| anyhow::anyhow!("Failed to create memory store: {}", e))?,
+    );
 
     let search = if let Some(provider) = embedding_provider {
         Arc::new(MemorySearch::with_embedding_provider(
@@ -43,7 +47,7 @@ pub fn create_memory_state(
         Arc::new(MemorySearch::new(store.clone()))
     };
 
-    MemoryState { store, search }
+    Ok(MemoryState { store, search })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

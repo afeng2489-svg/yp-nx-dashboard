@@ -1,5 +1,7 @@
+import { unwrapEnvelope } from '../api/response';
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
+import { unwrapEnvelope, fetchWithTimeout } from '../api/response';
 
 export interface Stage {
   name: string;
@@ -150,7 +152,7 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
         );
       }
 
-      const data = await response.json();
+      const data = unwrapEnvelope(await response.json());
       set({ templates: data.items || [], loading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -175,7 +177,7 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
         );
       }
 
-      const data = await response.json();
+      const data = unwrapEnvelope(await response.json());
       set({ templates: data.items || [], loading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -197,7 +199,7 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
         throw new ApiError(`Failed to fetch template: ${response.status}`, response.status);
       }
 
-      const template = await response.json();
+      const template = unwrapEnvelope(await response.json());
       set({ currentTemplate: template });
       return template;
     } catch (error) {
@@ -220,7 +222,7 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
         throw new ApiError(`Failed to create template: ${response.status}`, response.status);
       }
 
-      const newTemplate = await response.json();
+      const newTemplate = unwrapEnvelope(await response.json());
       set((state) => ({
         templates: [
           ...state.templates,
@@ -255,7 +257,7 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
         throw new ApiError(`Failed to instantiate template: ${response.status}`, response.status);
       }
 
-      const result: InstantiateResponse = await response.json();
+      const result: InstantiateResponse = unwrapEnvelope(await response.json());
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';

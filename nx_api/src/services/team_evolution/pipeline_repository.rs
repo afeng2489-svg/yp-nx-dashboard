@@ -25,38 +25,7 @@ impl SqlitePipelineRepository {
 
     fn initialize_tables(&self) -> Result<(), TeamEvolutionError> {
         let conn = self.conn.lock();
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS pipelines (
-                id TEXT PRIMARY KEY,
-                project_id TEXT NOT NULL,
-                team_id TEXT NOT NULL,
-                current_phase TEXT NOT NULL DEFAULT 'requirements_analysis',
-                status TEXT NOT NULL DEFAULT 'idle',
-                phase_gate_policy TEXT NOT NULL DEFAULT '{}',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_pipelines_project ON pipelines(project_id);
-
-            CREATE TABLE IF NOT EXISTS pipeline_steps (
-                id TEXT PRIMARY KEY,
-                pipeline_id TEXT NOT NULL,
-                task_id TEXT NOT NULL DEFAULT '',
-                phase TEXT NOT NULL,
-                role_id TEXT NOT NULL,
-                instruction TEXT NOT NULL,
-                depends_on TEXT NOT NULL DEFAULT '[]',
-                status TEXT NOT NULL DEFAULT 'pending',
-                output TEXT,
-                retry_count INTEGER NOT NULL DEFAULT 0,
-                max_retries INTEGER NOT NULL DEFAULT 3,
-                created_at TEXT NOT NULL,
-                started_at TEXT,
-                completed_at TEXT
-            );
-            CREATE INDEX IF NOT EXISTS idx_steps_pipeline ON pipeline_steps(pipeline_id);
-            CREATE INDEX IF NOT EXISTS idx_steps_status ON pipeline_steps(pipeline_id, status);",
-        )?;
+        conn.execute_batch(crate::migrations::PIPELINE_SCHEMA)?;
         Ok(())
     }
 

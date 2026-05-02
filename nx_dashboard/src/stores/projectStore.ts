@@ -1,5 +1,7 @@
+import { unwrapEnvelope } from '../api/response';
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
+import { unwrapEnvelope, fetchWithTimeout } from '../api/response';
 import { onWorkspaceChange } from './workspaceStore';
 
 // Project interfaces
@@ -123,7 +125,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         );
       }
 
-      const projects: Project[] = await response.json();
+      const projects: Project[] = unwrapEnvelope(await response.json());
       set({ projects, loading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -145,7 +147,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         throw new ApiError(`Failed to fetch project: ${response.status}`, response.status);
       }
 
-      const data = await response.json();
+      const data = unwrapEnvelope(await response.json());
       // API returns { project, team_name, workflow_name } for single project
       return data.project || data;
     } catch (error) {
@@ -175,7 +177,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         throw new ApiError(`Failed to create project: ${response.status}`, response.status);
       }
 
-      const newProject: Project = await response.json();
+      const newProject: Project = unwrapEnvelope(await response.json());
       set((state) => ({
         projects: [newProject, ...state.projects],
         loading: false,
@@ -203,7 +205,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         throw new ApiError(`Failed to update project: ${response.status}`, response.status);
       }
 
-      const updatedProject: Project = await response.json();
+      const updatedProject: Project = unwrapEnvelope(await response.json());
       set((state) => ({
         projects: state.projects.map((p) => (p.id === id ? updatedProject : p)),
         loading: false,
@@ -264,7 +266,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         throw new ApiError(`Failed to execute project: ${response.status}`, response.status);
       }
 
-      const result: ExecuteProjectResponse = await response.json();
+      const result: ExecuteProjectResponse = unwrapEnvelope(await response.json());
       set({ executing: false, executionResult: result });
 
       // Refresh project to get updated status

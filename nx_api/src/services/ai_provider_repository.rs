@@ -440,43 +440,10 @@ impl SqliteProviderRepository {
     pub fn new<P: AsRef<Path>>(db_path: P) -> Result<Self, ProviderRepositoryError> {
         let conn = Connection::open(db_path)?;
 
-        // Use DELETE journal mode for reliable persistence
-        // WAL mode can cause data visibility issues across connections
+        // WAL mode for concurrent access, busy_timeout to wait for locks
         conn.execute_batch(
-            "PRAGMA journal_mode=DELETE;
-             PRAGMA synchronous=FULL;
+            "PRAGMA journal_mode=WAL;
              PRAGMA busy_timeout=5000;",
-        )?;
-
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS ai_providers (
-                id TEXT PRIMARY KEY,
-                provider_key TEXT UNIQUE NOT NULL,
-                name TEXT NOT NULL,
-                description TEXT,
-                website TEXT,
-                encrypted_api_key TEXT,
-                base_url TEXT NOT NULL,
-                api_format TEXT DEFAULT 'openai',
-                auth_field TEXT DEFAULT 'Authorization',
-                enabled INTEGER DEFAULT 1,
-                config_json TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS ai_model_mappings (
-                id TEXT PRIMARY KEY,
-                provider_id TEXT NOT NULL,
-                mapping_type TEXT NOT NULL,
-                model_id TEXT NOT NULL,
-                display_name TEXT,
-                config_json TEXT,
-                FOREIGN KEY (provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_model_mappings_provider ON ai_model_mappings(provider_id);
-            CREATE INDEX IF NOT EXISTS idx_model_mappings_type ON ai_model_mappings(provider_id, mapping_type);",
         )?;
 
         let encryption_key = std::env::var("NEXUS_ENCRYPTION_KEY")

@@ -1,59 +1,70 @@
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
 
-export type TaskType = 'workflow_execution' | 'code_review' | 'security_audit' | 'cleanup';
+export type TaskStatus =
+  | 'queued'
+  | 'delayed'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'timed_out';
 
-export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+export type TaskPriority = 'low' | 'normal' | 'high' | 'critical';
 
-export interface ScheduledTask {
+export interface StageRequest {
+  name: string;
+  agents: string[];
+  prompt_template?: string;
+  parallel?: boolean;
+}
+
+export interface QueuedTask {
   id: string;
-  task_type: TaskType;
-  payload: Record<string, unknown>;
-  scheduled_at: string;
-  execute_at: string;
-  retry_count: number;
-  max_retries: number;
+  name: string;
   status: TaskStatus;
-  error_message?: string;
-  updated_at: string;
+  priority: TaskPriority;
+  retry_count: number;
+  created_at: string;
+  started_at?: string;
+  finished_at?: string;
+  error?: string;
 }
 
 export interface QueueStats {
-  pending: number;
+  queued: number;
   running: number;
   completed: number;
   failed: number;
-  cancelled: number;
-  total: number;
+  scheduled_jobs: number;
 }
 
 export interface CreateTaskRequest {
-  task_type: TaskType;
-  payload: Record<string, unknown>;
-  delay_seconds?: number;
-  max_retries?: number;
+  name: string;
+  description: string;
+  stages?: StageRequest[];
+  variables?: Record<string, unknown>;
+  priority?: TaskPriority;
 }
 
 export interface TaskListResponse {
-  tasks: ScheduledTask[];
+  tasks: QueuedTask[];
   stats: QueueStats;
 }
 
 interface TaskStore {
-  tasks: ScheduledTask[];
+  tasks: QueuedTask[];
   stats: QueueStats | null;
   loading: boolean;
   error: string | null;
 
   fetchTasks: () => Promise<void>;
   fetchStats: () => Promise<void>;
-  createTask: (request: CreateTaskRequest) => Promise<ScheduledTask | null>;
-  getTask: (id: string) => Promise<ScheduledTask | null>;
+  createTask: (request: CreateTaskRequest) => Promise<QueuedTask | null>;
+  getTask: (id: string) => Promise<QueuedTask | null>;
   cancelTask: (id: string) => Promise<boolean>;
   clearError: () => void;
 }
-
-// API_BASE_URL is imported from constants
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
   tasks: [],
@@ -102,12 +113,11 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       if (!response.ok) {
         throw new Error(`API Error: ${response.status}`);
       }
-      const task: ScheduledTask = await response.json();
+      const task: QueuedTask = await response.json();
       set((state) => ({
         tasks: [...state.tasks, task],
         loading: false,
       }));
-      // Refresh stats
       get().fetchStats();
       return task;
     } catch (error) {
@@ -128,7 +138,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         }
         throw new Error(`API Error: ${response.status}`);
       }
-      const task: ScheduledTask = await response.json();
+      const task: QueuedTask = await response.json();
       return task;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to get task' });
@@ -147,13 +157,11 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         }
         throw new Error(`API Error: ${response.status}`);
       }
-      // Update local state
       set((state) => ({
         tasks: state.tasks.map((task) =>
           task.id === id ? { ...task, status: 'cancelled' as TaskStatus } : task,
         ),
       }));
-      // Refresh stats
       get().fetchStats();
       return true;
     } catch (error) {
@@ -165,33 +173,36 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   clearError: () => set({ error: null }),
 }));
 
-// Helper functions for task type and status display
-export const taskTypeLabels: Record<TaskType, string> = {
-  workflow_execution: '工作流执行',
-  code_review: '代码审查',
-  security_audit: '安全审计',
-  cleanup: '清理任务',
-};
-
 export const taskStatusLabels: Record<TaskStatus, string> = {
-  pending: '等待中',
+  queued: '排队中',
+  delayed: '延迟中',
   running: '运行中',
   completed: '已完成',
   failed: '已失败',
   cancelled: '已取消',
+  timed_out: '已超时',
+};
+
+export const taskPriorityLabels: Record<TaskPriority, string> = {
+  low: '低',
+  normal: '普通',
+  high: '高',
+  critical: '紧急',
 };
 
 export const taskStatusColors: Record<TaskStatus, string> = {
-  pending: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20',
+  queued: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20',
+  delayed: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
   running: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
   completed: 'bg-green-500/10 text-green-600 border-green-500/20',
   failed: 'bg-red-500/10 text-red-600 border-red-500/20',
   cancelled: 'bg-gray-500/10 text-gray-600 border-gray-500/20',
+  timed_out: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
 };
 
-export const taskTypeColors: Record<TaskType, string> = {
-  workflow_execution: 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20',
-  code_review: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
-  security_audit: 'bg-red-500/10 text-red-600 border-red-500/20',
-  cleanup: 'bg-green-500/10 text-green-600 border-green-500/20',
+export const taskPriorityColors: Record<TaskPriority, string> = {
+  low: 'bg-gray-500/10 text-gray-600 border-gray-500/20',
+  normal: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+  high: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
+  critical: 'bg-red-500/10 text-red-600 border-red-500/20',
 };

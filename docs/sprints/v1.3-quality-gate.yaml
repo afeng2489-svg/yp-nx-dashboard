@@ -1,0 +1,86 @@
+sprint_id: v1.3
+status: pending
+priority: P0
+estimated_hours: 20
+depends_on: [v1.2]
+
+title: "质量门自动化 — 执行→测试→失败重试"
+objective: |
+  AI 写完代码没有自动验证。质量门是生产线的质检环节：
+  stage 完成 → 自动跑测试 → 失败 → 错误回喂 AI → 重试 → 最多3次 → 通过才推进。
+
+remaining_tasks:
+  - id: Q1
+    name: 工作流引擎加 quality_gate 支持
+    priority: P0
+    estimated_hours: 6
+    description: |
+      core/workflow/src/engine.rs 的 execute_stage() 后加：
+        if let Some(gate) = &stage.quality_gate {
+            let result = run_quality_gate(gate).await?;
+            if !result.passed {
+                // 构建重试 prompt：原任务 + 错误信息
+                // 重新执行 stage，最多 max_retries 次
+            }
+        }
+      core/workflow/src/parser.rs 加 QualityGate 结构体解析
+      工作流 YAML 支持：
+        quality_gate:
+          checks:
+            - cmd: "cargo test"
+              timeout: 300
+          on_fail: retry
+          max_retries: 3
+    acceptance:
+      - stage 完成后自动跑 quality_gate.checks
+      - 失败时错误信息注入下次执行的 prompt
+      - 超过 max_retries 后 stage 标记为 failed
+
+  - id: Q2
+    name: 5套内置质量门模板
+    priority: P1
+    estimated_hours: 2
+    description: |
+      config/quality-gates/ 目录下：
+        rust.yaml:       cargo build + cargo test + cargo clippy
+        typescript.yaml: npx tsc --noEmit + npm test
+        python.yaml:     python -m pytest + mypy
+        go.yaml:         go build + go test ./...
+        docker.yaml:     docker build + docker run --rm healthcheck
+      工作流 YAML 里 quality_gate: rust_default 直接引用
+    acceptance:
+      - 5个模板文件存在且格式正确
+      - 工作流能引用模板名称
+
+  - id: Q3
+    name: 质量门可视化
+    priority: P1
+    estimated_hours: 6
+    description: |
+      ExecutionsPage 每个 stage 显示：
+        ✅ 通过 / ❌ 失败 / 🔄 重试中 chip
+        hover 看具体哪条 check 挂了 + 错误输出
+        重试次数 badge（如 "重试 2/3"）
+      后端 stage_results 表加 quality_gate_result JSON 字段
+    acceptance:
+      - 质量门结果在 UI 上清晰可见
+      - 失败时能看到具体错误
+
+  - id: Q4
+    name: 团队对话质量门
+    priority: P2
+    estimated_hours: 6
+    description: |
+      团队对话执行完成后，如果 working_dir 有测试：
+        自动跑测试
+        失败时在对话里显示"测试失败，正在修复..."
+        自动重新发任务给 AI 修复
+        最多重试 2 次
+    acceptance:
+      - 团队对话写完代码后自动验证
+      - 测试失败自动触发修复
+
+quality_gates:
+  - cargo build 通过
+  - 工作流 YAML 加 quality_gate 字段能正确解析
+  - stage 失败后自动重试并注入错误信息

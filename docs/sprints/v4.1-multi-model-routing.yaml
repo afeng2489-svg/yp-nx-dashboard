@@ -1,0 +1,120 @@
+sprint_id: v4.1
+status: pending
+priority: P1
+estimated_hours: 24
+depends_on: [v3.4]
+
+title: "多模型路由 — 按任务复杂度自动选模型"
+objective: |
+  不被单一厂商锁死。便宜模型干简单活，贵模型干难活。
+  工作流每个 stage 可以指定不同模型，系统自动路由。
+  预期降低 Token 成本 60-70%。
+
+problem: |
+  现在：全局一个模型，所有任务都用同一个 AI
+  目标：
+    总结/格式化/简单问答 → Qwen / GLM（便宜）
+    前端代码/TypeScript  → MiMo-V2.5-Pro（性价比高）
+    复杂 Rust/架构设计   → Claude Sonnet（质量最高）
+    敏感任务/本地需求    → 本地 Ollama 模型（不出网）
+
+remaining_tasks:
+  - id: M1
+    name: 工作流 YAML 支持 per-stage 模型配置
+    priority: P0
+    estimated_hours: 4
+    description: |
+      core/workflow/src/parser.rs 的 Stage 结构体加：
+        model: Option<String>  // 覆盖全局模型
+      工作流 YAML 示例：
+        stages:
+          - name: 需求分析
+            model: qwen-2.5-72b      # 便宜，够用
+          - name: 后端实现
+            model: claude-sonnet-4-6  # 复杂 Rust
+          - name: 前端实现
+            model: mimo-v2.5-pro      # 前端代码
+          - name: 生成报告
+            model: qwen-2.5-72b      # 总结，便宜
+    acceptance:
+      - 工作流 YAML 加 model 字段能正确解析
+      - 不同 stage 用不同模型执行
+
+  - id: M2
+    name: 复杂度自动评估路由器
+    priority: P0
+    estimated_hours: 8
+    description: |
+      新建 nx_api/src/services/model_router.rs：
+
+      pub struct ModelRouter {
+          rules: Vec<RoutingRule>,
+      }
+
+      pub struct RoutingRule {
+          condition: RoutingCondition,
+          model: String,
+          priority: u8,
+      }
+
+      pub enum RoutingCondition {
+          TaskType(String),        // "rust_code" | "frontend" | "summary" | "sensitive"
+          PromptLength(usize),     // prompt 超过 N tokens 用更强模型
+          KeywordMatch(Vec<String>), // 包含关键词
+          FileExtension(Vec<String>), // .rs / .tsx / .py
+      }
+
+      impl ModelRouter {
+          pub fn route(&self, task: &TaskContext) -> String {
+              // 按优先级匹配规则，返回模型名
+          }
+      }
+
+      默认路由规则（可在 UI 配置）：
+        .rs 文件 → claude-sonnet-4-6
+        .tsx/.ts → mimo-v2.5-pro
+        总结/报告 → qwen-2.5-72b
+        敏感关键词（密码/密钥/内网）→ ollama/local
+        其他 → 全局默认模型
+    acceptance:
+      - Rust 任务自动路由到强模型
+      - 总结任务自动路由到便宜模型
+      - 路由决策写入执行日志
+
+  - id: M3
+    name: 模型配置 UI
+    priority: P1
+    estimated_hours: 6
+    description: |
+      AISettingsPage 加"模型路由"tab：
+        路由规则列表（可增删改）
+        每条规则：条件类型 + 条件值 + 目标模型
+        拖拽调整优先级
+        测试按钮：输入任务描述，预览会路由到哪个模型
+      后端 API：
+        GET  /api/v1/ai/routing-rules
+        POST /api/v1/ai/routing-rules
+        PUT  /api/v1/ai/routing-rules/:id
+        DELETE /api/v1/ai/routing-rules/:id
+        POST /api/v1/ai/routing-rules/test
+    acceptance:
+      - 能在 UI 配置路由规则
+      - 测试功能能预览路由结果
+
+  - id: M4
+    name: 成本对比看板
+    priority: P2
+    estimated_hours: 6
+    description: |
+      /cost 页面加"模型对比"区域：
+        每个模型的调用次数 + token 消耗 + 费用
+        路由前 vs 路由后的成本对比（估算节省了多少）
+        按时间段筛选
+    acceptance:
+      - 能看到每个模型的实际消耗
+      - 能看到路由策略的节省效果
+
+quality_gates:
+  - cargo build 通过
+  - 不同 stage 能用不同模型执行
+  - 路由规则能在 UI 配置

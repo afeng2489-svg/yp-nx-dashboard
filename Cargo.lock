@@ -1479,6 +1479,7 @@ dependencies = [
  "futures-util",
  "nexus-ai",
  "nexus-code-intel",
+ "nexus-orchestrator",
  "nexus-sandbox",
  "nexus-skills",
  "nexus-workflow",

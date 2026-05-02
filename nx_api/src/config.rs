@@ -81,15 +81,15 @@ fn resolve_db_path() -> String {
             if let Some(parent) = p.parent() {
                 let _ = std::fs::create_dir_all(parent);
             }
-            eprintln!("[DB] NEXUS_DB_PATH (validated): {}", env_path);
+            tracing::info!("[DB] NEXUS_DB_PATH (validated): {}", env_path);
             return env_path;
         }
-        eprintln!(
+        tracing::warn!(
             "[DB] WARNING: NEXUS_DB_PATH='{}' 无效（必须是绝对路径），忽略并自动解析",
             env_path
         );
     } else {
-        eprintln!("[DB] NEXUS_DB_PATH not set, auto-resolving...");
+        tracing::info!("[DB] NEXUS_DB_PATH not set, auto-resolving...");
     }
     resolve_default_db_path()
 }
@@ -116,7 +116,7 @@ fn resolve_default_db_path() -> String {
             if is_workspace_root(ancestor) {
                 let db_path = ancestor.join(&db_subpath);
                 let _ = std::fs::create_dir_all(db_path.parent().unwrap());
-                eprintln!(
+                tracing::debug!(
                     "[DB resolve] 策略1(exe): {} => {}",
                     exe.display(),
                     db_path.display()
@@ -132,7 +132,7 @@ fn resolve_default_db_path() -> String {
             if is_workspace_root(ancestor) {
                 let db_path = ancestor.join(&db_subpath);
                 let _ = std::fs::create_dir_all(db_path.parent().unwrap());
-                eprintln!(
+                tracing::debug!(
                     "[DB resolve] 策略2(cwd): {} => {}",
                     cwd.display(),
                     db_path.display()
@@ -149,7 +149,7 @@ fn resolve_default_db_path() -> String {
         if is_workspace_root(parent) {
             let db_path = parent.join(&db_subpath);
             let _ = std::fs::create_dir_all(db_path.parent().unwrap());
-            eprintln!(
+            tracing::debug!(
                 "[DB resolve] 策略3(compile-time): {} => {}",
                 compile_time_root,
                 db_path.display()
@@ -165,13 +165,13 @@ fn resolve_default_db_path() -> String {
         if let Some(data_dir) = dirs::data_dir() {
             let tauri_db = data_dir.join("com.nx.dashboard").join("nexus.db");
             if tauri_db.exists() {
-                eprintln!(
+                tracing::debug!(
                     "[DB resolve] 策略4(Windows data_dir): {}",
                     tauri_db.display()
                 );
                 return tauri_db.to_string_lossy().to_string();
             }
-            eprintln!(
+            tracing::debug!(
                 "[DB resolve] 策略4(Windows data_dir) 未找到: {}",
                 tauri_db.display()
             );
@@ -184,7 +184,7 @@ fn resolve_default_db_path() -> String {
         let base = std::env::var("USERPROFILE")
             .or_else(|_| std::env::var("LOCALAPPDATA"))
             .unwrap_or_else(|_| {
-                eprintln!("[DB resolve] WARNING: USERPROFILE 和 LOCALAPPDATA 均未设置");
+                tracing::warn!("[DB resolve] WARNING: USERPROFILE 和 LOCALAPPDATA 均未设置");
                 "C:\\nexus_data".to_string()
             });
         std::path::Path::new(&base).join(".nexus")
@@ -194,6 +194,6 @@ fn resolve_default_db_path() -> String {
     };
     let _ = std::fs::create_dir_all(&fallback_dir);
     let db_path = fallback_dir.join("nexus.db");
-    eprintln!("[DB resolve] 最终fallback: {}", db_path.display());
+    tracing::info!("[DB resolve] 最终fallback: {}", db_path.display());
     db_path.to_string_lossy().to_string()
 }

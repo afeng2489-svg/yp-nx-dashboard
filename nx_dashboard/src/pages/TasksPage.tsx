@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { useTasksQuery } from '@/hooks/useReactQuery';
 import {
   useTaskStore,
-  TaskType,
+  TaskPriority,
   TaskStatus,
-  taskTypeLabels,
+  taskPriorityLabels,
   taskStatusLabels,
   taskStatusColors,
-  taskTypeColors,
+  taskPriorityColors,
 } from '@/stores/taskStore';
 import {
   useIssueStore,
@@ -54,106 +54,31 @@ import { API_BASE_URL } from '@/api/constants';
 interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (
-    taskType: TaskType,
-    payload: Record<string, unknown>,
-    delaySeconds?: number,
-    maxRetries?: number,
-  ) => Promise<void> | void;
+  onSubmit: (name: string, description: string, priority: TaskPriority) => Promise<void> | void;
 }
 
 function CreateTaskModal({ isOpen, onClose, onSubmit }: CreateTaskModalProps) {
-  const [taskType, setTaskType] = useState<TaskType>('workflow_execution');
-  const [delaySeconds, setDelaySeconds] = useState('');
-  const [maxRetries, setMaxRetries] = useState('3');
+  const [taskName, setTaskName] = useState('');
+  const [taskDescription, setTaskDescription] = useState('');
+  const [priority, setPriority] = useState<TaskPriority>('normal');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // workflow_execution fields
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState('');
-  const [workflowVariables, setWorkflowVariables] = useState('{}');
-
-  // code_review fields
-  const [repoUrl, setRepoUrl] = useState('');
-
-  // security_audit fields
-  const [auditTarget, setAuditTarget] = useState('');
-
-  // cleanup fields
-  const [cleanupType, setCleanupType] = useState('logs');
-
-  const { workflows, fetchWorkflows } = useWorkflowStore();
-
-  useEffect(() => {
-    if (isOpen) fetchWorkflows();
-  }, [isOpen, fetchWorkflows]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async () => {
-    let payload: Record<string, unknown>;
-
-    if (taskType === 'workflow_execution') {
-      if (!selectedWorkflowId) {
-        showError('请选择一个工作流');
-        return;
-      }
-      let vars: Record<string, unknown> = {};
-      try {
-        vars = JSON.parse(workflowVariables);
-      } catch {
-        showError('变量格式错误，请输入合法 JSON');
-        return;
-      }
-      // 获取完整工作流 definition 作为 workflow_yaml（JSON 是合法 YAML）
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/v1/workflows/${selectedWorkflowId}`);
-        const wfFull = await res.json();
-        payload = {
-          workflow_id: selectedWorkflowId,
-          workflow_yaml: JSON.stringify(wfFull.definition ?? {}),
-          variables: vars,
-        };
-      } catch {
-        showError('获取工作流详情失败，请重试');
-        return;
-      }
-    } else if (taskType === 'code_review') {
-      if (!repoUrl.trim()) {
-        showError('请输入仓库地址');
-        return;
-      }
-      payload = { repo_url: repoUrl.trim() };
-    } else if (taskType === 'security_audit') {
-      if (!auditTarget.trim()) {
-        showError('请输入审计目标');
-        return;
-      }
-      payload = { target: auditTarget.trim() };
-    } else {
-      payload = { cleanup_type: cleanupType };
+    if (!taskName.trim()) {
+      showError('请输入任务名称');
+      return;
     }
-
     setIsSubmitting(true);
     try {
-      await onSubmit(
-        taskType,
-        payload,
-        delaySeconds ? parseInt(delaySeconds, 10) : undefined,
-        maxRetries ? parseInt(maxRetries, 10) : undefined,
-      );
+      await onSubmit(taskName.trim(), taskDescription.trim(), priority);
       onClose();
     } catch (e) {
       showError(`提交失败: ${(e as Error).message}`);
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const typeIcons: Record<TaskType, React.ReactNode> = {
-    workflow_execution: <GitBranch className="w-4 h-4" />,
-    code_review: <Code className="w-4 h-4" />,
-    security_audit: <Shield className="w-4 h-4" />,
-    cleanup: <Sparkles className="w-4 h-4" />,
   };
 
   return (
@@ -171,125 +96,43 @@ function CreateTaskModal({ isOpen, onClose, onSubmit }: CreateTaskModalProps) {
         </div>
 
         <div className="space-y-4">
-          {/* 任务类型 */}
           <div>
-            <label className="block text-sm font-medium mb-2">任务类型</label>
-            <div className="grid grid-cols-2 gap-2">
-              {(
-                ['workflow_execution', 'code_review', 'security_audit', 'cleanup'] as TaskType[]
-              ).map((t) => (
+            <label className="block text-sm font-medium mb-2">任务名称</label>
+            <input
+              type="text"
+              value={taskName}
+              onChange={(e) => setTaskName(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              placeholder="如：修复登录 Bug"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">任务描述</label>
+            <textarea
+              value={taskDescription}
+              onChange={(e) => setTaskDescription(e.target.value)}
+              rows={3}
+              className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              placeholder="详细描述任务需求..."
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">优先级</label>
+            <div className="grid grid-cols-4 gap-2">
+              {(['low', 'normal', 'high', 'critical'] as TaskPriority[]).map((p) => (
                 <button
-                  key={t}
-                  onClick={() => setTaskType(t)}
+                  key={p}
+                  onClick={() => setPriority(p)}
                   className={cn(
-                    'flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all',
-                    taskType === t
+                    'px-3 py-2 rounded-xl border text-sm font-medium transition-all',
+                    priority === p
                       ? 'border-indigo-500/60 bg-indigo-500/10 text-indigo-600'
-                      : 'border-border/50 bg-card hover:border-indigo-500/30 hover:bg-indigo-500/5',
+                      : 'border-border/50 bg-card hover:border-indigo-500/30',
                   )}
                 >
-                  {typeIcons[t]}
-                  {taskTypeLabels[t]}
+                  {taskPriorityLabels[p]}
                 </button>
               ))}
-            </div>
-          </div>
-
-          {/* 动态表单 */}
-          {taskType === 'workflow_execution' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium mb-2">选择工作流</label>
-                <select
-                  value={selectedWorkflowId}
-                  onChange={(e) => setSelectedWorkflowId(e.target.value)}
-                  className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                >
-                  <option value="">-- 请选择 --</option>
-                  {workflows.map((wf) => (
-                    <option key={wf.id} value={wf.id}>
-                      {wf.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">输入变量（JSON）</label>
-                <textarea
-                  value={workflowVariables}
-                  onChange={(e) => setWorkflowVariables(e.target.value)}
-                  rows={3}
-                  className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
-                  placeholder='{"key": "value"}'
-                />
-              </div>
-            </>
-          )}
-
-          {taskType === 'code_review' && (
-            <div>
-              <label className="block text-sm font-medium mb-2">仓库地址</label>
-              <input
-                type="text"
-                value={repoUrl}
-                onChange={(e) => setRepoUrl(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                placeholder="https://github.com/org/repo"
-              />
-            </div>
-          )}
-
-          {taskType === 'security_audit' && (
-            <div>
-              <label className="block text-sm font-medium mb-2">审计目标（路径或 URL）</label>
-              <input
-                type="text"
-                value={auditTarget}
-                onChange={(e) => setAuditTarget(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                placeholder="/path/to/code 或 https://target.com"
-              />
-            </div>
-          )}
-
-          {taskType === 'cleanup' && (
-            <div>
-              <label className="block text-sm font-medium mb-2">清理类型</label>
-              <select
-                value={cleanupType}
-                onChange={(e) => setCleanupType(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-              >
-                <option value="logs">日志清理</option>
-                <option value="temp">临时文件清理</option>
-                <option value="cache">缓存清理</option>
-              </select>
-            </div>
-          )}
-
-          {/* 延迟 & 重试 */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">延迟执行（秒）</label>
-              <input
-                type="number"
-                value={delaySeconds}
-                onChange={(e) => setDelaySeconds(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                placeholder="0（立即执行）"
-                min="0"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">最大重试次数</label>
-              <input
-                type="number"
-                value={maxRetries}
-                onChange={(e) => setMaxRetries(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                placeholder="3"
-                min="0"
-              />
             </div>
           </div>
         </div>
@@ -340,10 +183,10 @@ function TaskDetailPanel({ task, onClose, onCancel }: TaskDetailPanelProps) {
             <span
               className={cn(
                 'px-3 py-1 rounded-full text-xs font-medium border',
-                taskTypeColors[task.task_type],
+                taskPriorityColors[task.priority],
               )}
             >
-              {taskTypeLabels[task.task_type]}
+              {taskPriorityLabels[task.priority]}
             </span>
             <span
               className={cn(
@@ -357,49 +200,47 @@ function TaskDetailPanel({ task, onClose, onCancel }: TaskDetailPanelProps) {
 
           <div className="space-y-4">
             <div>
+              <h4 className="text-xs font-medium text-muted-foreground mb-1">任务名称</h4>
+              <p className="text-sm">{task.name}</p>
+            </div>
+
+            <div>
               <h4 className="text-xs font-medium text-muted-foreground mb-1">任务 ID</h4>
               <p className="text-sm font-mono bg-accent/50 rounded px-3 py-2 break-all">
                 {task.id}
               </p>
             </div>
 
-            <div>
-              <h4 className="text-xs font-medium text-muted-foreground mb-1">任务参数</h4>
-              <pre className="text-sm font-mono bg-accent/50 rounded px-3 py-2 overflow-x-auto whitespace-pre-wrap">
-                {JSON.stringify(task.payload, null, 2)}
-              </pre>
-            </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <h4 className="text-xs font-medium text-muted-foreground mb-1">计划时间</h4>
-                <p className="text-sm">{new Date(task.scheduled_at).toLocaleString('zh-CN')}</p>
+                <h4 className="text-xs font-medium text-muted-foreground mb-1">创建时间</h4>
+                <p className="text-sm">{new Date(task.created_at).toLocaleString('zh-CN')}</p>
               </div>
               <div>
-                <h4 className="text-xs font-medium text-muted-foreground mb-1">执行时间</h4>
-                <p className="text-sm">{new Date(task.execute_at).toLocaleString('zh-CN')}</p>
+                <h4 className="text-xs font-medium text-muted-foreground mb-1">开始时间</h4>
+                <p className="text-sm">
+                  {task.started_at ? new Date(task.started_at).toLocaleString('zh-CN') : '—'}
+                </p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground mb-1">完成时间</h4>
+                <p className="text-sm">
+                  {task.finished_at ? new Date(task.finished_at).toLocaleString('zh-CN') : '—'}
+                </p>
+              </div>
               <div>
                 <h4 className="text-xs font-medium text-muted-foreground mb-1">重试次数</h4>
-                <p className="text-sm">
-                  {task.retry_count} / {task.max_retries}
-                </p>
-              </div>
-              <div>
-                <h4 className="text-xs font-medium text-muted-foreground mb-1">最后更新</h4>
-                <p className="text-sm">{new Date(task.updated_at).toLocaleString('zh-CN')}</p>
+                <p className="text-sm">{task.retry_count}</p>
               </div>
             </div>
 
-            {task.error_message && (
+            {task.error && (
               <div>
                 <h4 className="text-xs font-medium text-muted-foreground mb-1">错误信息</h4>
-                <p className="text-sm text-red-500 bg-red-500/10 rounded px-3 py-2">
-                  {task.error_message}
-                </p>
+                <p className="text-sm text-red-500 bg-red-500/10 rounded px-3 py-2">{task.error}</p>
               </div>
             )}
           </div>
@@ -1061,18 +902,8 @@ export function TasksPage() {
 
   const filteredTasks = filter === 'all' ? tasks : tasks.filter((t) => t.status === filter);
 
-  const handleCreateTask = async (
-    taskType: TaskType,
-    payload: Record<string, unknown>,
-    delaySeconds?: number,
-    maxRetries?: number,
-  ) => {
-    await createTask({
-      task_type: taskType,
-      payload,
-      delay_seconds: delaySeconds,
-      max_retries: maxRetries,
-    });
+  const handleCreateTask = async (name: string, description: string, priority: TaskPriority) => {
+    await createTask({ name, description, priority });
     refetch();
   };
 
@@ -1291,10 +1122,10 @@ export function TasksPage() {
                           <span
                             className={cn(
                               'px-2 py-0.5 rounded-full text-xs font-medium border',
-                              taskTypeColors[task.task_type],
+                              taskPriorityColors[task.priority],
                             )}
                           >
-                            {taskTypeLabels[task.task_type]}
+                            {taskPriorityLabels[task.priority]}
                           </span>
                           <span
                             className={cn(
@@ -1305,6 +1136,7 @@ export function TasksPage() {
                             {taskStatusLabels[task.status]}
                           </span>
                         </div>
+                        <p className="text-sm font-medium truncate">{task.name}</p>
                         <p className="text-xs text-muted-foreground font-mono truncate max-w-xs">
                           {task.id}
                         </p>
@@ -1314,7 +1146,7 @@ export function TasksPage() {
                       <div className="flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5" />
                         <span>
-                          {new Date(task.execute_at).toLocaleString('zh-CN', {
+                          {new Date(task.created_at).toLocaleString('zh-CN', {
                             month: 'numeric',
                             day: 'numeric',
                             hour: '2-digit',
@@ -1324,9 +1156,7 @@ export function TasksPage() {
                       </div>
                       <div className="flex items-center gap-1.5">
                         <RefreshCw className="w-3.5 h-3.5" />
-                        <span>
-                          {task.retry_count}/{task.max_retries} 次重试
-                        </span>
+                        <span>{task.retry_count} 次重试</span>
                       </div>
                     </div>
                   </div>

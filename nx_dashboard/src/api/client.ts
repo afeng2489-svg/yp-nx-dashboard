@@ -48,7 +48,16 @@ class ApiClient {
       throw new Error(errorMessage);
     }
 
-    return response.json();
+    // Unwrap envelope: { ok, data?, error?, meta? } → T
+    const body = await response.json();
+    if (body && typeof body === 'object' && 'ok' in body) {
+      if (body.ok === false) {
+        throw new Error(body.error ?? 'Unknown error');
+      }
+      return body.data as T;
+    }
+    // Fallback for unmigrated endpoints returning raw data
+    return body as T;
   }
 
   async health() {

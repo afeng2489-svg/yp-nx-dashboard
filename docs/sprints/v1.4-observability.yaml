@@ -1,0 +1,65 @@
+sprint_id: v1.4
+status: pending
+priority: P1
+estimated_hours: 20
+depends_on: [v1.3]
+
+title: "可观测性看板 — 进度+成本+产物"
+objective: |
+  一个人开发整个项目，需要一屏看清整条生产线状态：
+  哪个 Agent 在做什么、做到哪了、花了多少钱、产出了什么文件。
+
+remaining_tasks:
+  - id: O1
+    name: 实时进度看板
+    priority: P0
+    estimated_hours: 8
+    description: |
+      新页面 /dashboard 或改造现有 DashboardPage：
+        - 当前活跃执行列表（实时刷新）
+        - 每个执行：进度条 + 当前 stage + 耗时
+        - Pipeline 视图：phase 甘特图（哪个 phase 完成/进行/等待）
+        - 每个 Agent 状态：idle/running/waiting
+      数据来源：WebSocket /ws/executions/:id + 轮询 /api/v1/executions
+    acceptance:
+      - 执行中能实时看到当前 stage
+      - Pipeline phase 进度可视化
+
+  - id: O2
+    name: Token/Cost 实时显示
+    priority: P0
+    estimated_hours: 6
+    description: |
+      后端：
+        executions 表加 total_tokens INT, total_cost_usd REAL
+        每次 claude -p 执行后解析 --output-format stream-json 的 usage 字段
+        累加到 execution.total_tokens / total_cost_usd
+      前端：
+        执行详情页右上角显示"已用 1,234 tokens / $0.02"
+        实时更新（WebSocket 推送）
+    acceptance:
+      - 执行完成后能看到 token 消耗和费用
+      - 实时更新不需要刷新页面
+
+  - id: O3
+    name: 产物文件列表完整（v2.2 前置）
+    priority: P0
+    estimated_hours: 6
+    description: |
+      完成 v1.S1 遗留的前端任务：
+        T1: 文件预览（Markdown 用 react-markdown，代码用 highlight.js）
+        T2: 二进制文件判断（>1MB 或非文本 → 只显示大小，不预览）
+        T3: 执行列表每行显示产物数量 badge
+        T4: 文件数 >50 时分页加载
+      后端已完成，只差前端
+    acceptance:
+      - Markdown 文件能渲染预览
+      - 代码文件有语法高亮
+      - 二进制文件显示大小而非乱码
+      - 执行列表有产物数量 badge
+
+quality_gates:
+  - cargo build 通过
+  - npx tsc --noEmit 无 error
+  - 执行中能实时看到进度
+  - 执行完成后能看到 token 消耗

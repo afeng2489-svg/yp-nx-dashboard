@@ -2,22 +2,40 @@
 
 use axum::{
     extract::{Path, State},
+    http::StatusCode,
     Json,
 };
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use super::AppState;
+use crate::response::{ok, ApiErrorResponse, ApiOk};
 use crate::routes::executions::ExecutionResponse;
 use crate::services::workflow_service::WorkflowServiceError;
+
+fn map_workflow_error(err: WorkflowServiceError) -> ApiErrorResponse {
+    match err {
+        WorkflowServiceError::NotFound(id) => {
+            ApiErrorResponse::new(StatusCode::NOT_FOUND, format!("工作流 {} 不存在", id))
+        }
+        WorkflowServiceError::AlreadyExists(id) => {
+            ApiErrorResponse::new(StatusCode::BAD_REQUEST, format!("工作流 {} 已存在", id))
+        }
+        WorkflowServiceError::Internal(msg) => {
+            tracing::error!("内部错误: {}", msg);
+            ApiErrorResponse::new(StatusCode::INTERNAL_SERVER_ERROR, "内部服务器错误")
+        }
+    }
+}
 
 /// 列出工作流
 pub async fn list_workflows(
     State(state): State<Arc<AppState>>,
-) -> Result<Json<Vec<WorkflowSummary>>, AppError> {
+) -> Result<ApiOk<Vec<WorkflowSummary>>, ApiErrorResponse> {
     let workflows = state
         .workflow_service
         .list_workflows()
-        .map_err(AppError::from)?;
+        .map_err(map_workflow_error)?;
     let summaries = workflows
         .into_iter()
         .map(|w| WorkflowSummary {
@@ -29,14 +47,14 @@ pub async fn list_workflows(
             agent_count: count_agents(&w.definition),
         })
         .collect();
-    Ok(Json(summaries))
+    Ok(ok(summaries))
 }
 
 /// 创建工作流
 pub async fn create_workflow(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateWorkflowRequest>,
-) -> Result<Json<WorkflowResponse>, AppError> {
+) -> Result<ApiOk<WorkflowResponse>, ApiErrorResponse> {
     let workflow = state
         .workflow_service
         .create_workflow(
@@ -45,9 +63,9 @@ pub async fn create_workflow(
             payload.description,
             payload.definition,
         )
-        .map_err(AppError::from)?;
+        .map_err(map_workflow_error)?;
 
-    Ok(Json(WorkflowResponse {
+    Ok(ok(WorkflowResponse {
         id: workflow.id,
         name: workflow.name,
         version: workflow.version,
@@ -62,14 +80,16 @@ pub async fn create_workflow(
 pub async fn get_workflow(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Result<Json<WorkflowResponse>, AppError> {
+) -> Result<ApiOk<WorkflowResponse>, ApiErrorResponse> {
     let workflow = state
         .workflow_service
         .get_workflow(&id)
-        .map_err(AppError::from)?
-        .ok_or_else(|| AppError::NotFound(format!("工作流 {} 不存在", id)))?;
+        .map_err(map_workflow_error)?
+        .ok_or_else(|| {
+            ApiErrorResponse::new(StatusCode::NOT_FOUND, format!("工作流 {} 不存在", id))
+        })?;
 
-    Ok(Json(WorkflowResponse {
+    Ok(ok(WorkflowResponse {
         id: workflow.id,
         name: workflow.name,
         version: workflow.version,
@@ -85,7 +105,7 @@ pub async fn update_workflow(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     Json(payload): Json<UpdateWorkflowRequest>,
-) -> Result<Json<WorkflowResponse>, AppError> {
+) -> Result<ApiOk<WorkflowResponse>, ApiErrorResponse> {
     let workflow = state
         .workflow_service
         .update_workflow(
@@ -95,9 +115,9 @@ pub async fn update_workflow(
             payload.description,
             payload.definition,
         )
-        .map_err(AppError::from)?;
+        .map_err(map_workflow_error)?;
 
-    Ok(Json(WorkflowResponse {
+    Ok(ok(WorkflowResponse {
         id: workflow.id,
         name: workflow.name,
         version: workflow.version,
@@ -112,12 +132,12 @@ pub async fn update_workflow(
 pub async fn delete_workflow(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Result<Json<DeleteResponse>, AppError> {
+) -> Result<ApiOk<DeleteResponse>, ApiErrorResponse> {
     state
         .workflow_service
         .delete_workflow(&id)
-        .map_err(AppError::from)?;
-    Ok(Json(DeleteResponse {
+        .map_err(map_workflow_error)?;
+    Ok(ok(DeleteResponse {
         success: true,
         message: format!("工作流 {} 已删除", id),
     }))
@@ -128,15 +148,15 @@ pub async fn execute_workflow(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     Json(payload): Json<ExecuteWorkflowRequest>,
-) -> Result<Json<ExecutionResponse>, AppError> {
-    // 1. 获取工作流
+) -> Result<ApiOk<ExecutionResponse>, ApiErrorResponse> {
     let workflow = state
         .workflow_service
         .get_workflow(&id)
-        .map_err(AppError::from)?
-        .ok_or_else(|| AppError::NotFound(format!("工作流 {} 不存在", id)))?;
+        .map_err(map_workflow_error)?
+        .ok_or_else(|| {
+            ApiErrorResponse::new(StatusCode::NOT_FOUND, format!("工作流 {} 不存在", id))
+        })?;
 
-    // 2. 构建完整的 WorkflowDefinition JSON
     let mut workflow_def = serde_json::json!({
         "name": workflow.name,
         "version": workflow.version,
@@ -152,14 +172,15 @@ pub async fn execute_workflow(
         }
     }
 
-    // 3. 转换为 YAML
-    let workflow_yaml = serde_yaml::to_string(&workflow_def)
-        .map_err(|e| AppError::Internal(format!("YAML 序列化失败: {}", e)))?;
+    let workflow_yaml = serde_yaml::to_string(&workflow_def).map_err(|e| {
+        ApiErrorResponse::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("YAML 序列化失败: {}", e),
+        )
+    })?;
 
-    // 4. 获取工作区路径
     let current_workspace = state.current_workspace_path.read().clone();
 
-    // 5. 真正启动执行
     let variables = payload.variables.unwrap_or(serde_json::json!({}));
     let execution_id = state
         .execution_service
@@ -171,11 +192,16 @@ pub async fn execute_workflow(
             current_workspace,
         )
         .await
-        .map_err(|e| AppError::Internal(format!("执行启动失败: {}", e)))?;
+        .map_err(|e| {
+            ApiErrorResponse::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("执行启动失败: {}", e),
+            )
+        })?;
 
     tracing::info!("启动工作流 {} 执行，ID: {}", id, execution_id);
 
-    Ok(Json(ExecutionResponse {
+    Ok(ok(ExecutionResponse {
         id: execution_id,
         workflow_id: workflow.id,
         status: "running".to_string(),
@@ -189,7 +215,6 @@ pub async fn execute_workflow(
 
 // ============ 辅助函数 ============
 
-/// 从工作流定义中统计阶段数
 fn count_stages(definition: &serde_json::Value) -> usize {
     definition
         .get("stages")
@@ -198,15 +223,12 @@ fn count_stages(definition: &serde_json::Value) -> usize {
         .unwrap_or(0)
 }
 
-/// 从工作流定义中统计智能体数量
 fn count_agents(definition: &serde_json::Value) -> usize {
-    // 优先从顶层 agents 数组计数（去重）
     definition
         .get("agents")
         .and_then(|a| a.as_array())
         .map(|arr| arr.len())
         .unwrap_or_else(|| {
-            // fallback: 从 stages 内部的 agents 引用计数
             definition
                 .get("stages")
                 .and_then(|s| s.as_array())
@@ -219,56 +241,6 @@ fn count_agents(definition: &serde_json::Value) -> usize {
                 })
                 .unwrap_or(0)
         })
-}
-
-// ============ 错误类型 ============
-
-use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
-use serde::{Deserialize, Serialize};
-
-/// 应用错误类型
-#[derive(Debug)]
-pub enum AppError {
-    NotFound(String),
-    BadRequest(String),
-    Internal(String),
-}
-
-impl IntoResponse for AppError {
-    fn into_response(self) -> Response {
-        let (status, message) = match &self {
-            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
-            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            AppError::Internal(msg) => {
-                tracing::error!("内部错误: {}", msg);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "内部服务器错误".to_string(),
-                )
-            }
-        };
-
-        let body = serde_json::json!({
-            "error": message
-        });
-
-        (status, Json(body)).into_response()
-    }
-}
-
-impl From<WorkflowServiceError> for AppError {
-    fn from(err: WorkflowServiceError) -> Self {
-        match err {
-            WorkflowServiceError::NotFound(id) => AppError::NotFound(id),
-            WorkflowServiceError::AlreadyExists(id) => {
-                AppError::BadRequest(format!("工作流 {} 已存在", id))
-            }
-            WorkflowServiceError::Internal(msg) => AppError::Internal(msg),
-        }
-    }
 }
 
 // ============ 请求/响应类型 ============

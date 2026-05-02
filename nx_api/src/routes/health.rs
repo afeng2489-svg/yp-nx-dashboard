@@ -1,11 +1,11 @@
 //! 健康检查路由
 
-use axum::Json;
-use serde_json::{json, Value};
+use crate::response::{ok, ApiOk};
+use serde_json::json;
 
 /// 健康检查处理器
-pub async fn health_check() -> Json<Value> {
-    Json(json!({
+pub async fn health_check() -> ApiOk<serde_json::Value> {
+    ok(json!({
         "status": "ok",
         "service": "nexusflow-api",
         "version": env!("CARGO_PKG_VERSION"),

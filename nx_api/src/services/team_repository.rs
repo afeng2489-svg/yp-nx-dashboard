@@ -103,75 +103,6 @@ impl SqliteTeamRepository {
     /// Create new SQLite repository
     pub fn new<P: AsRef<Path>>(db_path: P) -> Result<Self, TeamRepositoryError> {
         let conn = Connection::open(db_path)?;
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS teams (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS team_roles (
-                id TEXT PRIMARY KEY,
-                team_id TEXT,
-                name TEXT NOT NULL,
-                description TEXT NOT NULL,
-                model_config TEXT NOT NULL,
-                system_prompt TEXT NOT NULL,
-                trigger_keywords TEXT NOT NULL DEFAULT '[]',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_team_roles_team_id ON team_roles(team_id);
-
-            -- Junction table for many-to-many relationship between teams and roles
-            CREATE TABLE IF NOT EXISTS team_role_members (
-                team_id TEXT NOT NULL,
-                role_id TEXT NOT NULL,
-                added_at TEXT NOT NULL,
-                PRIMARY KEY (team_id, role_id),
-                FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
-                FOREIGN KEY (role_id) REFERENCES team_roles(id) ON DELETE CASCADE
-            );
-
-            CREATE TABLE IF NOT EXISTS team_role_skills (
-                role_id TEXT NOT NULL,
-                skill_id TEXT NOT NULL,
-                priority TEXT NOT NULL DEFAULT 'medium',
-                PRIMARY KEY (role_id, skill_id),
-                FOREIGN KEY (role_id) REFERENCES team_roles(id) ON DELETE CASCADE
-            );
-
-            CREATE TABLE IF NOT EXISTS team_messages (
-                id TEXT PRIMARY KEY,
-                team_id TEXT NOT NULL,
-                role_id TEXT,
-                content TEXT NOT NULL,
-                message_type TEXT NOT NULL,
-                metadata TEXT NOT NULL DEFAULT '{}',
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
-                FOREIGN KEY (role_id) REFERENCES team_roles(id) ON DELETE SET NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_team_messages_team_id ON team_messages(team_id);
-            CREATE INDEX IF NOT EXISTS idx_team_messages_role_id ON team_messages(role_id);
-            CREATE INDEX IF NOT EXISTS idx_team_messages_created_at ON team_messages(created_at);
-
-            CREATE TABLE IF NOT EXISTS telegram_bot_configs (
-                id TEXT PRIMARY KEY,
-                role_id TEXT NOT NULL UNIQUE,
-                bot_token TEXT NOT NULL,
-                chat_id TEXT,
-                enabled INTEGER NOT NULL DEFAULT 0,
-                notifications_enabled INTEGER NOT NULL DEFAULT 1,
-                conversation_enabled INTEGER NOT NULL DEFAULT 0,
-                FOREIGN KEY (role_id) REFERENCES team_roles(id) ON DELETE CASCADE
-            );",
-        )?;
 
         // Migration: Copy existing team_id relationships to junction table
         // This handles the case where roles had a direct team_id reference
@@ -179,7 +110,7 @@ impl SqliteTeamRepository {
             conn: Arc::new(Mutex::new(conn)),
         };
         if let Err(e) = conn.migrate_existing_roles() {
-            eprintln!("Warning: failed to migrate existing roles: {}", e);
+            tracing::warn!("Warning: failed to migrate existing roles: {}", e);
         }
         Ok(conn)
     }
@@ -188,61 +119,7 @@ impl SqliteTeamRepository {
     #[allow(dead_code)]
     pub fn in_memory() -> Result<Self, TeamRepositoryError> {
         let conn = Connection::open_in_memory()?;
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS teams (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS team_roles (
-                id TEXT PRIMARY KEY,
-                team_id TEXT,
-                name TEXT NOT NULL,
-                description TEXT NOT NULL,
-                model_config TEXT NOT NULL,
-                system_prompt TEXT NOT NULL,
-                trigger_keywords TEXT NOT NULL DEFAULT '[]',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS team_role_members (
-                team_id TEXT NOT NULL,
-                role_id TEXT NOT NULL,
-                added_at TEXT NOT NULL,
-                PRIMARY KEY (team_id, role_id)
-            );
-
-            CREATE TABLE IF NOT EXISTS team_role_skills (
-                role_id TEXT NOT NULL,
-                skill_id TEXT NOT NULL,
-                priority TEXT NOT NULL DEFAULT 'medium',
-                PRIMARY KEY (role_id, skill_id)
-            );
-
-            CREATE TABLE IF NOT EXISTS team_messages (
-                id TEXT PRIMARY KEY,
-                team_id TEXT NOT NULL,
-                role_id TEXT,
-                content TEXT NOT NULL,
-                message_type TEXT NOT NULL,
-                metadata TEXT NOT NULL DEFAULT '{}',
-                created_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS telegram_bot_configs (
-                id TEXT PRIMARY KEY,
-                role_id TEXT NOT NULL UNIQUE,
-                bot_token TEXT NOT NULL,
-                chat_id TEXT,
-                enabled INTEGER NOT NULL DEFAULT 0,
-                notifications_enabled INTEGER NOT NULL DEFAULT 1,
-                conversation_enabled INTEGER NOT NULL DEFAULT 0
-            );",
-        )?;
+        conn.execute_batch(crate::migrations::TEAM_SCHEMA)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })

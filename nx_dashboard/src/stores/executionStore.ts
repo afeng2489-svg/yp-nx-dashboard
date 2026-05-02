@@ -1,5 +1,7 @@
+import { unwrapEnvelope } from '../api/response';
 import { create } from 'zustand';
 import { API_BASE_URL, WS_BASE_URL } from '../api/constants';
+import { unwrapEnvelope, fetchWithTimeout } from '../api/response';
 
 // WebSocket reconnection config
 const WS_RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 16000, 32000]; // exponential backoff: 1s, 2s, 4s, 8s, 16s, 32s (max)
@@ -201,7 +203,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         );
       }
 
-      const data = await response.json();
+      const data = unwrapEnvelope(await response.json());
       set({ executions: data, loading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -223,7 +225,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         throw new ApiError(`Failed to fetch execution: ${response.status}`, response.status);
       }
 
-      return await response.json();
+      return unwrapEnvelope(await response.json());
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       console.error(`Failed to get execution ${id}:`, message);
@@ -244,7 +246,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         throw new ApiError(`Failed to start execution: ${response.status}`, response.status);
       }
 
-      const execution = await response.json();
+      const execution = unwrapEnvelope(await response.json());
 
       set((state) => ({ executions: [...state.executions, execution] }));
 

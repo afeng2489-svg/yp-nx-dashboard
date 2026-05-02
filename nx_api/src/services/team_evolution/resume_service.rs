@@ -51,23 +51,7 @@ impl ResumeService {
 
     fn initialize_tables(&self) -> Result<(), TeamEvolutionError> {
         let conn = self.conn.lock();
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS execution_checkpoints (
-                id TEXT PRIMARY KEY,
-                execution_id TEXT NOT NULL,
-                project_id TEXT NOT NULL,
-                pipeline_step_id TEXT,
-                role_id TEXT NOT NULL,
-                task_prompt TEXT NOT NULL,
-                accumulated_output TEXT DEFAULT '',
-                phase TEXT NOT NULL DEFAULT 'running',
-                started_at TEXT NOT NULL,
-                last_heartbeat TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_chk_exec ON execution_checkpoints(execution_id);
-            CREATE INDEX IF NOT EXISTS idx_chk_project ON execution_checkpoints(project_id);
-            CREATE INDEX IF NOT EXISTS idx_chk_heartbeat ON execution_checkpoints(last_heartbeat);",
-        )?;
+        conn.execute_batch(crate::migrations::CHECKPOINT_SCHEMA)?;
         Ok(())
     }
 

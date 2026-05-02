@@ -89,10 +89,7 @@ pub struct AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
-        (
-            self.status,
-            Json(serde_json::json!({ "error": self.message })),
-        )
-            .into_response()
+        let body = serde_json::json!({ "ok": false, "error": self.message });
+        (self.status, Json(body)).into_response()
     }
 }

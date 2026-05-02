@@ -76,55 +76,7 @@ impl SqliteSnapshotRepository {
 
     fn initialize_tables(&self) -> Result<(), TeamEvolutionError> {
         let conn = self.conn.lock();
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS role_snapshots (
-                id TEXT PRIMARY KEY,
-                project_id TEXT NOT NULL,
-                team_id TEXT NOT NULL,
-                role_id TEXT NOT NULL,
-                role_name TEXT NOT NULL,
-                phase TEXT NOT NULL DEFAULT 'idle',
-                progress_pct INTEGER DEFAULT 0,
-                current_task TEXT DEFAULT '',
-                summary TEXT DEFAULT '',
-                last_cli_output TEXT DEFAULT '',
-                files_touched TEXT DEFAULT '[]',
-                execution_count INTEGER DEFAULT 0,
-                checksum TEXT DEFAULT '',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_role_snap_unique
-                ON role_snapshots(project_id, role_id);
-
-            CREATE TABLE IF NOT EXISTS role_snapshot_history (
-                id TEXT PRIMARY KEY,
-                snapshot_id TEXT NOT NULL,
-                project_id TEXT NOT NULL,
-                role_id TEXT NOT NULL,
-                phase TEXT NOT NULL,
-                progress_pct INTEGER DEFAULT 0,
-                summary TEXT DEFAULT '',
-                created_at TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_snap_hist_role
-                ON role_snapshot_history(project_id, role_id);
-
-            CREATE TABLE IF NOT EXISTS project_progress (
-                project_id TEXT PRIMARY KEY,
-                team_id TEXT NOT NULL,
-                pipeline_id TEXT,
-                overall_phase TEXT NOT NULL DEFAULT 'idle',
-                overall_pct INTEGER DEFAULT 0,
-                total_roles INTEGER DEFAULT 0,
-                active_roles INTEGER DEFAULT 0,
-                completed_roles INTEGER DEFAULT 0,
-                failed_roles INTEGER DEFAULT 0,
-                last_activity TEXT DEFAULT '',
-                last_activity_at TEXT,
-                updated_at TEXT NOT NULL
-            );",
-        )?;
+        conn.execute_batch(crate::migrations::SNAPSHOT_SCHEMA)?;
         Ok(())
     }
 

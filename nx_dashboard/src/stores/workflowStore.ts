@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
 import type { CreateWorkflowRequest } from '../api/client';
+import { unwrapEnvelope, fetchWithTimeout } from '../api/response';
 import { onWorkspaceChange } from './workspaceStore';
 
 export interface Workflow {
@@ -86,31 +87,6 @@ class ApiError extends Error {
   }
 }
 
-// 带 timeout 的 fetch
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit = {},
-  timeout = 5000,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new ApiError('Request timeout', 408);
-    }
-    throw error;
-  }
-}
-
 export const useWorkflowStore = create<WorkflowStore>((set) => ({
   workflows: [],
   currentWorkflow: null,
@@ -129,7 +105,7 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
         );
       }
 
-      const summaries: WorkflowSummary[] = await response.json();
+      const summaries: WorkflowSummary[] = unwrapEnvelope(await response.json());
 
       if (summaries.length === 0) {
         set({ workflows: [], loading: false });
@@ -173,7 +149,7 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
 
       // 后端返回 { id, name, version, description, definition: { stages, agents, triggers, ... }, created_at, updated_at }
       // 需要把 definition 里的 stages/agents/triggers 提升到顶层
-      const raw = await response.json();
+      const raw = unwrapEnvelope(await response.json());
       const def = raw.definition ?? {};
       return {
         id: raw.id,
@@ -206,7 +182,7 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
         throw new ApiError(`Failed to create workflow: ${response.status}`, response.status);
       }
 
-      const newWorkflow = await response.json();
+      const newWorkflow = unwrapEnvelope(await response.json());
       set((state) => ({ workflows: [...state.workflows, newWorkflow] }));
       return newWorkflow;
     } catch (error) {

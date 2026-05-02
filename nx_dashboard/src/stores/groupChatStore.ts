@@ -1,5 +1,7 @@
+import { unwrapEnvelope } from '../api/response';
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
+import { unwrapEnvelope, fetchWithTimeout } from '../api/response';
 
 // Types matching the backend models
 export type GroupStatus = 'pending' | 'active' | 'concluded';
@@ -194,7 +196,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
         );
       }
 
-      const data = await response.json();
+      const data = unwrapEnvelope(await response.json());
       set({ sessions: data, loading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -216,7 +218,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
         throw new ApiError(`Failed to fetch session: ${response.status}`, response.status);
       }
 
-      const data: GroupSessionDetail = await response.json();
+      const data: GroupSessionDetail = unwrapEnvelope(await response.json());
       set({ currentSession: data });
       return data;
     } catch (error) {
@@ -239,7 +241,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
         throw new ApiError(`Failed to create session: ${response.status}`, response.status);
       }
 
-      const newSession: GroupSession = await response.json();
+      const newSession: GroupSession = unwrapEnvelope(await response.json());
       set((state) => ({ sessions: [newSession, ...state.sessions] }));
       return newSession;
     } catch (error) {
@@ -262,7 +264,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
         throw new ApiError(`Failed to update session: ${response.status}`, response.status);
       }
 
-      const updatedSession: GroupSession = await response.json();
+      const updatedSession: GroupSession = unwrapEnvelope(await response.json());
       set((state) => ({
         sessions: state.sessions.map((s) => (s.id === id ? updatedSession : s)),
         currentSession:
@@ -313,7 +315,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
         throw new ApiError(`Failed to start discussion: ${response.status}`, response.status);
       }
 
-      return await response.json();
+      return unwrapEnvelope(await response.json());
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       set({ error: `Failed to start discussion: ${message}` });
@@ -337,7 +339,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
         throw new ApiError(`Failed to send message: ${response.status}`, response.status);
       }
 
-      const message: GroupMessage = await response.json();
+      const message: GroupMessage = unwrapEnvelope(await response.json());
       set((state) => ({ messages: [...state.messages, message] }));
       return message;
     } catch (error) {
@@ -357,7 +359,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
         throw new ApiError(`Failed to get next speaker: ${response.status}`, response.status);
       }
 
-      const data = await response.json();
+      const data = unwrapEnvelope(await response.json());
       return data; // { role_id, role_name } or null
     } catch (error) {
       console.error(`Failed to get next speaker for ${id}:`, error);
@@ -394,7 +396,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
         throw new ApiError(`Failed to execute role turn: ${response.status}`, response.status);
       }
 
-      const message: GroupMessage = await response.json();
+      const message: GroupMessage = unwrapEnvelope(await response.json());
       set((state) => ({ messages: [...state.messages, message] }));
       return message;
     } catch (error) {
@@ -420,7 +422,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
         throw new ApiError(`Failed to conclude discussion: ${response.status}`, response.status);
       }
 
-      const conclusion: GroupConclusion = await response.json();
+      const conclusion: GroupConclusion = unwrapEnvelope(await response.json());
       // Refresh the session to get updated status
       get().fetchSession(id);
       return conclusion;
@@ -446,7 +448,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
         throw new ApiError(`Failed to fetch messages: ${response.status}`, response.status);
       }
 
-      const messages: GroupMessage[] = await response.json();
+      const messages: GroupMessage[] = unwrapEnvelope(await response.json());
       set({ messages });
       return messages;
     } catch (error) {

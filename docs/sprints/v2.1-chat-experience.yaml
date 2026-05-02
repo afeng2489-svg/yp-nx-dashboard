@@ -1,0 +1,94 @@
+sprint_id: v2.1
+status: pending
+priority: P1
+estimated_hours: 16
+depends_on: [v1.4]
+
+title: "团队对话体验重构 — CLI优先+流式输出"
+objective: |
+  现在团队对话走 PTY 优先，输出是 TUI 字节流残留，体验极差。
+  PTY 是为 xterm.js 设计的，不适合提取干净文本。
+  本 sprint 改为 CLI 优先，PTY 只用于"看执行过程"。
+
+problem: |
+  routes/teams.rs execute_team_task():
+    有 PTY session → 走 try_pty_dispatch_pub（输出质量差）
+    没有 PTY session → 走 execute_team_task（输出干净）
+  优先级反了。
+
+remaining_tasks:
+  - id: C1
+    name: 团队对话改 CLI 优先
+    priority: P0
+    estimated_hours: 4
+    description: |
+      routes/teams.rs execute_team_task handler：
+        删除"有 PTY session 就走 PTY"的逻辑
+        始终走 agent_team_service.execute_team_task()（CLI路径）
+        CLI 路径输出是干净的 stdout 行流
+      PTY 终端面板保留，但只用于用户主动打开"终端"时
+    acceptance:
+      - 团队对话返回干净 markdown 文本
+      - 不再有 TUI 装饰字符
+
+  - id: C2
+    name: 流式输出到前端
+    priority: P0
+    estimated_hours: 4
+    description: |
+      run_claude_interactive() 已经逐行 stream stdout
+      前端 WebSocket 收到 AgentExecutionEvent::Output 时：
+        不要等全部完成再显示
+        每收到一行立即追加到对话气泡
+        显示打字机效果（光标闪烁）
+      前端 useAgentExecution hook 改为流式追加
+    acceptance:
+      - 对话气泡实时显示 AI 输出，不是等完成后一次性显示
+      - 有打字机效果
+
+  - id: C3
+    name: 对话历史完整保存
+    priority: P0
+    estimated_hours: 2
+    description: |
+      现在 PTY 路径的结果不存 TeamMessage（已有后台监听但依赖 PTY 完成事件）
+      改 CLI 路径后：execute_team_task 已经调用 team_service.add_message()
+      验证对话历史在 /api/v1/teams/:id/messages 能完整查到
+    acceptance:
+      - 每次对话的用户消息和 AI 回复都存入 team_messages
+      - 刷新页面后历史对话不丢失
+
+  - id: C4
+    name: 确认机制支持多次
+    priority: P1
+    estimated_hours: 4
+    description: |
+      agent_team_service.rs run_claude_interactive():
+        confirm_rx_opt.take() 改为可重复使用
+        用 Arc<Mutex<Option<Receiver>>> 或改为 channel 而非 oneshot
+        支持同一次执行中多次确认
+    acceptance:
+      - AI 执行中需要多次确认时，每次都能等待用户响应
+      - 不会在第二次确认时自动发 y
+
+  - id: C5
+    name: 修复嵌套 tokio runtime
+    priority: P1
+    estimated_hours: 2
+    description: |
+      claude_terminal.rs:197:
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("build tokio runtime");  ← 这个 expect 是 B1 要修的
+        rt.block_on(...)  ← 在已有 tokio 线程里再建 runtime
+      改为：在 PTY 线程（std::thread::spawn）里用 tokio::runtime::Runtime::new()
+      或者把 input_rx 改为 std::sync::mpsc 避免在 PTY 线程里用 tokio
+    acceptance:
+      - cargo clippy 无 nested runtime warning
+      - PTY 会话正常工作
+
+quality_gates:
+  - cargo build 通过
+  - 团队对话返回干净文本（无 TUI 字符）
+  - 对话历史在刷新后不丢失
+  - 流式输出实时显示

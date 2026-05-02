@@ -1,3 +1,4 @@
+import { unwrapEnvelope } from '../api/response';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -183,7 +184,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           if (!response.ok) {
             throw new ApiError(`Failed to fetch workspaces: ${response.status}`, response.status);
           }
-          const workspaces: Workspace[] = await response.json();
+          const workspaces: Workspace[] = unwrapEnvelope(await response.json());
           set({ workspaces, loading: false });
 
           // Auto-select first workspace if none selected and we have workspaces
@@ -240,7 +241,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           if (!response.ok) {
             throw new ApiError(`Failed to create workspace: ${response.status}`, response.status);
           }
-          const workspace: Workspace = await response.json();
+          const workspace: Workspace = unwrapEnvelope(await response.json());
           set((state) => ({
             workspaces: [...state.workspaces, workspace],
             currentWorkspace: workspace,
@@ -270,7 +271,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           if (!response.ok) {
             throw new ApiError(`Failed to update workspace: ${response.status}`, response.status);
           }
-          const workspace: Workspace = await response.json();
+          const workspace: Workspace = unwrapEnvelope(await response.json());
           set((state) => ({
             workspaces: state.workspaces.map((w) => (w.id === id ? workspace : w)),
             currentWorkspace:
@@ -357,7 +358,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           if (!response.ok) {
             throw new ApiError(`Failed to browse files: ${response.status}`, response.status);
           }
-          const files: FileNode[] = await response.json();
+          const files: FileNode[] = unwrapEnvelope(await response.json());
           console.log(
             '[browseFiles] files count:',
             files.length,
@@ -418,7 +419,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             }
             throw new ApiError(`Failed to read file: ${response.status}`, response.status);
           }
-          const data = await response.json();
+          const data = unwrapEnvelope(await response.json());
           const newFile: OpenFile = {
             path: data.path,
             content: data.content,
@@ -546,7 +547,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           if (!response.ok) {
             throw new ApiError(`Failed to fetch git diffs: ${response.status}`, response.status);
           }
-          const diffs: GitDiff[] = await response.json();
+          const diffs: GitDiff[] = unwrapEnvelope(await response.json());
           set({ gitDiffs: diffs, diffsLoading: false });
         } catch (error) {
           set({ gitDiffs: [], diffsLoading: false });
@@ -568,7 +569,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           if (!response.ok) {
             return '';
           }
-          const data = await response.json();
+          const data = unwrapEnvelope(await response.json());
           return data.content || '';
         } catch {
           return '';
@@ -591,7 +592,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           if (!response.ok) {
             throw new ApiError(`Failed to fetch git status: ${response.status}`, response.status);
           }
-          const status: GitStatus = await response.json();
+          const status: GitStatus = unwrapEnvelope(await response.json());
           set({ gitStatus: status });
         } catch {
           set({ gitStatus: null });

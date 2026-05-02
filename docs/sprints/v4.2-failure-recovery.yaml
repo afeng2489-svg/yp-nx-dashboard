@@ -1,0 +1,114 @@
+sprint_id: v4.2
+status: pending
+priority: P1
+estimated_hours: 20
+depends_on: [v4.1]
+
+title: "失败自愈 — 失败→重试→换模型→回滚→通知"
+objective: |
+  AI 代码生成经常失败、幻觉。
+  NexusFlow 自动处理：失败→重试→换模型→回滚→通知，生产可用。
+
+problem: |
+  现在：stage 失败 → 整个 pipeline 停止 → 需要人工介入
+  目标：stage 失败 → 自动重试 → 还失败 → 换更强模型重试
+         → 还失败 → 回滚到执行前状态 → 发通知给用户
+
+remaining_tasks:
+  - id: F1
+    name: 换模型重试策略
+    priority: P0
+    estimated_hours: 6
+    description: |
+      工作流 YAML 支持：
+        on_fail:
+          retry: 2                    # 同模型重试 2 次
+          escalate_model: claude-sonnet-4-6  # 还失败换强模型
+          escalate_retries: 1         # 强模型再试 1 次
+          then: rollback              # 全失败则回滚
+
+      core/workflow/src/engine.rs execute_stage() 修改：
+        失败 → 同模型重试（已有）
+        同模型重试耗尽 → 切换到 escalate_model → 重试
+        escalate 也失败 → 触发 then 动作
+    acceptance:
+      - 同模型失败后自动切换强模型
+      - 切换记录写入执行日志
+      - 前端能看到"已升级模型重试"状态
+
+  - id: F2
+    name: 失败告警通知
+    priority: P0
+    estimated_hours: 4
+    description: |
+      新建 nx_api/src/services/alert_service.rs：
+        支持通知渠道：
+          Telegram（已有 telegram_service，直接复用）
+          系统通知（macOS/Linux desktop notification）
+          前端 WebSocket 推送（已有）
+
+      触发时机：
+        stage 失败超过 max_retries
+        pipeline 整体失败
+        预算超过 80%
+        服务异常重启
+
+      通知内容：
+        哪个 pipeline / stage 失败了
+        失败原因（错误摘要）
+        已重试几次
+        是否已自动回滚
+        一键链接跳转到执行详情
+    acceptance:
+      - stage 失败后 30 秒内收到通知
+      - 通知包含足够信息定位问题
+
+  - id: F3
+    name: 全链路日志追踪
+    priority: P0
+    estimated_hours: 6
+    description: |
+      每次执行生成唯一 trace_id，贯穿整条链路：
+        pipeline → stage → AI调用 → 质量门 → 重试
+
+      日志结构（JSON）：
+        { trace_id, execution_id, stage, model, attempt,
+          prompt_tokens, completion_tokens, duration_ms,
+          status, error, timestamp }
+
+      存入 execution_logs 表，支持：
+        按 trace_id 查完整链路
+        按 status=failed 过滤
+        按 model 分组统计
+
+      前端执行详情页加"日志"tab：
+        时间线视图（每个事件一行）
+        可展开看完整 prompt/response
+        失败事件红色高亮
+    acceptance:
+      - 每次执行有完整的时间线日志
+      - 能追溯到具体哪次 AI 调用失败
+      - 日志可导出
+
+  - id: F4
+    name: 健康检查 + 自动恢复
+    priority: P1
+    estimated_hours: 4
+    description: |
+      后台 watchdog 任务（每 60 秒）：
+        检查所有 running 状态的 execution
+        last_heartbeat 超过 5 分钟 → 标记为 interrupted
+        触发 ResumeService 重新入队
+
+      /health 端点增强：
+        { status, uptime_secs, active_executions,
+          interrupted_executions, db_ok, scheduler_ok }
+    acceptance:
+      - 卡死的执行自动检测并重新入队
+      - /health 返回系统健康状态
+
+quality_gates:
+  - cargo build 通过
+  - stage 失败后自动换模型重试
+  - 失败后收到通知
+  - 执行日志有完整时间线

@@ -1,0 +1,275 @@
+name: ai-self-improvement-v2
+description: |
+  元工作流 — AI 自己改自己的标准流程。
+  输入：一个 sprint 任务卡片 YAML
+  输出：代码改动 + 测试报告 + review 报告 + git commit
+  特性：Git Worktree 隔离 + progress.json 自动追踪 + 模型无关
+
+version: "2.0"
+model_agnostic: true
+
+# ============================================================
+# 模型配置（环境变量切换，任何模型都能跑）
+# ============================================================
+models:
+  planner: ${MODEL_PLANNER:-claude-sonnet-4-6}
+  backend_dev: ${MODEL_DEV:-claude-sonnet-4-6}
+  frontend_dev: ${MODEL_DEV:-claude-sonnet-4-6}
+  tester: ${MODEL_TESTER:-claude-haiku-4-5}
+  reviewer: ${MODEL_REVIEWER:-claude-sonnet-4-6}
+  fallback: ${MODEL_FALLBACK:-claude-haiku-4-5}
+
+input:
+  sprint_card_path: required
+  codebase_path: /Users/Zhuanz/Desktop/yp-nx-dashboard
+
+# ============================================================
+# Pre-flight（开始前的准备工作）
+# ============================================================
+pre_flight:
+  steps:
+    - name: 打安全标签
+      type: shell
+      command: |
+        cd {{codebase_path}}
+        git tag pre-{{sprint_id}} 2>/dev/null || true
+
+    - name: 更新进度状态
+      type: shell
+      command: |
+        # 更新 progress.json: sprint status → in_progress
+        echo "更新 progress.json → tasks[{{sprint_id}}].status = in_progress"
+        echo "更新 progress.json → meta.current_sprint = {{sprint_id}}"
+
+    - name: 创建后端 Worktree
+      type: shell
+      command: |
+        cd {{codebase_path}}
+        mkdir -p .claude/worktrees
+        git worktree add .claude/worktrees/{{sprint_id}}-backend -b feat/{{sprint_id}}-backend 2>/dev/null || echo "worktree already exists"
+
+    - name: 创建前端 Worktree
+      type: shell
+      command: |
+        cd {{codebase_path}}
+        git worktree add .claude/worktrees/{{sprint_id}}-frontend -b feat/{{sprint_id}}-frontend 2>/dev/null || echo "worktree already exists"
+
+# ============================================================
+# Stages
+# ============================================================
+stages:
+  # ---- Stage 1: 架构设计 ----
+  - id: plan
+    name: 架构设计
+    agent: planner
+    worktree: null  # 不需要 worktree，只读分析
+    prompt: |
+      你是架构师。根据任务卡片 {{sprint_card_path}}，输出实现计划：
+
+      1. 涉及哪些文件（新建 + 修改）
+      2. 每个文件改什么（具体到函数/结构体/路由）
+      3. 数据库 schema 变更
+      4. 测试用例列表
+      5. 风险点和注意事项
+      6. 前后端接口契约（API 请求/响应格式）
+
+      输出计划到 docs/sprints/{{sprint_id}}-plan.md。
+
+      完成后必须更新 docs/progress.json：
+      - tasks[{{sprint_id}}].stages[plan].status = "completed"
+      - tasks[{{sprint_id}}].stages[plan].agent = "planner"
+      - tasks[{{sprint_id}}].stages[plan].completed_at = now()
+      - tasks[{{sprint_id}}].stages[plan].outputs = ["docs/sprints/{{sprint_id}}-plan.md"]
+      - tasks[{{sprint_id}}].stages[backend_dev].status = "pending" (解锁)
+      - tasks[{{sprint_id}}].stages[frontend_dev].status = "pending" (解锁)
+
+  # ---- Stage 2a: 后端实现（在独立 worktree） ----
+  - id: backend_dev
+    name: Rust 后端实现
+    agent: backend_dev
+    worktree: .claude/worktrees/{{sprint_id}}-backend
+    depends_on: [plan]
+    prompt: |
+      根据 {{plan_output}} 写后端 Rust 代码，在 worktree 中工作。
+
+      要求：
+      - 通过 cargo build
+      - 通过 cargo clippy -- -D warnings
+      - 通过 cargo fmt
+      - 遵循 rust/coding-style.md（不可变优先、snake_case、anyhow + thiserror）
+      - 遵循 rust/security.md（参数化查询、不暴露内部错误）
+      - 遵循 rust/patterns.md（trait 抽象、newtype、API 响应信封）
+
+      每完成一个文件后 git commit：
+        git add {file}
+        git commit -m "feat({{sprint_id}}): backend — {简要说明}"
+
+      完成后必须更新 docs/progress.json：
+      - tasks[{{sprint_id}}].stages[backend_dev].status = "completed"
+      - tasks[{{sprint_id}}].stages[backend_dev].agent = "{{agent_name}}"
+      - tasks[{{sprint_id}}].stages[backend_dev].completed_at = now()
+      - tasks[{{sprint_id}}].stages[backend_dev].git_commits = ["..."]
+      - tasks[{{sprint_id}}].stages[backend_dev].files_changed = {"added": [...], "modified": [...], "deleted": [...]}
+      - tasks[{{sprint_id}}].progress_pct = 40
+
+    on_fail:
+      logs: "cargo build 或 clippy 失败 → 修复 → 重试"
+
+  # ---- Stage 2b: 前端实现（在独立 worktree，与后端并行） ----
+  - id: frontend_dev
+    name: 前端实现
+    agent: frontend_dev
+    worktree: .claude/worktrees/{{sprint_id}}-frontend
+    depends_on: [plan]
+    parallel: true
+    prompt: |
+      根据 {{plan_output}} 写前端 React/TypeScript 代码，在 worktree 中工作。
+
+      要求：
+      - 通过 npx tsc --noEmit
+      - 遵循不可变模式（useState 返回新对象）
+      - 组件小且专注（<400 行）
+      - 错误处理完善（用户友好的错误提示）
+
+      每完成一个组件后 git commit。
+
+      完成后必须更新 docs/progress.json：
+      - tasks[{{sprint_id}}].stages[frontend_dev].status = "completed"
+      - tasks[{{sprint_id}}].stages[frontend_dev].agent = "{{agent_name}}"
+      - tasks[{{sprint_id}}].stages[frontend_dev].completed_at = now()
+      - tasks[{{sprint_id}}].stages[frontend_dev].git_commits = ["..."]
+      - tasks[{{sprint_id}}].stages[frontend_dev].files_changed = {...}
+      - tasks[{{sprint_id}}].progress_pct = 60
+
+  # ---- Stage 3: 测试 ----
+  - id: test
+    name: 测试
+    agent: tester
+    depends_on: [backend_dev, frontend_dev]
+    prompt: |
+      跑全部测试：
+
+      1. cargo test --bin nx_api
+      2. cargo clippy -- -D warnings
+      3. cd nx_dashboard && npx tsc --noEmit
+
+      输出测试报告到 docs/retro/{{sprint_id}}-test-report.md。
+
+      完成后必须更新 docs/progress.json：
+      - tasks[{{sprint_id}}].stages[test].status = "completed" (或 "failed")
+      - tasks[{{sprint_id}}].stages[test].test_results = {"passed": N, "failed": N, "skipped": N}
+      - tasks[{{sprint_id}}].progress_pct = 80
+
+    on_fail:
+      action: retry
+      max_retries: 3
+      notify_stage: [backend_dev, frontend_dev]
+      update_progress:
+        tasks[{{sprint_id}}].retry_count += 1
+        tasks[{{sprint_id}}].stages[test].logs += "retry #{N}: {error_summary}"
+
+  # ---- Stage 4: Code Review ----
+  - id: review
+    name: Code Review
+    agent: reviewer
+    depends_on: [test]
+    prompt: |
+      Review 所有改动：
+
+      1. 安全检查（secrets、SQL 注入、XSS、输入验证）
+      2. 性能检查（不必要的 clone、N+1 查询）
+      3. 是否符合 acceptance 标准
+      4. 代码质量（命名、结构、错误处理）
+
+      输出 review 报告到 docs/retro/{{sprint_id}}-review.md。
+
+      完成后必须更新 docs/progress.json：
+      - tasks[{{sprint_id}}].stages[review].status = "completed" (或 "failed")
+      - tasks[{{sprint_id}}].stages[review].review_score = N (1-10)
+      - tasks[{{sprint_id}}].progress_pct = 90
+
+    on_fail:
+      action: retry
+      max_retries: 3
+      notify_stage: [backend_dev, frontend_dev]
+
+  # ---- Stage 5: 合并 Worktree + 提交 ----
+  - id: commit
+    name: 合并并提交
+    type: shell
+    depends_on: [review]
+    command: |
+      cd {{codebase_path}}
+
+      # 合并后端 worktree
+      git merge feat/{{sprint_id}}-backend --no-ff -m "feat({{sprint_id}}): merge backend — {{backend_summary}}"
+
+      # 合并前端 worktree
+      git merge feat/{{sprint_id}}-frontend --no-ff -m "feat({{sprint_id}}): merge frontend — {{frontend_summary}}"
+
+      # 清理 worktree
+      git worktree remove .claude/worktrees/{{sprint_id}}-backend
+      git worktree remove .claude/worktrees/{{sprint_id}}-frontend
+      git branch -d feat/{{sprint_id}}-backend feat/{{sprint_id}}-frontend
+
+      # 格式化
+      cargo fmt
+
+      # 记录最终 commit
+      FINAL_COMMIT=$(git rev-parse HEAD)
+
+    post_commit_update: |
+      更新 docs/progress.json：
+      - tasks[{{sprint_id}}].stages[commit].status = "completed"
+      - tasks[{{sprint_id}}].stages[commit].git_commit = FINAL_COMMIT
+      - tasks[{{sprint_id}}].progress_pct = 100
+      - tasks[{{sprint_id}}].completed_at = now()
+
+  # ---- Stage 6: 复盘 ----
+  - id: retro
+    name: 复盘报告
+    agent: reviewer
+    depends_on: [commit]
+    prompt: |
+      生成 sprint 复盘报告 docs/retro/{{sprint_id}}-retro.md：
+      - 是否满足 acceptance？
+      - 有没有引入新 bug？
+      - 代码质量打几分（1-10）？
+      - 学到了什么？
+      - 下次改进什么？
+
+      最终更新：
+      - docs/progress.json: tasks[{{sprint_id}}].status = "completed", summary 更新
+      - docs/PROGRESS.md: sprint 状态 → completed
+      - AI_FACTORY_ROADMAP.md: 对应 sprint → ✅
+
+# ============================================================
+# 全局质量门
+# ============================================================
+quality_gates:
+  - name: rust_build
+    cmd: "cargo build 2>&1"
+    timeout: 300
+  - name: rust_lint
+    cmd: "cargo clippy -- -D warnings 2>&1"
+    timeout: 120
+  - name: rust_test
+    cmd: "cargo test --bin nx_api 2>&1"
+    timeout: 300
+  - name: typescript_check
+    cmd: "cd nx_dashboard && npx tsc --noEmit 2>&1"
+    timeout: 120
+
+# ============================================================
+# 监控指标（每个 stage 自动上报）
+# ============================================================
+metrics:
+  track:
+    - token_usage_per_stage
+    - wall_clock_time_per_stage
+    - retry_count
+    - files_changed_count
+    - test_pass_rate
+    - review_score
+
+  report_to: docs/progress.json  # 所有指标写入 progress.json

@@ -74,22 +74,6 @@ impl SqliteWorkflowRepository {
     /// 创建新的 SQLite 工作流仓储
     pub fn new(db_path: &Path) -> Result<Self, RepositoryError> {
         let conn = Connection::open(db_path)?;
-
-        // 初始化数据库 schema
-        conn.execute_batch(
-            "
-            CREATE TABLE IF NOT EXISTS workflows (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                version TEXT NOT NULL,
-                description TEXT,
-                definition TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            ",
-        )?;
-
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -225,6 +209,13 @@ mod tests {
         path
     }
 
+    fn create_repo() -> (PathBuf, SqliteWorkflowRepository) {
+        let db_path = create_temp_db_path();
+        crate::migrations::run_all(db_path.to_str().unwrap()).unwrap();
+        let repo = SqliteWorkflowRepository::new(&db_path).unwrap();
+        (db_path, repo)
+    }
+
     fn create_test_workflow() -> Workflow {
         Workflow {
             id: uuid::Uuid::new_v4().to_string(),
@@ -243,8 +234,7 @@ mod tests {
 
     #[test]
     fn test_save_and_find_by_id() {
-        let db_path = create_temp_db_path();
-        let repo = SqliteWorkflowRepository::new(&db_path).unwrap();
+        let (db_path, repo) = create_repo();
 
         let workflow = create_test_workflow();
         let saved = repo.save(&workflow).unwrap();
@@ -261,8 +251,7 @@ mod tests {
 
     #[test]
     fn test_find_all() {
-        let db_path = create_temp_db_path();
-        let repo = SqliteWorkflowRepository::new(&db_path).unwrap();
+        let (db_path, repo) = create_repo();
 
         repo.save(&create_test_workflow()).unwrap();
         repo.save(&create_test_workflow()).unwrap();
@@ -275,8 +264,7 @@ mod tests {
 
     #[test]
     fn test_update() {
-        let db_path = create_temp_db_path();
-        let repo = SqliteWorkflowRepository::new(&db_path).unwrap();
+        let (db_path, repo) = create_repo();
 
         let mut workflow = create_test_workflow();
         repo.save(&workflow).unwrap();
@@ -293,8 +281,7 @@ mod tests {
 
     #[test]
     fn test_delete() {
-        let db_path = create_temp_db_path();
-        let repo = SqliteWorkflowRepository::new(&db_path).unwrap();
+        let (db_path, repo) = create_repo();
 
         let workflow = create_test_workflow();
         repo.save(&workflow).unwrap();
@@ -309,8 +296,7 @@ mod tests {
 
     #[test]
     fn test_delete_not_found() {
-        let db_path = create_temp_db_path();
-        let repo = SqliteWorkflowRepository::new(&db_path).unwrap();
+        let (db_path, repo) = create_repo();
 
         let result = repo.delete("non-existent-id");
         assert!(result.is_err());

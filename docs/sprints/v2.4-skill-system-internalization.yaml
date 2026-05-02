@@ -1,0 +1,88 @@
+sprint_id: v2.4
+status: pending
+priority: P1
+estimated_hours: 16
+depends_on: [v2.2]
+
+title: "技能系统内置化 — 不依赖本地 Claude CLI"
+objective: |
+  当前技能读 `.claude/agents/*.md`，依赖用户本地 Claude CLI 环境。
+  没装 Claude = 没技能，换机器 = 技能全丢。
+  本 sprint 将技能定义迁入数据库，产品自带预设技能库，开箱即用。
+
+problem: |
+  skill_service.rs：
+    读 FileSkillRepository → 扫描 .claude/agents/*.md
+    没有预设技能，没有内置库
+    用户必须自己装 Claude CLI + 手动注册 skill
+  结果：新用户体验为零，技能系统形同虚设
+
+remaining_tasks:
+  - id: S1
+    name: 技能存储从文件迁到数据库
+    priority: P0
+    estimated_hours: 4
+    description: |
+      新建 DbSkillRepository 实现：
+        - 技能定义存 SQLite（schema 已有 skills 表）
+        - 支持 CRUD + 搜索 + 按分类查询
+        - 保留 FileSkillRepository 作为导入来源
+      SkillService 优先读数据库，文件系统降级为导入源
+    acceptance:
+      - 技能从数据库读取，不依赖 .claude/agents/ 目录
+      - 删掉 agents 目录后技能列表正常
+      - 现有文件技能可一键导入数据库
+
+  - id: S2
+    name: 内置预设技能库
+    priority: P0
+    estimated_hours: 4
+    description: |
+      创建 presets/ 目录，内置常用技能：
+        - code_review: 代码审查
+        - security_audit: 安全审计
+        - test_writer: 自动写测试
+        - refactor: 代码重构
+        - doc_writer: 文档生成
+        - bug_fixer: Bug 修复
+      首次启动时自动 seed 到数据库（按 is_preset=1 标记）
+    acceptance:
+      - 全新安装后技能列表不为空
+      - 预设技能不可删除，但可禁用
+      - 预设和用户自创建技能在 UI 上有区分
+
+  - id: S3
+    name: 技能导入导出
+    priority: P1
+    estimated_hours: 3
+    description: |
+      支持从 .claude/agents/*.md 导入技能到数据库
+      支持导出技能为 .md 文件（兼容 Claude agents 格式）
+      支持从 URL 或 JSON 导入第三方技能
+    acceptance:
+      - 一键导入本地 agents 目录
+      - 导出格式兼容 Claude agents 规范
+      - 导入失败有清晰错误提示
+
+  - id: S4
+    name: 技能管理 UI
+    priority: P1
+    estimated_hours: 5
+    description: |
+      前端技能管理页面：
+        - 技能列表（分类/搜索/筛选）
+        - 技能详情（参数、代码、使用说明）
+        - 创建/编辑技能（代码编辑器）
+        - 导入/导出操作
+        - 启用/禁用切换
+    acceptance:
+      - UI 可完成技能全生命周期管理
+      - 代码编辑器有语法高亮
+      - 操作反馈清晰（成功/失败提示）
+
+quality_gates:
+  - cargo build 通过
+  - cargo clippy -- -D warnings 无 warning
+  - 新安装后预设技能自动加载
+  - 技能 CRUD 接口测试通过
+  - 前端技能页面功能完整

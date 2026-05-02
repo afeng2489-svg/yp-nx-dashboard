@@ -1,5 +1,6 @@
 //! API 路由
 
+use anyhow::Context;
 use axum::{
     extract::{Path, State},
     routing::{delete, get, post, put},
@@ -29,6 +30,7 @@ use crate::ws::RunCommandWsHandler;
 use crate::ws::TerminalWsHandler;
 use nexus_ai::{AIManagerConfig, AIModelManager, APIConfig, ModelConfig, ProviderType};
 
+pub mod a2ui;
 pub mod ai_config;
 pub mod artifacts;
 pub mod executions;
@@ -363,7 +365,7 @@ fn load_ai_config_from_env() -> AIManagerConfig {
 }
 
 use crate::routes::memory::MemoryState;
-use crate::routes::scheduler::SchedulerState;
+use crate::routes::scheduler::OrchestratorScheduler;
 /// Application state for search
 use crate::routes::search::SearchState;
 
@@ -377,7 +379,7 @@ pub struct AppState {
     pub plugin_service: PluginService,
     pub skill_service: SkillService,
     pub search_state: Arc<SearchState>,
-    pub scheduler_state: Arc<SchedulerState>,
+    pub task_scheduler: Arc<OrchestratorScheduler>,
     pub wisdom_service: SharedWisdomService,
     pub ai_model_manager: Arc<nexus_ai::AIModelManager>,
     pub teams_state: TeamsAppState,
@@ -417,10 +419,12 @@ pub struct AppState {
         Option<Arc<crate::services::team_evolution::TeamEvolutionEventHandler>>,
     /// File watcher (team_evolution P5)
     pub file_watcher: Option<Arc<crate::services::team_evolution::FileWatcher>>,
+    /// A2UI 人机交互服务
+    pub a2ui_service: Arc<crate::a2ui::A2UIService>,
 }
 
 impl AppState {
-    pub fn new(config: &ApiConfig) -> Self {
+    pub fn new(config: &ApiConfig) -> anyhow::Result<Self> {
         // 保存 API 密钥配置用于认证中间件
         let api_key_config = config.api_key.clone();
 
@@ -429,24 +433,27 @@ impl AppState {
 
         tracing::info!("[DB] Using database path: {}", config.db_path);
 
+        // 集中运行所有 schema 迁移，确保表存在
+        crate::migrations::run_all(&config.db_path).context("Failed to run database migrations")?;
+
         // 创建会话仓库和服务
         let session_repo = Arc::new(
             SqliteSessionRepository::new(&config.db_path)
-                .expect("Failed to create session repository"),
+                .context("Failed to create session repository")?,
         );
         let session_service = SessionService::new(session_repo);
 
         // 创建工作区仓库和服务
         let workspace_repo = Arc::new(
             SqliteWorkspaceRepository::new(&config.db_path)
-                .expect("Failed to create workspace repository"),
+                .context("Failed to create workspace repository")?,
         );
         let workspace_service = WorkspaceService::new(workspace_repo);
 
         // 创建工作流仓库和服务
         let workflow_repo = Arc::new(
             SqliteWorkflowRepository::new(config.db_path.as_ref())
-                .expect("Failed to create workflow repository"),
+                .context("Failed to create workflow repository")?,
         );
         let workflow_service = WorkflowService::with_repository(workflow_repo);
 
@@ -458,7 +465,7 @@ impl AppState {
             crate::services::execution_repository::SqliteExecutionRepository::new(
                 std::path::Path::new(&config.db_path),
             )
-            .expect("Failed to create execution repository"),
+            .context("Failed to create execution repository")?,
         );
         let execution_service = ExecutionService::with_repository(execution_repo);
 
@@ -495,13 +502,10 @@ impl AppState {
         // 创建搜索状态
         let search_state = Arc::new(SearchState::new(current_workspace_path.clone()));
 
-        // 创建调度器状态
-        let scheduler_state = Arc::new(SchedulerState::new());
-        scheduler_state.init(Some(execution_service.clone())); // Initialize scheduler with execution service
-
         // 创建 Wisdom 服务
-        let wisdom_service =
-            Arc::new(WisdomService::new(&config.db_path).expect("Failed to create wisdom service"));
+        let wisdom_service = Arc::new(
+            WisdomService::new(&config.db_path).context("Failed to create wisdom service")?,
+        );
 
         // 创建技能服务（文件型，直接读写 .claude/agents/*.md）
         // 优先使用 AGENTS_DIR 环境变量（通过 Tauri app 传递），否则自动查找 workspace root
@@ -510,15 +514,18 @@ impl AppState {
             .unwrap_or_else(|_| resolve_agents_dir());
         tracing::info!("[Skills] Using agents directory: {:?}", agents_dir);
         let skill_service = crate::services::SkillService::with_agents_dir(agents_dir.clone())
-            .expect(&format!(
-                "Failed to create skill service with agents_dir: {:?}",
-                agents_dir
-            ));
+            .with_context(|| {
+                format!(
+                    "Failed to create skill service with agents_dir: {:?}",
+                    agents_dir
+                )
+            })?;
         let skill_service_for_agent = skill_service.clone();
 
         // 创建团队仓库和服务
         let team_repo = Arc::new(
-            SqliteTeamRepository::new(&config.db_path).expect("Failed to create team repository"),
+            SqliteTeamRepository::new(&config.db_path)
+                .context("Failed to create team repository")?,
         );
         let team_service = crate::services::TeamService::new(team_repo);
 
@@ -528,7 +535,7 @@ impl AppState {
         // 创建 AI Provider 仓库和服务
         let provider_repo = Arc::new(
             SqliteProviderRepository::new(&config.db_path)
-                .expect("Failed to create provider repository"),
+                .context("Failed to create provider repository")?,
         );
         let provider_service = Arc::new(ProviderService::new(provider_repo));
 
@@ -559,7 +566,7 @@ impl AppState {
         let memory_state = Arc::new(crate::routes::memory::create_memory_state(
             &memory_db_path,
             None,
-        ));
+        )?);
 
         // 创建团队服务状态（将 memory_state 注入到 agent_team_service）
         let teams_state = TeamsAppState::new_with_agent_and_memory(
@@ -573,7 +580,7 @@ impl AppState {
         // 创建项目仓库和服务
         let project_repo = Arc::new(
             SqliteProjectRepository::new(&config.db_path)
-                .expect("Failed to create project repository"),
+                .context("Failed to create project repository")?,
         );
         let project_service = Arc::new(ProjectService::new(
             project_repo,
@@ -585,17 +592,17 @@ impl AppState {
         // 创建 API 密钥仓库
         let api_key_repo = Arc::new(
             SqliteApiKeyRepository::new(&config.db_path)
-                .expect("Failed to create API key repository"),
+                .context("Failed to create API key repository")?,
         );
 
         // 创建群组讨论服务
         let group_chat_repo = Arc::new(
             SqliteGroupChatRepository::new(&config.db_path)
-                .expect("Failed to create group chat repository"),
+                .context("Failed to create group chat repository")?,
         );
         group_chat_repo
             .init_tables()
-            .expect("Failed to init group chat tables");
+            .context("Failed to init group chat tables")?;
         let group_chat_service = Arc::new(GroupChatService::new(
             group_chat_repo,
             team_service.clone(),
@@ -612,7 +619,7 @@ impl AppState {
         // 创建 Issue 仓储
         let issue_repository = Arc::new(
             SqliteIssueRepository::new(config.db_path.as_ref())
-                .expect("Failed to create issue repository"),
+                .context("Failed to create issue repository")?,
         );
 
         // 创建 Team Evolution 服务（Feature Flag + Pipeline）
@@ -635,7 +642,7 @@ impl AppState {
 
             let db_conn = Arc::new(parking_lot::Mutex::new(
                 rusqlite::Connection::open(&config.db_path)
-                    .expect("Failed to open DB for team_evolution"),
+                    .context("Failed to open DB for team_evolution")?,
             ));
 
             match SqliteFeatureFlagRepository::new(db_conn.clone()) {
@@ -681,7 +688,7 @@ impl AppState {
                     // P4: Resume + CrashDetector + TempCleaner (shared DB conn for checkpoints)
                     let resume_db_conn = Arc::new(parking_lot::Mutex::new(
                         rusqlite::Connection::open(&config.db_path)
-                            .expect("Failed to open DB for resume_service"),
+                            .context("Failed to open DB for resume_service")?,
                     ));
                     let (resume_service, crash_detector, temp_cleaner) = {
                         use crate::services::team_evolution::crash_detector::CrashDetector;
@@ -733,7 +740,17 @@ impl AppState {
             }
         };
 
-        Self {
+        // 创建调度器状态（接入 core/orchestrator）
+        // 放在最后初始化，避免 SQLite 连接冲突
+        let task_scheduler = Arc::new(
+            OrchestratorScheduler::new(&config.db_path)
+                .context("Failed to create orchestrator scheduler")?,
+        );
+        task_scheduler.start_background();
+
+        let a2ui_service = Arc::new(crate::a2ui::A2UIService::new());
+
+        Ok(Self {
             workflow_service,
             execution_service,
             session_service,
@@ -742,7 +759,7 @@ impl AppState {
             plugin_service,
             skill_service,
             search_state,
-            scheduler_state,
+            task_scheduler,
             wisdom_service,
             ai_model_manager,
             teams_state,
@@ -766,13 +783,14 @@ impl AppState {
             temp_cleaner,
             team_evolution_handler: None,
             file_watcher,
-        }
+            a2ui_service,
+        })
     }
 }
 
 /// 创建 API 路由器
-pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
-    let mut app_state = Arc::new(AppState::new(&config));
+pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>)> {
+    let mut app_state = Arc::new(AppState::new(&config)?);
     let app_state_for_router = Arc::clone(&app_state);
 
     // ── Team Evolution: spawn event listener + periodic tasks ──
@@ -1437,10 +1455,15 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         ))
         .with_state(app_state_for_router);
 
+    // A2UI 路由（独立 state，绕过认证）
+    let a2ui_service = app_state.a2ui_service.clone();
+    let a2ui_routes = a2ui::create_a2ui_router(a2ui_service);
+
     // 合并公共路由（健康检查无需认证）
     let app = Router::new()
         .route("/health", get(health::health_check))
-        .merge(api_routes);
+        .merge(api_routes)
+        .merge(a2ui_routes);
 
     // 添加 CORS 中间件
     let app = if config.cors_enabled {
@@ -1453,7 +1476,7 @@ pub fn create_router(config: ApiConfig) -> (Router, Arc<AppState>) {
         app
     };
 
-    (app, app_state)
+    Ok((app, app_state))
 }
 
 /// 终端 WebSocket 处理函数

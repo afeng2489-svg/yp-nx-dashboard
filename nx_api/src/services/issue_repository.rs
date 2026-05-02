@@ -1,9 +1,9 @@
 //! Issue SQLite 仓储
 
 use chrono::Utc;
+use parking_lot::Mutex;
 use rusqlite::{params, Connection, Result as SqliteResult};
 use std::path::Path;
-use std::sync::Mutex;
 use uuid::Uuid;
 
 use crate::models::issue::{
@@ -25,6 +25,8 @@ impl std::fmt::Display for IssueRepositoryError {
     }
 }
 
+impl std::error::Error for IssueRepositoryError {}
+
 impl From<rusqlite::Error> for IssueRepositoryError {
     fn from(e: rusqlite::Error) -> Self {
         IssueRepositoryError::Sqlite(e)
@@ -38,22 +40,6 @@ pub struct SqliteIssueRepository {
 impl SqliteIssueRepository {
     pub fn new(db_path: &Path) -> Result<Self, IssueRepositoryError> {
         let conn = Connection::open(db_path)?;
-
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS issues (
-                id          TEXT PRIMARY KEY,
-                title       TEXT NOT NULL,
-                description TEXT NOT NULL DEFAULT '',
-                status      TEXT NOT NULL DEFAULT 'discovered',
-                priority    TEXT NOT NULL DEFAULT 'medium',
-                perspectives TEXT NOT NULL DEFAULT '[]',
-                solution    TEXT,
-                depends_on  TEXT NOT NULL DEFAULT '[]',
-                created_at  TEXT NOT NULL,
-                updated_at  TEXT NOT NULL
-            );",
-        )?;
-
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -80,7 +66,7 @@ impl SqliteIssueRepository {
     }
 
     pub fn find_all(&self, filter: &IssueFilter) -> Result<Vec<Issue>, IssueRepositoryError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let mut conditions = vec!["1=1"];
         let mut status_val = String::new();
         let mut priority_val = String::new();
@@ -106,7 +92,7 @@ impl SqliteIssueRepository {
     }
 
     pub fn find_by_id(&self, id: &str) -> Result<Issue, IssueRepositoryError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id,title,description,status,priority,perspectives,solution,depends_on,created_at,updated_at FROM issues WHERE id = ?1"
         )?;
@@ -124,7 +110,7 @@ impl SqliteIssueRepository {
         let depends_on =
             serde_json::to_string(&req.depends_on).unwrap_or_else(|_| "[]".to_string());
 
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute(
             "INSERT INTO issues (id,title,description,status,priority,perspectives,solution,depends_on,created_at,updated_at)
              VALUES (?1,?2,?3,'discovered',?4,?5,NULL,?6,?7,?7)",
@@ -140,7 +126,7 @@ impl SqliteIssueRepository {
         self.find_by_id(id)?;
 
         let now = Utc::now().to_rfc3339();
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
 
         if let Some(title) = &req.title {
             conn.execute(
@@ -193,7 +179,7 @@ impl SqliteIssueRepository {
 
     pub fn delete(&self, id: &str) -> Result<(), IssueRepositoryError> {
         self.find_by_id(id)?;
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute("DELETE FROM issues WHERE id=?1", params![id])?;
         Ok(())
     }

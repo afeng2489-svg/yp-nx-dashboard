@@ -1,0 +1,288 @@
+{
+  "meta": {
+    "project": "NexusFlow — AI 软件工厂",
+    "vision": "一个普通开发者，用这个软件就能完成一个完整软件产品的设计、开发、测试、监控",
+    "scope": "单机单用户，不考虑多租户",
+    "codebase": "/Users/Zhuanz/Desktop/yp-nx-dashboard",
+    "tracker_version": "4.1",
+    "last_updated": "2026-05-02T02:00:00+08:00",
+    "current_sprint": "v1.1",
+    "current_stage": "pending",
+    "resume_instruction": "读此文件 → 找 current_sprint → 读 docs/sprints/{id}-*.yaml → 从第一个 pending task 开始"
+  },
+  "summary": {
+    "total_sprints": 23,
+    "completed": 3,
+    "in_progress": 0,
+    "pending": 20,
+    "failed": 0
+  },
+  "architecture": {
+    "layers": {
+      "task_pipeline": "大脑：排队、分配、状态机、审批、重试",
+      "executors": "PTY=看执行过程，CLI=提取干净文本",
+      "git": "审计层：每次执行commit、diff、rollback"
+    },
+    "key_decisions": [
+      "Phase 0 必须先做：修Bug→接orchestrator",
+      "Pipeline dispatch→完成→推进 是生产线心跳",
+      "团队对话改CLI优先，PTY只用于展示",
+      "SQLite单机够用，不迁PostgreSQL",
+      "core/orchestrator已有完整调度器，v0.0.3是接线不是新建"
+    ]
+  },
+  "phases": [
+    {
+      "id": "phase0",
+      "name": "地基",
+      "goal": "系统稳定可用，不崩溃，调度器生产级",
+      "sprints": ["v0.0.1", "v0.0.2", "v0.0.3"]
+    },
+    {
+      "id": "phase1",
+      "name": "生产线核心",
+      "goal": "Pipeline真正跑通+断点续跑+质量门+可观测性",
+      "sprints": ["v1.1", "v1.2", "v1.3", "v1.4"]
+    },
+    {
+      "id": "phase2",
+      "name": "用户体验",
+      "goal": "对话体验好+产物管理完整+项目状态感知+技能系统内置化",
+      "sprints": ["v2.1", "v2.2", "v2.3", "v2.4"]
+    },
+    {
+      "id": "phase3",
+      "name": "功能扩展",
+      "goal": "Git集成+触发器+Token监控+RAG知识库",
+      "sprints": ["v3.1", "v3.2", "v3.3", "v3.4"]
+    },
+    {
+      "id": "phase4",
+      "name": "智能化升级",
+      "goal": "多模型路由+失败自愈+低代码画布+浏览器验证+需求分解+多模态",
+      "sprints": ["v4.1", "v4.2", "v4.3", "v4.4", "v4.5", "v4.6"]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "v0.0.1",
+      "name": "修复关键 Bug — expect崩溃+Mutex混用+数据静默损坏",
+      "status": "completed",
+      "priority": "P0",
+      "estimated_hours": 11,
+      "card_file": "docs/sprints/v0.0.1-critical-bug-fixes.yaml",
+      "why": "16处.expect()在启动路径上，DB文件不存在就整个服务崩溃",
+      "done_when": "cargo build通过 + 删掉DB文件启动报清晰错误不崩溃 + clippy无warning"
+    },
+    {
+      "id": "v0.0.2",
+      "name": "A2UI路由挂载 + 统一API格式 + Docker部署",
+      "status": "completed",
+      "priority": "P0",
+      "estimated_hours": 12,
+      "card_file": "docs/sprints/v0.0.2-deploy-auth-api.yaml",
+      "why": "A2UI路由未挂载导致工作流人机交互全部404；8种API格式前端对接混乱",
+      "done_when": "A2UI端点返回200 + 所有API响应格式统一 + docker-compose up一键启动"
+    },
+    {
+      "id": "v0.0.3",
+      "name": "接入 core/orchestrator — 替换 nx_api/scheduler",
+      "status": "completed",
+      "priority": "P0",
+      "estimated_hours": 6,
+      "card_file": "docs/sprints/v0.0.3-unified-scheduler.yaml",
+      "why": "core/orchestrator已有完整调度器(Cron+优先级+重试+SQLite持久化)，nx_api自己写了个残缺版，两套并存",
+      "done_when": "nx_api/src/scheduler/删除 + 接入core/orchestrator + 重启后排队任务自动恢复"
+    },
+    {
+      "id": "v1.1",
+      "name": "Pipeline 真正跑通 — dispatch→执行→完成→推进",
+      "status": "pending",
+      "priority": "P0",
+      "estimated_hours": 16,
+      "card_file": "docs/sprints/v1.1-pipeline-execution.yaml",
+      "why": "现在pipeline dispatch调用PTY但完成后不回调on_step_completed，进度条永远不动",
+      "done_when": "创建pipeline→start→dispatch→PTY执行完→phase自动推进→前端进度条更新"
+    },
+    {
+      "id": "v1.2",
+      "name": "断点续跑 — Checkpoint真正写入+恢复",
+      "status": "pending",
+      "priority": "P0",
+      "estimated_hours": 12,
+      "card_file": "docs/sprints/v1.2-checkpoint-resume.yaml",
+      "why": "ResumeService表存在但从未写入；服务重启或任务中断后无法从断点继续",
+      "done_when": "任务执行中kill服务→重启→自动检测中断任务→构建续跑prompt→从断点继续"
+    },
+    {
+      "id": "v1.3",
+      "name": "质量门自动化 — 执行→测试→失败重试",
+      "status": "pending",
+      "priority": "P0",
+      "estimated_hours": 20,
+      "card_file": "docs/sprints/v1.3-quality-gate.yaml",
+      "why": "AI写完代码没有自动验证，不知道对不对；质量门是生产线质检环节",
+      "done_when": "stage完成→自动跑cargo test/tsc→失败→错误回喂AI→重试→最多3次→通过才推进"
+    },
+    {
+      "id": "v1.4",
+      "name": "可观测性看板 — 进度+成本+产物",
+      "status": "pending",
+      "priority": "P1",
+      "estimated_hours": 20,
+      "card_file": "docs/sprints/v1.4-observability.yaml",
+      "why": "现在不知道AI在做什么、做到哪了、花了多少钱；生产线必须有仪表盘",
+      "done_when": "实时进度看板+每个stage耗时+token消耗+产物文件列表，一屏看清整条生产线状态"
+    },
+    {
+      "id": "v2.1",
+      "name": "团队对话体验重构 — CLI优先+流式输出",
+      "status": "pending",
+      "priority": "P1",
+      "estimated_hours": 16,
+      "card_file": "docs/sprints/v2.1-chat-experience.yaml",
+      "why": "现在PTY优先导致输出是TUI残留字符，体验极差；应该CLI优先，PTY只用于展示执行过程",
+      "done_when": "团队对话返回干净markdown文本+流式输出+对话历史完整保存"
+    },
+    {
+      "id": "v2.2",
+      "name": "产物管理完整 — 预览+下载+版本对比",
+      "status": "pending",
+      "priority": "P1",
+      "estimated_hours": 20,
+      "card_file": "docs/sprints/v1-S1-artifact-management.yaml",
+      "why": "后端90%完成，前端T1-T4待做；用户需要看到AI生产了什么文件",
+      "done_when": "文件预览(Markdown+代码高亮)+二进制降级+执行列表badge+分页加载"
+    },
+    {
+      "id": "v2.3",
+      "name": "项目状态感知 — AI知道项目做到哪了",
+      "status": "pending",
+      "priority": "P1",
+      "estimated_hours": 24,
+      "card_file": "docs/sprints/v2.3-project-awareness.yaml",
+      "why": "现在每次执行都是无状态的，AI不知道项目当前状态；断点续跑的前提是知道做到哪了",
+      "done_when": "项目有状态快照(哪些模块完成/进行中/失败)+AI执行前自动读取状态+续跑时从正确位置开始"
+    },
+    {
+      "id": "v2.4",
+      "name": "技能系统内置化 — 不依赖本地 Claude CLI",
+      "status": "pending",
+      "priority": "P1",
+      "estimated_hours": 16,
+      "card_file": "docs/sprints/v2.4-skill-system-internalization.yaml",
+      "why": "当前技能读.claude/agents/*.md，没装Claude=没技能，换机器=技能全丢；技能应该是产品内置的，开箱即用",
+      "done_when": "技能定义存数据库+内置预设技能库+首次启动自动seed+UI可创建/编辑/导入技能"
+    },
+    {
+      "id": "v3.1",
+      "name": "Git 集成 — 每stage自动commit+失败回滚",
+      "status": "pending",
+      "priority": "P2",
+      "estimated_hours": 16,
+      "card_file": "docs/sprints/v3.1-git-integration.yaml",
+      "why": "AI修改代码需要版本控制；失败时能回滚到执行前状态",
+      "done_when": "workflow开始创建分支→每stage完成commit→失败可回滚→完成生成PR描述"
+    },
+    {
+      "id": "v3.2",
+      "name": "触发器系统 — Cron+Webhook+链式",
+      "status": "pending",
+      "priority": "P2",
+      "estimated_hours": 8,
+      "card_file": "docs/sprints/v3.2-triggers.yaml",
+      "why": "core/orchestrator已有Cron实现，接线即可；让工作流能自动触发",
+      "done_when": "Cron触发+Webhook触发+工作流A完成自动触发B"
+    },
+    {
+      "id": "v3.3",
+      "name": "Token/Cost 监控",
+      "status": "pending",
+      "priority": "P2",
+      "estimated_hours": 16,
+      "card_file": "docs/sprints/v3.3-token-cost.yaml",
+      "why": "不知道花了多少钱；需要预算控制",
+      "done_when": "实时token计数+每次执行总cost+预算告警+cost dashboard"
+    },
+    {
+      "id": "v3.4",
+      "name": "RAG 知识库 — 文档上传+向量检索+注入prompt",
+      "status": "pending",
+      "priority": "P2",
+      "estimated_hours": 32,
+      "card_file": "docs/sprints/v3.4-rag-knowledge-base.yaml",
+      "why": "AI需要项目特定知识(API文档、设计规范、历史决策)才能做出高质量输出",
+      "done_when": "上传PDF/MD→自动chunk+embedding→工作流stage自动检索相关知识→注入prompt"
+    },
+    {
+      "id": "v4.1",
+      "name": "多模型路由 — 按任务复杂度自动选模型",
+      "status": "pending",
+      "priority": "P1",
+      "estimated_hours": 24,
+      "card_file": "docs/sprints/v4.1-multi-model-routing.yaml",
+      "why": "不被单一厂商锁死；便宜模型干简单活，贵模型干难活；预期降低Token成本60-70%",
+      "done_when": "工作流每个stage可指定不同模型+自动路由规则+UI可配置+成本对比看板"
+    },
+    {
+      "id": "v4.2",
+      "name": "失败自愈 — 失败→重试→换模型→回滚→通知",
+      "status": "pending",
+      "priority": "P1",
+      "estimated_hours": 20,
+      "card_file": "docs/sprints/v4.2-failure-recovery.yaml",
+      "why": "AI代码生成经常失败；生产环境需要自动处理失败，不能每次都人工介入",
+      "done_when": "失败自动换强模型重试+失败告警通知+全链路日志+卡死任务自动恢复"
+    },
+    {
+      "id": "v4.3",
+      "name": "低代码可视化画布 — 拖拽搭建AI流水线",
+      "status": "pending",
+      "priority": "P2",
+      "estimated_hours": 80,
+      "card_file": "docs/sprints/v4.3-visual-canvas.yaml",
+      "why": "不用写YAML，5分钟拖拽搭建流水线；开发者+业务人员都能用；最大差异化竞争点",
+      "done_when": "7种节点类型+YAML双向同步+实时执行状态可视化+5个内置模板"
+    },
+    {
+      "id": "v4.4",
+      "name": "浏览器自动化验证 — AI写完UI自动打开浏览器验证",
+      "status": "pending",
+      "priority": "P1",
+      "estimated_hours": 24,
+      "card_file": "docs/sprints/v4.4-browser-verification.yaml",
+      "why": "AI写完UI代码后无法自动验证效果，需要人工看；闭环写→看→修才能真正无人值守",
+      "done_when": "AI写完前端代码→自动启动浏览器→截图对比→验证交互→失败自动修复→重试"
+    },
+    {
+      "id": "v4.5",
+      "name": "用户需求分解UI — 界面拆需求→AI接棒执行",
+      "status": "pending",
+      "priority": "P1",
+      "estimated_hours": 20,
+      "card_file": "docs/sprints/v4.5-requirement-decomposition.yaml",
+      "why": "用户需要在界面上拆解需求为子任务，可视化管理执行进度，而不是只靠YAML",
+      "done_when": "自然语言输入→AI自动拆解为子任务树→用户可编辑→关联pipeline→实时状态同步"
+    },
+    {
+      "id": "v4.6",
+      "name": "多模态工具链 — 图片/视频/设计稿生成",
+      "status": "pending",
+      "priority": "P2",
+      "estimated_hours": 32,
+      "card_file": "docs/sprints/v4.6-multimodal-toolchain.yaml",
+      "why": "当前只支持文本和代码生成；产品演示、UI设计、营销素材需要图片/视频能力",
+      "done_when": "图片生成(DALL-E/Flux)+设计稿生成+视频生成+多模态产物统一管理"
+    }
+  ],
+  "timeline": [
+    {"date": "2026-04-29", "event": "v1.S1后端完成", "detail": "artifact_tracker/repository/watcher/routes"},
+    {"date": "2026-04-30", "event": "全代码库架构审查", "detail": "发现12类问题，插入v0.0.x阶段"},
+    {"date": "2026-05-01", "event": "全局深度分析+最终计划制定", "detail": "重新排序优先级，以生产线核心能力为主线"},
+    {"date": "2026-05-01", "event": "Phase 4新增", "detail": "多模型路由+失败自愈+低代码画布"},
+    {"date": "2026-05-01", "event": "v0.0.1完成", "detail": "B1-B4完成(expect→Context, Mutex统一, serde去default, tracing), B5跳过(已连接复用), B6完成(schema统一)"},
+    {"date": "2026-05-02", "event": "v0.0.2完成", "detail": "D1 A2UI路由挂载 + D2 统一API信封格式(17个路由文件+10个前端store) + D3 Docker Compose + D4 Migration Runner(17个schema集中管理)"},
+    {"date": "2026-05-02", "event": "Phase 4扩展", "detail": "新增v4.4浏览器自动化验证+v4.5用户需求分解UI+v4.6多模态工具链，覆盖愿景缺口"},
+    {"date": "2026-05-02", "event": "v0.0.3完成", "detail": "接入core/orchestrator TaskScheduler：SQLite持久化+Cron+优先级队列+指数退避重试；删除旧nx_api/scheduler/模块；修复rusqlite Connection Send+Sync问题"}
+  ]
+}

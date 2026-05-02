@@ -104,20 +104,6 @@ impl SqliteWorkspaceRepository {
     /// 创建新的 SQLite 仓库
     pub fn new<P: AsRef<Path>>(db_path: P) -> Result<Self, RepositoryError> {
         let conn = Connection::open(db_path)?;
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS workspaces (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT,
-                owner_id TEXT NOT NULL,
-                root_path TEXT,
-                settings TEXT NOT NULL DEFAULT '{}',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_workspaces_owner ON workspaces(owner_id);
-            CREATE INDEX IF NOT EXISTS idx_workspaces_updated_at ON workspaces(updated_at);",
-        )?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
@@ -127,19 +113,7 @@ impl SqliteWorkspaceRepository {
     #[allow(dead_code)]
     pub fn in_memory() -> Result<Self, RepositoryError> {
         let conn = Connection::open_in_memory()?;
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS workspaces (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT,
-                owner_id TEXT NOT NULL,
-                root_path TEXT,
-                settings TEXT NOT NULL DEFAULT '{}',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_workspaces_owner ON workspaces(owner_id);",
-        )?;
+        conn.execute_batch(crate::migrations::WORKSPACE_SCHEMA)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })

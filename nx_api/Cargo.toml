@@ -68,6 +68,7 @@ notify = "7"
 async-trait.workspace = true
 
 # Internal crates
+nexus-orchestrator = { path = "../core/orchestrator" }
 nexus-workflow = { path = "../core/workflow" }
 nexus-ai = { path = "../core/ai" }
 nexus-code-intel = { path = "../core/code-intel" }

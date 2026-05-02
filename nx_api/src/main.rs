@@ -54,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     tracing::info!("启动 NexusFlow API 服务器...");
-    println!("[STARTUP] NexusFlow API 服务器已启动 (debug logs enabled)"); // NEXUS-DEBUG
+    tracing::info!("[STARTUP] NexusFlow API 服务器已启动 (debug logs enabled)");
 
     // 启动早期解析 Claude CLI 路径：
     // 用户配置（最高优先级）→ 智能搜索 → 写入 CLAUDE_CLI_PATH_OVERRIDE 让 engine.rs 也能读到
@@ -66,10 +66,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("监听地址: {}:{}", config.host, config.port);
 
     // 创建路由器
-    let (app, app_state) = create_router(config.clone());
-
-    // 启动调度器 workers
-    app_state.scheduler_state.start_workers(4);
+    let (app, _app_state) = create_router(config.clone())?;
 
     // 绑定地址
     let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;

@@ -4,13 +4,14 @@
 
 use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
+use serde::Serialize;
 use std::collections::HashMap;
 use tokio::sync::broadcast;
 
 use super::message::{A2UIMessage, InteractiveMessage, U2AMessage};
 
 /// Session state
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum SessionState {
     /// Session is active and waiting for input
     Waiting,
@@ -23,7 +24,7 @@ pub enum SessionState {
 }
 
 /// Interactive session for A2UI
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct A2UISession {
     /// Unique session ID
     pub id: String,

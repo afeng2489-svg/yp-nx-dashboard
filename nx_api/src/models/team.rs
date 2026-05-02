@@ -273,7 +273,6 @@ pub struct TelegramMessageObj {
     pub from: Option<TelegramUser>,
     pub chat: TelegramChat,
     pub text: Option<String>,
-    #[serde(default)]
     pub entities: Vec<TelegramEntity>,
     pub reply_to_message: Option<Box<TelegramMessageObj>>,
 }
@@ -389,7 +388,6 @@ pub struct ExecuteTeamTaskRequest {
     pub task: String,
     pub context: HashMap<String, String>,
     /// If true, automatically confirm without waiting for user input
-    #[serde(default)]
     pub auto_confirm: bool,
 }
 
@@ -424,7 +422,6 @@ pub struct ExecuteRoleTaskResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateTeamRequest {
     pub name: String,
-    #[serde(default)]
     pub description: Option<String>,
 }
 

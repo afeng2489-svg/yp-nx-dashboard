@@ -85,64 +85,9 @@ impl SqliteGroupChatRepository {
     }
 
     pub fn init_tables(&self) -> Result<(), GroupChatRepositoryError> {
-        self.conn.lock().execute_batch(
-            r#"
-            CREATE TABLE IF NOT EXISTS group_sessions (
-                id TEXT PRIMARY KEY,
-                team_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                topic TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'pending',
-                speaking_strategy TEXT NOT NULL DEFAULT 'free',
-                consensus_strategy TEXT NOT NULL DEFAULT 'majority',
-                moderator_role_id TEXT,
-                max_turns INTEGER NOT NULL DEFAULT 10,
-                current_turn INTEGER NOT NULL DEFAULT 0,
-                turn_policy TEXT NOT NULL DEFAULT 'all',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS group_messages (
-                id TEXT PRIMARY KEY,
-                session_id TEXT NOT NULL,
-                role_id TEXT NOT NULL,
-                role_name TEXT NOT NULL,
-                content TEXT NOT NULL,
-                tool_calls TEXT NOT NULL DEFAULT '[]',
-                reply_to TEXT,
-                turn_number INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (session_id) REFERENCES group_sessions(id) ON DELETE CASCADE
-            );
-
-            CREATE TABLE IF NOT EXISTS group_participants (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_id TEXT NOT NULL,
-                role_id TEXT NOT NULL,
-                role_name TEXT NOT NULL,
-                joined_at TEXT NOT NULL,
-                last_spoke_at TEXT,
-                message_count INTEGER NOT NULL DEFAULT 0,
-                FOREIGN KEY (session_id) REFERENCES group_sessions(id) ON DELETE CASCADE,
-                UNIQUE(session_id, role_id)
-            );
-
-            CREATE TABLE IF NOT EXISTS group_conclusions (
-                id TEXT PRIMARY KEY,
-                session_id TEXT NOT NULL UNIQUE,
-                content TEXT NOT NULL,
-                consensus_level REAL NOT NULL DEFAULT 0.0,
-                participant_scores TEXT NOT NULL DEFAULT '{}',
-                agreed_by TEXT NOT NULL DEFAULT '[]',
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (session_id) REFERENCES group_sessions(id) ON DELETE CASCADE
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_group_messages_session ON group_messages(session_id);
-            CREATE INDEX IF NOT EXISTS idx_group_participants_session ON group_participants(session_id);
-            "#,
-        )?;
+        self.conn
+            .lock()
+            .execute_batch(crate::migrations::GROUP_CHAT_SCHEMA)?;
         Ok(())
     }
 }

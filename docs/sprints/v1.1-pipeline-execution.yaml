@@ -1,0 +1,96 @@
+sprint_id: v1.1
+status: pending
+priority: P0
+estimated_hours: 16
+depends_on: [v0.0.3]
+
+title: "Pipeline 真正跑通 — dispatch→执行→完成→推进"
+objective: |
+  现在 pipeline dispatch 调用 PTY 执行，但执行完成后没有回调
+  on_step_completed，进度条永远不动，phase 永远不推进。
+  本 sprint 打通这条链，让生产线的心跳真正跳动。
+
+problem: |
+  routes/pipelines.rs dispatch_pipeline_steps():
+    调用 try_pty_dispatch_pub() → 启动 pty_task_watcher
+    但 pty_task_watcher 完成时只发 AgentExecutionEvent::Completed
+    没有任何代码监听这个事件并调用 pipeline_service.on_step_completed()
+  结果：step 永远停在 dispatched 状态，pipeline phase 永远不推进
+
+remaining_tasks:
+  - id: E1
+    name: pty_task_watcher 完成时回调 pipeline
+    priority: P0
+    estimated_hours: 4
+    description: |
+      修改 try_pty_dispatch_pub()：
+      - 接收可选的 pipeline_id + step_id 参数
+      - 在后台 task 监听 AgentExecutionEvent::Completed
+      - 完成时调用 pipeline_service.on_step_completed(pipeline_id, step_id, result)
+      - 失败时调用 pipeline_service.on_step_failed(pipeline_id, step_id, error)
+    acceptance:
+      - PTY 执行完成 → step 状态变为 completed
+      - pipeline phase 自动推进
+
+  - id: E2
+    name: PTY 执行注册到进程监控
+    priority: P0
+    estimated_hours: 2
+    description: |
+      try_pty_dispatch_pub() 开始时调用：
+        state.teams_state.agent_team_service.register_process(
+          execution_id, team_id, role_name, team_id, task
+        )
+      完成时调用 complete_process()，失败时调用 set_process_status(Failed)
+    acceptance:
+      - GET /api/v1/processes 能看到 PTY 执行的进程
+      - 进程状态实时更新
+
+  - id: E3
+    name: Pipeline 前端进度联动
+    priority: P0
+    estimated_hours: 4
+    description: |
+      前端 pipelineStore 轮询 GET /api/v1/projects/:id/pipeline
+      step 完成时更新进度条
+      phase 推进时高亮当前 phase
+      失败时显示红色 + 错误信息
+    acceptance:
+      - 创建 pipeline → start → dispatch → 前端进度条实时更新
+      - phase 推进时 UI 有明显变化
+
+  - id: E4
+    name: 项目级互斥锁
+    priority: P1
+    estimated_hours: 3
+    description: |
+      AppState 加 project_locks: Arc<DashMap<String, Arc<Mutex<()>>>>
+      try_pty_dispatch_pub 执行前获取 project_id 对应的锁
+      同一个项目同时只允许一个 Claude 进程操作
+      锁超时 30 分钟自动释放（防止死锁）
+    acceptance:
+      - 同一项目并发两个请求 → 第二个等待第一个完成
+      - 不同项目并发 → 互不影响
+
+  - id: E5
+    name: Pipeline 端到端测试
+    priority: P0
+    estimated_hours: 3
+    description: |
+      手动测试完整流程：
+      1. 创建项目 + 团队
+      2. 创建 pipeline
+      3. start pipeline
+      4. dispatch steps
+      5. 验证 PTY 执行
+      6. 验证 step 完成回调
+      7. 验证 phase 推进
+      8. 验证前端进度更新
+    acceptance:
+      - 完整流程跑通，无需人工干预
+
+quality_gates:
+  - cargo build 通过
+  - cargo clippy -- -D warnings 无 warning
+  - pipeline 完整流程端到端测试通过
+  - GET /api/v1/processes 能看到 PTY 进程

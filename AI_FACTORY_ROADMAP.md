@@ -1,61 +1,130 @@
-# AI 软件工厂 + 数字员工平台 — 32 周迭代路线图
+# NexusFlow — AI 软件工厂
 
-> 基于当前系统（NexusFlow / yp-nx-dashboard）演进到企业级 AI 数字员工平台的完整可执行方案。
+> **产品定位**：一个普通开发者，用这个软件就能完成一个完整软件产品的设计、开发、测试、监控。
+> 你描述需求，AI 生产线自动分解→并行执行→自动测试→自动修复→交付可运行代码。
 >
-> 核心原则：**所有改动都让 AI 自己实现，模型无关（claude / gpt / qwen / glm 都能跑）**。
+> **当前阶段**：单机单用户，不考虑多租户。
+> **核心原则**：所有改动都让 AI 自己实现，模型无关（claude / gpt / qwen / glm 都能跑）。
 
+---
+
+## 📊 实时进度
+
+> 详细进度见 [docs/PROGRESS.md](docs/PROGRESS.md) 和 [docs/progress.json](docs/progress.json)。
+> **AI 恢复指令**：找到第一个 ⬜ pending 的 sprint，读对应 `docs/sprints/*.yaml`，开始执行。
+
+### Phase 0 — 地基（必须先做）
+| Sprint | 标题 | 状态 | 估时 |
+|--------|------|------|------|
+| v0.0.1 | 修复关键 Bug（16处expect崩溃+Mutex混用+数据静默损坏） | ✅ done | 11h |
+| v0.0.2 | A2UI路由挂载 + 统一API格式 + Docker部署 | ✅ done | 12h |
+| v0.0.3 | 接入 core/orchestrator（接线，不是新建，6h） | ✅ done | 6h |
+
+### Phase 1 — 生产线核心（这才是"AI工厂"的本质）
+| Sprint | 标题 | 状态 | 估时 |
+|--------|------|------|------|
+| v1.1 | Pipeline真正跑通（dispatch→执行→完成→推进） | ⬜ pending | 16h |
+| v1.2 | 断点续跑（Checkpoint真正写入+恢复） | ⬜ pending | 12h |
+| v1.3 | 质量门自动化（执行→测试→失败重试） | ⬜ pending | 20h |
+| v1.4 | 可观测性看板（进度+成本+产物） | ⬜ pending | 20h |
+
+### Phase 2 — 用户体验
+| Sprint | 标题 | 状态 | 估时 |
+|--------|------|------|------|
+| v2.1 | 团队对话体验重构（CLI优先+流式输出） | ⬜ pending | 16h |
+| v2.2 | 产物管理完整（预览+下载，后端90%完成） | ⬜ pending | 20h |
+| v2.3 | 项目状态感知（AI知道项目做到哪了） | ⬜ pending | 24h |
+
+### Phase 3 — 功能扩展
+| Sprint | 标题 | 状态 | 估时 |
+|--------|------|------|------|
+| v3.1 | Git集成（每stage自动commit+失败回滚） | ⬜ pending | 16h |
+| v3.2 | 触发器系统（Cron+Webhook+链式，core已有实现） | ⬜ pending | 8h |
+| v3.3 | Token/Cost监控 | ⬜ pending | 16h |
+| v3.4 | RAG知识库（文档上传+向量检索+注入prompt） | ⬜ pending | 32h |
+
+### Phase 4 — 智能化升级
+| Sprint | 标题 | 状态 | 估时 |
+|--------|------|------|------|
+| v4.1 | 多模型路由（按复杂度自动选模型，降成本60%） | ⬜ pending | 24h |
+| v4.2 | 失败自愈（失败→重试→换模型→回滚→通知） | ⬜ pending | 20h |
+| v4.3 | 低代码可视化画布（拖拽搭建AI流水线） | ⬜ pending | 80h |
+| v4.4 | 浏览器自动化验证（AI写完UI自动打开浏览器验证） | ⬜ pending | 24h |
+| v4.5 | 用户需求分解UI（界面拆需求→AI接棒执行） | ⬜ pending | 20h |
+| v4.6 | 多模态工具链（图片/视频/设计稿生成） | ⬜ pending | 32h |
+
+**图例**：⬜ pending | 🔄 in_progress | ✅ completed | ❌ failed
+
+### v0.1.S1 剩余任务
+
+| ID | 任务 | 估时 | 优先级 |
+|----|------|------|--------|
+| T1 | 文件预览（Markdown渲染+代码高亮） | 8h | P0 |
+| T2 | 二进制判断+大文件降级展示 | 4h | P0 |
+| T3 | 执行列表产物数量badge | 4h | P1 |
 ---
 
 ## 📑 目录
 
-- [总览](#-总览)
-- [让 AI 自己改自己的核心机制](#-让-ai-自己改自己的核心机制)
-- [v0.x 自用工厂（4 周）](#-v0x-自用工厂4-周)
-- [v1.x 第一个企业客户（6 周）](#-v1x-第一个企业客户6-周)
-- [v2.x 多租户 SaaS（8 周）](#-v2x-多租户-saas8-周)
-- [v3.x 规模化平台（8 周）](#-v3x-规模化平台8-周)
-- [让 AI 跑这套方案的工程实践](#-让-ai-跑这套方案的工程实践)
-- [立即开始的 5 步](#-立即开始的-5-步)
-- [风险点与应对](#-风险点与应对)
+- [产品愿景](#-产品愿景)
+- [架构决策](#-架构决策)
+- [AI 自改代码机制](#-ai-自改代码机制)
+- [Phase 0 — 地基](#-phase-0--地基)
+- [Phase 1 — 生产线核心](#-phase-1--生产线核心)
+- [Phase 2 — 用户体验](#-phase-2--用户体验)
+- [Phase 3 — 功能扩展](#-phase-3--功能扩展)
 - [成功指标](#-成功指标)
 
 ---
 
-## 🎯 总览
+## 🎯 产品愿景
 
-### 起点（v0.0）
+**一个普通开发者，用这个软件就能完成一个完整软件产品的设计、开发、测试、监控。**
 
-| 模块 | 状态 |
+你描述需求 → AI 生产线自动分解 → 并行执行 → 自动测试 → 自动修复 → 交付可运行代码。
+每个步骤可见、可控、可回滚。中断后能从断点继续，不从零开始。
+
+### 现有能力（真实可用）
+
+| 模块 | 状态 | 说明 |
+|------|------|------|
+| PTY 终端面板 | ✅ | xterm.js 实时渲染，真实 PTY |
+| 工作流引擎 | ✅ | stage 顺序执行、条件跳转、重试 |
+| 产物追踪 | ✅ | 每个 stage 前后 diff，后端完整 |
+| AI 配置 | ✅ | 多模型、API key 管理 |
+| Pipeline 数据结构 | ✅ | phase/step/状态机 |
+| Checkpoint 表 | ✅ | 结构存在，未写入 |
+| core/orchestrator | ✅ | 完整调度器，未接入 nx_api |
+
+### 关键缺口（阻断"生产线"定位）
+
+| 缺口 | 影响 |
 |------|------|
-| Workflow 引擎（线性 stages） | ✅ |
-| PTY 终端 + 团队对话 | ✅ |
-| Workspace + 项目管理 | ⚠️ 部分 |
-| Skill / Plugin 框架 | ⚠️ 半残 |
-| SQLite + 单用户 | ⚠️ |
-| Claude CLI 集成 | ✅ |
-| Git / 质量门 / 触发器 / RAG | ❌ |
-| 多租户 / SSO / RBAC / 审计 | ❌ |
-
-### 目标（32 周后）
-
-```
-最终：企业数字员工平台 + 自用 AI 工厂
-  ├─ 给企业卖（按席位 + 私有化部署）
-  └─ 自用 dogfood（团队效率工具）
-```
-
-### 时间线
-
-| 阶段 | 版本 | 时间 | 里程碑 |
-|------|------|------|--------|
-| Phase 1 | **v0.x 自用工厂** | 0-4 周 | 团队 dogfood 可用 |
+| Pipeline dispatch 完成后不回调 | 进度条永远不动 |
+| Checkpoint 从未写入 | 中断后无法续跑 |
+| 无质量门 | AI 写完代码不知道对不对 |
+| 团队对话输出质量差 | PTY 字节流抠文本，体验极差 |
+| Phase 1 | **v0.x 自用工厂** | 2-6 周 | 团队 dogfood 可用 |
 | Phase 2 | **v1.x 第一个客户** | 4-12 周 | 单租户私有部署 |
 | Phase 3 | **v2.x 多租户 SaaS** | 12-24 周 | 商业化运营 |
-| Phase 4 | **v3.x 规模化平台** | 24-32 周 | 多 agent + DAG + 智能调度 |
+---
+
+## 🏗️ 架构决策
+
+```
+TaskPipeline（大脑）→ PTY/CLI（执行手）→ Git（审计层）
+```
+
+| 决策 | 原因 |
+|------|------|
+| PTY 只用于展示，CLI 用于提取文本 | PTY 字节流不适合提取干净文本 |
+| SQLite 单机，不迁 PostgreSQL | 单用户场景够用，迁移成本高 |
+| core/orchestrator 接线不新建 | 调度器已完整实现，只差接入 |
+| Phase 0 必须先做 | 16处崩溃点不修，后面一切不稳定 |
 
 ---
 
-## 🤖 让 AI 自己改自己的核心机制
+## 🤖 AI 自改代码机制
 
 整套方案能跑通的前提是先让当前系统能跑通"AI 改 AI"。这是 **Sprint #0**。
 
@@ -179,539 +248,148 @@ stages:
 
 ---
 
-## 📦 v0.x 自用工厂（4 周）
+## 🔧 Phase 0 — 地基
 
-### v0.1：产物管理（1 周）
+> 详细任务见各 sprint yaml 文件。
 
-#### Sprint 1.1：执行后看到生成了什么文件（3 天）
+### v0.0.1 — 修复关键 Bug（11h）
+- B1: 16处 `.expect()` → `anyhow::Context` + `?`
+- B2: 统一 `parking_lot::Mutex`
+- B3: 删除 DateTime `#[serde(default)]`
+- B4: `println!` → `tracing`（P2）
 
-**核心改动**：
+### v0.0.2 — A2UI路由挂载 + 统一API格式 + Docker部署（✅ done）
+- D1: 挂载 A2UI 路由（工作流人机交互断裂点）✅
+- D2: 统一 API 响应格式 `{ok, data, error}` ✅
+- D3: docker-compose 一键部署 ✅
+- D4: Migration Runner — 17个schema集中管理 ✅
 
-后端新建 `artifact_tracker.rs`：
-
-```rust
-pub fn snapshot_workdir(path: &Path) -> WorkdirSnapshot {
-    // 递归扫描所有文件，记录 path / size / mtime / sha256
-}
-
-pub fn diff_snapshots(before: &Snapshot, after: &Snapshot) -> ArtifactDiff {
-    // 输出 added / modified / deleted 列表
-}
-```
-
-workflow_engine 在每个 stage **前** 拍 snapshot，**后** 算 diff，存入 `artifacts` 表。
-
-**新数据表**：
-
-```sql
-CREATE TABLE artifacts (
-    id TEXT PRIMARY KEY,
-    execution_id TEXT NOT NULL,
-    stage_name TEXT,
-    relative_path TEXT NOT NULL,
-    change_type TEXT,  -- added/modified/deleted
-    size_bytes INT,
-    sha256 TEXT,
-    mime_type TEXT,
-    created_at TEXT,
-    FOREIGN KEY (execution_id) REFERENCES executions(id)
-);
-```
-
-**验收**：跑一次"内容创作"工作流，产物 tab 列出 `PRD.md`、`outline.md` 等。
-
-#### Sprint 1.2：产物 zip 导出 + 大文件支持（2 天）
-
-导出选中文件为 zip，>5MB 文件不预览只显示元信息。
-
-#### Sprint 1.3：产物按 stage 分组 + 版本对比（2 天）
-
-按 stage 分组；同一文件被多 stage 修改时显示版本链；点击查看 diff。
+### v0.0.3 — 接入 core/orchestrator（6h，接线不是新建）（✅ done）
+- P1: nx_api/Cargo.toml 加 nexus-orchestrator 依赖 ✅
+- P2: 替换 AppState 中的 scheduler ✅
+- P3: 删除旧 nx_api/src/scheduler/ ✅
+- P4: 验证重启恢复 ✅
 
 ---
 
-### v0.2：Git 集成（1 周）
+## 🏭 Phase 1 — 生产线核心
 
-#### Sprint 2.1：每 stage 自动 commit（3 天）
+### v1.1 — Pipeline 真正跑通（16h）
+- E1: pty_task_watcher 完成时回调 pipeline
+- E2: PTY 执行注册到进程监控
+- E3: Pipeline 前端进度联动
+- E4: 项目级互斥锁
 
-```yaml
-behavior:
-  - workflow 开始前: 在 working_dir 创建分支 ai-exec-{execution_id}
-  - 每个 stage 完成: git add . && git commit -m "stage: {stage_name}"
-  - workflow 结束: 输出"本次执行涉及 N 个 commit"
-```
+### v1.2 — 断点续跑（12h）
+- R1: 任务开始时写入 checkpoint
+- R2: 执行过程中定期更新 checkpoint
+- R3: 启动时检测中断任务并重新入队
+- R4: 前端显示中断/续跑状态
 
-#### Sprint 2.2：失败回滚 + 分支管理（2 天）
+### v1.3 — 质量门自动化（20h）
+- Q1: 工作流引擎加 quality_gate 支持
+- Q2: 5套内置质量门模板（rust/ts/python/go/docker）
+- Q3: 质量门可视化（通过/失败 chip）
+- Q4: 团队对话质量门
 
-失败时让用户选择"回滚到执行前 / 保留当前 / 创建新分支"。
-
-#### Sprint 2.3：自动生成 PR 描述（2 天）
-
-执行完成后，AI 根据 commit 历史生成一段 PR 描述，复制到剪贴板可直接贴 GitHub。
-
----
-
-### v0.3：质量门（1 周）
-
-#### Sprint 3.1：stage 级 quality gate（4 天）
-
-**Schema 变化**：
-
-```yaml
-quality_gate:
-  checks:
-    - cmd: "cargo test"
-      timeout: 300
-    - cmd: "cargo clippy -- -D warnings"
-  on_fail: retry  # retry | block | continue
-  max_retries: 3
-```
-
-**核心机制**：
-
-```rust
-async fn execute_stage_with_verify(...) {
-    for attempt in 0..max_retries {
-        let agent_output = run_agent(...).await?;
-        let gate_result = run_quality_gate(&stage.quality_gate).await?;
-
-        if gate_result.passed {
-            return Ok(agent_output);
-        }
-
-        // 失败：把错误回喂给下一次执行
-        let retry_prompt = format!(
-            "上次执行失败，错误：\n{}\n请修复",
-            gate_result.errors.join("\n")
-        );
-    }
-    Err(WorkflowError::QualityGateFailed)
-}
-```
-
-#### Sprint 3.2：质量门可视化（2 天）
-
-执行详情页每个 stage 显示"通过/失败"chip，hover 看具体哪条 check 挂了。
-
-#### Sprint 3.3：内置 5 套 quality gate 模板（1 天）
-
-rust / typescript / python / go / docker 五个常用模板，工作流定义里 `quality_gate: rust_default` 可直接复用。
+### v1.4 — 可观测性看板（20h）
+- O1: 实时进度看板（当前 stage + 耗时）
+- O2: Token/Cost 实时显示
+- O3: 产物文件列表完整（T1-T4）
 
 ---
 
-### v0.4：触发器系统（1 周）
+## 🎨 Phase 2 — 用户体验
 
-#### Sprint 4.1：Cron 触发（3 天）
+### v2.1 — 团队对话体验重构（16h）
+- C1: 团队对话改 CLI 优先（删除 PTY 优先逻辑）
+- C2: 流式输出到前端（打字机效果）
+- C3: 对话历史完整保存
+- C4: 确认机制支持多次
+- C5: 修复嵌套 tokio runtime
 
-```yaml
-workflow.triggers:
-  - type: cron
-    expression: "0 9 * * MON"  # 每周一 9 点
-    timezone: "Asia/Shanghai"
-```
+### v2.2 — 产物管理完整（20h）
+- 文件预览（Markdown + 代码高亮）
+- 二进制文件降级显示
+- 执行列表产物 badge
+- 分页加载（>50文件）
 
-后端用 `tokio-cron-scheduler` crate，启动时加载所有 active workflow 的 trigger。
-
-#### Sprint 4.2：Webhook 触发（2 天）
-
-```
-POST /api/v1/triggers/webhook/:workflow_id?secret=xxx
-body 作为 input variables 传入
-```
-
-#### Sprint 4.3：手动 + 链式触发（2 天）
-
-工作流 A 完成时自动触发工作流 B（链式），用 `on_complete: trigger_workflow_id`。
+### v2.3 — 项目状态感知（24h）
+- S1: 项目状态快照（模块级别）
+- S2: AI 执行前自动注入项目状态
+- S3: 项目状态看板 UI
+- S4: 智能续跑提示
 
 ---
 
-### v0.5：Token / Cost 监控（1 周）
+## 🔌 Phase 3 — 功能扩展
 
-#### Sprint 5.1：Token 计数 + 实时显示（3 天）
+### v3.1 — Git 集成（16h）
+- 每 stage 自动 commit
+- 失败回滚（revert/keep/branch）
+- 自动生成 PR 描述
 
-- 用 `claude --output-format stream-json` 拿 usage
-- 累加到 `execution.total_tokens / total_cost_usd`
-- 前端右上角实时显示当次执行 cost
+### v3.2 — 触发器系统（8h，core 已有实现）
+- Cron 触发
+- Webhook 触发
+- 链式触发
 
-#### Sprint 5.2：Token 预算 + 告警（2 天）
+### v3.3 — Token/Cost 监控（16h）
+- Token 计数接入
+- 预算告警
+- Cost Dashboard
 
-每个 workflow 可设 `budget_limit_usd`，超过 80% 告警，超过 100% 自动暂停。
-
-#### Sprint 5.3：Cost dashboard（2 天）
-
-新页面 `/cost`，按天/工作流/agent 分组显示 token 用量曲线（用已装的 recharts）。
-
----
-
-> **v0.x 完成后**：你团队自用一个真正可用的 AI 工厂，能跑闭环。
-
----
-
-## 🏢 v1.x 第一个企业客户（6 周）
-
-### v1.0：邮件接入 + 邮件 Agent（2 周）
-
-#### Sprint 1.0.1：IMAP 接入（4 天）
-
-```yaml
-backend:
-  - 新 service: email_service.rs
-  - lettre 或 imap crate 收 IMAP
-  - 配置：host, port, username, password, ssl
-  - 触发器类型加 "email_received"
-
-trigger_payload: |
-  当收到新邮件时，触发 workflow，input vars:
-    sender, subject, body_text, body_html, attachments[]
-```
-
-#### Sprint 1.0.2：SMTP 发件 + 邮件回复 node（3 天）
-
-工作流 stage 类型 `email_reply`，可回复触发邮件 / 发新邮件。
-
-#### Sprint 1.0.3：第一个邮件 agent demo（3 天）
-
-内置模板"客户咨询自动分类 + 回复"。流程：
-
-```
-收到邮件 → 分类（咨询/投诉/订单）→ 查 KB → 草稿回复 → 等管理员 approve → 发出
-```
-
-#### Sprint 1.0.4：邮件 agent 控制台（2 天）
-
-UI 列出所有未处理邮件 + 状态 + 一键 approve/reject。
+### v3.4 — RAG 知识库（32h）
+- 文档上传 + 向量化（sqlite-vec）
+- 检索 + 注入 prompt
+- 知识库管理 UI
 
 ---
 
-### v1.1：HTTP Node + 工具调用（1 周）
-
-#### Sprint 1.1.1：HTTP node（3 天）
-
-```yaml
-- type: http
-  method: POST
-  url: "{api_base}/customers/{customer_id}"
-  headers:
-    Authorization: "Bearer {api_token}"
-  body: { ... }
-  output_var: customer_data
-```
-
-#### Sprint 1.1.2：内置 5 个常用集成（4 天）
-
-- Slack 发消息
-- 钉钉 / 企业微信 webhook
-- Notion 写入页面
-- GitHub 创建 issue
-- Google Sheets 读写
-
-每个一个独立 plugin，复用 `core/plugin` 已有 trait。
-
----
-
-### v1.2：RAG 知识库（2 周）
-
-#### Sprint 1.2.1：文档上传 + 向量化（4 天）
-
-```yaml
-backend:
-  - 新建 knowledge_base 表 + documents 表 + chunks 表（带 vector 列）
-  - 用 sqlite-vec extension 做向量检索（不需要单独 vector DB）
-  - upload API: 支持 PDF/Word/Markdown，自动 chunk + embedding
-  - embedding 用：OpenAI text-embedding-3-small / BGE-M3 / 本地 ollama
-
-upload_flow:
-  上传 → 解析 → 切块（500 tokens/块）→ embedding → 入库
-```
-
-#### Sprint 1.2.2：检索 + 注入 prompt（3 天）
-
-```yaml
-- id: customer_support
-  rag:
-    knowledge_base_id: kb_001
-    top_k: 5
-    threshold: 0.7
-  prompt: |
-    使用以下知识库上下文回答客户问题：
-    {rag_context}
-
-    问题：{user_question}
-```
-
-#### Sprint 1.2.3：知识库管理 UI（3 天）
-
-`/knowledge-base` 页面：上传 / 删除 / 重新索引 / 测试检索。
-
-#### Sprint 1.2.4：增量更新 + 文件监听（2 天）
-
-监听文件夹，新增/修改自动重新索引。
-
----
-
-### v1.3：结构化审批节点（1 周）
-
-#### Sprint 1.3.1：human_review node（3 天）
-
-升级现有 `user_input`：
-
-```yaml
-- type: human_review
-  reviewers: ["pm@company.com"]
-  required_approvals: 1
-  artifacts_to_review: ["draft.md"]
-  questions: ["内容是否合规？"]
-  timeout_hours: 24
-  on_timeout: escalate  # block / auto_approve / escalate
-  on_reject:
-    feedback_var: rejection_reason
-    retry_stage: 内容生成
-```
-
-#### Sprint 1.3.2：审批 UI + 通知（4 天）
-
-- Dashboard 顶部红点提示待审批
-- 审批页面：产物预览 + 同意/驳回 + 评论
-- Telegram/邮件通知（复用现有 telegram_service）
-
----
-
-### v1.4：私有化打包（1 周）
-
-#### Sprint 1.4.1：docker-compose（3 天）
-
-一键 `docker-compose up` 起整套（nx_api + 前端 + sqlite volume）。
-
-#### Sprint 1.4.2：客户配置导入导出（2 天）
-
-工作流 / 知识库 / agent 配置一键导出 zip，新环境一键导入。
-
-#### Sprint 1.4.3：第一个客户 onboarding doc（2 天）
-
-写一份 30 页 PDF 教客户怎么部署 + 配置 + 运维。
-
----
-
-> **v1.x 完成后**：能给一个具体客户私有部署一套"邮件客服员工"，按席位收费。
-
----
-
-## 🌐 v2.x 多租户 SaaS（8 周）
-
-### v2.0：SSO + 多租户隔离（2 周）
-
-#### Sprint 2.0.1：tenant_id 改造（5 天）
-
-```yaml
-schema_change: |
-  所有业务表加 tenant_id 字段:
-    workflows / executions / agents / knowledge_bases / artifacts ...
-
-  middleware:
-    所有请求从 JWT 拿 tenant_id，自动注入查询 WHERE tenant_id=...
-```
-
-#### Sprint 2.0.2：SSO 接入（5 天）
-
-oauth2 flow 接钉钉 / 企微 / Google Workspace。
-
-#### Sprint 2.0.3：用户邀请 / 团队管理（4 天）
-
-管理员能邀请同事，分配角色。
-
----
-
-### v2.1：RBAC + 审计日志（2 周）
-
-#### Sprint 2.1.1：role / permission 模型（4 天）
-
-```sql
-CREATE TABLE roles (id, tenant_id, name, permissions JSON);
-CREATE TABLE user_roles (user_id, role_id);
-CREATE TABLE audit_logs (
-    id, tenant_id, user_id, action, resource_type, resource_id,
-    before_state JSON, after_state JSON, ip, timestamp
-);
-```
-
-#### Sprint 2.1.2：权限中间件 + UI（5 天）
-
-所有 mutation 检查权限；前端按权限隐藏入口。
-
-#### Sprint 2.1.3：审计日志 UI + 导出（5 天）
-
-`/audit` 页面，按时间/用户/操作过滤；导出 CSV 给合规。
-
----
-
-### v2.2：管理后台（2 周）
-
-#### Sprint 2.2.1：tenant 管理 / 用量监控 / 健康检查（10 天）
-
-超管能看所有 tenant 状态、用量、活跃度、错误率。
-
----
-
-### v2.3：计费系统（2 周）
-
-#### Sprint 2.3.1：计费模型（5 天）
-
-```yaml
-plans:
-  - id: starter
-    price_monthly: 99
-    quotas:
-      max_users: 5
-      max_workflows: 10
-      max_tokens_per_month: 1_000_000
-  - id: pro
-    ...
-  - id: enterprise
-    ... (custom)
-```
-
-#### Sprint 2.3.2：Stripe / 微信支付接入（5 天）
-
-账单 + 自动续费 + 超量提醒。
-
----
-
-## 🚀 v3.x 规模化平台（8 周）
-
-### v3.0：DAG 编排（2 周）
-
-升级 workflow 引擎：
-
-- 节点不只是顺序
-- 支持条件分支：`if {condition} then stage_a else stage_b`
-- 支持循环：`while {condition}`
-- 支持并行+合并：`parallel: [a, b, c] then merge`
-- 支持子工作流：`call: workflow_id`
-
-### v3.1：Multi-Agent 对话（2 周）
-
-新节点类型：
-
-```yaml
-- type: agent_conversation
-  participants:
-    - product_manager
-    - architect
-    - tech_lead
-  topic: "讨论如何实现 X 功能"
-  speaking_strategy: round_robin / free / debate
-  max_turns: 10
-  consensus: majority
-  output_artifact: design_doc.md
-```
-
-> 复用现有 `group_chat_service`！
-
-### v3.2：智能调度（2 周）
-
-- agent 池（同 type 多个并发跑）
-- 负载均衡
-- 优先级队列
-- 失败自动迁移到备用 agent
-
-### v3.3：监控告警（2 周）
-
-- Prometheus exporter
-- Grafana dashboard 模板
-- Sentry 错误告警
-- 自动 RCA（AI 看异常日志生成根因报告）
-
----
-
-## 🛠 让 AI 跑这套方案的工程实践
-
-### 1. 任务卡片库（每个 sprint 一个 yaml）
-
-建立 `docs/sprints/` 目录：
-
-```
-docs/sprints/
-  v0.1-S1-artifact-management.yaml
-  v0.1-S2-zip-export.yaml
-  v0.1-S3-stage-grouping.yaml
-  v0.2-S1-git-auto-commit.yaml
-  ...
-```
-
-每个 yaml 是一个完整任务卡片（前文模板）。
-
-### 2. 元工作流（"改自己"）
-
-定义 `meta-workflow.yaml`，输入是任意 sprint 卡片，跑：
-
-```
-plan → research → design → backend_dev || frontend_dev → test → review → commit → demo
-```
-
-### 3. 模型路由（让任何模型都能跑）
-
-在 `agent` 定义里抽象：
-
-```yaml
-agents:
-  - id: planner
-    model: ${MODEL_PLANNER}    # 环境变量决定，可换
-    fallback_model: ${MODEL_FALLBACK}
-```
-
-环境变量示例：
-
-```bash
-MODEL_PLANNER=claude-opus-4-7        # 高质量计划
-MODEL_DEV=claude-sonnet-4-6          # 中等成本编码
-MODEL_REVIEWER=gpt-4.1               # 不同视角 review
-MODEL_TESTER=qwen-max                # 国产模型成本低
-MODEL_FALLBACK=glm-4
-```
-
-调用层抽象（已有 `nexus_ai` trait），加几个 adapter。
-
-### 4. 进度透明 — 每天一份报告
-
-新建 cron：每天 9 点生成"昨日 sprint 进度报告"邮件给你：
-
-```
-昨日完成：v0.1.S1 artifact-management ✅
-本日进行：v0.1.S2 zip-export
-阻塞：无
-本周累计 commit：23
-本周 token 消耗：$45.2
-```
-
-### 5. 失败兜底 — 永远可回滚
-
-每个 sprint 跑前自动 `git tag pre-{sprint_id}`。失败：
-
-```bash
-git reset --hard pre-{sprint_id}
-```
-
-### 6. Dogfood loop
-
-每个 sprint 完，**让 AI 自己评测**：
-
-- 这次改动是否满足 acceptance？
-- 有没有引入新 bug？
-- 代码质量打几分？
-
-输出加到 `docs/sprints/{sprint_id}-retro.md`。
-
----
-
-## ⚡ 立即开始的 5 步
-
-1. **本周一**：建 `docs/sprints/`，把 v0.1.S1 卡片 yaml 写好
-2. **本周二**：写 `meta-workflow.yaml`，跑通"AI 自己改 ScreenEmu 增加一个测试用例"作为最小验证
-3. **本周三**：跑通 v0.1.S1 全流程，产出 `artifact_tracker.rs`
-4. **本周四 - 周五**：手动 review + 调 prompt + 重跑直到 quality_gate 全过
-5. **下周一**：v0.1.S2 由 AI 全自动完成（你只 approve）
-
-> 成功的标志：**第二周开始你不再写代码，只 approve PR**。
+## 🤖 Phase 4 — 智能化升级
+
+### v4.1 — 多模型路由（24h）
+不被单一厂商锁死，降成本 60-70%：
+- M1: 工作流 YAML 支持 per-stage 模型配置
+- M2: 复杂度自动评估路由器（.rs→Claude，.tsx→MiMo，总结→Qwen）
+- M3: 路由规则配置 UI
+- M4: 成本对比看板
+
+### v4.2 — 失败自愈（20h）
+失败→重试→换模型→回滚→通知，生产可用：
+- F1: 换模型重试策略（同模型失败→自动升级强模型）
+- F2: 失败告警通知（Telegram + 前端推送）
+- F3: 全链路日志追踪（trace_id 贯穿整条链路）
+- F4: 健康检查 + 卡死任务自动恢复
+
+### v4.3 — 低代码可视化画布（80h）
+5 分钟拖拽搭建 AI 流水线，开发者 + 业务都能用：
+- L1: 画布基础框架（React Flow）
+- L2: 7种节点类型（AI调用/代码执行/质量门/条件/HTTP/人工审批/循环）
+- L3: YAML 双向同步（画布↔YAML 实时转换）
+- L4: 实时执行状态可视化（节点动画+token计数+错误高亮）
+- L5: 5个内置模板（全栈开发/Bug修复/代码审查/文档生成/数据处理）
+
+### v4.4 — 浏览器自动化验证（24h）
+AI 写完 UI 代码后自动打开浏览器验证效果，闭环"写→看→修"：
+- B1: Playwright/Puppeteer 集成（Headless Chrome 启动+页面加载）
+- B2: 截图+视觉对比（AI 生成的页面 vs 设计稿/预期）
+- B3: 交互验证（自动点击关键按钮、填写表单、验证跳转）
+- B4: 验证结果回喂 AI（失败截图+错误信息→自动修复→重试）
+
+### v4.5 — 用户需求分解 UI（20h）
+用户在界面上拆需求→AI 接棒执行的完整链路：
+- U1: 需求输入界面（自然语言描述→结构化任务卡片）
+- U2: AI 自动拆解（大需求→子任务树，用户可编辑调整）
+- U3: 任务看板（拖拽排序、优先级、依赖关系可视化）
+- U4: 执行进度绑定（每个子任务关联 pipeline stage，实时状态同步）
+
+### v4.6 — 多模态工具链（32h）
+支持图片/视频/设计稿生成，扩展 AI 工厂的产品形态：
+- MM1: 图片生成接入（DALL-E/Flux/ComfyUI，支持 prompt→图）
+- MM2: 设计稿生成（AI 生成 UI 设计稿，导出 Figma/Sketch 格式）
+- MM3: 视频生成接入（文生视频/图生视频，用于产品演示）
+- MM4: 多模态产物管理（图片/视频/设计稿统一在产物面板展示+预览）
 
 ---
 
@@ -720,116 +398,7 @@ git reset --hard pre-{sprint_id}
 | 风险 | 应对 |
 |------|------|
 | AI 生成代码质量不稳定 | quality_gate 是底线，加 reviewer agent 二次验证 |
-| Token 成本失控 | budget_limit + 每 sprint 预算 + 每天报告盯紧 |
-| 大改 break 现有功能 | 每 sprint 跑全量 e2e；pre-{sprint} tag 兜底 |
-| Prompt 写得不准 | 第一次手动迭代 5 轮 prompt，存模板复用 |
-| 复杂任务 AI hold 不住 | 任务卡片必须切到 1-2 天粒度，太大就拆 |
-| 销售周期长 | 第一个 friendly customer 走 PoC，3 个月内出 ROI |
-| 合规审查 | 等第一个客户给压力再做 SOC2 / ISO27001 |
+| Token 成本失控 | budget_limit + 每 sprint 预算 |
+| 大改 break 现有功能 | 每 sprint 跑全量测试；pre-{sprint} tag 兜底 |
+| 复杂任务 AI hold 不住 | 任务卡片切到 1-2 天粒度，太大就拆 |
 
----
-
-## 📊 成功指标（每周看）
-
-| 指标 | 目标 |
-|------|------|
-| 累计完成 sprint 数 | ≥ 1 / 周 |
-| 自动测试通过率 | > 90% |
-| 平均一个 sprint 工时 | < 8 h |
-| 每个 sprint token 消耗 | < $5 |
-| 每周引入的新 bug | = 0 |
-
----
-
-## 🎯 商业化对标
-
-| 公司 | 模式 | 估值 / 状态 |
-|------|------|-------------|
-| Lindy AI（YC W23） | AI 员工，按席位卖 | 估值 1B+ |
-| Beam AI | 企业 agent 流程自动化 | 估值 1.5B |
-| Adept | 多模态 enterprise agent | 被 Amazon 收购，4B+ |
-| 智谱 GLM Agent / 字节豆包企业版 / 腾讯灵聚 | 国内同类 | 估值各异 |
-
-商业模式：**按席位（agent 数）+ token 用量**，私有化部署另收维护费。
-
----
-
-## 🔑 关键技术决策
-
-### 1. 数据隔离架构
-
-| 方案 | 优点 | 缺点 | 推荐 |
-|------|------|------|------|
-| 共享 DB + tenant_id 字段 | 简单、迁移容易 | 数据泄漏风险高 | ❌ |
-| 每 tenant 独立 schema | 平衡好 | 中等复杂度 | ✅ MVP |
-| 每 tenant 独立 DB instance | 最安全 | 运维成本高 | ⚠️ 大客户 |
-
-### 2. 私有化 vs SaaS
-
-```
-SaaS（你托管）：客户上传数据 → 你提供服务
-  ✅ 部署一份养所有客户
-  ❌ 企业不接受，数据合规过不去
-
-私有化（客户自部署）：docker-compose 一键起
-  ✅ 数据不出客户网络，企业必选
-  ❌ 每个客户单独维护版本
-
-混合（推荐）：
-  - 中小企业用 SaaS
-  - 大企业（年付 50w+）私有化
-```
-
-### 3. 模型策略
-
-```
-默认：OpenAI / Anthropic API（用客户自己的 key）
-可选：Azure OpenAI（合规友好）
-高端：私有部署 Llama / Qwen / GLM（数据完全不出网）
-```
-
----
-
-## 📂 附录：项目目录结构演进
-
-```
-yp-nx-dashboard/
-├─ docs/
-│  ├─ sprints/              # 每个 sprint 的任务卡片 yaml（v0.x 起）
-│  └─ retro/                # 每个 sprint 的复盘报告
-├─ workflows/
-│  ├─ meta/
-│  │  └─ ai-self-improvement.yaml   # 元工作流
-│  └─ templates/
-│     ├─ email-customer-support.yaml  # v1.0 起
-│     ├─ rag-faq-bot.yaml              # v1.2 起
-│     └─ full-sdlc.yaml                # v3.x 起
-├─ core/
-│  ├─ workflow/             # 现有，逐步增强
-│  ├─ artifact/             # v0.1 新增
-│  ├─ trigger/              # v0.4 新增
-│  ├─ rag/                  # v1.2 新增
-│  └─ tenant/               # v2.0 新增
-├─ nx_api/                  # 现有
-├─ nx_dashboard/            # 现有
-└─ deploy/
-   ├─ docker-compose.yml    # v1.4 新增
-   ├─ k8s/                  # v2.x 新增
-   └─ helm/                 # v3.x 新增（大客户）
-```
-
----
-
-## 📝 文档维护
-
-本路线图按版本节奏更新：
-
-- 每完成一个 sprint，标记 ✅ + 链接到 retro 报告
-- 每月底 review 路线图，根据实际进展调整
-- 收到客户反馈时插入新 sprint，标记 `[customer-driven]`
-
----
-
-**最后更新**：2026-04-29  
-**当前版本**：v0.0（基线）  
-**下一个里程碑**：v0.1 自用工厂 — 产物管理（4 周内）

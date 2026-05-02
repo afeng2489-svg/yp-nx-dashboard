@@ -50,24 +50,6 @@ impl SqliteProjectRepository {
             conn.execute("ALTER TABLE projects ADD COLUMN workspace_id TEXT", []);
         // Ignore error - column might already exist
 
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS projects (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT NOT NULL DEFAULT '',
-                team_id TEXT NOT NULL,
-                workspace_id TEXT,
-                workflow_id TEXT,
-                variables TEXT NOT NULL DEFAULT '{}',
-                status TEXT NOT NULL DEFAULT 'pending',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_projects_team ON projects(team_id);
-            CREATE INDEX IF NOT EXISTS idx_projects_workspace ON projects(workspace_id);
-            CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
-            CREATE INDEX IF NOT EXISTS idx_projects_updated_at ON projects(updated_at);",
-        )?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
@@ -76,22 +58,7 @@ impl SqliteProjectRepository {
     #[allow(dead_code)]
     pub fn in_memory() -> Result<Self, RepositoryError> {
         let conn = Connection::open_in_memory()?;
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS projects (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT NOT NULL DEFAULT '',
-                team_id TEXT NOT NULL,
-                workspace_id TEXT,
-                workflow_id TEXT,
-                variables TEXT NOT NULL DEFAULT '{}',
-                status TEXT NOT NULL DEFAULT 'pending',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_projects_team ON projects(team_id);
-            CREATE INDEX IF NOT EXISTS idx_projects_workspace ON projects(workspace_id);",
-        )?;
+        conn.execute_batch(crate::migrations::PROJECT_SCHEMA)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })

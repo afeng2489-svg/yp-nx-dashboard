@@ -1,0 +1,105 @@
+sprint_id: v0.0.1
+version: "0.0"
+status: completed
+priority: P0
+estimated_days: 4
+actual_days: 1
+started_at: "2026-05-01"
+completed_at: "2026-05-01"
+assigned_model: null
+
+title: "修复关键 Bug — 消除 16 处崩溃 + 统一 Mutex + 显式错误"
+objective: |
+  把 16 处 `.expect()` 替换为 `anyhow::Context` + `?` 传播，
+  统一所有 Mutex 为 `parking_lot::Mutex`，
+  修复 DateTime/serde_json 静默 fallback。
+
+# ============================================================
+# 已完成任务
+# ============================================================
+remaining_tasks:
+  - id: B1
+    name: 替换 16 处 .expect() 崩溃点
+    priority: P0
+    estimated_hours: 4
+    status: completed
+    description: |
+      文件范围：routes/mod.rs (435-684) 等
+      替换模式：.expect("xxx") → .context("xxx")?
+      函数签名加 anyhow::Result 返回类型
+      main() 统一处理最终错误
+    acceptance:
+      - cargo build 通过
+      - 故意删掉 DB 文件启动 → 不 panic，报清晰错误
+      - grep -r '\.expect(' nx_api/src/ 返回 0（业务层）
+
+  - id: B2
+    name: 统一 Mutex 为 parking_lot::Mutex
+    priority: P0
+    estimated_hours: 2
+    status: completed
+    description: |
+      execution_repository.rs 用 std::sync::Mutex，
+      其他模块用 parking_lot::Mutex，
+      跨 crate 传递时可能 panic。
+      统一为 parking_lot::Mutex。
+    acceptance:
+      - cargo clippy 无 warning
+      - grep -r 'std::sync::Mutex' nx_api/src/ 返回 0
+
+  - id: B3
+    name: 删除 DateTime/serde_json 静默 default
+    priority: P0
+    estimated_hours: 3
+    status: completed
+    description: |
+      所有 models/ 下的 struct，去掉 #[serde(default)]
+      缺字段时直接反序列化失败，上层显式报错
+    acceptance:
+      - 发送缺少必填字段的 JSON → 返回 400 而非静默使用默认值
+
+  - id: B4
+    name: println! 替换为 tracing
+    priority: P1
+    estimated_hours: 2
+    status: completed
+    description: |
+      全局搜索 println! → 替换为 tracing::info!/error!/warn!
+    acceptance:
+      - grep -r 'println!' nx_api/src/ 返回 0（测试除外）
+
+  - id: B5
+    name: 数据库连接池
+    priority: P1
+    estimated_hours: 4
+    status: skipped
+    description: |
+      当前每条 SQL 打开/关闭连接
+      引入 r2d2-sqlite 或 sqlx pool
+    skip_reason: |
+      当前已使用 Arc<Mutex<Connection>> 连接复用模式，
+      每个 Repository 持有单一连接，非"每条SQL开关连接"。
+      实际需要的是连接池，但当前单机单用户场景够用。
+    acceptance:
+      - 并发查询性能提升 > 50%
+
+  - id: B6
+    name: 统一测试/生产 schema
+    priority: P1
+    estimated_hours: 3
+    status: completed
+    description: |
+      抽取 const SCHEMA 字符串，测试和生产走同一套建表逻辑。
+      涉及：team_repository, session_repository, workspace_repository,
+      project_repository, api_key_repository 共 5 个仓库。
+      修复了 in_memory() 缺少索引和外键的问题。
+    acceptance:
+      - 测试 schema 包含所有索引和外键
+      - cargo build 通过
+      - 所有仓库测试通过
+
+quality_gates:
+  - cargo build 通过
+  - cargo test --lib -p nx_api 全过
+  - grep -r '\.expect(' nx_api/src/ 返回 0（除测试）
+  - grep -r 'std::sync::Mutex' nx_api/src/ 返回 0

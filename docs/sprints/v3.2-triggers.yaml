@@ -1,0 +1,57 @@
+sprint_id: v3.2
+status: pending
+priority: P2
+estimated_hours: 8
+depends_on: [v3.1]
+
+title: "触发器系统 — Cron+Webhook+链式"
+objective: |
+  core/orchestrator 已有 Cron 实现，接线即可。
+  让工作流能自动触发，不需要人工点击。
+
+remaining_tasks:
+  - id: T1
+    name: Cron 触发接线
+    priority: P0
+    estimated_hours: 2
+    description: |
+      core/orchestrator/scheduler.rs 已有 add_scheduled_job()
+      工作流 YAML 支持：
+        triggers:
+          - type: cron
+            expression: "0 9 * * 1-5"
+      服务启动时加载所有 active workflow 的 cron trigger
+      触发时通过 TaskScheduler.enqueue() 入队
+    acceptance:
+      - 配置 cron 的工作流在指定时间自动执行
+
+  - id: T2
+    name: Webhook 触发
+    priority: P1
+    estimated_hours: 3
+    description: |
+      新路由：POST /api/v1/triggers/webhook/:workflow_id?secret=xxx
+      body 作为 input variables 传入工作流
+      secret 在工作流配置里设置，验证防止未授权触发
+    acceptance:
+      - curl POST 触发工作流执行
+      - secret 不对返回 401
+
+  - id: T3
+    name: 链式触发
+    priority: P2
+    estimated_hours: 3
+    description: |
+      工作流 YAML 支持：
+        on_complete:
+          trigger_workflow: workflow_b_id
+          pass_output: true
+      工作流 A 完成时自动触发工作流 B，A 的输出作为 B 的 input
+    acceptance:
+      - 工作流 A 完成后自动触发 B
+      - B 能读取 A 的输出
+
+quality_gates:
+  - cargo build 通过
+  - Cron 触发在指定时间执行
+  - Webhook 触发返回 200

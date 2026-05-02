@@ -184,15 +184,6 @@ impl SqliteApiKeyRepository {
     /// 创建新的 SQLite 仓库
     pub fn new<P: AsRef<Path>>(db_path: P) -> Result<Self, ApiKeyRepositoryError> {
         let conn = Connection::open(db_path)?;
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS api_keys (
-                id TEXT PRIMARY KEY,
-                provider TEXT NOT NULL UNIQUE,
-                encrypted_key TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_api_keys_provider ON api_keys(provider);",
-        )?;
 
         // 使用机器特定的密钥（实际应用应该从安全存储获取）
         let encryption_key = std::env::var("NEXUS_ENCRYPTION_KEY")
@@ -208,14 +199,7 @@ impl SqliteApiKeyRepository {
     #[allow(dead_code)]
     pub fn in_memory() -> Result<Self, ApiKeyRepositoryError> {
         let conn = Connection::open_in_memory()?;
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS api_keys (
-                id TEXT PRIMARY KEY,
-                provider TEXT NOT NULL UNIQUE,
-                encrypted_key TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );",
-        )?;
+        conn.execute_batch(crate::migrations::API_KEY_SCHEMA)?;
         let encryption_key = "test-encryption-key".to_string();
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),

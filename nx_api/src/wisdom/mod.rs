@@ -267,9 +267,17 @@ impl WisdomService {
 mod tests {
     use super::*;
 
+    fn test_service() -> WisdomService {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test_wisdom.db");
+        Box::leak(Box::new(dir));
+        crate::migrations::run_all(path.to_str().unwrap()).unwrap();
+        WisdomService::new(&path).unwrap()
+    }
+
     #[test]
     fn test_add_and_get() {
-        let service = WisdomService::new(":memory:").unwrap();
+        let service = test_service();
 
         let request = CreateWisdomRequest {
             category: WisdomCategory::Learning,
@@ -291,7 +299,7 @@ mod tests {
 
     #[test]
     fn test_query_by_category() {
-        let service = WisdomService::new(":memory:").unwrap();
+        let service = test_service();
 
         service
             .add(CreateWisdomRequest {
@@ -322,7 +330,7 @@ mod tests {
 
     #[test]
     fn test_categories() {
-        let service = WisdomService::new(":memory:").unwrap();
+        let service = test_service();
 
         for _ in 0..3 {
             service
@@ -343,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_invalid_request() {
-        let service = WisdomService::new(":memory:").unwrap();
+        let service = test_service();
 
         let result = service.add(CreateWisdomRequest {
             category: WisdomCategory::Learning,
@@ -363,7 +371,7 @@ mod tests {
 
     #[test]
     fn test_capture_methods() {
-        let service = WisdomService::new(":memory:").unwrap();
+        let service = test_service();
 
         let entry = service
             .capture_learning(

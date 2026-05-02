@@ -1,0 +1,72 @@
+sprint_id: v0.0.3
+status: completed
+priority: P0
+estimated_hours: 6
+depends_on: [v0.0.2]
+
+title: "接入 core/orchestrator — 替换 nx_api/scheduler"
+objective: |
+  core/orchestrator/src/scheduler.rs 已有完整调度器（1134行）：
+  Cron + 优先级队列 + 指数退避重试 + SQLite持久化。
+  nx_api/src/scheduler/ 是残缺的内存版本，两套并存。
+  本 sprint 是接线，不是新建，估时 6h。
+
+key_insight: |
+  nx_api/Cargo.toml 没有声明 nexus-orchestrator 依赖。
+  只需：加依赖 → 替换调用点 → 删旧 scheduler/ → 验证。
+
+remaining_tasks:
+  - id: P1
+    name: 加 nexus-orchestrator 依赖
+    priority: P0
+    estimated_hours: 0.5
+    description: |
+      nx_api/Cargo.toml 加：
+        nexus-orchestrator = { path = "../core/orchestrator" }
+    acceptance:
+      - cargo build 通过
+
+  - id: P2
+    name: 替换 AppState 中的 scheduler
+    priority: P0
+    estimated_hours: 3
+    description: |
+      routes/mod.rs 中：
+      - 删除 use crate::scheduler::*
+      - 改用 nexus_orchestrator::TaskScheduler
+      - AppState.scheduler_state 改为 Arc<TaskScheduler>
+      - 初始化时调用 scheduler.init_database(&config.db_path)
+      routes/scheduler.rs 的 handler 改用新 TaskScheduler API
+    acceptance:
+      - 服务启动正常
+      - GET /api/v1/tasks 返回正确数据
+
+  - id: P3
+    name: 删除旧 nx_api/src/scheduler/
+    priority: P0
+    estimated_hours: 0.5
+    description: |
+      删除 nx_api/src/scheduler/ 目录（mod.rs/queue.rs/task.rs/worker.rs）
+      确保没有残留引用
+    acceptance:
+      - cargo build 无 unused import warning
+
+  - id: P4
+    name: 验证重启恢复
+    priority: P0
+    estimated_hours: 2
+    description: |
+      手动测试：
+      1. 创建几个任务
+      2. kill 服务
+      3. 重启
+      4. 验证任务从 SQLite 恢复，状态正确
+    acceptance:
+      - 重启后排队任务自动恢复
+      - Cron 任务下次触发时间正确计算
+
+quality_gates:
+  - cargo build 通过
+  - cargo clippy -- -D warnings 无 warning
+  - GET /api/v1/tasks 返回 200
+  - 重启后任务状态从 SQLite 恢复

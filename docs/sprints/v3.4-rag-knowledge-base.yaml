@@ -1,0 +1,70 @@
+sprint_id: v3.4
+status: pending
+priority: P2
+estimated_hours: 32
+depends_on: [v3.3]
+
+title: "RAG 知识库 — 文档上传+向量检索+注入prompt"
+objective: |
+  AI 需要项目特定知识（API文档、设计规范、历史决策）才能做出高质量输出。
+  用 sqlite-vec 做向量检索，不需要单独的向量数据库。
+
+remaining_tasks:
+  - id: K1
+    name: 文档上传+向量化
+    priority: P0
+    estimated_hours: 12
+    description: |
+      新建表：knowledge_bases, documents, chunks（带 vector 列）
+      用 sqlite-vec extension 做向量检索
+      上传 API：支持 PDF/Word/Markdown
+      自动 chunk（500 tokens/块）+ embedding
+      embedding 用 OpenAI text-embedding-3-small 或本地 ollama
+    acceptance:
+      - 上传 Markdown 文件后能检索到内容
+      - chunk 大小合理
+
+  - id: K2
+    name: 检索+注入 prompt
+    priority: P0
+    estimated_hours: 8
+    description: |
+      工作流 YAML 支持：
+        rag:
+          knowledge_base_id: kb_001
+          top_k: 5
+          threshold: 0.7
+      stage 执行前自动检索相关知识，注入 prompt
+    acceptance:
+      - stage prompt 包含检索到的知识
+      - 相关性阈值过滤无关内容
+
+  - id: K3
+    name: 知识库管理 UI
+    priority: P1
+    estimated_hours: 8
+    description: |
+      新页面 /knowledge-base：
+        上传文件（拖拽）
+        文件列表（名称/大小/状态/chunk数）
+        删除/重新索引
+        测试检索（输入问题，看返回哪些 chunk）
+    acceptance:
+      - 能上传文件并看到索引状态
+      - 测试检索功能正常
+
+  - id: K4
+    name: 增量更新
+    priority: P2
+    estimated_hours: 4
+    description: |
+      监听 working_dir 下的文档变化
+      新增/修改文件自动重新索引
+      删除文件自动清理 chunks
+    acceptance:
+      - 修改文件后 5 秒内自动重新索引
+
+quality_gates:
+  - cargo build 通过
+  - 上传文件后能检索到内容
+  - /knowledge-base 页面正常加载

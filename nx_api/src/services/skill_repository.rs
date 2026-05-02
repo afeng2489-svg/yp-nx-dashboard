@@ -54,48 +54,9 @@ impl SqliteSkillRepository {
     /// 创建新的仓储实例
     pub fn new(db_path: &str) -> Result<Self, SkillRepositoryError> {
         let conn = Connection::open(Path::new(db_path))?;
-        let repo = Self {
+        Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
-        };
-        repo.init_table()?;
-        Ok(repo)
-    }
-
-    /// 初始化表结构
-    fn init_table(&self) -> Result<(), SkillRepositoryError> {
-        let conn = self.conn.lock();
-        conn.execute(
-            r#"
-            CREATE TABLE IF NOT EXISTS skills (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT,
-                category TEXT NOT NULL,
-                version TEXT DEFAULT '1.0.0',
-                author TEXT,
-                tags TEXT DEFAULT '[]',
-                parameters TEXT DEFAULT '[]',
-                code TEXT,
-                is_preset INTEGER DEFAULT 0,
-                enabled INTEGER DEFAULT 1,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )
-            "#,
-            [],
-        )?;
-
-        // 创建索引
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_skills_category ON skills(category)",
-            [],
-        )?;
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_skills_is_preset ON skills(is_preset)",
-            [],
-        )?;
-
-        Ok(())
+        })
     }
 
     /// 检查技能是否存在
@@ -409,9 +370,11 @@ mod tests {
     use super::*;
 
     fn create_test_repo() -> SqliteSkillRepository {
-        // Use in-memory SQLite to avoid "readonly database" errors caused by
-        // TempDir being dropped before the test finishes.
-        SqliteSkillRepository::new(":memory:").unwrap()
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test_skill.db");
+        Box::leak(Box::new(dir));
+        crate::migrations::run_all(path.to_str().unwrap()).unwrap();
+        SqliteSkillRepository::new(path.to_str().unwrap()).unwrap()
     }
 
     #[test]

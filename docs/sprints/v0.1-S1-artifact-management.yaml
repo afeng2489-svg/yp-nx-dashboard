@@ -1,0 +1,158 @@
+sprint_id: v0.1.S1
+status: pending
+note: "此 sprint 已合并到 v1.4-observability.yaml (O3任务)，后端90%完成，前端T1-T4待做"
+priority: P1
+estimated_hours: 20
+actual_days: null
+started_at: 2026-04-29
+completed_at: null
+assigned_model: null
+
+title: "产物管理 — 让用户看到工作流跑出了什么文件"
+objective: |
+  跑完一次 workflow execution 后，前端能看到该次执行新增/修改的所有文件，
+  支持预览、下载、差异对比。
+
+# ============================================================
+# 实际进度（2026-04-30 盘点）
+# ============================================================
+actual_progress:
+  backend: "90% — tracker/repository/routes/watcher 均已实现并注册"
+  frontend: "30% — ArtifactsPanel 骨架存在但只有文件列表，缺预览/下载/分页/diff"
+  tests: "50% — Rust 后端有测试，前端无测试"
+
+# ============================================================
+# 已完成的交付物
+# ============================================================
+completed:
+  backend:
+    - file: nx_api/src/services/artifact_tracker.rs ✅
+      note: snapshot_workdir / diff_snapshots 已实现
+    - file: nx_api/src/services/artifact_repository.rs ✅
+      note: SQLite 持久化 + 批量插入
+    - file: nx_api/src/services/artifact_watcher.rs ✅
+      note: StageWatcher trait 实现，自动在 stage 前后拍快照
+    - file: nx_api/src/routes/artifacts.rs ✅
+      note: 3 个端点已注册（list/summary/file）
+    - db_table: artifacts ✅
+    - integration: workflow_engine 已注册 ArtifactStageWatcher ✅
+  frontend:
+    - component: ArtifactsPanel.tsx ⚠️ (骨架)
+      done:
+        - 文件列表展示
+        - 按 stage 分组折叠
+        - stage 过滤
+        - 变更类型图标 (added/modified/deleted)
+        - loading/error/empty 状态
+      missing:
+        - Markdown/代码文件预览
+        - 二进制文件判断 + 降级展示
+        - zip 导出下载
+        - 分页加载 (>50 文件)
+        - diff 版本对比
+        - 独立页面入口（当前只能在弹窗 tab 看到）
+    - page: ExecutionsPage.tsx ✅ (产物 tab 已添加)
+
+# ============================================================
+# 剩余工作（4 个 task，估 4-5 天）
+# ============================================================
+remaining_tasks:
+  - id: T1
+    name: 文件预览功能
+    priority: P0
+    estimated_hours: 8
+    description: |
+      点击文件 → 弹出预览面板
+      - Markdown 文件 (.md) → 渲染为 HTML 展示
+      - 代码文件 (.rs/.ts/.tsx/.py/.go/.json/.yaml) → 语法高亮
+      - 文本文件 → 纯文本展示
+      - 二进制文件 → 显示 "[二进制文件] N MB" 不预览
+      - 大文件 >5MB → 不加载内容，只显示元信息 + "下载查看"
+    backend: |
+      新增 GET /api/v1/executions/:id/artifacts/:path/preview
+      返回 { ok, data: { content, mime_type, size_bytes, is_binary, truncated } }
+    frontend: |
+      ArtifactsPanel 增加 onClick → PreviewModal
+      用 react-markdown 渲染 .md
+      用 prism 或 highlight.js 做代码高亮
+
+  - id: T2
+    name: 二进制判断 + 大文件降级
+    priority: P0
+    estimated_hours: 4
+    description: |
+      根据文件扩展名和 MIME type 判断是否二进制
+      二进制文件在列表中显示 🗄 图标 + 文件大小 + "[二进制文件]" 标签
+      >5MB 文本文件也不加载内容，只显示元信息 + "下载查看"
+    backend: |
+      artifact_tracker 增加 detect_mime_type(path) 函数
+      返回 MIME type 和 is_binary 标志
+
+  - id: T3
+    name: 执行列表产物数量 badge
+    priority: P1
+    estimated_hours: 4
+    description: |
+      ExecutionsPage 执行列表每行显示产物数量 badge
+      如 "📦 12" 表示该次执行产生了 12 个产物
+      点击 badge 直接打开详情弹窗的产物 tab
+
+  - id: T4
+    name: 分页加载
+    priority: P2
+    estimated_hours: 4
+    description: |
+      后端 API 支持 ?page=1&limit=50
+      前端 ArtifactsPanel 底部 "加载更多" 按钮
+      总数超过 50 时显示 "显示 1-50 / 共 N 个文件"
+
+acceptance:
+  - 跑一次包含写文件的工作流后，产物 tab 显示该次执行所有文件
+  - 点击 .md 文件 → 渲染预览
+  - 点击 .rs 文件 → 代码高亮
+  - 点击 .png 文件 → 显示 "[二进制文件] 1.2 MB" 不崩溃
+  - 文件多于 50 时分页加载
+  - 二进制文件不预览，只显示大小
+
+quality_gates:
+  - cargo test --bin nx_api 全过
+  - cargo clippy -- -D warnings 无 warning
+  - npx tsc --noEmit 无 error
+
+# ============================================================
+# 执行阶段（反映实际状态）
+# ============================================================
+current_stage: frontend_dev
+stages:
+  - id: plan
+    name: 架构设计
+    status: completed
+    completed_at: 2026-04-29
+    output: null
+  - id: backend_dev
+    name: Rust 后端实现
+    status: completed
+    completed_at: 2026-04-29
+    note: artifact_tracker / repository / watcher / routes 已实现
+  - id: frontend_dev
+    name: 前端实现
+    status: in_progress
+    depends_on: [plan]
+    remaining: [T1, T2, T3, T4]
+    note: ArtifactsPanel 骨架存在，缺预览/下载/分页
+  - id: test
+    name: 测试
+    status: not_started
+    depends_on: [backend_dev, frontend_dev]
+  - id: review
+    name: Code Review
+    status: not_started
+    depends_on: [test]
+  - id: commit
+    name: 提交
+    status: not_started
+    depends_on: [review]
+
+rollback: |
+  后端改动都在新增文件中，前端改动集中在 ArtifactsPanel.tsx。
+  失败回滚: git revert <commit>

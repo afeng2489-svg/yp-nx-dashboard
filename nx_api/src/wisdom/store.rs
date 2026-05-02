@@ -67,23 +67,6 @@ impl SqliteWisdomStore {
     /// Create a new SQLite wisdom store
     pub fn new<P: AsRef<Path>>(db_path: P) -> Result<Self, StorageError> {
         let conn = Connection::open(db_path)?;
-        conn.execute_batch(
-            r#"
-            CREATE TABLE IF NOT EXISTS wisdom (
-                id TEXT PRIMARY KEY,
-                category TEXT NOT NULL,
-                title TEXT NOT NULL,
-                content TEXT NOT NULL,
-                tags TEXT NOT NULL,
-                source_session TEXT NOT NULL,
-                confidence REAL NOT NULL,
-                created_at TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_wisdom_category ON wisdom(category);
-            CREATE INDEX IF NOT EXISTS idx_wisdom_created_at ON wisdom(created_at);
-            CREATE INDEX IF NOT EXISTS idx_wisdom_confidence ON wisdom(confidence);
-            "#,
-        )?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
@@ -93,20 +76,7 @@ impl SqliteWisdomStore {
     #[allow(dead_code)]
     pub fn in_memory() -> Result<Self, StorageError> {
         let conn = Connection::open_in_memory()?;
-        conn.execute_batch(
-            r#"
-            CREATE TABLE wisdom (
-                id TEXT PRIMARY KEY,
-                category TEXT NOT NULL,
-                title TEXT NOT NULL,
-                content TEXT NOT NULL,
-                tags TEXT NOT NULL,
-                source_session TEXT NOT NULL,
-                confidence REAL NOT NULL,
-                created_at TEXT NOT NULL
-            );
-            "#,
-        )?;
+        conn.execute_batch(crate::migrations::WISDOM_SCHEMA)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })

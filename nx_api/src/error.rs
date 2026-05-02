@@ -36,22 +36,19 @@ pub enum ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let (status, error_message) = match &self {
-            ApiError::NotFound(msg) => (axum::http::StatusCode::NOT_FOUND, msg.clone()),
-            ApiError::BadRequest(msg) => (axum::http::StatusCode::BAD_REQUEST, msg.clone()),
-            ApiError::Internal(msg) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
-            ApiError::Unauthorized => (
-                axum::http::StatusCode::UNAUTHORIZED,
-                "Unauthorized".to_string(),
-            ),
-            ApiError::Forbidden => (axum::http::StatusCode::FORBIDDEN, "Forbidden".to_string()),
-            ApiError::SessionNotFound(msg) => (axum::http::StatusCode::NOT_FOUND, msg.clone()),
-            ApiError::MessageNotFound(msg) => (axum::http::StatusCode::NOT_FOUND, msg.clone()),
+        let status = match &self {
+            ApiError::NotFound(_) | ApiError::SessionNotFound(_) | ApiError::MessageNotFound(_) => {
+                axum::http::StatusCode::NOT_FOUND
+            }
+            ApiError::BadRequest(_) => axum::http::StatusCode::BAD_REQUEST,
+            ApiError::Internal(_) => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::Unauthorized => axum::http::StatusCode::UNAUTHORIZED,
+            ApiError::Forbidden => axum::http::StatusCode::FORBIDDEN,
         };
 
         let body = Json(json!({
-            "error": error_message,
-            "status": status.as_u16()
+            "ok": false,
+            "error": self.to_string()
         }));
 
         (status, body).into_response()

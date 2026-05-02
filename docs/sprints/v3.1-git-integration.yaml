@@ -1,0 +1,71 @@
+sprint_id: v3.1
+status: pending
+priority: P2
+estimated_hours: 16
+depends_on: [v2.3]
+
+title: "Git 集成 — 每stage自动commit+失败回滚"
+objective: |
+  AI 修改代码需要版本控制。失败时能回滚到执行前状态。
+  每个 stage 完成自动 commit，执行完成生成 PR 描述。
+
+remaining_tasks:
+  - id: G1
+    name: workflow 开始时创建分支
+    priority: P0
+    estimated_hours: 3
+    description: |
+      WorkflowEngine.execute() 开始时：
+        git checkout -b ai-exec-{execution_id}
+      stage 完成时：
+        git add . && git commit -m "stage: {stage_name}: {summary}"
+      workflow 完成时：
+        输出"本次执行涉及 N 个 commit"
+    acceptance:
+      - 每次 workflow 执行在独立分支
+      - 每个 stage 有对应 commit
+
+  - id: G2
+    name: 失败回滚
+    priority: P0
+    estimated_hours: 4
+    description: |
+      workflow 失败时，前端弹出选择：
+        "回滚到执行前" → git checkout main && git branch -D ai-exec-{id}
+        "保留当前"     → 保留分支，用户手动处理
+        "创建新分支"   → 重命名分支为 fix/{id}
+      后端 API: POST /api/v1/executions/:id/rollback { action: "revert"|"keep"|"branch" }
+    acceptance:
+      - 失败后能一键回滚到执行前状态
+      - 回滚后代码库干净
+
+  - id: G3
+    name: 自动生成 PR 描述
+    priority: P1
+    estimated_hours: 4
+    description: |
+      workflow 完成后：
+        读取所有 stage commit 的 diff
+        用 claude -p 生成 PR 描述（功能说明+改动文件+测试方法）
+        显示在执行详情页，一键复制
+    acceptance:
+      - PR 描述包含功能说明和改动摘要
+      - 一键复制到剪贴板
+
+  - id: G4
+    name: Git 状态显示
+    priority: P1
+    estimated_hours: 5
+    description: |
+      ExecutionsPage 执行详情加"Git"tab：
+        commit 列表（时间+message+changed files）
+        每个 commit 的 diff 预览
+        当前分支名
+    acceptance:
+      - 能看到执行产生的所有 commit
+      - 能查看每个 commit 的 diff
+
+quality_gates:
+  - cargo build 通过
+  - workflow 执行后 git log 有对应 commit
+  - 失败回滚后代码库恢复到执行前状态

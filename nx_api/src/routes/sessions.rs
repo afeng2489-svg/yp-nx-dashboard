@@ -2,23 +2,25 @@
 
 use axum::{
     extract::{Path, State},
+    http::StatusCode,
     Json,
 };
 use futures_util::{SinkExt, StreamExt};
 use std::sync::Arc;
 
 use super::AppState;
+use crate::response::{ok, ApiErrorResponse, ApiOk};
 use crate::services::session_repository::RepositoryError;
 
 /// 列出会话
 pub async fn list_sessions(
     State(state): State<Arc<AppState>>,
-) -> Result<Json<Vec<SessionSummary>>, (axum::http::StatusCode, String)> {
+) -> Result<ApiOk<Vec<SessionSummary>>, ApiErrorResponse> {
     let sessions = state
         .session_service
         .list_sessions()
         .await
-        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .map_err(|e| ApiErrorResponse::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let summaries: Vec<SessionSummary> = sessions
         .into_iter()
@@ -33,23 +35,23 @@ pub async fn list_sessions(
         })
         .collect();
 
-    Ok(Json(summaries))
+    Ok(ok(summaries))
 }
 
 /// 创建会话
 pub async fn create_session(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateSessionRequest>,
-) -> Result<Json<SessionResponse>, (axum::http::StatusCode, String)> {
+) -> Result<ApiOk<SessionResponse>, ApiErrorResponse> {
     let session = state
         .session_service
         .create_session(payload.workflow_id)
         .await
-        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .map_err(|e| ApiErrorResponse::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     tracing::info!("创建新会话: {}", session.id);
 
-    Ok(Json(SessionResponse {
+    Ok(ok(SessionResponse {
         id: session.id,
         workflow_id: session.workflow_id,
         status: session.status.to_string(),
@@ -63,15 +65,15 @@ pub async fn create_session(
 pub async fn get_session(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Result<Json<SessionResponse>, (axum::http::StatusCode, String)> {
+) -> Result<ApiOk<SessionResponse>, ApiErrorResponse> {
     let session = state
         .session_service
         .get_session(&id)
         .await
-        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .map_err(|e| ApiErrorResponse::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     match session {
-        Some(s) => Ok(Json(SessionResponse {
+        Some(s) => Ok(ok(SessionResponse {
             id: s.id,
             workflow_id: s.workflow_id,
             status: s.status.to_string(),
@@ -79,8 +81,8 @@ pub async fn get_session(
             created_at: s.created_at.to_rfc3339(),
             updated_at: s.updated_at.to_rfc3339(),
         })),
-        None => Err((
-            axum::http::StatusCode::NOT_FOUND,
+        None => Err(ApiErrorResponse::new(
+            StatusCode::NOT_FOUND,
             format!("会话 {} 不存在", id),
         )),
     }
@@ -90,22 +92,22 @@ pub async fn get_session(
 pub async fn delete_session(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Result<Json<DeleteSessionResponse>, (axum::http::StatusCode, String)> {
+) -> Result<ApiOk<DeleteSessionResponse>, ApiErrorResponse> {
     let deleted = state
         .session_service
         .delete_session(&id)
         .await
-        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .map_err(|e| ApiErrorResponse::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     if deleted {
         tracing::info!("删除会话: {}", id);
-        Ok(Json(DeleteSessionResponse {
+        Ok(ok(DeleteSessionResponse {
             success: true,
             message: format!("会话 {} 已删除", id),
         }))
     } else {
-        Err((
-            axum::http::StatusCode::NOT_FOUND,
+        Err(ApiErrorResponse::new(
+            StatusCode::NOT_FOUND,
             format!("会话 {} 不存在", id),
         ))
     }
@@ -115,21 +117,18 @@ pub async fn delete_session(
 pub async fn resume_session(
     State(state): State<Arc<AppState>>,
     Path(resume_key): Path<String>,
-) -> Result<Json<SessionResponse>, (axum::http::StatusCode, String)> {
+) -> Result<ApiOk<SessionResponse>, ApiErrorResponse> {
     let session = state
         .session_service
         .resume_session(&resume_key)
         .await
         .map_err(|e| {
-            (
-                axum::http::StatusCode::NOT_FOUND,
-                format!("无法恢复会话: {}", e),
-            )
+            ApiErrorResponse::new(StatusCode::NOT_FOUND, format!("无法恢复会话: {}", e))
         })?;
 
     tracing::info!("恢复会话: {}", session.id);
 
-    Ok(Json(SessionResponse {
+    Ok(ok(SessionResponse {
         id: session.id,
         workflow_id: session.workflow_id,
         status: session.status.to_string(),
@@ -143,21 +142,21 @@ pub async fn resume_session(
 pub async fn pause_session(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Result<Json<SessionResponse>, (axum::http::StatusCode, String)> {
+) -> Result<ApiOk<SessionResponse>, ApiErrorResponse> {
     let session = state
         .session_service
         .pause_session(&id)
         .await
         .map_err(|e| {
-            (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ApiErrorResponse::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
                 format!("暂停会话失败: {}", e),
             )
         })?;
 
     tracing::info!("暂停会话: {}", id);
 
-    Ok(Json(SessionResponse {
+    Ok(ok(SessionResponse {
         id: session.id,
         workflow_id: session.workflow_id,
         status: session.status.to_string(),
@@ -171,21 +170,21 @@ pub async fn pause_session(
 pub async fn activate_session(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Result<Json<SessionResponse>, (axum::http::StatusCode, String)> {
+) -> Result<ApiOk<SessionResponse>, ApiErrorResponse> {
     let session = state
         .session_service
         .activate_session(&id)
         .await
         .map_err(|e| {
-            (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ApiErrorResponse::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
                 format!("激活会话失败: {}", e),
             )
         })?;
 
     tracing::info!("激活会话: {}", id);
 
-    Ok(Json(SessionResponse {
+    Ok(ok(SessionResponse {
         id: session.id,
         workflow_id: session.workflow_id,
         status: session.status.to_string(),
@@ -199,15 +198,15 @@ pub async fn activate_session(
 pub async fn sync_session(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Result<Json<SessionResponse>, (axum::http::StatusCode, String)> {
+) -> Result<ApiOk<SessionResponse>, ApiErrorResponse> {
     let session = state.session_service.sync_session(&id).await.map_err(|e| {
-        (
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        ApiErrorResponse::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
             format!("同步会话失败: {}", e),
         )
     })?;
 
-    Ok(Json(SessionResponse {
+    Ok(ok(SessionResponse {
         id: session.id,
         workflow_id: session.workflow_id,
         status: session.status.to_string(),

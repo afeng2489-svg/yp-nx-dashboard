@@ -1,0 +1,38 @@
+sprint_id: v0.1.S3
+version: "0.1"
+status: not_started
+priority: P2
+estimated_days: 2
+actual_days: null
+started_at: null
+completed_at: null
+depends_on: [v0.1.S2]
+
+title: "产物按 stage 分组 + 版本对比"
+objective: |
+  产物列表按 workflow stage 分组展示。
+  同一文件被多个 stage 修改时显示版本链，点击可查看 diff。
+
+deliverables:
+  backend:
+    - file: nx_api/src/services/artifact_tracker.rs (修改)
+      functions:
+        - group_artifacts_by_stage(execution_id) -> Vec<StageGroup>
+        - get_artifact_versions(execution_id, relative_path) -> Vec<ArtifactVersion>
+        - diff_versions(version_a_id, version_b_id) -> String (unified diff)
+    - route: GET /api/v1/executions/:id/artifacts?group_by=stage
+    - route: GET /api/v1/executions/:id/artifacts/:path/versions
+
+  frontend:
+    - ArtifactsPanel 组视图改为按 stage 分组（手风琴）
+    - 版本链 UI：显示 "v1 → v2 → v3"
+    - 点击版本对比 → diff 视图（绿色新增/红色删除）
+
+acceptance:
+  - 跑一个有 3 个 stage 的工作流，产物按 stage 正确分组
+  - 同一文件被 2 个 stage 修改 → 显示版本链 → 点 diff 看到差异
+
+quality_gates:
+  - cargo test --bin nx_api
+  - cargo clippy -- -D warnings
+  - npx tsc --noEmit

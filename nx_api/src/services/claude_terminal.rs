@@ -194,10 +194,16 @@ fn run_pty_session(
     // master 保留用于 resize
     let master = pair.master;
 
-    let rt = tokio::runtime::Builder::new_current_thread()
+    let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
-        .expect("build tokio runtime");
+    {
+        Ok(rt) => rt,
+        Err(e) => {
+            tracing::error!("[PTY] Failed to build tokio runtime: {}", e);
+            return;
+        }
+    };
 
     rt.block_on(async move {
         while let Some(cmd) = input_rx.recv().await {
@@ -342,10 +348,10 @@ impl ClaudeTerminalManager {
         working_dir: Option<&str>,
         cols: u16,
         rows: u16,
-    ) -> Arc<ClaudeTerminalSession> {
+    ) -> anyhow::Result<Arc<ClaudeTerminalSession>> {
         // Try to find existing session
         if let Some(session) = self.get_session_by_role(team_id, role_id) {
-            return session;
+            return Ok(session);
         }
         // Create new one
         let session_id = self.create_session(team_id, Some(role_id), working_dir, cols, rows);
@@ -353,7 +359,7 @@ impl ClaudeTerminalManager {
             .read()
             .get(&session_id)
             .cloned()
-            .expect("session just created")
+            .ok_or_else(|| anyhow::anyhow!("session just created but not found: {}", session_id))
     }
 
     /// 列出团队所有会话

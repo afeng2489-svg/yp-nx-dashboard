@@ -375,8 +375,8 @@ pub struct TaskScheduler {
     tasks: RwLock<HashMap<Uuid, QueuedTask>>,
     /// 定时任务
     scheduled_jobs: RwLock<HashMap<Uuid, ScheduledJob>>,
-    /// 数据库连接
-    db: RwLock<Option<Connection>>,
+    /// 数据库连接（用 std::sync::Mutex 保证 Send+Sync）
+    db: std::sync::Mutex<Option<Connection>>,
     /// 最大并发任务数
     max_concurrent: usize,
     /// 运行中的任务
@@ -405,7 +405,7 @@ impl TaskScheduler {
             delayed: RwLock::new(Vec::new()),
             tasks: RwLock::new(HashMap::new()),
             scheduled_jobs: RwLock::new(HashMap::new()),
-            db: RwLock::new(None),
+            db: std::sync::Mutex::new(None),
             max_concurrent,
             running: RwLock::new(HashMap::new()),
             running_flag: RwLock::new(false),
@@ -415,6 +415,8 @@ impl TaskScheduler {
     /// 初始化数据库
     pub fn init_database(&self, db_path: &str) -> Result<(), SchedulerError> {
         let conn = Connection::open(db_path)?;
+
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")?;
 
         conn.execute_batch(
             "
@@ -455,7 +457,7 @@ impl TaskScheduler {
         // 加载已有任务
         self.load_tasks_from_db(&conn)?;
 
-        *self.db.write() = Some(conn);
+        *self.db.lock().unwrap() = Some(conn);
 
         Ok(())
     }
@@ -997,7 +999,8 @@ impl TaskScheduler {
     // =========================================================================
 
     fn save_task_to_db(&self, task: &QueuedTask) {
-        if let Some(ref conn) = *self.db.read() {
+        let guard = self.db.lock().unwrap();
+        if let Some(ref conn) = *guard {
             let _ = conn.execute(
                 "INSERT OR REPLACE INTO tasks
                  (id, workflow, team_id, variables, priority, status, retry_count,
@@ -1026,7 +1029,8 @@ impl TaskScheduler {
     }
 
     fn update_task_status_in_db(&self, task_id: Uuid, status: QueueStatus) {
-        if let Some(ref conn) = *self.db.read() {
+        let guard = self.db.lock().unwrap();
+        if let Some(ref conn) = *guard {
             let _ = conn.execute(
                 "UPDATE tasks SET status = ?1, finished_at = ?2 WHERE id = ?3",
                 params![
@@ -1039,7 +1043,8 @@ impl TaskScheduler {
     }
 
     fn save_scheduled_job_to_db(&self, job: &ScheduledJob) -> Result<(), SchedulerError> {
-        if let Some(ref conn) = *self.db.read() {
+        let guard = self.db.lock().unwrap();
+        if let Some(ref conn) = *guard {
             conn.execute(
                 "INSERT OR REPLACE INTO scheduled_jobs
                  (id, workflow, team_id, variables, cron_expr, next_run, enabled, created_at)
@@ -1060,7 +1065,8 @@ impl TaskScheduler {
     }
 
     fn update_scheduled_job_enabled_in_db(&self, job_id: Uuid, enabled: bool) {
-        if let Some(ref conn) = *self.db.read() {
+        let guard = self.db.lock().unwrap();
+        if let Some(ref conn) = *guard {
             let _ = conn.execute(
                 "UPDATE scheduled_jobs SET enabled = ?1 WHERE id = ?2",
                 params![enabled as i32, job_id.to_string()],
@@ -1069,7 +1075,8 @@ impl TaskScheduler {
     }
 
     fn update_scheduled_job_next_run_in_db(&self, job_id: Uuid) {
-        if let Some(ref conn) = *self.db.read() {
+        let guard = self.db.lock().unwrap();
+        if let Some(ref conn) = *guard {
             let next_run = {
                 let jobs = self.scheduled_jobs.read();
                 jobs.get(&job_id).map(|j| j.next_run.to_rfc3339())
@@ -1085,7 +1092,8 @@ impl TaskScheduler {
     }
 
     fn delete_scheduled_job_from_db(&self, job_id: Uuid) {
-        if let Some(ref conn) = *self.db.read() {
+        let guard = self.db.lock().unwrap();
+        if let Some(ref conn) = *guard {
             let _ = conn.execute(
                 "DELETE FROM scheduled_jobs WHERE id = ?1",
                 params![job_id.to_string()],

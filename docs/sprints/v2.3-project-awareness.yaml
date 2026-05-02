@@ -1,0 +1,73 @@
+sprint_id: v2.3
+status: pending
+priority: P1
+estimated_hours: 24
+depends_on: [v2.1]
+
+title: "项目状态感知 — AI知道项目做到哪了"
+objective: |
+  现在每次执行都是无状态的，AI 不知道项目当前状态。
+  本 sprint 让系统维护项目状态快照，AI 执行前自动读取，
+  续跑时从正确位置开始。
+
+remaining_tasks:
+  - id: S1
+    name: 项目状态快照
+    priority: P0
+    estimated_hours: 8
+    description: |
+      新建 project_state 表：
+        project_id, module_name, status(pending/in_progress/completed/failed),
+        summary TEXT, last_updated, files_changed JSON
+      每次 stage 完成后更新对应模块状态
+      API: GET /api/v1/projects/:id/state → 返回所有模块状态
+    acceptance:
+      - 项目有模块级别的状态追踪
+      - 每个模块知道完成了什么
+
+  - id: S2
+    name: AI 执行前自动注入项目状态
+    priority: P0
+    estimated_hours: 6
+    description: |
+      execute_team_task 和 try_pty_dispatch_pub 执行前：
+        读取 project_state
+        构建状态摘要注入 prompt：
+          "当前项目状态：
+           - auth 模块：已完成（JWT登录、注册、刷新token）
+           - user 模块：进行中（CRUD已完成，权限控制待做）
+           - payment 模块：未开始"
+      让 AI 知道上下文，不重复做已完成的工作
+    acceptance:
+      - AI 不会重复实现已完成的功能
+      - 续跑时从正确位置继续
+
+  - id: S3
+    name: 项目状态看板 UI
+    priority: P1
+    estimated_hours: 6
+    description: |
+      ProjectsPage 加"状态"tab：
+        模块列表 + 状态 chip（待做/进行中/完成/失败）
+        点击模块看详情（完成了什么、改了哪些文件）
+        整体进度百分比
+    acceptance:
+      - 一眼看清项目各模块状态
+      - 能追溯每个模块的产物文件
+
+  - id: S4
+    name: 智能续跑提示
+    priority: P2
+    estimated_hours: 4
+    description: |
+      服务启动时检测有未完成的项目：
+        在 Dashboard 显示"上次未完成的任务：xxx，是否继续？"
+        点击继续 → 自动构建续跑 prompt → 入队执行
+    acceptance:
+      - 重启后 Dashboard 显示未完成任务提示
+      - 一键继续上次工作
+
+quality_gates:
+  - cargo build 通过
+  - project_state 表正确更新
+  - AI prompt 包含项目状态摘要

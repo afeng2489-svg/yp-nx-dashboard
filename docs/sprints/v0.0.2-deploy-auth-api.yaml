@@ -1,0 +1,72 @@
+sprint_id: v0.0.2
+version: "0.0"
+status: completed
+priority: P0
+estimated_hours: 12
+depends_on: [v0.0.1]
+
+title: "A2UI路由挂载 + 统一API格式 + Docker部署"
+objective: |
+  1. 挂载 A2UI 路由（工作流人机交互断裂点修复）
+  2. 统一所有 API 响应格式为 {ok, data, error}
+  3. docker-compose 一键部署
+
+remaining_tasks:
+  - id: D1
+    name: 挂载 A2UI 路由
+    priority: P0
+    estimated_hours: 1
+    description: |
+      routes/mod.rs 中：
+      1. 加 pub mod a2ui;
+      2. AppState 加 a2ui_service: Arc<A2UIService>
+      3. create_router() 里加 .merge(a2ui::create_a2ui_router(state.a2ui_service.clone()))
+      注意：a2ui.rs 已实现，只差挂载
+    acceptance:
+      - GET /api/v1/a2ui/sessions 返回 200
+      - ws://…/ws/a2ui/:execution_id 能建立连接
+
+  - id: D2
+    name: 统一 API 响应格式
+    priority: P0
+    estimated_hours: 6
+    description: |
+      定义 ApiResponse<T> { ok: bool, data: Option<T>, error: Option<ApiError>, meta: Option<Meta> }
+      改造所有 8+ route 文件返回此格式
+      ApiError { code: string, message: string }
+      Meta { total, page, limit } 用于分页
+    acceptance:
+      - 所有端点返回统一格式
+
+  - id: D3
+    name: Docker Compose 一键部署
+    priority: P1
+    estimated_hours: 4
+    description: |
+      写 deploy/docker-compose.yml：
+        - nx_api (Rust 后端)
+        - nx_dashboard (nginx + 前端静态文件)
+        - 可选 postgres
+      写 deploy/Dockerfile.api, deploy/Dockerfile.web
+      写 deploy/nginx.conf
+    acceptance:
+      - docker-compose up → 浏览器访问 localhost → 看到登录页
+
+  - id: D4
+    name: Migration runner
+    priority: P1
+    estimated_hours: 3
+    description: |
+      抽取 schema 初始化逻辑到 migration runner
+      启动时自动建表
+      SQLite: 检测文件是否存在，不存在则创建 + 建表
+    acceptance:
+      - 全新环境启动 → 自动建表
+      - 已有数据 → 不破坏
+
+quality_gates:
+  - cargo build 通过
+  - cargo test --bin nx_api 全过
+  - docker-compose up 成功启动
+  - curl /api/v1/health → 200
+  - curl /api/v1/workflows(无 token) → 401

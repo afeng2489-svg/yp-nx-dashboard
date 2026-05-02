@@ -1,5 +1,7 @@
+import { unwrapEnvelope } from '../api/response';
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
+import { unwrapEnvelope, fetchWithTimeout } from '../api/response';
 
 export type WisdomCategory = 'learning' | 'decision' | 'convention' | 'pattern' | 'fix';
 
@@ -143,7 +145,7 @@ export const useWisdomStore = create<WisdomStore>((set, get) => ({
         );
       }
 
-      const data: WisdomResponse = await response.json();
+      const data: WisdomResponse = unwrapEnvelope(await response.json());
       set({ entries: data.entries, loading: false });
     } catch (error) {
       set({
@@ -161,7 +163,7 @@ export const useWisdomStore = create<WisdomStore>((set, get) => ({
         throw new ApiError(`Failed to fetch categories: ${response.status}`, response.status);
       }
 
-      const data: CategorySummary[] = await response.json();
+      const data: CategorySummary[] = unwrapEnvelope(await response.json());
       set({ categories: data });
     } catch (error) {
       console.error('Failed to fetch categories:', getErrorMessage(error));
@@ -179,7 +181,7 @@ export const useWisdomStore = create<WisdomStore>((set, get) => ({
         throw new ApiError(`Failed to fetch entry: ${response.status}`, response.status);
       }
 
-      const data: WisdomEntry = await response.json();
+      const data: WisdomEntry = unwrapEnvelope(await response.json());
       return data;
     } catch (error) {
       console.error(`Failed to get wisdom entry ${id}:`, getErrorMessage(error));
@@ -204,7 +206,7 @@ export const useWisdomStore = create<WisdomStore>((set, get) => ({
         throw new ApiError(`Failed to create wisdom entry: ${response.status}`, response.status);
       }
 
-      const newEntry: WisdomEntry = await response.json();
+      const newEntry: WisdomEntry = unwrapEnvelope(await response.json());
       set((state) => ({ entries: [newEntry, ...state.entries] }));
       return newEntry;
     } catch (error) {
@@ -249,7 +251,7 @@ export const useWisdomStore = create<WisdomStore>((set, get) => ({
         throw new ApiError(`Failed to search: ${response.status}`, response.status);
       }
 
-      const data = await response.json();
+      const data = unwrapEnvelope(await response.json());
       return data.entries as WisdomEntry[];
     } catch (error) {
       console.error('Search failed:', getErrorMessage(error));

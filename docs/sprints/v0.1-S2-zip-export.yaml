@@ -1,0 +1,38 @@
+sprint_id: v0.1.S2
+version: "0.1"
+status: not_started
+priority: P1
+estimated_days: 2
+actual_days: null
+started_at: null
+completed_at: null
+depends_on: [v0.1.S1]
+
+title: "产物 zip 导出 + 大文件支持"
+objective: |
+  用户可选择多个产物文件，一键导出为 zip 下载。
+  大文件（>5MB）不预览，只显示元信息。
+
+deliverables:
+  backend:
+    - file: nx_api/src/services/artifact_tracker.rs (修改)
+      functions:
+        - export_artifacts_as_zip(execution_id, file_paths) -> Vec<u8>
+        - get_artifact_download_url(artifact_id) -> String
+    - route: POST /api/v1/executions/:id/artifacts/export (body: {files: [...]})
+    - route: GET /api/v1/executions/:id/artifacts/:path/download
+
+  frontend:
+    - ArtifactsPanel 增加：
+      - 多选 checkbox
+      - "导出选中" 按钮 → 下载 zip
+      - 大文件（>5MB）显示 "[二进制文件] N MB" 不预览
+
+acceptance:
+  - 勾选 3 个文件 → 点导出 → 下载 zip 含 3 个文件
+  - >5MB 文件不触发展示预览，只显示大小
+
+quality_gates:
+  - cargo test --bin nx_api
+  - cargo clippy -- -D warnings
+  - npx tsc --noEmit

@@ -4,10 +4,10 @@
 //! 前端"产物面板"读这个表展示。
 
 use chrono::{DateTime, Utc};
+use parking_lot::Mutex;
 use rusqlite::{params, Connection};
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::Mutex;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -40,31 +40,9 @@ pub struct SqliteArtifactRepository {
 impl SqliteArtifactRepository {
     pub fn new(db_path: &Path) -> Result<Self, ArtifactRepositoryError> {
         let conn = Connection::open(db_path)?;
-        Self::init_schema(&conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
-    }
-
-    fn init_schema(conn: &Connection) -> Result<(), ArtifactRepositoryError> {
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS artifacts (
-                id            TEXT PRIMARY KEY,
-                execution_id  TEXT NOT NULL,
-                stage_name    TEXT,
-                relative_path TEXT NOT NULL,
-                change_type   TEXT NOT NULL,
-                size_bytes    INTEGER NOT NULL DEFAULT 0,
-                sha256        TEXT,
-                mime_type     TEXT,
-                created_at    TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_artifacts_execution
-                ON artifacts(execution_id);
-            CREATE INDEX IF NOT EXISTS idx_artifacts_execution_stage
-                ON artifacts(execution_id, stage_name);",
-        )?;
-        Ok(())
     }
 
     /// 批量记录一次 stage 的 diff 结果
@@ -74,7 +52,7 @@ impl SqliteArtifactRepository {
         stage_name: Option<&str>,
         diff: &ArtifactDiff,
     ) -> Result<usize, ArtifactRepositoryError> {
-        let mut conn = self.conn.lock().unwrap();
+        let mut conn = self.conn.lock();
         let tx = conn.transaction()?;
         let now = Utc::now().to_rfc3339();
         let mut count = 0;
@@ -148,7 +126,7 @@ impl SqliteArtifactRepository {
         &self,
         execution_id: &str,
     ) -> Result<Vec<ArtifactRecord>, ArtifactRepositoryError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, execution_id, stage_name, relative_path, change_type, size_bytes,
                     sha256, mime_type, created_at
@@ -171,7 +149,7 @@ impl SqliteArtifactRepository {
         execution_id: &str,
         relative_path: &str,
     ) -> Result<Option<ArtifactRecord>, ArtifactRepositoryError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, execution_id, stage_name, relative_path, change_type, size_bytes,
                     sha256, mime_type, created_at
@@ -249,6 +227,7 @@ mod tests {
         let path = dir.path().join("test.db");
         // 让 dir 活到测试结束（leak 是测试场景下可接受的代价）
         Box::leak(Box::new(dir));
+        crate::migrations::run_all(path.to_str().unwrap()).unwrap();
         SqliteArtifactRepository::new(&path).unwrap()
     }
 

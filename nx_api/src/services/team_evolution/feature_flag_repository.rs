@@ -23,17 +23,7 @@ impl SqliteFeatureFlagRepository {
 
     fn initialize_tables(&self) -> Result<(), TeamEvolutionError> {
         let conn = self.conn.lock();
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS feature_flags (
-                key TEXT PRIMARY KEY,
-                state TEXT NOT NULL DEFAULT 'off',
-                circuit_breaker INTEGER NOT NULL DEFAULT 0,
-                error_count INTEGER NOT NULL DEFAULT 0,
-                error_threshold INTEGER NOT NULL DEFAULT 5,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );",
-        )?;
+        conn.execute_batch(crate::migrations::FEATURE_FLAG_SCHEMA)?;
         Ok(())
     }
 

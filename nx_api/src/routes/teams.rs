@@ -43,7 +43,7 @@ use crate::services::team_service::{RoleWithSkills, TeamWithRoles};
 /// API response type
 type ApiResponse<T> = Result<Json<T>, AppError>;
 
-/// Application error
+/// Application error (returns envelope format)
 #[derive(Debug)]
 pub struct AppError {
     status: StatusCode,
@@ -52,11 +52,8 @@ pub struct AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
-        (
-            self.status,
-            Json(serde_json::json!({ "error": self.message })),
-        )
-            .into_response()
+        let body = serde_json::json!({ "ok": false, "error": self.message });
+        (self.status, Json(body)).into_response()
     }
 }
 
@@ -731,10 +728,10 @@ pub fn try_pty_dispatch_pub(
     cancel_token: tokio_util::sync::CancellationToken,
 ) -> Result<String, String> {
     // Get or create a PTY session for this role
-    let session =
-        state
-            .claude_terminal_manager
-            .get_or_create_session(team_id, role_id, working_dir, 80, 24);
+    let session = state
+        .claude_terminal_manager
+        .get_or_create_session(team_id, role_id, working_dir, 80, 24)
+        .map_err(|e| format!("Failed to get or create terminal session: {}", e))?;
     let session_id = session.info.session_id.clone();
 
     // Build the full prompt using the shared function
@@ -1348,11 +1345,7 @@ pub async fn get_team_telegram_config(
     Path(team_id): Path<String>,
 ) -> ApiResponse<crate::models::team::TelegramBotConfig> {
     // Get the first role of the team
-    let roles = state
-        .teams_state
-        .team_service
-        .list_roles(&team_id)
-        .map_err(|e| AppError::from(e))?;
+    let roles = state.teams_state.team_service.list_roles(&team_id)?;
 
     let first_role = roles.into_iter().next().ok_or_else(|| AppError {
         status: StatusCode::NOT_FOUND,
@@ -1362,8 +1355,7 @@ pub async fn get_team_telegram_config(
     let config = state
         .teams_state
         .team_service
-        .get_telegram_config(&first_role.id)
-        .map_err(|e| AppError::from(e))?;
+        .get_telegram_config(&first_role.id)?;
     Ok(Json(config))
 }
 
@@ -1374,28 +1366,20 @@ pub async fn configure_team_telegram(
     Json(request): Json<crate::models::team::TelegramConfigRequest>,
 ) -> ApiResponse<crate::models::team::TelegramBotConfig> {
     // Get the first role of the team
-    let roles = state
-        .teams_state
-        .team_service
-        .list_roles(&team_id)
-        .map_err(|e| AppError::from(e))?;
+    let roles = state.teams_state.team_service.list_roles(&team_id)?;
 
     let first_role = roles.into_iter().next().ok_or_else(|| AppError {
         status: StatusCode::NOT_FOUND,
         message: format!("No roles found for team {}", team_id),
     })?;
 
-    let config = state
-        .teams_state
-        .team_service
-        .configure_telegram(
-            &first_role.id,
-            request.bot_token,
-            request.chat_id,
-            request.notifications_enabled,
-            request.conversation_enabled,
-        )
-        .map_err(|e| AppError::from(e))?;
+    let config = state.teams_state.team_service.configure_telegram(
+        &first_role.id,
+        request.bot_token,
+        request.chat_id,
+        request.notifications_enabled,
+        request.conversation_enabled,
+    )?;
     Ok(Json(config))
 }
 
@@ -1405,11 +1389,7 @@ pub async fn enable_team_telegram(
     Path((team_id, enabled)): Path<(String, bool)>,
 ) -> ApiResponse<crate::models::team::TelegramBotConfig> {
     // Get the first role of the team
-    let roles = state
-        .teams_state
-        .team_service
-        .list_roles(&team_id)
-        .map_err(|e| AppError::from(e))?;
+    let roles = state.teams_state.team_service.list_roles(&team_id)?;
 
     let first_role = roles.into_iter().next().ok_or_else(|| AppError {
         status: StatusCode::NOT_FOUND,
@@ -1419,8 +1399,7 @@ pub async fn enable_team_telegram(
     let config = state
         .teams_state
         .team_service
-        .enable_telegram(&first_role.id, enabled)
-        .map_err(|e| AppError::from(e))?;
+        .enable_telegram(&first_role.id, enabled)?;
 
     // Start or stop polling based on enabled state
     let telegram_service = &state.teams_state.telegram_service;
@@ -1438,11 +1417,7 @@ pub async fn get_team_member_bots(
     State(state): State<Arc<AppState>>,
     Path(team_id): Path<String>,
 ) -> ApiResponse<Vec<MemberBotStatus>> {
-    let roles = state
-        .teams_state
-        .team_service
-        .list_roles(&team_id)
-        .map_err(|e| AppError::from(e))?;
+    let roles = state.teams_state.team_service.list_roles(&team_id)?;
 
     let statuses = roles
         .into_iter()
@@ -1472,11 +1447,7 @@ pub async fn configure_member_bot(
     Json(request): Json<MemberBotConfigItem>,
 ) -> ApiResponse<MemberBotStatus> {
     // Verify role belongs to this team
-    let roles = state
-        .teams_state
-        .team_service
-        .list_roles(&team_id)
-        .map_err(|e| AppError::from(e))?;
+    let roles = state.teams_state.team_service.list_roles(&team_id)?;
     if !roles.iter().any(|r| r.id == role_id) {
         return Err(AppError {
             status: StatusCode::NOT_FOUND,
@@ -1484,17 +1455,13 @@ pub async fn configure_member_bot(
         });
     }
 
-    let bot_config = state
-        .teams_state
-        .team_service
-        .configure_telegram(
-            &role_id,
-            request.bot_token,
-            request.chat_id,
-            request.notifications_enabled,
-            request.conversation_enabled,
-        )
-        .map_err(|e| AppError::from(e))?;
+    let bot_config = state.teams_state.team_service.configure_telegram(
+        &role_id,
+        request.bot_token,
+        request.chat_id,
+        request.notifications_enabled,
+        request.conversation_enabled,
+    )?;
 
     let role = roles.into_iter().find(|r| r.id == role_id).unwrap();
     let is_polling = state.teams_state.telegram_service.is_polling(&role_id);
@@ -1512,11 +1479,7 @@ pub async fn toggle_all_member_bots(
     State(state): State<Arc<AppState>>,
     Path((team_id, enabled)): Path<(String, bool)>,
 ) -> ApiResponse<Vec<MemberBotStatus>> {
-    let roles = state
-        .teams_state
-        .team_service
-        .list_roles(&team_id)
-        .map_err(|e| AppError::from(e))?;
+    let roles = state.teams_state.team_service.list_roles(&team_id)?;
 
     let mut statuses = Vec::new();
     for role in &roles {
@@ -1563,8 +1526,7 @@ pub async fn send_telegram_message(
     let config = state
         .teams_state
         .team_service
-        .get_telegram_config(&role_id)
-        .map_err(|e| AppError::from(e))?;
+        .get_telegram_config(&role_id)?;
 
     state
         .teams_state

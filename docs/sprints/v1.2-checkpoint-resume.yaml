@@ -1,0 +1,78 @@
+sprint_id: v1.2
+status: pending
+priority: P0
+estimated_hours: 12
+depends_on: [v1.1]
+
+title: "断点续跑 — Checkpoint真正写入+恢复"
+objective: |
+  ResumeService 表结构存在但从未写入数据。
+  任务中断后无法从断点继续，每次都从零开始。
+  本 sprint 让 checkpoint 真正工作。
+
+problem: |
+  resume_service.rs 注释第一行就说：
+  "核心问题修复: pty_task_watcher.rs:122-138 通道关闭直接发 Completed，无崩溃状态保存"
+  但 try_pty_dispatch_pub 和 pty_task_watcher 里没有任何 create_checkpoint 调用。
+
+remaining_tasks:
+  - id: R1
+    name: 任务开始时写入 checkpoint
+    priority: P0
+    estimated_hours: 2
+    description: |
+      try_pty_dispatch_pub() 开始时：
+        resume_service.create_checkpoint(
+          execution_id, project_id, pipeline_step_id, role_id, task_prompt
+        )
+      需要从 AppState 拿到 resume_service（team_evolution 子系统）
+    acceptance:
+      - 任务开始后 execution_checkpoints 表有记录
+      - phase = "running"
+
+  - id: R2
+    name: 执行过程中定期更新 checkpoint
+    priority: P0
+    estimated_hours: 3
+    description: |
+      pty_task_watcher 每收到 Output 事件时：
+        每 30 秒或每 500 字节更新一次：
+        resume_service.update_checkpoint(execution_id, accumulated_output)
+        resume_service.update_heartbeat(execution_id)
+      完成时：resume_service.mark_completed(execution_id)
+      失败时：resume_service.mark_interrupted(execution_id)
+    acceptance:
+      - 执行中 last_heartbeat 每 30 秒更新
+      - accumulated_output 有内容
+
+  - id: R3
+    name: 启动时检测中断任务
+    priority: P0
+    estimated_hours: 3
+    description: |
+      服务启动时（main.rs 或 AppState::new）：
+        let interrupted = resume_service.find_interrupted(project_id)
+        对每个中断任务：
+          构建续跑 prompt（已做了什么 + 从哪里继续）
+          通过 scheduler 重新入队
+      snapshot_service.build_resume_context() 已实现，直接用
+    acceptance:
+      - kill 服务 → 重启 → 中断任务自动重新入队
+      - 续跑 prompt 包含已完成的工作摘要
+
+  - id: R4
+    name: 前端显示中断/续跑状态
+    priority: P1
+    estimated_hours: 4
+    description: |
+      ExecutionsPage 加"中断"状态标识（橙色）
+      中断的执行显示"已恢复"badge
+      进度条显示续跑前已完成的部分
+    acceptance:
+      - 中断的执行在 UI 上有明显标识
+      - 续跑后状态变为 running
+
+quality_gates:
+  - cargo build 通过
+  - kill 服务 → 重启 → 中断任务自动恢复
+  - execution_checkpoints 表有正确数据

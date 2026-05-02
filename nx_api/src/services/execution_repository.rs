@@ -3,9 +3,9 @@
 //! 持久化工作流执行记录到 SQLite，重启后历史记录不丢失。
 
 use crate::services::execution_service::{Execution, StageResult};
+use parking_lot::Mutex;
 use rusqlite::{params, Connection};
 use std::path::Path;
-use std::sync::Mutex;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -23,42 +23,14 @@ pub struct SqliteExecutionRepository {
 impl SqliteExecutionRepository {
     pub fn new(db_path: &Path) -> Result<Self, ExecutionRepositoryError> {
         let conn = Connection::open(db_path)?;
-        Self::init_schema(&conn)?;
         Ok(Self {
             conn: Mutex::new(conn),
         })
     }
 
-    fn init_schema(conn: &Connection) -> Result<(), ExecutionRepositoryError> {
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS executions (
-                id            TEXT PRIMARY KEY,
-                workflow_id   TEXT NOT NULL,
-                status        TEXT NOT NULL DEFAULT 'pending',
-                variables     TEXT NOT NULL DEFAULT '{}',
-                error         TEXT,
-                started_at    TEXT,
-                finished_at   TEXT
-            );
-            CREATE TABLE IF NOT EXISTS stage_results (
-                id            TEXT PRIMARY KEY,
-                execution_id  TEXT NOT NULL,
-                stage_name    TEXT NOT NULL,
-                outputs       TEXT NOT NULL DEFAULT '[]',
-                completed_at  TEXT,
-                FOREIGN KEY (execution_id) REFERENCES executions(id) ON DELETE CASCADE
-            );
-            CREATE INDEX IF NOT EXISTS idx_executions_workflow
-                ON executions(workflow_id);
-            CREATE INDEX IF NOT EXISTS idx_stage_results_execution
-                ON stage_results(execution_id);",
-        )?;
-        Ok(())
-    }
-
     /// 保存执行记录（新建）
     pub fn insert(&self, execution: &Execution) -> Result<(), ExecutionRepositoryError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute(
             "INSERT INTO executions (id, workflow_id, status, variables, error, started_at, finished_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
@@ -83,7 +55,7 @@ impl SqliteExecutionRepository {
         error: Option<&str>,
         finished_at: Option<&str>,
     ) -> Result<(), ExecutionRepositoryError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute(
             "UPDATE executions SET status = ?1, error = ?2, finished_at = ?3 WHERE id = ?4",
             params![status, error, finished_at, id],
@@ -97,7 +69,7 @@ impl SqliteExecutionRepository {
         execution_id: &str,
         sr: &StageResult,
     ) -> Result<(), ExecutionRepositoryError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         conn.execute(
             "INSERT INTO stage_results (id, execution_id, stage_name, outputs, completed_at)
              VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -114,13 +86,13 @@ impl SqliteExecutionRepository {
 
     /// 查询单个执行
     pub fn find_by_id(&self, id: &str) -> Result<Option<Execution>, ExecutionRepositoryError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         find_by_id_with_conn(&conn, id)
     }
 
     /// 查询所有执行（最新在前）
     pub fn find_all(&self) -> Result<Vec<Execution>, ExecutionRepositoryError> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock();
         find_all_with_conn(&conn)
     }
 }
@@ -253,6 +225,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("test_exec.db");
         Box::leak(Box::new(dir));
+        crate::migrations::run_all(path.to_str().unwrap()).unwrap();
         SqliteExecutionRepository::new(&path).unwrap()
     }
 
