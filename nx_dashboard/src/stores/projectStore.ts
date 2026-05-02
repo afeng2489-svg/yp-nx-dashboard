@@ -18,6 +18,26 @@ export interface Project {
   updated_at: string;
 }
 
+export interface ProjectModule {
+  id: string;
+  project_id: string;
+  module_name: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  summary: string;
+  files_changed: string[];
+  last_execution_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpsertModuleRequest {
+  module_name: string;
+  status?: 'pending' | 'in_progress' | 'completed' | 'failed';
+  summary?: string;
+  files_changed?: string[];
+  last_execution_id?: string;
+}
+
 export interface ProjectMessage {
   id: string;
   project_id: string;
@@ -80,6 +100,7 @@ interface ProjectStore {
   projects: Project[];
   currentProject: Project | null;
   executionResult: ExecuteProjectResponse | null;
+  projectModules: Record<string, ProjectModule[]>;
   loading: boolean;
   executing: boolean;
   error: string | null;
@@ -93,6 +114,11 @@ interface ProjectStore {
   updateProject: (id: string, project: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   setCurrentProject: (project: Project | null) => void;
+
+  // Module actions
+  fetchProjectModules: (projectId: string) => Promise<ProjectModule[]>;
+  upsertProjectModule: (projectId: string, data: UpsertModuleRequest) => Promise<ProjectModule>;
+  deleteProjectModule: (projectId: string, moduleId: string) => Promise<void>;
 
   // Execution actions
   executeProject: (
@@ -109,6 +135,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   projects: [],
   currentProject: null,
   executionResult: null,
+  projectModules: {},
   loading: false,
   executing: false,
   error: null,
@@ -292,6 +319,73 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   clearExecutionResult: () => {
     set({ executionResult: null });
+  },
+
+  fetchProjectModules: async (projectId) => {
+    try {
+      const response = await fetchWithTimeout(
+        `${API_BASE_URL}/api/v1/projects/${projectId}/modules`,
+        {},
+        10000,
+      );
+      if (!response.ok) {
+        throw new ApiError(`Failed to fetch modules: ${response.status}`, response.status);
+      }
+      const modules: ProjectModule[] = unwrapEnvelope(await response.json());
+      set((state) => ({
+        projectModules: {
+          ...state.projectModules,
+          [projectId]: modules,
+        },
+      }));
+      return modules;
+    } catch (error) {
+      console.error('Failed to fetch project modules:', error);
+      return [];
+    }
+  },
+
+  upsertProjectModule: async (projectId, data) => {
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/api/v1/projects/${projectId}/modules`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      },
+      10000,
+    );
+    if (!response.ok) {
+      throw new ApiError(`Failed to upsert module: ${response.status}`, response.status);
+    }
+    const module: ProjectModule = unwrapEnvelope(await response.json());
+    set((state) => ({
+      projectModules: {
+        ...state.projectModules,
+        [projectId]: [
+          ...(state.projectModules[projectId] || []).filter((m) => m.id !== module.id),
+          module,
+        ],
+      },
+    }));
+    return module;
+  },
+
+  deleteProjectModule: async (projectId, moduleId) => {
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/api/v1/projects/${projectId}/modules/${moduleId}`,
+      { method: 'DELETE' },
+      10000,
+    );
+    if (!response.ok) {
+      throw new ApiError(`Failed to delete module: ${response.status}`, response.status);
+    }
+    set((state) => ({
+      projectModules: {
+        ...state.projectModules,
+        [projectId]: (state.projectModules[projectId] || []).filter((m) => m.id !== moduleId),
+      },
+    }));
   },
 }));
 

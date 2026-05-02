@@ -300,6 +300,9 @@ pub struct AgentTeamService {
     memory_state: Arc<ParkingRwLock<Option<Arc<crate::routes::memory::MemoryState>>>>,
     /// 运行中的进程追踪器
     processes: Arc<ParkingRwLock<HashMap<String, RunningProcess>>>,
+    /// 项目模块服务（用于构建项目状态摘要注入 AI prompt）
+    project_module_service:
+        Option<Arc<crate::services::project_module_service::ProjectModuleService>>,
 }
 
 impl Clone for AgentTeamService {
@@ -313,6 +316,7 @@ impl Clone for AgentTeamService {
             current_workspace_path: self.current_workspace_path.clone(),
             memory_state: Arc::clone(&self.memory_state),
             processes: self.processes.clone(),
+            project_module_service: self.project_module_service.clone(),
         }
     }
 }
@@ -335,6 +339,7 @@ impl AgentTeamService {
             current_workspace_path,
             memory_state: Arc::new(ParkingRwLock::new(None)),
             processes: Arc::new(ParkingRwLock::new(HashMap::new())),
+            project_module_service: None,
         }
     }
 
@@ -356,6 +361,27 @@ impl AgentTeamService {
             current_workspace_path,
             memory_state: Arc::new(ParkingRwLock::new(None)),
             processes: Arc::new(ParkingRwLock::new(HashMap::new())),
+            project_module_service: None,
+        }
+    }
+
+    /// Set project module service (for injecting project state into prompts)
+    pub fn set_project_module_service(
+        &mut self,
+        service: Arc<crate::services::project_module_service::ProjectModuleService>,
+    ) {
+        self.project_module_service = Some(service);
+    }
+
+    /// Build project state summary if project_id is available in context
+    fn build_project_state_summary(&self, context: &HashMap<String, String>) -> String {
+        let project_id = match context.get("project_id") {
+            Some(id) if !id.is_empty() => id,
+            _ => return String::new(),
+        };
+        match &self.project_module_service {
+            Some(svc) => svc.build_state_summary(project_id),
+            None => String::new(),
         }
     }
 
@@ -509,6 +535,7 @@ impl AgentTeamService {
         let current_workspace_path = self.current_workspace_path.clone();
         let memory_state = Arc::clone(&self.memory_state);
         let processes = self.processes.clone();
+        let project_module_service = self.project_module_service.clone();
 
         tokio::spawn(async move {
             while let Ok(message) = receiver.recv().await {
@@ -521,6 +548,7 @@ impl AgentTeamService {
                     current_workspace_path: current_workspace_path.clone(),
                     memory_state: Arc::clone(&memory_state),
                     processes: processes.clone(),
+                    project_module_service: project_module_service.clone(),
                 };
 
                 if let Err(e) = handler.handle_telegram_message(message).await {
@@ -587,56 +615,17 @@ impl AgentTeamService {
         // Build team context for Claude
         let team_context = Self::build_team_context(&team, &team_with_roles.roles);
 
-        // Build the full prompt - Claude decides if any skill matches
-        let workspace_note = if let Some(ref dir) = self.current_workspace_path.read().clone() {
-            format!("\n\n## Current Workspace\nWorking directory: `{}`\nWhen generating documents, plans, or design files, ALWAYS save them as actual files in this directory (e.g., `{}/design.md`, `{}/architecture.md`). Use the Write tool or file creation to persist output.", dir, dir, dir)
-        } else {
-            String::new()
-        };
+        // Build project state summary if project_id is in context
+        let project_state = self.build_project_state_summary(&request.context);
 
-        let full_prompt = if memory_context.is_empty() {
-            format!(
-                r#"You are the team dispatcher. Given the team context and user message, decide what to do.
-
-## Team Context
-{}
-
-## User Message
-{}{}
-
-## Your Decision
-Read the user's message and the available skills in the team context.
-- If a skill's trigger keywords match the user's message → use that skill
-- If no skill matches → answer the user directly as a helpful AI assistant
-
-## Output Format
-Return your response directly. If using a skill, invoke it according to its execution instructions.
-IMPORTANT: When asked to generate documents, reports, or design files, write them as real files to the current workspace directory — do not just print them as text."#,
-                team_context, request.task, workspace_note
-            )
-        } else {
-            format!(
-                r#"You are the team dispatcher. Given the team context and user message, decide what to do.
-
-## Team Context
-{}
-
-{}
-
-## User Message
-{}{}
-
-## Your Decision
-Read the user's message and the available skills in the team context.
-- If a skill's trigger keywords match the user's message → use that skill
-- If no skill matches → answer the user directly as a helpful AI assistant
-
-## Output Format
-Return your response directly. If using a skill, invoke it according to its execution instructions.
-IMPORTANT: When asked to generate documents, reports, or design files, write them as real files to the current workspace directory — do not just print them as text."#,
-                team_context, memory_context, request.task, workspace_note
-            )
-        };
+        // Build the full prompt using shared function
+        let full_prompt = build_team_prompt(
+            &team_context,
+            &memory_context,
+            &request.task,
+            self.current_workspace_path.read().as_deref(),
+            &project_state,
+        );
 
         // 获取当前工作区路径
         let working_dir = self.current_workspace_path.read().clone();
@@ -750,6 +739,7 @@ pub fn build_team_prompt(
     memory_context: &str,
     user_task: &str,
     workspace_dir: Option<&str>,
+    project_state: &str,
 ) -> String {
     let workspace_note = if let Some(dir) = workspace_dir {
         format!("\n\n## Current Workspace\nWorking directory: `{}`\nWhen generating documents, plans, or design files, ALWAYS save them as actual files in this directory (e.g., `{}/design.md`, `{}/architecture.md`). Use the Write tool or file creation to persist output.", dir, dir, dir)
@@ -757,13 +747,19 @@ pub fn build_team_prompt(
         String::new()
     };
 
+    let project_section = if project_state.is_empty() {
+        String::new()
+    } else {
+        format!("\n\n{}\n\nIMPORTANT: Do NOT repeat work that is already completed. Focus on pending or in-progress modules.", project_state)
+    };
+
     if memory_context.is_empty() {
         format!(
             r#"You are the team dispatcher. Given the team context and user message, decide what to do.
 
 ## Team Context
+{}{}
 {}
-
 ## User Message
 {}{}
 
@@ -775,17 +771,15 @@ Read the user's message and the available skills in the team context.
 ## Output Format
 Return your response directly. If using a skill, invoke it according to its execution instructions.
 IMPORTANT: When asked to generate documents, reports, or design files, write them as real files to the current workspace directory — do not just print them as text."#,
-            team_context, user_task, workspace_note
+            team_context, project_section, memory_context, user_task, workspace_note
         )
     } else {
         format!(
             r#"You are the team dispatcher. Given the team context and user message, decide what to do.
 
 ## Team Context
+{}{}
 {}
-
-{}
-
 ## User Message
 {}{}
 
@@ -797,7 +791,7 @@ Read the user's message and the available skills in the team context.
 ## Output Format
 Return your response directly. If using a skill, invoke it according to its execution instructions.
 IMPORTANT: When asked to generate documents, reports, or design files, write them as real files to the current workspace directory — do not just print them as text."#,
-            team_context, memory_context, user_task, workspace_note
+            team_context, project_section, memory_context, user_task, workspace_note
         )
     }
 }

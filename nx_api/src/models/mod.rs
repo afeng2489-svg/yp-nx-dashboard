@@ -5,6 +5,7 @@ pub mod group_chat;
 pub mod issue;
 pub mod pipeline;
 pub mod project;
+pub mod project_module;
 pub mod skill;
 pub mod team;
 

@@ -163,6 +163,23 @@ pub(crate) const PROJECT_SCHEMA: &str = "
     CREATE INDEX IF NOT EXISTS idx_projects_updated_at ON projects(updated_at);
 ";
 
+// ── Project Modules ──────────────────────────────────────────────────────────
+pub(crate) const PROJECT_MODULE_SCHEMA: &str = "
+    CREATE TABLE IF NOT EXISTS project_modules (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        module_name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        summary TEXT NOT NULL DEFAULT '',
+        files_changed TEXT NOT NULL DEFAULT '[]',
+        last_execution_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_pm_unique ON project_modules(project_id, module_name);
+    CREATE INDEX IF NOT EXISTS idx_pm_project ON project_modules(project_id);
+";
+
 // ── Skills ────────────────────────────────────────────────────────────────────
 pub(crate) const SKILL_SCHEMA: &str = "
     CREATE TABLE IF NOT EXISTS skills (
@@ -462,6 +479,7 @@ const ALL_SCHEMAS: &[&str] = &[
     EXECUTION_SCHEMA,
     TEAM_SCHEMA,
     PROJECT_SCHEMA,
+    PROJECT_MODULE_SCHEMA,
     SKILL_SCHEMA,
     API_KEY_SCHEMA,
     AI_PROVIDER_SCHEMA,

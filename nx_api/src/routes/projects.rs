@@ -14,6 +14,7 @@ use crate::models::project::{
     CreateProjectRequest, ExecuteProjectRequest, ExecuteProjectResponse, Project, ProjectWithTeam,
     UpdateProjectRequest,
 };
+use crate::models::project_module::{ProjectModule, UpsertModuleRequest};
 use crate::routes::AppState;
 
 /// List all projects
@@ -100,4 +101,45 @@ pub async fn execute_project(
         .await
         .map(Json)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+}
+
+/// List project modules
+pub async fn list_project_modules(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+) -> Result<Json<Vec<ProjectModule>>, (StatusCode, String)> {
+    state
+        .project_module_service
+        .get_modules(&project_id)
+        .map(Json)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+}
+
+/// Create or update a project module (upsert by module_name)
+pub async fn upsert_project_module(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+    Json(req): Json<UpsertModuleRequest>,
+) -> Result<Json<ProjectModule>, (StatusCode, String)> {
+    state
+        .project_module_service
+        .upsert_module(&project_id, req)
+        .map(Json)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+}
+
+/// Delete a project module
+pub async fn delete_project_module(
+    State(state): State<Arc<AppState>>,
+    Path((_project_id, module_id)): Path<(String, String)>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let deleted = state
+        .project_module_service
+        .delete_module(&module_id)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    if deleted {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err((StatusCode::NOT_FOUND, "Module not found".to_string()))
+    }
 }

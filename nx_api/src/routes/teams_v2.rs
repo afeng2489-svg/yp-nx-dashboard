@@ -625,11 +625,22 @@ pub fn try_pty_dispatch_pub(
             task,
         ))
     });
+
+    // Build project state summary if project_id is available
+    let project_state = state
+        .project_service
+        .list_projects_by_team(team_id)
+        .ok()
+        .and_then(|projects| projects.into_iter().next())
+        .map(|p| state.project_module_service.build_state_summary(&p.id))
+        .unwrap_or_default();
+
     let full_prompt = crate::services::agent_team_service::build_team_prompt(
         &team_context,
         &memory_context,
         task,
         working_dir,
+        &project_state,
     );
 
     // 智能 dialog 处理：在后台 thread 里监听 PTY 输出，检测启动 dialog（trust folder / bypass

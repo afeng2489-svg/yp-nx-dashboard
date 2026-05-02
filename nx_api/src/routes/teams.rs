@@ -781,6 +781,7 @@ pub fn try_pty_dispatch_pub(
         &memory_context,
         task,
         working_dir,
+        "", // v1 PTY path does not inject project state
     );
 
     // 智能 dialog 处理：在后台 thread 里监听 PTY 输出，检测启动 dialog（trust folder / bypass

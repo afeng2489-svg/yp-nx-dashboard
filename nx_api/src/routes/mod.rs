@@ -386,6 +386,7 @@ pub struct AppState {
     pub teams_state: TeamsAppState,
     pub api_key_repository: Arc<SqliteApiKeyRepository>,
     pub project_service: Arc<ProjectService>,
+    pub project_module_service: Arc<crate::services::project_module_service::ProjectModuleService>,
     pub provider_service: Arc<ProviderService>,
     pub group_chat_service: Arc<GroupChatService>,
     pub memory_state: Arc<MemoryState>,
@@ -541,14 +542,14 @@ impl AppState {
         let provider_service = Arc::new(ProviderService::new(provider_repo));
 
         // 创建 AgentTeamService（带有 provider_service 以便从数据库获取 API keys）
-        let agent_team_service = Arc::new(AgentTeamService::with_provider_service(
+        let mut agent_team_service_raw = AgentTeamService::with_provider_service(
             team_service.clone(),
             skill_service_for_agent,
             TelegramService::new(),
             ai_model_manager.clone(),
             provider_service.clone(),
             current_workspace_path.clone(),
-        ));
+        );
 
         // 创建 Memory 状态（使用单独的数据库文件）- 需要在 teams_state 之前创建
         let memory_db_path = if config.db_path.contains('/') {
@@ -568,6 +569,17 @@ impl AppState {
             &memory_db_path,
             None,
         )?);
+
+        let project_module_service = Arc::new(
+            crate::services::project_module_service::ProjectModuleService::new(&config.db_path)
+                .context("Failed to create project module service")?,
+        );
+
+        // Inject project_module_service into agent_team_service for prompt injection
+        agent_team_service_raw.set_project_module_service(project_module_service.clone());
+
+        // Wrap in Arc after all injections
+        let agent_team_service = Arc::new(agent_team_service_raw);
 
         // 创建团队服务状态（将 memory_state 注入到 agent_team_service）
         let teams_state = TeamsAppState::new_with_agent_and_memory(
@@ -766,6 +778,7 @@ impl AppState {
             teams_state,
             api_key_repository: api_key_repo,
             project_service,
+            project_module_service,
             provider_service,
             group_chat_service,
             memory_state,
@@ -1288,6 +1301,18 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         .route("/api/v1/projects/:id", get(projects::get_project))
         .route("/api/v1/projects/:id", put(projects::update_project))
         .route("/api/v1/projects/:id", delete(projects::delete_project))
+        .route(
+            "/api/v1/projects/:id/modules",
+            get(projects::list_project_modules),
+        )
+        .route(
+            "/api/v1/projects/:id/modules",
+            post(projects::upsert_project_module),
+        )
+        .route(
+            "/api/v1/projects/:id/modules/:module_id",
+            delete(projects::delete_project_module),
+        )
         .route(
             "/api/v1/projects/team/:team_id",
             get(projects::list_projects_by_team),

@@ -18,6 +18,8 @@ pub mod group_chat_repository;
 pub mod group_chat_service;
 pub mod issue_repository;
 pub mod plugin_service;
+pub mod project_module_repository;
+pub mod project_module_service;
 pub mod project_repository;
 pub mod project_service;
 pub mod pty_task_watcher;

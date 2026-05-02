@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useProjectStore, Project, ExecuteProjectResponse } from '@/stores/projectStore';
+import {
+  useProjectStore,
+  Project,
+  ExecuteProjectResponse,
+  ProjectModule,
+  UpsertModuleRequest,
+} from '@/stores/projectStore';
 import { useTeamStore } from '@/stores/teamStore';
 import { useWorkspaceStore, Workspace } from '@/stores/workspaceStore';
 import {
@@ -15,6 +21,13 @@ import {
   AlertCircle,
   Folder,
   Terminal,
+  ChevronDown,
+  ChevronRight,
+  Layers,
+  Circle,
+  Loader2 as Spinner,
+  Ban,
+  Edit3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
@@ -40,12 +53,16 @@ export function ProjectsPage() {
     loading,
     executing,
     error,
+    projectModules,
     fetchProjects,
     createProject,
     deleteProject,
     executeProject,
     executionResult,
     clearExecutionResult,
+    fetchProjectModules,
+    upsertProjectModule,
+    deleteProjectModule,
   } = useProjectStore();
   const { teams, fetchTeams } = useTeamStore();
   const { workspaces, fetchWorkspaces } = useWorkspaceStore();
@@ -53,6 +70,14 @@ export function ProjectsPage() {
   const [showExecuteModal, setShowExecuteModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [executeTask, setExecuteTask] = useState('');
+  const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
+  const [editingModule, setEditingModule] = useState<{
+    projectId: string;
+    moduleName: string;
+  } | null>(null);
+  const [newModuleName, setNewModuleName] = useState('');
+  const [newModuleStatus, setNewModuleStatus] = useState<UpsertModuleRequest['status']>('pending');
+  const [newModuleSummary, setNewModuleSummary] = useState('');
   const { confirmState, showConfirm, hideConfirm } = useConfirmModal();
 
   useEffect(() => {
@@ -127,6 +152,87 @@ export function ProjectsPage() {
     } catch (e) {
       console.error('Failed to execute project:', e);
       showError('操作失败', '执行项目失败');
+    }
+  };
+
+  const toggleProjectModules = (projectId: string) => {
+    if (expandedProjectId === projectId) {
+      setExpandedProjectId(null);
+    } else {
+      setExpandedProjectId(projectId);
+      fetchProjectModules(projectId);
+    }
+  };
+
+  const handleAddModule = async (projectId: string) => {
+    if (!newModuleName.trim()) return;
+    await upsertProjectModule(projectId, {
+      module_name: newModuleName.trim(),
+      status: newModuleStatus,
+      summary: newModuleSummary,
+    });
+    setNewModuleName('');
+    setNewModuleStatus('pending');
+    setNewModuleSummary('');
+    setEditingModule(null);
+    fetchProjectModules(projectId);
+  };
+
+  const handleToggleModuleStatus = async (projectId: string, module: ProjectModule) => {
+    const nextStatus: Record<ProjectModule['status'], ProjectModule['status']> = {
+      pending: 'in_progress',
+      in_progress: 'completed',
+      completed: 'failed',
+      failed: 'pending',
+    };
+    await upsertProjectModule(projectId, {
+      module_name: module.module_name,
+      status: nextStatus[module.status],
+    });
+    fetchProjectModules(projectId);
+  };
+
+  const handleDeleteModule = async (projectId: string, moduleId: string) => {
+    await deleteProjectModule(projectId, moduleId);
+    fetchProjectModules(projectId);
+  };
+
+  const getModuleStatusIcon = (status: ProjectModule['status']) => {
+    switch (status) {
+      case 'pending':
+        return <Circle className="w-3.5 h-3.5 text-gray-400" />;
+      case 'in_progress':
+        return <Spinner className="w-3.5 h-3.5 text-blue-500" />;
+      case 'completed':
+        return <CheckCircle className="w-3.5 h-3.5 text-green-500" />;
+      case 'failed':
+        return <Ban className="w-3.5 h-3.5 text-red-500" />;
+    }
+  };
+
+  const getModuleStatusBg = (status: ProjectModule['status']) => {
+    switch (status) {
+      case 'pending':
+        return 'bg-gray-500/10 text-gray-600';
+      case 'in_progress':
+        return 'bg-blue-500/10 text-blue-600';
+      case 'completed':
+        return 'bg-green-500/10 text-green-600';
+      case 'failed':
+        return 'bg-red-500/10 text-red-600';
+    }
+  };
+
+  const getModuleStatusLabel = (status: ProjectModule['status']) => {
+    switch (status) {
+      case 'pending':
+        return '待做';
+      case 'in_progress':
+        return '进行中';
+      case 'completed':
+        return '已完成';
+      case 'failed':
+        return '失败';
     }
   };
 
@@ -314,6 +420,163 @@ export function ProjectsPage() {
                   )}
                 </div>
               </div>
+
+              {/* Module status section */}
+              {project.type === 'local' && (
+                <div className="mt-3 pt-3 border-t border-border/30">
+                  <button
+                    onClick={() => toggleProjectModules(project.id)}
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>模块状态</span>
+                    {projectModules[project.id] && (
+                      <span className="text-xs">
+                        ({projectModules[project.id].filter((m) => m.status === 'completed').length}
+                        /{projectModules[project.id].length})
+                      </span>
+                    )}
+                    {expandedProjectId === project.id ? (
+                      <ChevronDown className="w-3.5 h-3.5 ml-auto" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5 ml-auto" />
+                    )}
+                  </button>
+
+                  {expandedProjectId === project.id && (
+                    <div className="mt-3 space-y-2">
+                      {projectModules[project.id]?.length ? (
+                        <>
+                          {/* Progress bar */}
+                          {(() => {
+                            const mods = projectModules[project.id];
+                            const completed = mods.filter((m) => m.status === 'completed').length;
+                            const pct = Math.round((completed / mods.length) * 100);
+                            return (
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-300"
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs text-muted-foreground">{pct}%</span>
+                              </div>
+                            );
+                          })()}
+
+                          {projectModules[project.id].map((mod) => (
+                            <div
+                              key={mod.id}
+                              className="flex items-center gap-2 p-2 rounded-lg bg-accent/30 group/mod"
+                            >
+                              <button
+                                onClick={() => handleToggleModuleStatus(project.id, mod)}
+                                title="切换状态"
+                                className="flex-shrink-0 hover:scale-110 transition-transform"
+                              >
+                                {getModuleStatusIcon(mod.status)}
+                              </button>
+                              <span className="flex-1 text-sm font-medium truncate">
+                                {mod.module_name}
+                              </span>
+                              <span
+                                className={cn(
+                                  'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                                  getModuleStatusBg(mod.status),
+                                )}
+                              >
+                                {getModuleStatusLabel(mod.status)}
+                              </span>
+                              {mod.summary && (
+                                <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                  {mod.summary}
+                                </span>
+                              )}
+                              <button
+                                onClick={() => handleDeleteModule(project.id, mod.id)}
+                                className="opacity-0 group-hover/mod:opacity-100 p-0.5 hover:bg-red-500/10 rounded transition-all"
+                                title="删除模块"
+                              >
+                                <X className="w-3 h-3 text-muted-foreground hover:text-red-500" />
+                              </button>
+                            </div>
+                          ))}
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground py-1">暂无模块</p>
+                      )}
+
+                      {/* Add module form */}
+                      {editingModule?.projectId === project.id ? (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-accent/20">
+                          <input
+                            type="text"
+                            value={newModuleName}
+                            onChange={(e) => setNewModuleName(e.target.value)}
+                            placeholder="模块名称"
+                            className="flex-1 px-2 py-1 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/50"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleAddModule(project.id);
+                              if (e.key === 'Escape') setEditingModule(null);
+                            }}
+                          />
+                          <select
+                            value={newModuleStatus}
+                            onChange={(e) =>
+                              setNewModuleStatus(e.target.value as UpsertModuleRequest['status'])
+                            }
+                            className="px-2 py-1 text-xs rounded-md border border-border bg-background focus:outline-none"
+                          >
+                            <option value="pending">待做</option>
+                            <option value="in_progress">进行中</option>
+                            <option value="completed">已完成</option>
+                            <option value="failed">失败</option>
+                          </select>
+                          <input
+                            type="text"
+                            value={newModuleSummary}
+                            onChange={(e) => setNewModuleSummary(e.target.value)}
+                            placeholder="摘要(可选)"
+                            className="flex-1 px-2 py-1 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/50"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleAddModule(project.id);
+                              if (e.key === 'Escape') setEditingModule(null);
+                            }}
+                          />
+                          <button
+                            onClick={() => handleAddModule(project.id)}
+                            className="text-xs px-2 py-1 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                          >
+                            添加
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingModule(null);
+                              setNewModuleName('');
+                              setNewModuleSummary('');
+                            }}
+                            className="text-xs px-2 py-1 text-muted-foreground hover:text-foreground"
+                          >
+                            取消
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() =>
+                            setEditingModule({ projectId: project.id, moduleName: '' })
+                          }
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors mt-1"
+                        >
+                          <Plus className="w-3 h-3" />
+                          添加模块
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
