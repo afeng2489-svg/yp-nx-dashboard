@@ -378,6 +378,7 @@ pub async fn execute_team_task(
                 working_dir.as_deref(),
                 event_tx.clone(),
                 ct,
+                None,
             ) {
                 Ok(session_id) => {
                     tracing::info!(
@@ -726,7 +727,27 @@ pub fn try_pty_dispatch_pub(
     working_dir: Option<&str>,
     event_tx: tokio::sync::broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>,
     cancel_token: tokio_util::sync::CancellationToken,
+    pipeline_step_id: Option<&str>,
 ) -> Result<String, String> {
+    // Write checkpoint for crash-resume (R1)
+    if let Some(rs) = &state.resume_service {
+        let project_id = state
+            .project_service
+            .list_projects_by_team(team_id)
+            .ok()
+            .and_then(|projects| projects.into_iter().next())
+            .map(|p| p.id)
+            .unwrap_or_default();
+        if !project_id.is_empty() {
+            if let Err(e) =
+                rs.create_checkpoint(execution_id, &project_id, pipeline_step_id, role_id, task)
+            {
+                tracing::warn!("[Checkpoint] 创建检查点失败: {}", e);
+            } else {
+                tracing::info!("[Checkpoint] 已创建检查点, execution_id: {}", execution_id);
+            }
+        }
+    }
     // Get or create a PTY session for this role
     let session = state
         .claude_terminal_manager
@@ -775,6 +796,7 @@ pub fn try_pty_dispatch_pub(
     let session_clone = session.clone();
     let exec_id = execution_id.to_string();
     let manager = state.agent_execution_manager.clone();
+    let rs = state.resume_service.clone();
 
     tokio::spawn(async move {
         crate::services::pty_task_watcher::watch_pty_task(
@@ -783,6 +805,7 @@ pub fn try_pty_dispatch_pub(
             event_tx,
             cancel_token,
             manager,
+            rs,
         )
         .await;
     });

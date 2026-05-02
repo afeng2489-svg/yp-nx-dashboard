@@ -1,0 +1,7 @@
+name: typescript_default
+description: "TypeScript 项目质量门 — tsc + test"
+checks:
+  - cmd: "npx tsc --noEmit"
+    timeout: 300
+  - cmd: "npm test"
+    timeout: 300

@@ -1,0 +1,126 @@
+sprint_id: v4.7
+status: pending
+priority: P2
+estimated_hours: 34
+depends_on: [v1.4, v2.3]
+
+title: "AI 项目追踪自动化 — AI自己管理Sprint进度"
+objective: |
+  把现在"AI读YAML卡片→执行→写回状态"的手动模式产品化。
+  AI启动时自动接续、状态变更有事件流、前端可视化追踪过程。
+  让项目管理从"人工拖卡片"变成"AI自己驱动"。
+
+problem: |
+  现在的Sprint进度追踪虽然结构化(YAML+JSON)，但存在3个问题：
+  1. 需要人工告诉AI"读进度→执行→更新"，AI不会主动接续
+  2. 状态变更没有事件流，只有最终状态，不知道"谁在什么时候为什么改了"
+  3. 前端看不到Sprint进度，只有终端里能看到
+
+insight: |
+  AI自己更新卡片的模式本身就是最佳实践：
+  - 状态是实时真实的(AI自己干活自己更新)
+  - 上下文天然完整(知道为什么跳过、为什么标记完成)
+  - 结构化+可追溯(YAML卡片+JSON进度+timeline事件)
+  把这个过程自动化产品化，就是差异化竞争力。
+
+remaining_tasks:
+  - id: T1
+    name: Sprint 状态持久化到数据库
+    priority: P0
+    estimated_hours: 6
+    description: |
+      创建 sprint_cards 表 + sprint_events 事件流表
+      sprint_cards: id, title, status, priority, data_json, updated_at
+      sprint_events: id, sprint_id, event_type(started/completed/skipped/blocked),
+                      detail, created_at
+      启动时从DB读取而非YAML文件
+    acceptance:
+      - Sprint 卡片 CRUD API
+      - 状态变更自动写入 sprint_events
+      - /api/v1/sprints 列表 + /api/v1/sprints/:id 详情
+
+  - id: T2
+    name: 团队对话 → Pipeline 自动编排
+    priority: P0
+    estimated_hours: 8
+    depends_on: [T3]
+    description: |
+      用户在团队对话中提出需求（如"做一个电商后台"），
+      AI 自动拆解为具体任务，生成 Pipeline 步骤并自动编排执行。
+
+      核心流程：
+      1. 用户在 GroupChat 中描述需求
+      2. AI（PM/架构师角色）分析需求，拆解为任务列表
+      3. 根据团队角色自动映射到 Pipeline 阶段：
+         - PM → Phase 1（需求分析）
+         - 架构师 → Phase 1（架构设计）
+         - 后端 → Phase 2（后端开发）
+         - 前端 → Phase 2（前端开发）
+         - 测试 → Phase 3（测试）
+      4. 自动生成 Pipeline Step 记录（含具体的 Claude prompt）
+      5. Pipeline 启动后按阶段自动调度 Agent 执行
+    acceptance:
+      - 团队对话中输入需求 → 自动创建 Pipeline + Steps
+      - Steps 按团队角色正确分配到对应 Phase
+      - 每个 Step 包含明确的执行 prompt（而非空壳）
+      - Pipeline 启动后 Phase 推进、步骤状态自动更新
+
+  - id: T3
+    name: 会话模块合并 — 统一持久化交互会话
+    priority: P0
+    estimated_hours: 6
+    description: |
+      现在系统有两套会话，各管各的谁也没真正用起来：
+      1. routes/sessions + session_service：持久化会话，绑 workflow_id，有 CRUD API 但没内容
+      2. a2ui/session：内存交互会话，绑 execution_id，有消息收发但前端看不到
+
+      合并为一套统一会话：会话 = 一次 Agent 执行过程的完整对话记录
+      - 复用 A2UI 的交互能力（消息、pending 等待用户响应、事件广播）
+      - 加上持久化存储（会话、消息都落 DB）
+      - 前端 SessionsPage 展示真实内容：执行中的 Agent 对话、用户可回答问题
+      - 与 Pipeline Step 关联：每个 Step 执行对应一个 Session
+    acceptance:
+      - 合并为一套会话系统，删除废弃的那套
+      - 会话 + 消息持久化到数据库
+      - 前端 SessionsPage 能看到 Agent 执行对话内容
+      - 用户能在前端回答 Agent 的 pending 问题
+      - Pipeline Step 与 Session 关联（step 执行 → 创建 session）
+
+  - id: T4
+    name: Sprint 看板前端
+    priority: P1
+    estimated_hours: 8
+    depends_on: [T1]
+    description: |
+      前端新增 Sprint 看板页：
+      - 总览：Phase 横条 + 每个 Sprint 的状态色块
+      - 详情：选中 Sprint → 显示任务列表 + 状态 + 事件时间线
+      - 实时：SSE/WebSocket 推送状态变更
+      - 操作：手动标记 skip/block（AI执行时的决策也自动记录）
+    acceptance:
+      - Sprint 看板页面
+      - 实时状态更新
+      - 事件时间线可查看
+
+  - id: T5
+    name: 进度自动汇报
+    priority: P2
+    estimated_hours: 6
+    depends_on: [T4]
+    description: |
+      每完成一个 sprint，自动生成进度报告：
+      - 耗时 vs 预估
+      - 完成率 + 跳过/阻塞原因
+      - 下一个 sprint 预览
+      - 可选推送到 Slack/邮件/Webhook
+    acceptance:
+      - Sprint 完成自动生成报告
+      - GET /api/v1/sprints/:id/report
+      - 可配置 Webhook 通知
+
+quality_gates:
+  - Sprint 卡片 API 全部通过测试
+  - 会话模块合并完成，前端可查看 Agent 对话
+  - 团队对话能触发 Pipeline 自动编排
+  - 前端看板正确展示 Sprint 状态
+  - 事件时间线可追溯所有状态变更

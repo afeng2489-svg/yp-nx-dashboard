@@ -8,11 +8,18 @@ use std::sync::Arc;
 use tokio::process::Command;
 
 use crate::events::{EventEmitter, WorkflowEvent};
-use crate::parser::{StageType, WorkflowError as ParserWorkflowError};
+use crate::parser::{OnFail, QualityGate, StageType, WorkflowError as ParserWorkflowError};
 use crate::{
-    AgentState, AgentStatus, StageOutput, WorkflowDefinition, WorkflowState, WorkflowStatus,
+    AgentState, AgentStatus, QualityCheckResult, QualityGateResult, StageOutput,
+    WorkflowDefinition, WorkflowState, WorkflowStatus,
 };
 use regex::Regex;
+
+/// 质量门单次运行结果（内部用）
+struct GateRunResult {
+    passed: bool,
+    checks: Vec<QualityCheckResult>,
+}
 
 /// 共享工作流状态
 type SharedState = Arc<RwLock<WorkflowState>>;
@@ -216,9 +223,16 @@ impl WorkflowEngine {
                 }
 
                 StageType::Agent => {
-                    match self.execute_stage(&state, &stage, &workflow.agents).await {
-                        Ok(outputs) => outputs,
+                    // 首次执行 stage
+                    let initial_result = self.execute_stage(&state, &stage, &workflow.agents).await;
+
+                    let (outputs, quality_gate_result) = match initial_result {
+                        Ok(out) => {
+                            self.run_quality_gate_loop(&state, &stage, &workflow.agents, out)
+                                .await?
+                        }
                         Err(e) => {
+                            // stage 执行失败 → 尝试 on_error 重试
                             if let Some(ref error_handler) = workflow.on_error {
                                 if error_handler.retry {
                                     let mut last_err = e;
@@ -234,8 +248,8 @@ impl WorkflowEngine {
                                             .execute_stage(&state, &stage, &workflow.agents)
                                             .await
                                         {
-                                            Ok(outputs) => {
-                                                retry_result = Some(outputs);
+                                            Ok(out) => {
+                                                retry_result = Some(out);
                                                 break;
                                             }
                                             Err(e) => {
@@ -244,7 +258,15 @@ impl WorkflowEngine {
                                         }
                                     }
                                     match retry_result {
-                                        Some(outputs) => outputs,
+                                        Some(out) => {
+                                            self.run_quality_gate_loop(
+                                                &state,
+                                                &stage,
+                                                &workflow.agents,
+                                                out,
+                                            )
+                                            .await?
+                                        }
                                         None => return Err(last_err),
                                     }
                                 } else {
@@ -254,13 +276,27 @@ impl WorkflowEngine {
                                 return Err(e);
                             }
                         }
+                    };
+
+                    // 传递 quality_gate_result 给 record_stage
+                    {
+                        let mut s = state.write();
+                        s.record_stage(&stage.name, outputs.clone(), quality_gate_result.clone());
                     }
+
+                    // 直接跳到 stage 完成通知（跳过外层的 record_stage）
+                    self.emit_stage_completed(&state, &stage, &outputs, &quality_gate_result);
+                    self.stage_watchers.notify_after(&exec_id_str, &stage.name);
+
+                    // 计算 next 并直接 continue（跳过外层的 record_stage + notify）
+                    current_stage_name = self.compute_next_stage(&stage, &workflow.stages, &state);
+                    continue;
                 }
             };
 
             {
                 let mut s = state.write();
-                s.record_stage(&stage.name, outputs.clone());
+                s.record_stage(&stage.name, outputs.clone(), None);
             }
 
             {
@@ -269,6 +305,7 @@ impl WorkflowEngine {
                     execution_id: s.execution_id,
                     stage_name: stage.name.clone(),
                     outputs: outputs.clone(),
+                    quality_gate_result: None,
                 });
             }
 
@@ -386,6 +423,334 @@ impl WorkflowEngine {
         }
 
         false
+    }
+
+    /// 质量门循环：执行 stage → 跑检查 → 失败重试 → 返回 (outputs, quality_gate_result)
+    async fn run_quality_gate_loop(
+        &self,
+        state: &SharedState,
+        stage: &crate::parser::StageDefinition,
+        agents: &[crate::parser::AgentDefinition],
+        initial_outputs: Vec<StageOutput>,
+    ) -> Result<(Vec<StageOutput>, Option<QualityGateResult>), WorkflowError> {
+        let gate = match &stage.quality_gate {
+            Some(g) => g,
+            None => return Ok((initial_outputs, None)),
+        };
+
+        let resolved_gate = self.resolve_quality_gate(gate);
+        let mut current_outputs = initial_outputs;
+        let mut retry_count = 0usize;
+
+        loop {
+            let gate_result = self
+                .run_quality_gate(&resolved_gate, self.working_directory.as_deref())
+                .await;
+
+            if gate_result.passed {
+                // 发射质量门通过事件
+                {
+                    let s = state.read();
+                    let checks_summary = gate_result
+                        .checks
+                        .iter()
+                        .map(|c| format!("{}: PASS", c.cmd))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    self.event_emitter.emit(WorkflowEvent::QualityGateChecked {
+                        execution_id: s.execution_id,
+                        stage_name: stage.name.clone(),
+                        passed: true,
+                        retry_count,
+                        checks_summary,
+                    });
+                }
+                return Ok((
+                    current_outputs,
+                    Some(QualityGateResult {
+                        passed: true,
+                        checks: gate_result.checks,
+                        retry_count,
+                    }),
+                ));
+            }
+
+            // 质量门失败
+            retry_count += 1;
+            let can_retry = matches!(resolved_gate.on_fail, OnFail::Retry)
+                && retry_count <= resolved_gate.max_retries;
+
+            tracing::warn!(
+                "Stage '{}' 质量门失败 (重试 {}/{})",
+                stage.name,
+                retry_count,
+                resolved_gate.max_retries,
+            );
+
+            // 发射质量门检查事件
+            {
+                let s = state.read();
+                let checks_summary = gate_result
+                    .checks
+                    .iter()
+                    .map(|c| format!("{}: {}", c.cmd, if c.passed { "PASS" } else { "FAIL" }))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                self.event_emitter.emit(WorkflowEvent::QualityGateChecked {
+                    execution_id: s.execution_id,
+                    stage_name: stage.name.clone(),
+                    passed: false,
+                    retry_count,
+                    checks_summary,
+                });
+            }
+
+            if !can_retry {
+                return Err(WorkflowError::Execution(format!(
+                    "Stage '{}' 质量门重试 {} 次后仍未通过",
+                    stage.name, retry_count
+                )));
+            }
+
+            // 构建错误反馈并重新执行 stage
+            let error_summary = self.format_gate_errors(&gate_result);
+            self.inject_gate_error_to_state(state, &stage.name, &error_summary);
+
+            current_outputs = self.execute_stage(state, stage, agents).await?;
+        }
+    }
+
+    /// 解析质量门（处理 template 引用）
+    fn resolve_quality_gate(&self, gate: &QualityGate) -> QualityGate {
+        if let Some(ref template_name) = gate.template {
+            // 从内置模板解析 checks
+            if let Some(template_checks) = Self::load_quality_gate_template(template_name) {
+                return QualityGate {
+                    checks: template_checks,
+                    on_fail: gate.on_fail.clone(),
+                    max_retries: gate.max_retries,
+                    template: None,
+                };
+            }
+            tracing::warn!("未找到质量门模板 '{}', 使用内联 checks", template_name);
+        }
+        gate.clone()
+    }
+
+    /// 加载内置质量门模板
+    fn load_quality_gate_template(name: &str) -> Option<Vec<crate::parser::QualityCheck>> {
+        match name {
+            "rust_default" => Some(vec![
+                crate::parser::QualityCheck {
+                    cmd: "cargo build".to_string(),
+                    timeout: 300,
+                },
+                crate::parser::QualityCheck {
+                    cmd: "cargo test".to_string(),
+                    timeout: 300,
+                },
+                crate::parser::QualityCheck {
+                    cmd: "cargo clippy -- -D warnings".to_string(),
+                    timeout: 300,
+                },
+            ]),
+            "typescript_default" => Some(vec![
+                crate::parser::QualityCheck {
+                    cmd: "npx tsc --noEmit".to_string(),
+                    timeout: 300,
+                },
+                crate::parser::QualityCheck {
+                    cmd: "npm test".to_string(),
+                    timeout: 300,
+                },
+            ]),
+            "python_default" => Some(vec![
+                crate::parser::QualityCheck {
+                    cmd: "python -m pytest".to_string(),
+                    timeout: 300,
+                },
+                crate::parser::QualityCheck {
+                    cmd: "mypy .".to_string(),
+                    timeout: 300,
+                },
+            ]),
+            "go_default" => Some(vec![
+                crate::parser::QualityCheck {
+                    cmd: "go build ./...".to_string(),
+                    timeout: 300,
+                },
+                crate::parser::QualityCheck {
+                    cmd: "go test ./...".to_string(),
+                    timeout: 300,
+                },
+            ]),
+            "docker_default" => Some(vec![crate::parser::QualityCheck {
+                cmd: "docker build .".to_string(),
+                timeout: 600,
+            }]),
+            _ => None,
+        }
+    }
+
+    /// 执行质量门检查命令
+    async fn run_quality_gate(
+        &self,
+        gate: &QualityGate,
+        working_dir: Option<&str>,
+    ) -> GateRunResult {
+        let mut checks = Vec::new();
+        let mut all_passed = true;
+
+        for check in &gate.checks {
+            let start = std::time::Instant::now();
+
+            let mut cmd = tokio::process::Command::new("sh");
+            cmd.arg("-c").arg(&check.cmd);
+
+            if let Some(dir) = working_dir {
+                cmd.current_dir(dir);
+            }
+
+            cmd.stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped());
+
+            let result =
+                tokio::time::timeout(std::time::Duration::from_secs(check.timeout), cmd.output())
+                    .await;
+
+            let duration_ms = start.elapsed().as_millis() as u64;
+
+            let check_result = match result {
+                Ok(Ok(output)) => {
+                    let passed = output.status.success();
+                    if !passed {
+                        all_passed = false;
+                    }
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    QualityCheckResult {
+                        cmd: check.cmd.clone(),
+                        passed,
+                        exit_code: output.status.code(),
+                        stdout: truncate_str(&stdout, 2000),
+                        stderr: truncate_str(&stderr, 2000),
+                        duration_ms,
+                    }
+                }
+                Ok(Err(e)) => {
+                    all_passed = false;
+                    QualityCheckResult {
+                        cmd: check.cmd.clone(),
+                        passed: false,
+                        exit_code: None,
+                        stdout: String::new(),
+                        stderr: e.to_string(),
+                        duration_ms,
+                    }
+                }
+                Err(_) => {
+                    all_passed = false;
+                    QualityCheckResult {
+                        cmd: check.cmd.clone(),
+                        passed: false,
+                        exit_code: None,
+                        stdout: String::new(),
+                        stderr: format!("超时 ({}s)", check.timeout),
+                        duration_ms,
+                    }
+                }
+            };
+
+            tracing::info!(
+                "质量门检查 '{}' → {} ({:?}ms)",
+                check.cmd,
+                if check_result.passed {
+                    "通过"
+                } else {
+                    "失败"
+                },
+                duration_ms,
+            );
+
+            checks.push(check_result);
+        }
+
+        GateRunResult {
+            passed: all_passed,
+            checks,
+        }
+    }
+
+    /// 格式化质量门错误信息（注入给 AI 重试）
+    fn format_gate_errors(&self, result: &GateRunResult) -> String {
+        let mut summary = String::from("质量门检查失败：\n");
+        for check in &result.checks {
+            if !check.passed {
+                summary.push_str(&format!("\n❌ 命令: {}\n", check.cmd));
+                if !check.stdout.is_empty() {
+                    summary.push_str(&format!("stdout:\n{}\n", check.stdout));
+                }
+                if !check.stderr.is_empty() {
+                    summary.push_str(&format!("stderr:\n{}\n", check.stderr));
+                }
+            }
+        }
+        summary
+    }
+
+    /// 将质量门错误信息注入到 state 变量中，供 agent 下次执行时读取
+    fn inject_gate_error_to_state(
+        &self,
+        state: &SharedState,
+        stage_name: &str,
+        error_summary: &str,
+    ) {
+        let var_key = format!("{}_quality_gate_error", stage_name);
+        state.write().set_var(
+            &var_key,
+            serde_json::Value::String(error_summary.to_string()),
+        );
+    }
+
+    /// 发射 StageCompleted 事件
+    fn emit_stage_completed(
+        &self,
+        state: &SharedState,
+        stage: &crate::parser::StageDefinition,
+        outputs: &[StageOutput],
+        quality_gate_result: &Option<QualityGateResult>,
+    ) {
+        let s = state.read();
+        self.event_emitter.emit(WorkflowEvent::StageCompleted {
+            execution_id: s.execution_id,
+            stage_name: stage.name.clone(),
+            outputs: outputs.to_vec(),
+            quality_gate_result: quality_gate_result.clone(),
+        });
+    }
+
+    /// 计算下一个 stage
+    fn compute_next_stage(
+        &self,
+        stage: &crate::parser::StageDefinition,
+        stages: &[crate::parser::StageDefinition],
+        state: &SharedState,
+    ) -> Option<String> {
+        if stage.stage_type == StageType::Loop || stage.next.is_empty() {
+            Self::next_after(stages, &stage.name)
+        } else {
+            let vars = state.read().variables.clone();
+            for transition in &stage.next {
+                let should_jump = match &transition.condition {
+                    None => true,
+                    Some(cond) => Self::evaluate_condition(cond, &vars),
+                };
+                if should_jump {
+                    return Some(transition.goto.clone());
+                }
+            }
+            Self::next_after(stages, &stage.name)
+        }
     }
 
     /// 执行单个阶段
@@ -659,6 +1024,18 @@ impl WorkflowEngine {
         }
 
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    }
+}
+
+fn truncate_str(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else {
+        let mut end = max_len;
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}... (截断)", &s[..end])
     }
 }
 

@@ -71,15 +71,31 @@ impl SqliteExecutionRepository {
     ) -> Result<(), ExecutionRepositoryError> {
         let conn = self.conn.lock();
         conn.execute(
-            "INSERT INTO stage_results (id, execution_id, stage_name, outputs, completed_at)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO stage_results (id, execution_id, stage_name, outputs, quality_gate_result, completed_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 uuid::Uuid::new_v4().to_string(),
                 execution_id,
                 sr.stage_name,
                 serde_json::to_string(&sr.outputs)?,
+                sr.quality_gate_result.as_ref().map(|v| serde_json::to_string(v).unwrap_or_default()),
                 sr.completed_at.map(|t| t.to_rfc3339()),
             ],
+        )?;
+        Ok(())
+    }
+
+    /// 更新 token 用量和费用
+    pub fn update_token_usage(
+        &self,
+        id: &str,
+        total_tokens: i64,
+        total_cost_usd: f64,
+    ) -> Result<(), ExecutionRepositoryError> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "UPDATE executions SET total_tokens = ?1, total_cost_usd = ?2 WHERE id = ?3",
+            params![total_tokens, total_cost_usd, id],
         )?;
         Ok(())
     }
@@ -102,7 +118,7 @@ fn find_by_id_with_conn(
     id: &str,
 ) -> Result<Option<Execution>, ExecutionRepositoryError> {
     let mut stmt = conn.prepare(
-        "SELECT id, workflow_id, status, variables, error, started_at, finished_at
+        "SELECT id, workflow_id, status, variables, error, started_at, finished_at, total_tokens, total_cost_usd
          FROM executions WHERE id = ?1",
     )?;
 
@@ -121,7 +137,7 @@ fn find_by_id_with_conn(
 
 fn find_all_with_conn(conn: &Connection) -> Result<Vec<Execution>, ExecutionRepositoryError> {
     let mut stmt = conn.prepare(
-        "SELECT id, workflow_id, status, variables, error, started_at, finished_at
+        "SELECT id, workflow_id, status, variables, error, started_at, finished_at, total_tokens, total_cost_usd
          FROM executions ORDER BY started_at DESC",
     )?;
 
@@ -140,15 +156,17 @@ fn find_stage_results_with_conn(
     execution_id: &str,
 ) -> Result<Vec<StageResult>, ExecutionRepositoryError> {
     let mut stmt = conn.prepare(
-        "SELECT stage_name, outputs, completed_at
+        "SELECT stage_name, outputs, quality_gate_result, completed_at
          FROM stage_results WHERE execution_id = ?1 ORDER BY completed_at ASC",
     )?;
     let rows = stmt.query_map(params![execution_id], |row| {
         let outputs_str: String = row.get(1)?;
+        let qg_str: Option<String> = row.get(2)?;
         Ok(StageResult {
             stage_name: row.get(0)?,
             outputs: serde_json::from_str(&outputs_str).unwrap_or_default(),
-            completed_at: row.get::<_, Option<String>>(2)?.and_then(|s| {
+            quality_gate_result: qg_str.and_then(|s| serde_json::from_str(&s).ok()),
+            completed_at: row.get::<_, Option<String>>(3)?.and_then(|s| {
                 chrono::DateTime::parse_from_rfc3339(&s)
                     .map(|t| t.with_timezone(&chrono::Utc))
                     .ok()
@@ -213,6 +231,8 @@ fn row_to_execution(row: &rusqlite::Row) -> rusqlite::Result<Execution> {
         current_stage: None,
         running_agents: Vec::new(),
         pending_pause: None,
+        total_tokens: row.get::<_, i64>(7).unwrap_or(0),
+        total_cost_usd: row.get::<_, f64>(8).unwrap_or(0.0),
     })
 }
 

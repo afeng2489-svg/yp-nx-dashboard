@@ -320,7 +320,7 @@ fn start_nx_api(resource_dir: &std::path::Path, claude_cli_path: Option<&str>) -
 
     let (nx_api_path, skills_path, resources_dir) = if cfg!(debug_assertions) {
         let root = PathBuf::from("/Users/Zhuanz/Desktop/yp-nx-dashboard");
-        let nx_api = root.join("target/release/nx_api");
+        let nx_api = root.join("target/debug/nx_api");
         let skills = root.join(".claude/agents");
         let resources = root.join("nx_dashboard");
         (nx_api, skills, resources)

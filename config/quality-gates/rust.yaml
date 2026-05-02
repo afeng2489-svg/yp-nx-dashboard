@@ -1,0 +1,9 @@
+name: rust_default
+description: "Rust 项目质量门 — build + test + clippy"
+checks:
+  - cmd: "cargo build"
+    timeout: 300
+  - cmd: "cargo test"
+    timeout: 300
+  - cmd: "cargo clippy -- -D warnings"
+    timeout: 300

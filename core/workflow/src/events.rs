@@ -26,6 +26,7 @@ pub enum WorkflowEvent {
         execution_id: Uuid,
         stage_name: String,
         outputs: Vec<super::StageOutput>,
+        quality_gate_result: Option<super::QualityGateResult>,
     },
     /// 智能体已开始
     AgentStarted {
@@ -80,6 +81,14 @@ pub enum WorkflowEvent {
         stage_name: String,
         chosen_value: String,
     },
+    /// 质量门检查完成
+    QualityGateChecked {
+        execution_id: Uuid,
+        stage_name: String,
+        passed: bool,
+        retry_count: usize,
+        checks_summary: String,
+    },
 }
 
 impl WorkflowEvent {
@@ -104,6 +113,7 @@ impl WorkflowEvent {
             WorkflowEvent::VariableSet { execution_id, .. } => Some(*execution_id),
             WorkflowEvent::WorkflowPaused { execution_id, .. } => Some(*execution_id),
             WorkflowEvent::WorkflowResumed { execution_id, .. } => Some(*execution_id),
+            WorkflowEvent::QualityGateChecked { execution_id, .. } => Some(*execution_id),
         }
     }
 }

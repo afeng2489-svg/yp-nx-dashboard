@@ -358,12 +358,24 @@ impl ExecutionService {
 
     /// 添加阶段输出
     pub fn add_stage_output(&self, id: &str, stage_name: String, output: serde_json::Value) {
+        self.add_stage_output_with_gate(id, stage_name, output, None);
+    }
+
+    /// 添加阶段输出（带质量门结果）
+    pub fn add_stage_output_with_gate(
+        &self,
+        id: &str,
+        stage_name: String,
+        output: serde_json::Value,
+        quality_gate_result: Option<serde_json::Value>,
+    ) {
         let mut executions = self.executions.lock();
         if let Some(execution) = executions.get_mut(id) {
             let sr = StageResult {
                 stage_name: stage_name.clone(),
                 outputs: vec![output.clone()],
                 completed_at: Some(chrono::Utc::now()),
+                quality_gate_result: quality_gate_result.clone(),
             };
             execution.stage_results.push(sr.clone());
             let exec_id = execution.id.clone();
@@ -380,6 +392,7 @@ impl ExecutionService {
                 execution_id: exec_id,
                 stage_name,
                 output,
+                quality_gate_result,
             });
         }
     }
@@ -394,6 +407,26 @@ impl ExecutionService {
                 execution_id: exec_id,
                 line,
             });
+        }
+    }
+
+    /// 累加 token 消耗和费用
+    pub fn add_token_usage(&self, id: &str, tokens: i64, cost_usd: f64) {
+        let mut executions = self.executions.lock();
+        if let Some(execution) = executions.get_mut(id) {
+            execution.total_tokens += tokens;
+            execution.total_cost_usd += cost_usd;
+            let exec_id = execution.id.clone();
+            let total_tokens = execution.total_tokens;
+            let total_cost_usd = execution.total_cost_usd;
+            drop(executions);
+
+            // 持久化到数据库
+            if let Some(ref repo) = self.repo {
+                if let Err(e) = repo.update_token_usage(&exec_id, total_tokens, total_cost_usd) {
+                    tracing::error!("持久化 token 用量失败: {}", e);
+                }
+            }
         }
     }
 
@@ -438,6 +471,7 @@ impl ExecutionService {
                 execution_id: exec_id.clone(),
                 stage_name: stage.to_string(),
                 output,
+                quality_gate_result: None,
             });
         }
 
@@ -617,6 +651,12 @@ pub struct Execution {
     /// 当前 pause 状态（user_input 阶段等待输入时）
     #[serde(default)]
     pub pending_pause: Option<PendingPause>,
+    /// 累计 token 消耗
+    #[serde(default)]
+    pub total_tokens: i64,
+    /// 累计费用（美元）
+    #[serde(default)]
+    pub total_cost_usd: f64,
 }
 
 impl Execution {
@@ -635,6 +675,8 @@ impl Execution {
             current_stage: None,
             running_agents: Vec::new(),
             pending_pause: None,
+            total_tokens: 0,
+            total_cost_usd: 0.0,
         }
     }
 
@@ -670,6 +712,8 @@ pub struct StageResult {
     pub stage_name: String,
     pub outputs: Vec<serde_json::Value>,
     pub completed_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub quality_gate_result: Option<serde_json::Value>,
 }
 
 #[cfg(test)]

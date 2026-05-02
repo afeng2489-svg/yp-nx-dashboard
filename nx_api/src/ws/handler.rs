@@ -53,6 +53,7 @@ pub enum ServerMessage {
         execution_id: String,
         stage_name: String,
         output: serde_json::Value,
+        quality_gate_result: Option<serde_json::Value>,
     },
     /// 输出行
     Output { execution_id: String, line: String },
@@ -74,6 +75,12 @@ pub enum ServerMessage {
         execution_id: String,
         stage_name: String,
         chosen_value: String,
+    },
+    /// Token/Cost 用量更新
+    TokenUsage {
+        execution_id: String,
+        total_tokens: i64,
+        total_cost_usd: f64,
     },
 }
 
@@ -204,6 +211,7 @@ impl WebSocketHandler {
             ExecutionEvent::Failed { execution_id, .. } => execution_id.clone(),
             ExecutionEvent::WorkflowPaused { execution_id, .. } => execution_id.clone(),
             ExecutionEvent::WorkflowResumed { execution_id, .. } => execution_id.clone(),
+            ExecutionEvent::TokenUsage { execution_id, .. } => execution_id.clone(),
         }
     }
 
@@ -235,10 +243,12 @@ impl WebSocketHandler {
                 execution_id,
                 stage_name,
                 output,
+                quality_gate_result,
             } => Some(ServerMessage::StageCompleted {
                 execution_id,
                 stage_name,
                 output,
+                quality_gate_result,
             }),
             ExecutionEvent::Output { execution_id, line } => {
                 Some(ServerMessage::Output { execution_id, line })
@@ -272,6 +282,15 @@ impl WebSocketHandler {
                 execution_id,
                 stage_name,
                 chosen_value,
+            }),
+            ExecutionEvent::TokenUsage {
+                execution_id,
+                total_tokens,
+                total_cost_usd,
+            } => Some(ServerMessage::TokenUsage {
+                execution_id,
+                total_tokens,
+                total_cost_usd,
             }),
         }
     }

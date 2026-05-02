@@ -306,6 +306,10 @@ stages:
   # Loop body stages (referenced by tdd-执行循环)
   - name: 运行测试
     agents: [run-tests-agent]
+    quality_gate:
+      template: rust_default
+      on_fail: retry
+      max_retries: 2
 
   - name: 失败分析
     agents: [analyze-failures-agent]

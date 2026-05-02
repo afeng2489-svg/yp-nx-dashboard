@@ -190,6 +190,47 @@ pub struct UserInputOption {
     pub description: Option<String>,
 }
 
+/// 质量门检查命令
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QualityCheck {
+    /// 要执行的 shell 命令
+    pub cmd: String,
+    /// 超时时间（秒），默认 300
+    #[serde(default = "default_timeout")]
+    pub timeout: u64,
+}
+
+fn default_timeout() -> u64 {
+    300
+}
+
+/// 质量门失败策略
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum OnFail {
+    /// 重试当前 stage
+    #[default]
+    Retry,
+    /// 直接标记失败，不重试
+    Fail,
+}
+
+/// 质量门定义
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QualityGate {
+    /// 检查命令列表
+    pub checks: Vec<QualityCheck>,
+    /// 失败策略
+    #[serde(default)]
+    pub on_fail: OnFail,
+    /// 最大重试次数（默认 3）
+    #[serde(default = "default_max_retries")]
+    pub max_retries: usize,
+    /// 引用内置模板名称（如 "rust_default"），与 checks 二选一
+    #[serde(default)]
+    pub template: Option<String>,
+}
+
 /// 阶段定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StageDefinition {
@@ -213,6 +254,9 @@ pub struct StageDefinition {
     /// 条件跳转规则（为空时按 stages 数组顺序执行，向后兼容）
     #[serde(default)]
     pub next: Vec<StageTransition>,
+    /// 质量门：stage 完成后自动验证
+    #[serde(default)]
+    pub quality_gate: Option<QualityGate>,
 
     // ---- user_input 专用字段 ----
     /// 展示给用户的问题文本

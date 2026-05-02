@@ -258,6 +258,15 @@ pub async fn dispatch_pipeline_steps(
         )
     })?;
 
+    // Pre-fetch pipeline info for step dispatch
+    let pipeline = service.find_pipeline(&pipeline_id).map_err(map_tev_error)?;
+    let pipeline = pipeline.ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": "Pipeline not found" })),
+        )
+    })?;
+
     let steps = service
         .get_dispatchable_steps(&pipeline_id)
         .map_err(map_tev_error)?;
@@ -283,73 +292,83 @@ pub async fn dispatch_pipeline_steps(
 
         // Register with event handler for auto-tracking
         if let Some(h) = handler {
-            // Get pipeline to find project_id and team_id
-            if let Ok(Some(pipeline)) = service.find_pipeline(&pipeline_id) {
-                let execution_id = uuid::Uuid::new_v4().to_string();
-                h.register_step_execution(
-                    &execution_id,
-                    &pipeline_id,
-                    &step.id,
-                    &pipeline.project_id,
-                    &pipeline.team_id,
-                    &step.role_id,
+            let execution_id = uuid::Uuid::new_v4().to_string();
+            let working_dir = state.current_workspace_path.read().clone();
+            h.register_step_execution(
+                &execution_id,
+                &pipeline_id,
+                &step.id,
+                &pipeline.project_id,
+                &pipeline.team_id,
+                &step.role_id,
+                working_dir.as_deref(),
+            );
+
+            // Register with process lifecycle
+            if let Some(lc) = state.process_lifecycle.as_ref() {
+                let _ =
+                    lc.register_process(&execution_id, &pipeline.project_id, &step.role_id, None);
+            }
+
+            // Register cancel token
+            let cancel_token = tokio_util::sync::CancellationToken::new();
+            state
+                .agent_execution_manager
+                .register_cancel_token(&execution_id, cancel_token.clone());
+
+            // ── PTY-first dispatch (reusing existing infra) ──
+            let event_tx = state.agent_execution_manager.event_sender();
+            let working_dir = state.current_workspace_path.read().clone();
+
+            let pty_result = super::teams::try_pty_dispatch_pub(
+                &state,
+                &pipeline.team_id,
+                &step.role_id,
+                &step.instruction,
+                &execution_id,
+                working_dir.as_deref(),
+                event_tx.clone(),
+                cancel_token,
+                Some(&step.id),
+            );
+
+            if let Ok(session_id) = pty_result {
+                let _ = event_tx.send(crate::ws::agent_execution::AgentExecutionEvent::Started {
+                    execution_id: execution_id.clone(),
+                    agent_role: "pipeline".to_string(),
+                    task_summary: step.instruction.clone(),
+                    role_id: Some(step.role_id.clone()),
+                    session_id: Some(session_id),
+                });
+                dispatched.push(serde_json::json!({
+                    "step_id": step.id,
+                    "execution_id": execution_id,
+                    "method": "pty",
+                }));
+            } else if let Err(pty_err) = pty_result {
+                // PTY failed — roll back step status to Pending so it can be retried
+                tracing::warn!(
+                    "[Pipeline] PTY dispatch failed for step {}: {pty_err}",
+                    step.id
                 );
-
-                // Register with process lifecycle
+                let _ = service.update_step_status(
+                    &step.id,
+                    &crate::models::pipeline::StepStatus::Pending,
+                    None,
+                );
+                // Clean up registered process and cancel token
                 if let Some(lc) = state.process_lifecycle.as_ref() {
-                    let _ = lc.register_process(
-                        &execution_id,
-                        &pipeline.project_id,
-                        &step.role_id,
-                        None,
-                    );
+                    lc.unregister_process(&execution_id);
                 }
-
-                // Register cancel token
-                let cancel_token = tokio_util::sync::CancellationToken::new();
                 state
                     .agent_execution_manager
-                    .register_cancel_token(&execution_id, cancel_token.clone());
-
-                // ── PTY-first dispatch (reusing existing infra) ──
-                let event_tx = state.agent_execution_manager.event_sender();
-                let working_dir = state.current_workspace_path.read().clone();
-
-                let pty_result = super::teams::try_pty_dispatch_pub(
-                    &state,
-                    &pipeline.team_id,
-                    &step.role_id,
-                    &step.instruction,
-                    &execution_id,
-                    working_dir.as_deref(),
-                    event_tx.clone(),
-                    cancel_token,
-                );
-
-                if let Ok(session_id) = pty_result {
-                    let _ =
-                        event_tx.send(crate::ws::agent_execution::AgentExecutionEvent::Started {
-                            execution_id: execution_id.clone(),
-                            agent_role: "pipeline".to_string(),
-                            task_summary: step.instruction.clone(),
-                            role_id: Some(step.role_id.clone()),
-                            session_id: Some(session_id),
-                        });
-                    dispatched.push(serde_json::json!({
-                        "step_id": step.id,
-                        "execution_id": execution_id,
-                        "method": "pty",
-                    }));
-                } else {
-                    // Fallback: would need to call agent_team_service.execute_team_task
-                    // For now, record the step as dispatched via PTY fallback
-                    dispatched.push(serde_json::json!({
-                        "step_id": step.id,
-                        "execution_id": execution_id,
-                        "method": "queued",
-                        "note": "PTY unavailable, step queued for manual execution",
-                    }));
-                }
+                    .remove_execution(&execution_id);
+                dispatched.push(serde_json::json!({
+                    "step_id": step.id,
+                    "execution_id": execution_id,
+                    "method": "failed",
+                    "error": pty_err,
+                }));
             }
         }
     }

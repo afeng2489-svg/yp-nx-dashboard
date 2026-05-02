@@ -97,11 +97,17 @@ impl WorkflowState {
     }
 
     /// 记录阶段结果
-    pub fn record_stage(&mut self, stage_name: &str, outputs: Vec<StageOutput>) {
+    pub fn record_stage(
+        &mut self,
+        stage_name: &str,
+        outputs: Vec<StageOutput>,
+        quality_gate_result: Option<QualityGateResult>,
+    ) {
         self.stage_results.push(StageResult {
             stage_name: stage_name.to_string(),
             outputs,
             completed_at: Utc::now(),
+            quality_gate_result,
         });
         self.current_stage += 1;
         self.updated_at = Utc::now();
@@ -178,12 +184,43 @@ impl std::fmt::Display for WorkflowStatus {
     }
 }
 
+/// 质量门单条检查结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QualityCheckResult {
+    /// 执行的命令
+    pub cmd: String,
+    /// 是否通过
+    pub passed: bool,
+    /// 退出码
+    pub exit_code: Option<i32>,
+    /// stdout（截断到前 2000 字符）
+    pub stdout: String,
+    /// stderr（截断到前 2000 字符）
+    pub stderr: String,
+    /// 执行耗时（毫秒）
+    pub duration_ms: u64,
+}
+
+/// 质量门整体结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QualityGateResult {
+    /// 是否全部通过
+    pub passed: bool,
+    /// 各条检查结果
+    pub checks: Vec<QualityCheckResult>,
+    /// 当前重试次数（0 表示首次）
+    pub retry_count: usize,
+}
+
 /// 阶段执行结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StageResult {
     pub stage_name: String,
     pub outputs: Vec<StageOutput>,
     pub completed_at: DateTime<Utc>,
+    /// 质量门结果（如果 stage 配置了 quality_gate）
+    #[serde(default)]
+    pub quality_gate_result: Option<QualityGateResult>,
 }
 
 /// 阶段的输出

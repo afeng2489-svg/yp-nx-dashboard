@@ -32,6 +32,7 @@ pub async fn watch_pty_task(
     event_tx: broadcast::Sender<AgentExecutionEvent>,
     cancel_token: CancellationToken,
     manager: crate::ws::agent_execution::AgentExecutionManager,
+    resume_service: Option<Arc<crate::services::team_evolution::ResumeService>>,
 ) {
     let start = Instant::now();
     let mut output_rx = session.subscribe_output();
@@ -48,6 +49,11 @@ pub async fn watch_pty_task(
     heartbeat_interval.tick().await;
 
     let mut check_interval = tokio::time::interval(Duration::from_millis(100));
+
+    // Checkpoint heartbeat: update accumulated_output every 30s
+    let mut checkpoint_interval = tokio::time::interval(Duration::from_secs(30));
+    checkpoint_interval.tick().await;
+    let mut last_checkpoint_len: usize = 0;
 
     loop {
         tokio::select! {
@@ -133,6 +139,7 @@ pub async fn watch_pty_task(
                         }
                         let result = extract_result_best_effort(&accumulated);
                         emit_completed(&execution_id, result, &start, &event_tx, &manager);
+                        checkpoint_final(&execution_id, true, &resume_service);
                         return;
                     }
                 }
@@ -143,6 +150,19 @@ pub async fn watch_pty_task(
                     execution_id: execution_id.clone(),
                     elapsed_secs: start.elapsed().as_secs(),
                 });
+            }
+
+            _ = checkpoint_interval.tick() => {
+                // Update checkpoint every 30s if new output accumulated
+                if accumulated.len() > last_checkpoint_len {
+                    if let Some(rs) = &resume_service {
+                        if let Err(e) = rs.update_checkpoint(&execution_id, &accumulated) {
+                            tracing::debug!("[Checkpoint] 更新失败: {}", e);
+                        } else {
+                            last_checkpoint_len = accumulated.len();
+                        }
+                    }
+                }
             }
 
             _ = check_interval.tick() => {
@@ -169,11 +189,13 @@ pub async fn watch_pty_task(
                     }
                     let result = extract_result_best_effort(&accumulated);
                     emit_completed(&execution_id, result, &start, &event_tx, &manager);
+                    checkpoint_final(&execution_id, true, &resume_service);
                     return;
                 }
 
                 if elapsed_secs >= MAX_EXECUTION_SECS {
                     tracing::warn!("[PtyWatcher] 超时 ({}s), execution_id: {}", elapsed_secs, exec_id_for_log);
+                    checkpoint_final(&execution_id, false, &resume_service);
                     let _ = event_tx.send(AgentExecutionEvent::Failed {
                         execution_id: execution_id.clone(),
                         error: format!("执行超时 ({}秒)", elapsed_secs),
@@ -185,12 +207,34 @@ pub async fn watch_pty_task(
 
             _ = cancel_token.cancelled() => {
                 tracing::info!("[PtyWatcher] 被取消, execution_id: {}", exec_id_for_log);
+                checkpoint_final(&execution_id, false, &resume_service);
                 let _ = event_tx.send(AgentExecutionEvent::Cancelled {
                     execution_id: execution_id.clone(),
                 });
                 manager.remove_execution(&execution_id);
                 return;
             }
+        }
+    }
+}
+
+/// Mark checkpoint as completed or interrupted
+fn checkpoint_final(
+    execution_id: &str,
+    success: bool,
+    resume_service: &Option<Arc<crate::services::team_evolution::ResumeService>>,
+) {
+    if let Some(rs) = resume_service {
+        if success {
+            if let Err(e) = rs.mark_completed(execution_id) {
+                tracing::debug!("[Checkpoint] 标记完成失败: {}", e);
+            }
+        } else {
+            // On failure/timeout/cancel: leave as "running" so find_interrupted picks it up
+            tracing::info!(
+                "[Checkpoint] 任务异常结束, execution_id: {} (将被检测为中断)",
+                execution_id
+            );
         }
     }
 }

@@ -96,3 +96,7 @@ stages:
   - name: 审查与测试
     agents: [reviewer, tester]
     parallel: true
+    quality_gate:
+      template: rust_default
+      on_fail: retry
+      max_retries: 3

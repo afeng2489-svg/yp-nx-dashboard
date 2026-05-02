@@ -847,6 +847,63 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         }
     }
 
+    // ── Resume interrupted tasks on startup (R3) ──
+    if let Some(rs) = &app_state.resume_service {
+        match rs.find_interrupted() {
+            Ok(interrupted) if !interrupted.is_empty() => {
+                tracing::info!(
+                    "[Resume] 发现 {} 个中断任务，正在恢复...",
+                    interrupted.len()
+                );
+                for chk in &interrupted {
+                    let resume_prompt = rs.build_resume_prompt(chk);
+                    tracing::info!(
+                        "[Resume] 恢复任务: execution_id={}, role={}",
+                        chk.execution_id,
+                        chk.role_id,
+                    );
+
+                    let new_exec_id = uuid::Uuid::new_v4().to_string();
+                    let cancel_token = tokio_util::sync::CancellationToken::new();
+                    app_state
+                        .agent_execution_manager
+                        .register_cancel_token(&new_exec_id, cancel_token.clone());
+
+                    let event_tx = app_state.agent_execution_manager.event_sender();
+                    let working_dir = app_state.current_workspace_path.read().clone();
+
+                    let pty_result = crate::routes::teams::try_pty_dispatch_pub(
+                        &app_state,
+                        "", // team_id not stored in checkpoint, will be resolved by PTY session
+                        &chk.role_id,
+                        &resume_prompt,
+                        &new_exec_id,
+                        working_dir.as_deref(),
+                        event_tx,
+                        cancel_token,
+                        chk.pipeline_step_id.as_deref(),
+                    );
+
+                    match pty_result {
+                        Ok(sid) => tracing::info!(
+                            "[Resume] 续跑已启动, new_execution={}, session={}",
+                            new_exec_id,
+                            sid
+                        ),
+                        Err(e) => {
+                            tracing::warn!("[Resume] 续跑失败 for {}: {}", chk.execution_id, e)
+                        }
+                    }
+
+                    // Clean up old checkpoint
+                    let _ = rs.delete_checkpoint(&chk.execution_id);
+                }
+            }
+            Ok(_) => tracing::info!("[Resume] 无中断任务"),
+            Err(e) => tracing::warn!("[Resume] 检测中断任务失败: {}", e),
+        }
+    }
+
     // 需要认证的 API 路由
     let api_routes = Router::new()
         // 工作流路由

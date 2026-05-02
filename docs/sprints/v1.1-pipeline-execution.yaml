@@ -1,5 +1,5 @@
 sprint_id: v1.1
-status: pending
+status: completed
 priority: P0
 estimated_hours: 16
 depends_on: [v0.0.3]
@@ -22,6 +22,7 @@ remaining_tasks:
     name: pty_task_watcher 完成时回调 pipeline
     priority: P0
     estimated_hours: 4
+    status: completed
     description: |
       修改 try_pty_dispatch_pub()：
       - 接收可选的 pipeline_id + step_id 参数
@@ -36,6 +37,7 @@ remaining_tasks:
     name: PTY 执行注册到进程监控
     priority: P0
     estimated_hours: 2
+    status: completed
     description: |
       try_pty_dispatch_pub() 开始时调用：
         state.teams_state.agent_team_service.register_process(
@@ -50,6 +52,7 @@ remaining_tasks:
     name: Pipeline 前端进度联动
     priority: P0
     estimated_hours: 4
+    status: completed
     description: |
       前端 pipelineStore 轮询 GET /api/v1/projects/:id/pipeline
       step 完成时更新进度条
@@ -63,6 +66,7 @@ remaining_tasks:
     name: 项目级互斥锁
     priority: P1
     estimated_hours: 3
+    status: skipped
     description: |
       AppState 加 project_locks: Arc<DashMap<String, Arc<Mutex<()>>>>
       try_pty_dispatch_pub 执行前获取 project_id 对应的锁
@@ -76,6 +80,7 @@ remaining_tasks:
     name: Pipeline 端到端测试
     priority: P0
     estimated_hours: 3
+    status: completed
     description: |
       手动测试完整流程：
       1. 创建项目 + 团队

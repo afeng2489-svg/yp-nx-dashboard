@@ -32,6 +32,8 @@ pub async fn list_executions(State(state): State<Arc<AppState>>) -> Json<Vec<Exe
                 status: format!("{:?}", e.status).to_lowercase(),
                 started_at: e.started_at.map(|dt| dt.to_rfc3339()),
                 finished_at: e.finished_at.map(|dt| dt.to_rfc3339()),
+                total_tokens: e.total_tokens,
+                total_cost_usd: e.total_cost_usd,
             }
         })
         .collect();
@@ -56,11 +58,14 @@ pub async fn get_execution(
                     stage_name: sr.stage_name,
                     outputs: sr.outputs,
                     completed_at: sr.completed_at.map(|dt| dt.to_rfc3339()),
+                    quality_gate_result: sr.quality_gate_result,
                 })
                 .collect(),
             started_at: execution.started_at.map(|dt| dt.to_rfc3339()),
             finished_at: execution.finished_at.map(|dt| dt.to_rfc3339()),
             error: execution.error,
+            total_tokens: execution.total_tokens,
+            total_cost_usd: execution.total_cost_usd,
         })
     } else {
         Json(ExecutionResponse {
@@ -72,6 +77,8 @@ pub async fn get_execution(
             started_at: None,
             finished_at: None,
             error: Some("执行不存在".to_string()),
+            total_tokens: 0,
+            total_cost_usd: 0.0,
         })
     }
 }
@@ -165,6 +172,8 @@ pub async fn start_execution(
         started_at: Some(chrono::Utc::now().to_rfc3339()),
         finished_at: None,
         error: None,
+        total_tokens: 0,
+        total_cost_usd: 0.0,
     }))
 }
 
@@ -191,11 +200,15 @@ pub async fn execution_ws(
                 .stage_results
                 .iter()
                 .map(|sr| {
-                    serde_json::json!({
+                    let mut obj = serde_json::json!({
                         "stage_name": sr.stage_name,
                         "outputs": sr.outputs,
                         "completed_at": sr.completed_at.map(|dt| dt.to_rfc3339()),
-                    })
+                    });
+                    if let Some(ref qg) = sr.quality_gate_result {
+                        obj["quality_gate_result"] = qg.clone();
+                    }
+                    obj
                 })
                 .collect();
 
@@ -292,6 +305,7 @@ pub async fn execution_ws(
                             ExecutionEvent::WorkflowResumed { execution_id, .. } => {
                                 execution_id.clone()
                             }
+                            ExecutionEvent::TokenUsage { execution_id, .. } => execution_id.clone(),
                         };
 
                         if event_id == target_id {
@@ -345,6 +359,10 @@ pub struct ExecutionResponse {
     pub started_at: Option<String>,
     pub finished_at: Option<String>,
     pub error: Option<String>,
+    #[serde(default)]
+    pub total_tokens: i64,
+    #[serde(default)]
+    pub total_cost_usd: f64,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -352,6 +370,8 @@ pub struct StageResult {
     pub stage_name: String,
     pub outputs: Vec<serde_json::Value>,
     pub completed_at: Option<String>,
+    #[serde(default)]
+    pub quality_gate_result: Option<serde_json::Value>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -362,6 +382,10 @@ pub struct ExecutionSummary {
     pub status: String,
     pub started_at: Option<String>,
     pub finished_at: Option<String>,
+    #[serde(default)]
+    pub total_tokens: i64,
+    #[serde(default)]
+    pub total_cost_usd: f64,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]

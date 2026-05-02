@@ -48,6 +48,7 @@ struct StepMapping {
     team_id: String,
     role_id: String,
     instruction: String,
+    working_dir: Option<String>,
 }
 
 impl TeamEvolutionEventHandler {
@@ -77,6 +78,7 @@ impl TeamEvolutionEventHandler {
         project_id: &str,
         team_id: &str,
         role_id: &str,
+        working_dir: Option<&str>,
     ) {
         self.step_mapping.write().insert(
             execution_id.to_string(),
@@ -86,7 +88,8 @@ impl TeamEvolutionEventHandler {
                 project_id: project_id.to_string(),
                 team_id: team_id.to_string(),
                 role_id: role_id.to_string(),
-                instruction: String::new(), // filled later when dispatching
+                instruction: String::new(),
+                working_dir: working_dir.map(|s| s.to_string()),
             },
         );
     }
@@ -186,7 +189,36 @@ impl TeamEvolutionEventHandler {
                 // Notify pipeline step completed
                 let mappings = mapping.read();
                 if let Some(sm) = mappings.get(&exec_id) {
-                    let _ = pipeline.on_step_completed(&sm.pipeline_id, &sm.step_id, result);
+                    // ── 质量门：检测 working_dir 中的测试并自动验证 ──
+                    let gate_result = Self::run_team_quality_gate(&sm.working_dir);
+
+                    let output = match &gate_result {
+                        Some(result) if !result.passed => {
+                            let error_summary: Vec<String> = result
+                                .checks
+                                .iter()
+                                .filter(|c| !c.passed)
+                                .map(|c| {
+                                    format!(
+                                        "{}: {}",
+                                        c.cmd,
+                                        c.stderr.chars().take(200).collect::<String>()
+                                    )
+                                })
+                                .collect();
+                            format!(
+                                "{}\n\n--- 质量门失败 ---\n{}",
+                                result,
+                                error_summary.join("\n")
+                            )
+                        }
+                        Some(result) if result.passed => {
+                            format!("{}\n\n--- 质量门通过 ---", result)
+                        }
+                        _ => result.clone(),
+                    };
+
+                    let _ = pipeline.on_step_completed(&sm.pipeline_id, &sm.step_id, &output);
 
                     // Update snapshot to done
                     let _ = snapshot.update_role_snapshot(
@@ -347,5 +379,104 @@ impl TeamEvolutionEventHandler {
                 }
             }
         });
+    }
+
+    /// 检测 working_dir 中的项目类型并运行对应的质量门检查
+    fn run_team_quality_gate(working_dir: &Option<String>) -> Option<TeamQualityGateResult> {
+        let dir = working_dir.as_ref()?;
+
+        // 检测项目类型
+        let checks = if std::path::Path::new(&format!("{}/Cargo.toml", dir)).exists() {
+            vec![("cargo build", 300), ("cargo test", 300)]
+        } else if std::path::Path::new(&format!("{}/package.json", dir)).exists() {
+            vec![("npx tsc --noEmit", 300), ("npm test", 300)]
+        } else if std::path::Path::new(&format!("{}/go.mod", dir)).exists() {
+            vec![("go build ./...", 300), ("go test ./...", 300)]
+        } else if std::path::Path::new(&format!("{}/pyproject.toml", dir)).exists()
+            || std::path::Path::new(&format!("{}/setup.py", dir)).exists()
+        {
+            vec![("python -m pytest", 300)]
+        } else {
+            return None;
+        };
+
+        let mut results = Vec::new();
+        let mut all_passed = true;
+
+        for (cmd, timeout_secs) in &checks {
+            let output = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(cmd)
+                .current_dir(dir)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .output();
+
+            let check_result = match output {
+                Ok(out) => {
+                    let passed = out.status.success();
+                    if !passed {
+                        all_passed = false;
+                    }
+                    TeamCheckResult {
+                        cmd: cmd.to_string(),
+                        passed,
+                        exit_code: out.status.code(),
+                        stdout: String::from_utf8_lossy(&out.stdout)
+                            .chars()
+                            .take(2000)
+                            .collect(),
+                        stderr: String::from_utf8_lossy(&out.stderr)
+                            .chars()
+                            .take(2000)
+                            .collect(),
+                    }
+                }
+                Err(e) => {
+                    all_passed = false;
+                    TeamCheckResult {
+                        cmd: cmd.to_string(),
+                        passed: false,
+                        exit_code: None,
+                        stdout: String::new(),
+                        stderr: e.to_string(),
+                    }
+                }
+            };
+            tracing::info!(
+                "[TeamQualityGate] '{}' → {}",
+                cmd,
+                if check_result.passed { "PASS" } else { "FAIL" }
+            );
+            results.push(check_result);
+        }
+
+        Some(TeamQualityGateResult {
+            passed: all_passed,
+            checks: results,
+        })
+    }
+}
+
+/// 团队对话质量门结果
+struct TeamQualityGateResult {
+    passed: bool,
+    checks: Vec<TeamCheckResult>,
+}
+
+struct TeamCheckResult {
+    cmd: String,
+    passed: bool,
+    exit_code: Option<i32>,
+    stdout: String,
+    stderr: String,
+}
+
+impl std::fmt::Display for TeamQualityGateResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for c in &self.checks {
+            writeln!(f, "{}: {}", c.cmd, if c.passed { "PASS" } else { "FAIL" })?;
+        }
+        Ok(())
     }
 }

@@ -35,6 +35,7 @@ pub enum ExecutionEvent {
         execution_id: String,
         stage_name: String,
         output: serde_json::Value,
+        quality_gate_result: Option<serde_json::Value>,
     },
     /// 输出行
     Output { execution_id: String, line: String },
@@ -54,6 +55,12 @@ pub enum ExecutionEvent {
         execution_id: String,
         stage_name: String,
         chosen_value: String,
+    },
+    /// Token/Cost 用量更新
+    TokenUsage {
+        execution_id: String,
+        total_tokens: i64,
+        total_cost_usd: f64,
     },
 }
 

@@ -6,15 +6,15 @@
     "codebase": "/Users/Zhuanz/Desktop/yp-nx-dashboard",
     "tracker_version": "4.1",
     "last_updated": "2026-05-02T02:00:00+08:00",
-    "current_sprint": "v1.1",
+    "current_sprint": "v2.1",
     "current_stage": "pending",
     "resume_instruction": "读此文件 → 找 current_sprint → 读 docs/sprints/{id}-*.yaml → 从第一个 pending task 开始"
   },
   "summary": {
-    "total_sprints": 23,
-    "completed": 3,
+    "total_sprints": 24,
+    "completed": 7,
     "in_progress": 0,
-    "pending": 20,
+    "pending": 17,
     "failed": 0
   },
   "architecture": {
@@ -59,8 +59,8 @@
     {
       "id": "phase4",
       "name": "智能化升级",
-      "goal": "多模型路由+失败自愈+低代码画布+浏览器验证+需求分解+多模态",
-      "sprints": ["v4.1", "v4.2", "v4.3", "v4.4", "v4.5", "v4.6"]
+      "goal": "多模型路由+失败自愈+低代码画布+浏览器验证+需求分解+多模态+AI项目追踪",
+      "sprints": ["v4.1", "v4.2", "v4.3", "v4.4", "v4.5", "v4.6", "v4.7"]
     }
   ],
   "tasks": [
@@ -97,7 +97,7 @@
     {
       "id": "v1.1",
       "name": "Pipeline 真正跑通 — dispatch→执行→完成→推进",
-      "status": "pending",
+      "status": "completed",
       "priority": "P0",
       "estimated_hours": 16,
       "card_file": "docs/sprints/v1.1-pipeline-execution.yaml",
@@ -107,7 +107,7 @@
     {
       "id": "v1.2",
       "name": "断点续跑 — Checkpoint真正写入+恢复",
-      "status": "pending",
+      "status": "completed",
       "priority": "P0",
       "estimated_hours": 12,
       "card_file": "docs/sprints/v1.2-checkpoint-resume.yaml",
@@ -117,7 +117,7 @@
     {
       "id": "v1.3",
       "name": "质量门自动化 — 执行→测试→失败重试",
-      "status": "pending",
+      "status": "completed",
       "priority": "P0",
       "estimated_hours": 20,
       "card_file": "docs/sprints/v1.3-quality-gate.yaml",
@@ -127,7 +127,7 @@
     {
       "id": "v1.4",
       "name": "可观测性看板 — 进度+成本+产物",
-      "status": "pending",
+      "status": "completed",
       "priority": "P1",
       "estimated_hours": 20,
       "card_file": "docs/sprints/v1.4-observability.yaml",
@@ -273,6 +273,16 @@
       "card_file": "docs/sprints/v4.6-multimodal-toolchain.yaml",
       "why": "当前只支持文本和代码生成；产品演示、UI设计、营销素材需要图片/视频能力",
       "done_when": "图片生成(DALL-E/Flux)+设计稿生成+视频生成+多模态产物统一管理"
+    },
+    {
+      "id": "v4.7",
+      "name": "AI 项目追踪自动化 — AI自己管理Sprint进度",
+      "status": "pending",
+      "priority": "P2",
+      "estimated_hours": 24,
+      "card_file": "docs/sprints/v4.7-ai-project-tracking.yaml",
+      "why": "目前AI读YAML卡片→执行→写回状态的模式本身就是最佳实践，但需要人工触发；应该产品化：AI启动自动接续、状态变更有事件流、前端可视化追踪过程",
+      "done_when": "AI启动自动读取进度+自动接续pending任务+状态变更事件流+前端Sprint看板+进度自动更新(不需要手动触发)"
     }
   ],
   "timeline": [
@@ -283,6 +293,11 @@
     {"date": "2026-05-01", "event": "v0.0.1完成", "detail": "B1-B4完成(expect→Context, Mutex统一, serde去default, tracing), B5跳过(已连接复用), B6完成(schema统一)"},
     {"date": "2026-05-02", "event": "v0.0.2完成", "detail": "D1 A2UI路由挂载 + D2 统一API信封格式(17个路由文件+10个前端store) + D3 Docker Compose + D4 Migration Runner(17个schema集中管理)"},
     {"date": "2026-05-02", "event": "Phase 4扩展", "detail": "新增v4.4浏览器自动化验证+v4.5用户需求分解UI+v4.6多模态工具链，覆盖愿景缺口"},
-    {"date": "2026-05-02", "event": "v0.0.3完成", "detail": "接入core/orchestrator TaskScheduler：SQLite持久化+Cron+优先级队列+指数退避重试；删除旧nx_api/scheduler/模块；修复rusqlite Connection Send+Sync问题"}
+    {"date": "2026-05-02", "event": "v0.0.3完成", "detail": "接入core/orchestrator TaskScheduler：SQLite持久化+Cron+优先级队列+指数退避重试；删除旧nx_api/scheduler/模块；修复rusqlite Connection Send+Sync问题"},
+    {"date": "2026-05-02", "event": "v1.1完成", "detail": "Pipeline跑通：PTY回调链已有(integration.rs)、进程监控已有(lifecycle)、前端进度联动(pipelineStore轮询+PipelineView调度/暂停/高亮)、E4跳过(项目锁不合理)、Playwright E2E 13/13通过"},
+    {"date": "2026-05-02", "event": "v1.2完成", "detail": "断点续跑：R1任务开始时写checkpoint(try_pty_dispatch_pub+resume_service.create_checkpoint)、R2定期更新+完成/失败标记(pty_task_watcher+30s心跳)、R3启动时检测中断并自动恢复PTY重新dispatch、R4前端interrupted状态+已恢复badge"},
+    {"date": "2026-05-02", "event": "v4.7更新", "detail": "新增T2(团队对话→Pipeline自动编排)、T3(会话模块合并统一持久化交互会话)，Pipeline和会话模块整合到AI项目追踪流程"},
+    {"date": "2026-05-02", "event": "v1.3完成", "detail": "Q1: parser+engine质量门支持(QualityGate结构体/run_quality_gate/失败重试+错误注入)、Q2: 5套内置模板(rust/ts/python/go/docker)、Q3: DB+API+前端全链路quality_gate_result可视化、Q4: 团队对话完成后自动检测项目类型并跑测试"},
+    {"date": "2026-05-03", "event": "v1.4完成", "detail": "O1: 实时进度看板(ActiveExecutionsPanel+StageMetricsPanel+PipelineGanttBar)、O2: Token/Cost实时显示(后端Execution加total_tokens/total_cost_usd+TokenUsage事件+前端TokenCostSummary+ExecutionTokenBadge)、O3: 产物文件列表完整(文件预览react-markdown+highlight.js+二进制判断+产物badge+分页加载)"}
   ]
 }

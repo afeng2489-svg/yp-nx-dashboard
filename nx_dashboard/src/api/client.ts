@@ -124,6 +124,17 @@ class ApiClient {
     );
   }
 
+  async getArtifactContent(executionId: string, relativePath: string) {
+    const query = `?path=${encodeURIComponent(relativePath)}`;
+    return this.request<{
+      ok: boolean;
+      content?: string;
+      error?: string;
+      size_bytes?: number;
+      mime_type?: string;
+    }>(`/api/v1/executions/${executionId}/artifacts/file${query}`);
+  }
+
   async listSessions() {
     return this.request<Session[]>('/api/v1/sessions');
   }

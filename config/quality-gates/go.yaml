@@ -1,0 +1,7 @@
+name: go_default
+description: "Go 项目质量门 — build + test"
+checks:
+  - cmd: "go build ./..."
+    timeout: 300
+  - cmd: "go test ./..."
+    timeout: 300

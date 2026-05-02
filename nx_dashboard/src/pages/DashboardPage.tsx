@@ -5,7 +5,6 @@ import { useWorkflowStore } from '@/stores/workflowStore';
 import { useExecutionStore } from '@/stores/executionStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import {
-  Play,
   Clock,
   CheckCircle,
   XCircle,
@@ -22,6 +21,7 @@ import {
   WorkflowPerformanceChart,
   ExecutionStatsSummary,
 } from '@/components/charts';
+import { ActiveExecutionsPanel, StageMetricsPanel, TokenCostSummary } from '@/components/dashboard';
 
 // 数字滚动动画组件
 function AnimatedNumber({ value }: { value: number }) {
@@ -179,80 +179,6 @@ function SessionItem({
   );
 }
 
-// 执行项组件
-function ExecutionItem({
-  execution,
-  onClick,
-}: {
-  execution: { id: string; workflow_id: string; status: string; started_at?: string };
-  onClick: () => void;
-}) {
-  const statusConfig: Record<
-    string,
-    { gradient: string; label: string; icon: React.ComponentType<{ className?: string }> }
-  > = {
-    pending: { gradient: 'from-slate-400 to-slate-500', label: '等待', icon: Clock },
-    running: { gradient: 'from-blue-400 to-indigo-500', label: '运行', icon: Zap },
-    completed: { gradient: 'from-emerald-400 to-green-500', label: '完成', icon: CheckCircle },
-    failed: { gradient: 'from-red-400 to-rose-500', label: '失败', icon: XCircle },
-    cancelled: { gradient: 'from-slate-400 to-gray-500', label: '取消', icon: XCircle },
-  };
-
-  const config = statusConfig[execution.status] || statusConfig.pending;
-  const Icon = config.icon;
-
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'w-full flex items-center justify-between p-4 rounded-xl transition-all duration-200',
-        'bg-gradient-to-r from-card to-accent/30 border border-border/50',
-        'hover:shadow-md hover:shadow-primary/5 hover:border-primary/20 hover:-translate-y-0.5',
-        'text-left group',
-      )}
-    >
-      <div className="flex items-center gap-4">
-        <div
-          className={cn(
-            'w-10 h-10 rounded-xl flex items-center justify-center',
-            `bg-gradient-to-br ${config.gradient}`,
-            'shadow-lg',
-          )}
-        >
-          <Icon className="w-5 h-5 text-white" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-medium truncate group-hover:text-indigo-600 transition-colors">
-            {execution.workflow_id}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {execution.started_at
-              ? new Date(execution.started_at).toLocaleString('zh-CN', {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })
-              : '未开始'}
-          </p>
-        </div>
-      </div>
-      <div className="flex items-center gap-3">
-        <span
-          className={cn(
-            'px-3 py-1.5 rounded-full text-xs font-medium',
-            'bg-gradient-to-r ' + config.gradient,
-            'text-white shadow-md',
-          )}
-        >
-          {config.label}
-        </span>
-        <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
-      </div>
-    </button>
-  );
-}
-
 export function DashboardPage() {
   const navigate = useNavigate();
   const { workflows } = useWorkflowStore();
@@ -348,6 +274,15 @@ export function DashboardPage() {
             />
           </div>
 
+          {/* 生产线实时状态 — 核心看板 */}
+          <ActiveExecutionsPanel />
+
+          {/* 阶段耗时 + 进度 */}
+          <StageMetricsPanel />
+
+          {/* Token/Cost 统计 */}
+          <TokenCostSummary />
+
           {/* 图表区域 */}
           <div className="space-y-6">
             {/* Stats Summary */}
@@ -399,45 +334,6 @@ export function DashboardPage() {
                     key={session.id}
                     session={session}
                     onClick={() => navigate(`/sessions?id=${session.id}`)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 最近执行 */}
-          <div className="bg-card rounded-2xl border border-border/50 p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500/10 to-pink-500/10">
-                  <Play className="w-5 h-5 text-purple-500" />
-                </div>
-                <h2 className="text-lg font-semibold">最近执行</h2>
-              </div>
-              {executions.length > 0 && (
-                <button
-                  onClick={() => navigate('/executions')}
-                  className="text-sm text-primary hover:text-primary/80 transition-colors font-medium"
-                >
-                  查看全部 →
-                </button>
-              )}
-            </div>
-            {executions.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-muted to-accent flex items-center justify-center">
-                  <Play className="w-8 h-8 text-muted-foreground" />
-                </div>
-                <p className="text-muted-foreground">暂无执行记录</p>
-                <p className="text-sm text-muted-foreground/70 mt-1">执行工作流以查看执行历史</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {executions.slice(0, 5).map((execution) => (
-                  <ExecutionItem
-                    key={execution.id}
-                    execution={execution}
-                    onClick={() => navigate(`/executions`)}
                   />
                 ))}
               </div>

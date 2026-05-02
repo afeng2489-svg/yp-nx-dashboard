@@ -1,0 +1,7 @@
+name: python_default
+description: "Python 项目质量门 — pytest + mypy"
+checks:
+  - cmd: "python -m pytest"
+    timeout: 300
+  - cmd: "mypy ."
+    timeout: 300

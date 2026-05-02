@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
+import { unwrapEnvelope } from '../api/response';
 
 // --- Types ---
 
@@ -46,16 +47,22 @@ interface PipelineState {
   pipeline: PipelineData | null;
   loading: boolean;
   error: string | null;
+  polling: boolean;
 
   fetchPipeline: (projectId: string) => Promise<void>;
   createPipeline: (projectId: string, teamId: string) => Promise<void>;
   startPipeline: (pipelineId: string) => Promise<void>;
   pausePipeline: (pipelineId: string) => Promise<void>;
   resumePipeline: (pipelineId: string) => Promise<void>;
+  dispatchSteps: (pipelineId: string) => Promise<void>;
   retryStep: (pipelineId: string, stepId: string) => Promise<void>;
+  startPolling: (projectId: string) => void;
+  stopPolling: () => void;
   clearError: () => void;
   reset: () => void;
 }
+
+let pollingTimer: ReturnType<typeof setInterval> | null = null;
 
 // --- Store ---
 
@@ -63,16 +70,17 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   pipeline: null,
   loading: false,
   error: null,
+  polling: false,
 
   fetchPipeline: async (projectId: string) => {
-    set({ loading: true, error: null, pipeline: null });
+    set({ loading: true, error: null });
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/projects/${projectId}/pipeline`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
       }
-      const data = await res.json();
+      const data = unwrapEnvelope<PipelineData | null>(await res.json());
       set({ pipeline: data, loading: false });
     } catch (err) {
       set({ error: (err as Error).message, loading: false, pipeline: null });
@@ -91,7 +99,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
       }
-      const data = await res.json();
+      const data = unwrapEnvelope<PipelineData>(await res.json());
       set({ pipeline: data, loading: false });
     } catch (err) {
       set({ error: (err as Error).message, loading: false });
@@ -108,7 +116,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
       }
-      const data = await res.json();
+      const data = unwrapEnvelope<PipelineData>(await res.json());
       set({ pipeline: data, loading: false });
     } catch (err) {
       set({ error: (err as Error).message, loading: false });
@@ -125,7 +133,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
       }
-      const data = await res.json();
+      const data = unwrapEnvelope<PipelineData>(await res.json());
       set({ pipeline: data, loading: false });
     } catch (err) {
       set({ error: (err as Error).message, loading: false });
@@ -142,10 +150,34 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
       }
-      const data = await res.json();
+      const data = unwrapEnvelope<PipelineData>(await res.json());
       set({ pipeline: data, loading: false });
     } catch (err) {
       set({ error: (err as Error).message, loading: false });
+    }
+  },
+
+  dispatchSteps: async (pipelineId: string) => {
+    set({ error: null });
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/pipelines/${pipelineId}/dispatch`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      // Refresh pipeline status after dispatch
+      const current = get().pipeline;
+      if (current) {
+        const refreshRes = await fetch(`${API_BASE_URL}/api/v1/pipelines/${pipelineId}/steps`);
+        if (refreshRes.ok) {
+          const data = unwrapEnvelope<PipelineData>(await refreshRes.json());
+          set({ pipeline: data });
+        }
+      }
+    } catch (err) {
+      set({ error: (err as Error).message });
     }
   },
 
@@ -161,20 +193,38 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
         throw new Error(body.error || `HTTP ${res.status}`);
       }
       // Refresh full pipeline status after retry
-      const current = get().pipeline;
-      if (current) {
-        const refreshRes = await fetch(`${API_BASE_URL}/api/v1/pipelines/${pipelineId}/steps`);
-        if (refreshRes.ok) {
-          const data = await refreshRes.json();
-          // /steps returns PipelineResponse which has the same shape as PipelineData
-          set({ pipeline: data });
-        }
+      const refreshRes = await fetch(`${API_BASE_URL}/api/v1/pipelines/${pipelineId}/steps`);
+      if (refreshRes.ok) {
+        const data = unwrapEnvelope<PipelineData>(await refreshRes.json());
+        set({ pipeline: data });
       }
     } catch (err) {
       set({ error: (err as Error).message });
     }
   },
 
+  startPolling: (projectId: string) => {
+    if (pollingTimer) return;
+    set({ polling: true });
+    pollingTimer = setInterval(() => {
+      get().fetchPipeline(projectId);
+    }, 3000);
+  },
+
+  stopPolling: () => {
+    if (pollingTimer) {
+      clearInterval(pollingTimer);
+      pollingTimer = null;
+    }
+    set({ polling: false });
+  },
+
   clearError: () => set({ error: null }),
-  reset: () => set({ pipeline: null, loading: false, error: null }),
+  reset: () => {
+    if (pollingTimer) {
+      clearInterval(pollingTimer);
+      pollingTimer = null;
+    }
+    set({ pipeline: null, loading: false, error: null, polling: false });
+  },
 }));

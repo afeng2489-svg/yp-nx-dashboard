@@ -49,19 +49,28 @@ impl WorkflowEventBridge {
             WorkflowEvent::StageCompleted {
                 stage_name,
                 outputs,
+                quality_gate_result,
                 ..
             } => {
-                let output_json =
+                let mut output_obj =
                     serde_json::json!({ "stage": stage_name.clone(), "outputs": outputs });
-                self.execution_service.add_stage_output(
+                let qg_value = quality_gate_result
+                    .as_ref()
+                    .map(|qg| serde_json::to_value(qg).unwrap_or_default());
+                if let Some(ref qg) = qg_value {
+                    output_obj["quality_gate_result"] = qg.clone();
+                }
+                self.execution_service.add_stage_output_with_gate(
                     &id,
                     stage_name.clone(),
-                    output_json.clone(),
+                    output_obj.clone(),
+                    qg_value.clone(),
                 );
                 Some(ExecutionEvent::StageCompleted {
                     execution_id: id,
                     stage_name,
-                    output: output_json,
+                    output: output_obj,
+                    quality_gate_result: qg_value,
                 })
             }
             WorkflowEvent::AgentStarted { agent_id, role, .. } => Some(ExecutionEvent::Output {
@@ -128,6 +137,23 @@ impl WorkflowEventBridge {
             WorkflowEvent::VariableSet { key, value, .. } => Some(ExecutionEvent::Output {
                 execution_id: id,
                 line: format!("[Variable] {} = {}", key, value),
+            }),
+            WorkflowEvent::QualityGateChecked {
+                stage_name,
+                passed,
+                retry_count,
+                checks_summary,
+                ..
+            } => Some(ExecutionEvent::Output {
+                execution_id: id,
+                line: if passed {
+                    format!("[质量门] {} ✅ 通过", stage_name)
+                } else {
+                    format!(
+                        "[质量门] {} ❌ 失败 (重试 {}/{} ) — {}",
+                        stage_name, retry_count, "max", checks_summary
+                    )
+                },
             }),
         };
 

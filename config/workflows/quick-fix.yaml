@@ -73,3 +73,7 @@ stages:
 
   - name: 验证
     agents: [verifier]
+    quality_gate:
+      template: rust_default
+      on_fail: retry
+      max_retries: 2

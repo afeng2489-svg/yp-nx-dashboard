@@ -1,0 +1,5 @@
+name: docker_default
+description: "Docker 质量门 — build + healthcheck"
+checks:
+  - cmd: "docker build ."
+    timeout: 600

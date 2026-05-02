@@ -54,13 +54,16 @@ pub(crate) const EXECUTION_SCHEMA: &str = "
         variables     TEXT NOT NULL DEFAULT '{}',
         error         TEXT,
         started_at    TEXT,
-        finished_at   TEXT
+        finished_at   TEXT,
+        total_tokens  INTEGER NOT NULL DEFAULT 0,
+        total_cost_usd REAL NOT NULL DEFAULT 0.0
     );
     CREATE TABLE IF NOT EXISTS stage_results (
         id            TEXT PRIMARY KEY,
         execution_id  TEXT NOT NULL,
         stage_name    TEXT NOT NULL,
         outputs       TEXT NOT NULL DEFAULT '[]',
+        quality_gate_result TEXT,
         completed_at  TEXT,
         FOREIGN KEY (execution_id) REFERENCES executions(id) ON DELETE CASCADE
     );
@@ -472,6 +475,16 @@ const ALL_SCHEMAS: &[&str] = &[
     CHECKPOINT_SCHEMA,
 ];
 
+/// Column additions for existing tables (ALTER TABLE).
+/// These run after ALL_SCHEMAS and use try-catch to be idempotent.
+const COLUMN_MIGRATIONS: &[&str] = &[
+    // v1.3: 质量门结果
+    "ALTER TABLE stage_results ADD COLUMN quality_gate_result TEXT",
+    // v1.4: Token/Cost 追踪
+    "ALTER TABLE executions ADD COLUMN total_tokens INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE executions ADD COLUMN total_cost_usd REAL NOT NULL DEFAULT 0.0",
+];
+
 /// Run all schema migrations against the given database path.
 ///
 /// This opens a dedicated connection, executes all `CREATE TABLE IF NOT EXISTS`
@@ -487,6 +500,11 @@ pub fn run_all(db_path: &str) -> anyhow::Result<()> {
     for (i, schema) in ALL_SCHEMAS.iter().enumerate() {
         conn.execute_batch(schema)
             .with_context(|| format!("migration #{i} failed"))?;
+    }
+
+    // Column additions (idempotent — duplicate column is ignored)
+    for sql in COLUMN_MIGRATIONS {
+        let _ = conn.execute_batch(sql); // ignore "duplicate column" error
     }
 
     tracing::info!(

@@ -47,18 +47,37 @@ export function cleanupAllWebSockets() {
 export interface Execution {
   id: string;
   workflow_id: string;
-  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
+  resumed_from?: string;
   variables?: Record<string, unknown>;
   stage_results?: StageResult[];
   started_at?: string;
   finished_at?: string;
   error?: string;
+  total_tokens?: number;
+  total_cost_usd?: number;
+}
+
+export interface QualityCheckResult {
+  cmd: string;
+  passed: boolean;
+  exit_code: number | null;
+  stdout: string;
+  stderr: string;
+  duration_ms: number;
+}
+
+export interface QualityGateResult {
+  passed: boolean;
+  checks: QualityCheckResult[];
+  retry_count: number;
 }
 
 export interface StageResult {
   stage_name: string;
   outputs?: unknown[];
   completed_at?: string;
+  quality_gate_result?: QualityGateResult;
 }
 
 /** 实时输出行，供 InlineExecPanel 消费 */
@@ -94,6 +113,7 @@ type ExecutionEvent =
       options: WorkflowPauseOption[];
     }
   | { type: 'workflow_resumed'; execution_id: string; stage_name: string; chosen_value: string }
+  | { type: 'token_usage'; execution_id: string; total_tokens: number; total_cost_usd: number }
   | {
       type: 'snapshot';
       execution_id: string;
@@ -579,6 +599,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
                 stage_name: event.stage_name,
                 outputs: [event.output],
                 completed_at: new Date().toISOString(),
+                quality_gate_result: event.quality_gate_result as QualityGateResult | undefined,
               });
               executions[idx] = { ...executions[idx], stage_results: stageResults };
             }
@@ -599,6 +620,15 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
                 status: 'failed',
                 error: event.error,
                 finished_at: new Date().toISOString(),
+              };
+            }
+            break;
+          case 'token_usage':
+            if (idx >= 0) {
+              executions[idx] = {
+                ...executions[idx],
+                total_tokens: event.total_tokens,
+                total_cost_usd: event.total_cost_usd,
               };
             }
             break;

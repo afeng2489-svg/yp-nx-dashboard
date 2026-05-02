@@ -210,6 +210,8 @@ pub async fn execute_workflow(
         started_at: Some(chrono::Utc::now().to_rfc3339()),
         finished_at: None,
         error: None,
+        total_tokens: 0,
+        total_cost_usd: 0.0,
     }))
 }
 

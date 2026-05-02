@@ -1,5 +1,5 @@
 sprint_id: v1.2
-status: pending
+status: completed
 priority: P0
 estimated_hours: 12
 depends_on: [v1.1]
@@ -20,6 +20,7 @@ remaining_tasks:
     name: 任务开始时写入 checkpoint
     priority: P0
     estimated_hours: 2
+    status: completed
     description: |
       try_pty_dispatch_pub() 开始时：
         resume_service.create_checkpoint(
@@ -34,6 +35,7 @@ remaining_tasks:
     name: 执行过程中定期更新 checkpoint
     priority: P0
     estimated_hours: 3
+    status: completed
     description: |
       pty_task_watcher 每收到 Output 事件时：
         每 30 秒或每 500 字节更新一次：
@@ -49,6 +51,7 @@ remaining_tasks:
     name: 启动时检测中断任务
     priority: P0
     estimated_hours: 3
+    status: completed
     description: |
       服务启动时（main.rs 或 AppState::new）：
         let interrupted = resume_service.find_interrupted(project_id)
@@ -64,6 +67,7 @@ remaining_tasks:
     name: 前端显示中断/续跑状态
     priority: P1
     estimated_hours: 4
+    status: completed
     description: |
       ExecutionsPage 加"中断"状态标识（橙色）
       中断的执行显示"已恢复"badge
