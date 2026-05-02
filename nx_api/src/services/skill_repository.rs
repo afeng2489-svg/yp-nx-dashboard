@@ -59,6 +59,15 @@ impl SqliteSkillRepository {
         })
     }
 
+    /// 创建内存数据库实例（用于测试和默认 fallback）
+    pub fn new_in_memory() -> Result<Self, SkillRepositoryError> {
+        let conn = Connection::open_in_memory()?;
+        conn.execute_batch(crate::migrations::SKILL_SCHEMA)?;
+        Ok(Self {
+            conn: Arc::new(Mutex::new(conn)),
+        })
+    }
+
     /// 检查技能是否存在
     pub fn exists(&self, id: &str) -> Result<bool, SkillRepositoryError> {
         let conn = self.conn.lock();

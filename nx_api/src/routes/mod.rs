@@ -509,19 +509,27 @@ impl AppState {
             WisdomService::new(&config.db_path).context("Failed to create wisdom service")?,
         );
 
-        // 创建技能服务（文件型，直接读写 .claude/agents/*.md）
-        // 优先使用 AGENTS_DIR 环境变量（通过 Tauri app 传递），否则自动查找 workspace root
+        // 创建技能服务（DB 优先 + 文件导入源）
+        let skill_db_repo = Arc::new(
+            crate::services::skill_repository::SqliteSkillRepository::new(&config.db_path)
+                .context("Failed to create skill DB repository")?,
+        );
         let agents_dir = std::env::var("AGENTS_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| resolve_agents_dir());
         tracing::info!("[Skills] Using agents directory: {:?}", agents_dir);
-        let skill_service = crate::services::SkillService::with_agents_dir(agents_dir.clone())
-            .with_context(|| {
-                format!(
-                    "Failed to create skill service with agents_dir: {:?}",
-                    agents_dir
-                )
-            })?;
+        let file_repo =
+            crate::services::file_skill_repository::FileSkillRepository::new(agents_dir)
+                .ok()
+                .map(Arc::new);
+        let skill_service = crate::services::SkillService::new(skill_db_repo, file_repo);
+        // Auto-import from agents dir on startup
+        if let Ok(count) = skill_service.import_from_agents() {
+            tracing::info!(
+                "[Skills] Imported {} skills from agents dir on startup",
+                count
+            );
+        }
         let skill_service_for_agent = skill_service.clone();
 
         // 创建团队仓库和服务

@@ -1,6 +1,7 @@
 //! 技能服务
 //!
-//! 直接从 `.claude/agents/*.md` 文件读写技能，数据库仅用于备份。
+//! 优先从数据库读写技能，文件系统降级为导入源。
+//! 启动时自动 seed 预设技能库，开箱即用。
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -9,6 +10,9 @@ use tokio::sync::RwLock as TokioRwLock;
 
 use crate::models::skill::{CreateSkillRequest, SkillRecord, UpdateSkillRequest};
 use crate::services::file_skill_repository::{FileSkillRepository, FileSkillRepositoryError};
+use crate::services::skill_repository::{
+    SkillRepository, SkillRepositoryError, SqliteSkillRepository,
+};
 
 /// 技能服务错误
 #[derive(Debug, thiserror::Error)]
@@ -28,8 +32,14 @@ pub enum SkillServiceError {
     #[error("文件错误: {0}")]
     FileError(String),
 
+    #[error("数据库错误: {0}")]
+    DatabaseError(String),
+
     #[error("技能已存在: {0}")]
     AlreadyExists(String),
+
+    #[error("预设技能不可删除: {0}")]
+    PresetCannotDelete(String),
 }
 
 impl From<FileSkillRepositoryError> for SkillServiceError {
@@ -39,6 +49,16 @@ impl From<FileSkillRepositoryError> for SkillServiceError {
             FileSkillRepositoryError::AlreadyExists(id) => SkillServiceError::AlreadyExists(id),
             FileSkillRepositoryError::ParseError(msg) => SkillServiceError::ValidationFailed(msg),
             _ => SkillServiceError::FileError(e.to_string()),
+        }
+    }
+}
+
+impl From<SkillRepositoryError> for SkillServiceError {
+    fn from(e: SkillRepositoryError) -> Self {
+        match e {
+            SkillRepositoryError::NotFound(id) => SkillServiceError::SkillNotFound(id),
+            SkillRepositoryError::AlreadyExists(id) => SkillServiceError::AlreadyExists(id),
+            _ => SkillServiceError::DatabaseError(e.to_string()),
         }
     }
 }
@@ -134,10 +154,11 @@ pub struct SkillStats {
     pub by_tag: Vec<TagCount>,
 }
 
-/// 技能服务（文件型）
+/// 技能服务（DB 优先，文件系统为导入源）
 #[derive(Clone)]
 pub struct SkillService {
-    file_repo: Arc<FileSkillRepository>,
+    db_repo: Arc<SqliteSkillRepository>,
+    file_repo: Option<Arc<FileSkillRepository>>,
     /// 最后同步时间
     last_sync: Arc<TokioRwLock<Option<chrono::DateTime<chrono::Utc>>>>,
     /// 同步间隔（秒）
@@ -147,49 +168,94 @@ pub struct SkillService {
 }
 
 impl SkillService {
-    /// 使用文件目录创建技能服务
+    /// 创建技能服务（DB 优先 + 可选文件导入源）
+    pub fn new(
+        db_repo: Arc<SqliteSkillRepository>,
+        file_repo: Option<Arc<FileSkillRepository>>,
+    ) -> Self {
+        let svc = Self {
+            db_repo,
+            file_repo,
+            last_sync: Arc::new(TokioRwLock::new(None)),
+            sync_interval_secs: 300,
+            syncing: Arc::new(AtomicBool::new(false)),
+        };
+
+        // Seed preset skills on startup
+        if let Err(e) = svc.seed_presets() {
+            tracing::warn!("[SkillService] Failed to seed presets: {}", e);
+        }
+
+        svc
+    }
+
+    /// 使用文件目录创建（向后兼容）
     pub fn with_agents_dir(agents_dir: PathBuf) -> Result<Self, SkillServiceError> {
         let file_repo = FileSkillRepository::new(agents_dir)
             .map_err(|e| SkillServiceError::FileError(e.to_string()))?;
-
-        Ok(Self {
-            file_repo: Arc::new(file_repo),
-            last_sync: Arc::new(TokioRwLock::new(None)),
-            sync_interval_secs: 300, // 5分钟同步一次
-            syncing: Arc::new(AtomicBool::new(false)),
-        })
+        // Use in-memory DB as fallback for old code path
+        let db_repo = SqliteSkillRepository::new_in_memory()
+            .map_err(|e| SkillServiceError::DatabaseError(e.to_string()))?;
+        Ok(Self::new(Arc::new(db_repo), Some(Arc::new(file_repo))))
     }
 
     /// 获取 agents 目录
     pub fn agents_dir(&self) -> PathBuf {
-        self.file_repo.agents_dir().clone()
+        self.file_repo
+            .as_ref()
+            .map(|fr| fr.agents_dir().clone())
+            .unwrap_or_else(|| PathBuf::from(".claude/agents"))
     }
 
-    /// 创建技能（写文件）
+    /// 创建技能（写 DB）
     pub fn create_skill(&self, req: CreateSkillRequest) -> Result<SkillDetail, SkillServiceError> {
-        let record = self.file_repo.create(req)?;
+        let record = self.db_repo.create(req)?;
         Ok(self.record_to_detail(&record))
     }
 
-    /// 更新技能（写文件）
+    /// 更新技能（写 DB）
     pub fn update_skill(
         &self,
         id: &str,
         req: UpdateSkillRequest,
     ) -> Result<SkillDetail, SkillServiceError> {
-        let record = self.file_repo.update(id, req)?;
+        let record = self.db_repo.update(id, req)?;
         Ok(self.record_to_detail(&record))
     }
 
-    /// 删除技能（删文件）
+    /// 删除技能（预设技能改为禁用）
     pub fn delete_skill(&self, id: &str) -> Result<(), SkillServiceError> {
-        self.file_repo.delete(id)?;
+        let record = self
+            .db_repo
+            .get(id)?
+            .ok_or_else(|| SkillServiceError::SkillNotFound(id.to_string()))?;
+
+        if record.is_preset {
+            // Preset skills: disable instead of delete
+            self.db_repo.update(
+                id,
+                UpdateSkillRequest {
+                    name: None,
+                    description: None,
+                    category: None,
+                    version: None,
+                    author: None,
+                    tags: None,
+                    parameters: None,
+                    code: None,
+                    enabled: Some(false),
+                },
+            )?;
+            return Ok(());
+        }
+
+        self.db_repo.delete(id)?;
         Ok(())
     }
 
     /// 获取所有技能摘要
     pub fn list_skills(&self) -> Vec<SkillSummary> {
-        self.file_repo
+        self.db_repo
             .list()
             .map(|records| records.iter().map(|r| self.record_to_summary(r)).collect())
             .unwrap_or_default()
@@ -197,13 +263,13 @@ impl SkillService {
 
     /// 按类别获取技能
     pub fn list_by_category(&self, category: &str) -> Result<Vec<SkillSummary>, SkillServiceError> {
-        let records = self.file_repo.list_by_category(category)?;
+        let records = self.db_repo.list_by_category(category)?;
         Ok(records.iter().map(|r| self.record_to_summary(r)).collect())
     }
 
     /// 按标签获取技能
     pub fn list_by_tag(&self, tag: &str) -> Vec<SkillSummary> {
-        self.file_repo
+        self.db_repo
             .list_by_tag(tag)
             .map(|records| records.iter().map(|r| self.record_to_summary(r)).collect())
             .unwrap_or_default()
@@ -212,7 +278,7 @@ impl SkillService {
     /// 获取技能详情
     pub fn get_skill(&self, id: &str) -> Result<SkillDetail, SkillServiceError> {
         let record = self
-            .file_repo
+            .db_repo
             .get(id)?
             .ok_or_else(|| SkillServiceError::SkillNotFound(id.to_string()))?;
         Ok(self.record_to_detail(&record))
@@ -220,7 +286,7 @@ impl SkillService {
 
     /// 搜索技能
     pub fn search_skills(&self, query: &str) -> Vec<SkillSummary> {
-        self.file_repo
+        self.db_repo
             .search(query)
             .map(|records| records.iter().map(|r| self.record_to_summary(r)).collect())
             .unwrap_or_default()
@@ -228,7 +294,7 @@ impl SkillService {
 
     /// 获取所有类别
     pub fn list_categories(&self) -> Vec<String> {
-        let records = self.file_repo.list().unwrap_or_default();
+        let records = self.db_repo.list().unwrap_or_default();
         let mut categories: std::collections::HashSet<String> = std::collections::HashSet::new();
         for record in records {
             categories.insert(record.category);
@@ -238,7 +304,7 @@ impl SkillService {
 
     /// 获取所有标签
     pub fn list_tags(&self) -> Vec<String> {
-        let records = self.file_repo.list().unwrap_or_default();
+        let records = self.db_repo.list().unwrap_or_default();
         let mut tags: std::collections::HashSet<String> = std::collections::HashSet::new();
         for record in records {
             for tag in record.tags {
@@ -250,7 +316,7 @@ impl SkillService {
 
     /// 获取技能统计
     pub fn get_stats(&self) -> SkillStats {
-        let records = self.file_repo.list().unwrap_or_default();
+        let records = self.db_repo.list().unwrap_or_default();
 
         let mut category_counts: std::collections::HashMap<String, usize> =
             std::collections::HashMap::new();
@@ -288,13 +354,19 @@ impl SkillService {
         working_dir: Option<String>,
     ) -> Result<ExecuteSkillResponse, SkillServiceError> {
         let record = self
-            .file_repo
+            .db_repo
             .get(skill_id)?
             .ok_or_else(|| SkillServiceError::SkillNotFound(skill_id.to_string()))?;
 
+        if !record.enabled {
+            return Err(SkillServiceError::ExecutionFailed(format!(
+                "技能 {} 已被禁用",
+                skill_id
+            )));
+        }
+
         let start = std::time::Instant::now();
 
-        // 构建执行 prompt
         let phase_str = phase.clone().unwrap_or_else(|| "default".to_string());
         let prompt = format!(
             "Execute the following skill:\n\n\
@@ -339,13 +411,52 @@ impl SkillService {
         }
     }
 
-    /// 从 agents 目录重新加载技能（扫描文件变化）
+    /// 从 agents 目录重新加载技能到 DB
     pub fn reload_skills(&self) -> Result<usize, SkillServiceError> {
-        self.file_repo
+        self.import_from_agents()
+    }
+
+    /// 从文件系统导入所有技能到数据库
+    pub fn import_from_agents(&self) -> Result<usize, SkillServiceError> {
+        let file_repo = match &self.file_repo {
+            Some(fr) => fr,
+            None => return Ok(0),
+        };
+
+        file_repo
             .reload_cache()
             .map_err(|e| SkillServiceError::FileError(e.to_string()))?;
-        let count = self.file_repo.list().map(|v| v.len()).unwrap_or(0);
-        Ok(count)
+
+        let records = file_repo
+            .list()
+            .map_err(|e| SkillServiceError::FileError(e.to_string()))?;
+        let mut imported = 0;
+        for record in &records {
+            if !self.db_repo.exists(&record.id).unwrap_or(false) {
+                let req = CreateSkillRequest {
+                    id: record.id.clone(),
+                    name: record.name.clone(),
+                    description: record.description.clone(),
+                    category: record.category.clone(),
+                    version: Some(record.version.clone()),
+                    author: record.author.clone(),
+                    tags: Some(record.tags.clone()),
+                    parameters: Some(record.parameters.clone()),
+                    code: record.code.clone(),
+                };
+                if let Err(e) = self.db_repo.create(req) {
+                    tracing::warn!("[SkillService] Failed to import skill {}: {}", record.id, e);
+                } else {
+                    imported += 1;
+                }
+            }
+        }
+
+        tracing::info!(
+            "[SkillService] Imported {} skills from agents dir",
+            imported
+        );
+        Ok(imported)
     }
 
     /// 导入技能（从 URL、文件内容或粘贴文本）
@@ -355,9 +466,13 @@ impl SkillService {
         content: &str,
         filename: Option<&str>,
     ) -> Result<SkillDetail, SkillServiceError> {
+        let file_repo = match &self.file_repo {
+            Some(fr) => fr,
+            None => return Err(SkillServiceError::FileError("文件导入源不可用".to_string())),
+        };
+
         let (md_content, fallback_id) = match source {
             "url" => {
-                // 从 URL 下载内容
                 let url = content.trim();
                 if url.is_empty() {
                     return Err(SkillServiceError::ValidationFailed(
@@ -382,7 +497,6 @@ impl SkillService {
                         "文件大小超过 1MB 限制".to_string(),
                     ));
                 }
-                // 从 URL 路径提取文件名
                 let url_filename = url
                     .rsplit('/')
                     .next()
@@ -409,19 +523,204 @@ impl SkillService {
             }
         };
 
-        let record = self
-            .file_repo
-            .import_from_content(&md_content, &fallback_id)?;
-        Ok(self.record_to_detail(&record))
+        let record = file_repo.import_from_content(&md_content, &fallback_id)?;
+
+        // Also save to DB
+        if !self.db_repo.exists(&record.id).unwrap_or(false) {
+            let req = CreateSkillRequest {
+                id: record.id.clone(),
+                name: record.name.clone(),
+                description: record.description.clone(),
+                category: record.category.clone(),
+                version: Some(record.version.clone()),
+                author: record.author.clone(),
+                tags: Some(record.tags.clone()),
+                parameters: Some(record.parameters.clone()),
+                code: record.code.clone(),
+            };
+            self.db_repo.create(req)?;
+        }
+
+        // Read from DB for consistent result
+        let db_record = self
+            .db_repo
+            .get(&record.id)?
+            .ok_or_else(|| SkillServiceError::SkillNotFound(record.id.clone()))?;
+        Ok(self.record_to_detail(&db_record))
     }
 
     /// 获取所有技能文件信息
     pub fn list_skill_files(
         &self,
     ) -> Result<Vec<crate::services::file_skill_repository::SkillFileInfo>, SkillServiceError> {
-        self.file_repo
-            .list_files()
-            .map_err(|e| SkillServiceError::FileError(e.to_string()))
+        match &self.file_repo {
+            Some(fr) => fr
+                .list_files()
+                .map_err(|e| SkillServiceError::FileError(e.to_string())),
+            None => Ok(vec![]),
+        }
+    }
+
+    /// Seed preset skills into the database
+    fn seed_presets(&self) -> Result<(), SkillServiceError> {
+        let presets = Self::preset_skills();
+        for req in presets {
+            if let Err(e) = self.db_repo.init_preset(req) {
+                tracing::warn!("[SkillService] Failed to seed preset: {}", e);
+            }
+        }
+        tracing::info!("[SkillService] Preset skills seeded");
+        Ok(())
+    }
+
+    /// Built-in preset skill definitions
+    fn preset_skills() -> Vec<CreateSkillRequest> {
+        vec![
+            CreateSkillRequest {
+                id: "preset-code-review".to_string(),
+                name: "代码审查".to_string(),
+                description: "审查代码质量、安全性和最佳实践，给出改进建议".to_string(),
+                category: "review".to_string(),
+                version: Some("1.0.0".to_string()),
+                author: Some("Nexus".to_string()),
+                tags: Some(vec!["代码审查".to_string(), "质量".to_string(), "review".to_string()]),
+                parameters: None,
+                code: Some(
+                    "You are a senior code reviewer. Analyze the provided code for:\n\
+                     1. Bug risks and logic errors\n\
+                     2. Security vulnerabilities\n\
+                     3. Performance issues\n\
+                     4. Code style and readability\n\
+                     5. Missing error handling\n\
+                     \n\
+                     Provide specific, actionable feedback with line references.\
+                     Prioritize findings by severity: Critical > High > Medium > Low."
+                    .to_string(),
+                ),
+            },
+            CreateSkillRequest {
+                id: "preset-security-audit".to_string(),
+                name: "安全审计".to_string(),
+                description: "检测 OWASP Top 10 安全漏洞和常见安全风险".to_string(),
+                category: "review".to_string(),
+                version: Some("1.0.0".to_string()),
+                author: Some("Nexus".to_string()),
+                tags: Some(vec!["安全".to_string(), "审计".to_string(), "OWASP".to_string()]),
+                parameters: None,
+                code: Some(
+                    "You are a security auditor. Check the code for:\n\
+                     1. SQL injection, XSS, CSRF\n\
+                     2. Authentication/authorization flaws\n\
+                     3. Sensitive data exposure (hardcoded secrets, logs)\n\
+                     4. Insecure dependencies\n\
+                     5. Input validation gaps\n\
+                     6. Race conditions\n\
+                     \n\
+                     Rate each finding by CVSS severity.\
+                     Provide remediation steps for each vulnerability."
+                    .to_string(),
+                ),
+            },
+            CreateSkillRequest {
+                id: "preset-test-writer".to_string(),
+                name: "自动写测试".to_string(),
+                description: "为指定模块自动生成单元测试和集成测试，目标覆盖率 80%+".to_string(),
+                category: "testing".to_string(),
+                version: Some("1.0.0".to_string()),
+                author: Some("Nexus".to_string()),
+                tags: Some(vec!["测试".to_string(), "TDD".to_string(), "覆盖率".to_string()]),
+                parameters: None,
+                code: Some(
+                    "You are a test engineer. Generate comprehensive tests for the provided code:\n\
+                     1. Unit tests for each public function/method\n\
+                     2. Edge cases and boundary conditions\n\
+                     3. Error handling paths\n\
+                     4. Integration tests for API endpoints\n\
+                     \n\
+                     Follow TDD principles:\n\
+                     - Write test first (RED)\n\
+                     - Implement minimal code (GREEN)\n\
+                     - Refactor (IMPROVE)\n\
+                     \n\
+                     Target: 80%+ coverage. Use the project's existing test framework."
+                    .to_string(),
+                ),
+            },
+            CreateSkillRequest {
+                id: "preset-refactor".to_string(),
+                name: "代码重构".to_string(),
+                description: "重构代码提升可读性、降低复杂度、消除重复代码".to_string(),
+                category: "development".to_string(),
+                version: Some("1.0.0".to_string()),
+                author: Some("Nexus".to_string()),
+                tags: Some(vec!["重构".to_string(), "代码质量".to_string(), "DRY".to_string()]),
+                parameters: None,
+                code: Some(
+                    "You are a refactoring specialist. Improve the code by:\n\
+                     1. Extract functions for repeated logic (DRY)\n\
+                     2. Reduce function complexity (< 50 lines, < 4 nesting levels)\n\
+                     3. Improve naming clarity\n\
+                     4. Apply appropriate design patterns\n\
+                     5. Remove dead code\n\
+                     \n\
+                     Rules:\n\
+                     - Do NOT change external behavior\n\
+                     - Make small, incremental changes\n\
+                     - Keep tests passing after each change\n\
+                     - Explain each refactoring step"
+                    .to_string(),
+                ),
+            },
+            CreateSkillRequest {
+                id: "preset-doc-writer".to_string(),
+                name: "文档生成".to_string(),
+                description: "为代码生成 API 文档、README、架构说明等".to_string(),
+                category: "documentation".to_string(),
+                version: Some("1.0.0".to_string()),
+                author: Some("Nexus".to_string()),
+                tags: Some(vec!["文档".to_string(), "API文档".to_string(), "README".to_string()]),
+                parameters: None,
+                code: Some(
+                    "You are a technical documentation writer. Generate:\n\
+                     1. API documentation with request/response examples\n\
+                     2. README with setup instructions and usage\n\
+                     3. Architecture decision records (ADR)\n\
+                     4. Code comments for non-obvious logic (WHY, not WHAT)\n\
+                     \n\
+                     Guidelines:\n\
+                     - Write in the user's preferred language\n\
+                     - Include working code examples\n\
+                     - Document error cases and edge cases\n\
+                     - Keep docs up-to-date with code changes"
+                    .to_string(),
+                ),
+            },
+            CreateSkillRequest {
+                id: "preset-bug-fixer".to_string(),
+                name: "Bug 修复".to_string(),
+                description: "分析 bug 根因并提供最小化修复方案".to_string(),
+                category: "development".to_string(),
+                version: Some("1.0.0".to_string()),
+                author: Some("Nexus".to_string()),
+                tags: Some(vec!["Bug修复".to_string(), "调试".to_string(), "根因分析".to_string()]),
+                parameters: None,
+                code: Some(
+                    "You are a bug fix specialist. When given a bug report:\n\
+                     1. Reproduce the issue mentally (trace the code path)\n\
+                     2. Identify the root cause (not just the symptom)\n\
+                     3. Propose a minimal fix that doesn't introduce new bugs\n\
+                     4. Verify the fix handles edge cases\n\
+                     5. Check for similar bugs elsewhere in the codebase\n\
+                     \n\
+                     Rules:\n\
+                     - Fix the root cause, not the symptom\n\
+                     - Minimal diff — don't refactor surrounding code\n\
+                     - Add a test that would have caught this bug\n\
+                     - Explain the fix in one sentence"
+                    .to_string(),
+                ),
+            },
+        ]
     }
 
     /// 将记录转换为详情
@@ -470,20 +769,8 @@ impl SkillService {
 
 impl Default for SkillService {
     fn default() -> Self {
-        // 默认使用当前目录下的 .claude/agents
-        let agents_dir = std::env::current_dir()
-            .unwrap_or_default()
-            .join(".claude/agents");
-        Self::with_agents_dir(agents_dir).unwrap_or_else(|_| {
-            // 创建一个临时服务
-            Self {
-                file_repo: Arc::new(
-                    FileSkillRepository::new(PathBuf::from("/tmp/agents")).unwrap(),
-                ),
-                last_sync: Arc::new(TokioRwLock::new(None)),
-                sync_interval_secs: 300,
-                syncing: Arc::new(AtomicBool::new(false)),
-            }
-        })
+        let db_repo =
+            SqliteSkillRepository::new_in_memory().expect("Failed to create in-memory skill repo");
+        Self::new(Arc::new(db_repo), None)
     }
 }

@@ -28,6 +28,7 @@ export default function SkillsPage() {
     createSkill,
     updateSkill,
     deleteSkill,
+    toggleSkillEnabled,
     importSkill,
     fetchStats,
     clearSearch,
@@ -540,6 +541,19 @@ export default function SkillsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => toggleSkillEnabled(currentSkill.id, !currentSkill.enabled)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      currentSkill.enabled ? 'bg-primary' : 'bg-muted'
+                    }`}
+                    title={currentSkill.enabled ? '点击禁用' : '点击启用'}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        currentSkill.enabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
                   <button
                     onClick={handleOpenEditDialog}
                     className="flex items-center gap-1 px-3 py-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors"

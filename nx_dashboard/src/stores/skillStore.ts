@@ -129,6 +129,7 @@ interface SkillStore {
   createSkill: (skill: CreateSkillRequest) => Promise<SkillDetail | null>;
   updateSkill: (id: string, skill: UpdateSkillRequest) => Promise<SkillDetail | null>;
   deleteSkill: (id: string) => Promise<boolean>;
+  toggleSkillEnabled: (id: string, enabled: boolean) => Promise<void>;
   fetchStats: () => Promise<void>;
   fetchCategories: () => Promise<void>;
   fetchTags: () => Promise<void>;
@@ -288,7 +289,10 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
         throw new Error(err || `Failed to delete skill: ${response.status}`);
       }
       set((state) => ({
-        skills: state.skills.filter((s) => s.id !== id),
+        // Preset skills get disabled (still in list), user skills get removed
+        skills: state.skills
+          .map((s) => (s.id === id ? { ...s } : s))
+          .filter((s) => s.id !== id || state.skills.find((x) => x.id === id)?.is_preset),
         currentSkill: state.currentSkill?.id === id ? null : state.currentSkill,
         loading: false,
       }));
@@ -299,6 +303,25 @@ export const useSkillStore = create<SkillStore>((set, get) => ({
         error: error instanceof Error ? error.message : 'Failed to delete skill',
       });
       return false;
+    }
+  },
+
+  toggleSkillEnabled: async (id: string, enabled: boolean) => {
+    try {
+      const response = await fetchWithTimeout(`${API_BASE}/api/v1/skills/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to toggle skill: ${response.status}`);
+      }
+      const data: SkillDetail = unwrapEnvelope(await response.json());
+      set((state) => ({
+        currentSkill: state.currentSkill?.id === id ? data : state.currentSkill,
+      }));
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to toggle skill' });
     }
   },
 
