@@ -48,7 +48,7 @@ impl GitStageWatcher {
     }
 
     /// 检查目录是否是 git 仓库
-    fn is_git_repo(workdir: &PathBuf) -> bool {
+    fn is_git_repo(workdir: &std::path::Path) -> bool {
         workdir.join(".git").exists()
     }
 

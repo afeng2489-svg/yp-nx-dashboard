@@ -53,7 +53,7 @@ fn merge_short_paragraphs(paragraphs: Vec<String>, max_tokens: usize) -> Vec<Str
         }
 
         // 如果当前段落很短，或者合并后仍不超过 max，则合并
-        if para_tokens < 100 || buffer_tokens + para_tokens + 1 <= max_tokens {
+        if para_tokens < 100 || buffer_tokens + para_tokens < max_tokens {
             buffer = format!("{}\n\n{}", buffer, para);
         } else {
             merged.push(std::mem::take(&mut buffer));
@@ -92,7 +92,7 @@ fn split_long_paragraphs(paragraphs: Vec<String>, max_tokens: usize) -> Vec<Stri
                 continue;
             }
 
-            if buffer_tokens + sentence_tokens + 1 <= max_tokens {
+            if buffer_tokens + sentence_tokens < max_tokens {
                 buffer = format!("{} {}", buffer, sentence);
             } else {
                 result.push(std::mem::take(&mut buffer));
@@ -146,7 +146,7 @@ pub fn estimate_tokens(text: &str) -> usize {
     }
 
     // CJK: ~2 字符/token, ASCII: ~4 字符/token
-    (cjk + 1) / 2 + (ascii + 3) / 4
+    cjk.div_ceil(2) + ascii.div_ceil(4)
 }
 
 /// 判断是否为 CJK 字符

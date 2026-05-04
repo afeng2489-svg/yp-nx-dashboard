@@ -279,7 +279,7 @@ impl KnowledgeService {
         let mut all_embeddings = Vec::with_capacity(chunks.len());
 
         for batch in texts.chunks(batch_size) {
-            match p.embed_batch(&batch.to_vec()).await {
+            match p.embed_batch(batch).await {
                 Ok(results) => {
                     for r in results {
                         all_embeddings.push(r.vector);

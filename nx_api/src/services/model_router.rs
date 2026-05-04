@@ -70,7 +70,7 @@ impl ModelRouter {
             }
             RoutingCondition::PromptLength { min_chars } => ctx.prompt.len() >= *min_chars,
             RoutingCondition::TaskType { task_type } => {
-                ctx.task_type.map_or(false, |t| t == task_type)
+                ctx.task_type.is_some_and(|t| t == task_type)
             }
             RoutingCondition::FileExtension { extensions } => extensions.iter().any(|ext| {
                 let pattern = format!(".{}", ext.trim_start_matches('.'));
