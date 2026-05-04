@@ -4,7 +4,7 @@ import {
   ClaudeSwitchBackendInfo,
   ClaudeSwitchBackendConfig,
 } from '@/stores/aiConfigStore';
-import { AddModelMappingRequest, ClaudeCliConfigResponse, api } from '@/api/client';
+import { AddModelMappingRequest, ClaudeCliConfigResponse, RoutingRule, api } from '@/api/client';
 import { ProviderGrid } from '@/components/provider/ProviderGrid';
 import { showSuccess, showError } from '@/lib/toast';
 import {
@@ -18,8 +18,203 @@ import {
   AlertTriangle,
   RefreshCw,
   Save,
+  Trash2,
+  Route,
+  FlaskConical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// ── 模型路由规则 ────────────────────────────────────────────────────────────
+
+const CONDITION_LABELS: Record<string, string> = {
+  keyword_match: '关键词匹配',
+  prompt_length: 'Prompt 长度',
+  task_type: '任务类型',
+  file_extension: '文件扩展名',
+};
+
+function ModelRoutingSection() {
+  const [rules, setRules] = useState<RoutingRule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [testPrompt, setTestPrompt] = useState('');
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<Partial<RoutingRule>>({});
+
+  const refresh = async () => {
+    try {
+      const data = await api.listRoutingRules();
+      setRules(data);
+    } catch (e) {
+      showError(`加载路由规则失败: ${(e as Error).message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void refresh(); }, []);
+
+  const handleDelete = async (id: string) => {
+    try {
+      await api.deleteRoutingRule(id);
+      setRules((prev) => prev.filter((r) => r.id !== id));
+      showSuccess('已删除');
+    } catch (e) {
+      showError(`删除失败: ${(e as Error).message}`);
+    }
+  };
+
+  const handleToggle = async (rule: RoutingRule) => {
+    const updated = { ...rule, enabled: !rule.enabled };
+    try {
+      await api.updateRoutingRule(rule.id, updated);
+      setRules((prev) => prev.map((r) => (r.id === rule.id ? updated : r)));
+    } catch (e) {
+      showError(`更新失败: ${(e as Error).message}`);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId || !editDraft.model) return;
+    const original = rules.find((r) => r.id === editingId);
+    if (!original) return;
+    const updated = { ...original, ...editDraft } as RoutingRule;
+    try {
+      await api.updateRoutingRule(editingId, updated);
+      setRules((prev) => prev.map((r) => (r.id === editingId ? updated : r)));
+      setEditingId(null);
+      showSuccess('已保存');
+    } catch (e) {
+      showError(`保存失败: ${(e as Error).message}`);
+    }
+  };
+
+  const handleTest = async () => {
+    if (!testPrompt.trim()) return;
+    setTesting(true);
+    try {
+      const res = await api.testRoutingRule(testPrompt);
+      setTestResult(res.model ?? '（使用全局默认模型）');
+    } catch (e) {
+      showError(`测试失败: ${(e as Error).message}`);
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const conditionSummary = (rule: RoutingRule) => {
+    const c = rule.condition;
+    if (c.type === 'keyword_match') return `关键词: ${(c.keywords ?? []).join(', ')}`;
+    if (c.type === 'prompt_length') return `长度 ≥ ${c.min_chars ?? 0} 字符`;
+    if (c.type === 'task_type') return `任务类型: ${c.task_type ?? ''}`;
+    if (c.type === 'file_extension') return `扩展名: ${(c.extensions ?? []).join(', ')}`;
+    return '';
+  };
+
+  return (
+    <div className="rounded-xl border bg-card p-5 space-y-4">
+      <div className="flex items-center gap-2">
+        <Route className="w-5 h-5 text-primary" />
+        <h2 className="font-semibold text-base">模型路由规则</h2>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="w-4 h-4 animate-spin" /> 加载中...
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {rules.map((rule) => (
+            <div
+              key={rule.id}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 rounded-lg border text-sm',
+                rule.enabled ? 'bg-background' : 'bg-muted/40 opacity-60',
+              )}
+            >
+              <span className="w-6 text-center text-xs text-muted-foreground font-mono">
+                {rule.priority}
+              </span>
+              {editingId === rule.id ? (
+                <>
+                  <input
+                    className="flex-1 bg-muted rounded px-2 py-1 text-sm"
+                    value={editDraft.name ?? rule.name}
+                    onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
+                  />
+                  <input
+                    className="w-40 bg-muted rounded px-2 py-1 text-sm"
+                    value={editDraft.model ?? rule.model}
+                    onChange={(e) => setEditDraft((d) => ({ ...d, model: e.target.value }))}
+                    placeholder="模型名"
+                  />
+                  <button onClick={handleSaveEdit} className="text-green-500 hover:text-green-400">
+                    <Check className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => setEditingId(null)} className="text-muted-foreground hover:text-foreground">
+                    <X className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{rule.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{conditionSummary(rule)}</p>
+                  </div>
+                  <span className="text-xs font-mono text-primary truncate max-w-[140px]">{rule.model}</span>
+                  <button
+                    onClick={() => handleToggle(rule)}
+                    className={cn('text-xs px-2 py-0.5 rounded', rule.enabled ? 'bg-green-500/20 text-green-400' : 'bg-muted text-muted-foreground')}
+                  >
+                    {rule.enabled ? '启用' : '禁用'}
+                  </button>
+                  <button
+                    onClick={() => { setEditingId(rule.id); setEditDraft({ name: rule.name, model: rule.model }); }}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => handleDelete(rule.id)} className="text-muted-foreground hover:text-destructive">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 路由测试 */}
+      <div className="border-t pt-4 space-y-2">
+        <p className="text-sm font-medium flex items-center gap-1.5">
+          <FlaskConical className="w-4 h-4 text-primary" /> 路由测试
+        </p>
+        <div className="flex gap-2">
+          <input
+            className="flex-1 bg-muted rounded-lg px-3 py-2 text-sm"
+            placeholder="输入任务描述，预览会路由到哪个模型..."
+            value={testPrompt}
+            onChange={(e) => setTestPrompt(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && void handleTest()}
+          />
+          <button
+            onClick={() => void handleTest()}
+            disabled={testing || !testPrompt.trim()}
+            className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm disabled:opacity-50"
+          >
+            {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : '测试'}
+          </button>
+        </div>
+        {testResult !== null && (
+          <p className="text-sm text-muted-foreground">
+            路由结果：<span className="text-primary font-mono">{testResult}</span>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── Claude CLI 路径配置 ────────────────────────────────────────────────────
 
@@ -517,6 +712,11 @@ export function AISettingsPage() {
       {/* Claude Switch Section */}
       <div className="mb-6">
         <ClaudeSwitchSection />
+      </div>
+
+      {/* 模型路由规则 */}
+      <div className="mb-6">
+        <ModelRoutingSection />
       </div>
 
       {/* Provider Grid */}

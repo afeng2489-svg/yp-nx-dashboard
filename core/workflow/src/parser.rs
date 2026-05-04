@@ -31,6 +31,9 @@ pub struct WorkflowDefinition {
     /// 错误处理
     #[serde(default)]
     pub on_error: Option<ErrorHandler>,
+    /// 预算上限（美元），超 80% 告警，超 100% 自动暂停
+    #[serde(default)]
+    pub budget_limit_usd: Option<f64>,
 }
 
 fn default_version() -> String {
@@ -49,6 +52,18 @@ pub struct Trigger {
     /// 对于手动触发器，输入模式
     #[serde(default)]
     pub inputs: Option<HashMap<String, InputDefinition>>,
+    /// Schedule 触发的 cron 表达式（5字段: min hour dom month dow）
+    #[serde(default)]
+    pub cron: Option<String>,
+    /// Event/链式触发的目标 workflow name
+    #[serde(default)]
+    pub workflow_ref: Option<String>,
+    /// 链式触发是否传递上游输出作为 variables
+    #[serde(default)]
+    pub pass_output: Option<bool>,
+    /// Webhook 触发的验证密钥
+    #[serde(default)]
+    pub secret: Option<String>,
 }
 
 /// 触发器类型
@@ -231,6 +246,23 @@ pub struct QualityGate {
     pub template: Option<String>,
 }
 
+/// RAG 检索配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RagConfig {
+    pub knowledge_base_id: String,
+    #[serde(default = "default_top_k")]
+    pub top_k: usize,
+    #[serde(default = "default_threshold")]
+    pub threshold: f32,
+}
+
+fn default_top_k() -> usize {
+    5
+}
+fn default_threshold() -> f32 {
+    0.7
+}
+
 /// 阶段定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StageDefinition {
@@ -257,6 +289,15 @@ pub struct StageDefinition {
     /// 质量门：stage 完成后自动验证
     #[serde(default)]
     pub quality_gate: Option<QualityGate>,
+    /// RAG 检索配置：stage 执行前自动检索并注入 prompt
+    #[serde(default)]
+    pub rag: Option<RagConfig>,
+    /// 覆盖全局模型（None = 使用全局默认或自动路由）
+    #[serde(default)]
+    pub model: Option<String>,
+    /// 失败自愈策略
+    #[serde(default)]
+    pub on_fail: Option<StageFailPolicy>,
 
     // ---- user_input 专用字段 ----
     /// 展示给用户的问题文本
@@ -310,6 +351,33 @@ pub struct ErrorHandler {
 
 fn default_max_retries() -> usize {
     3
+}
+
+/// Stage 级失败自愈策略
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct StageFailPolicy {
+    /// 同模型重试次数
+    #[serde(default = "default_stage_retries")]
+    pub retry: usize,
+    /// 同模型重试耗尽后升级到此模型
+    #[serde(default)]
+    pub escalate_model: Option<String>,
+    /// 升级模型重试次数
+    #[serde(default = "default_escalate_retries")]
+    pub escalate_retries: usize,
+    /// 全部失败后的动作：rollback | continue | fail（默认 fail）
+    #[serde(default = "default_then_action")]
+    pub then: String,
+}
+
+fn default_stage_retries() -> usize {
+    2
+}
+fn default_escalate_retries() -> usize {
+    1
+}
+fn default_then_action() -> String {
+    "fail".to_string()
 }
 
 /// 工作流解析器

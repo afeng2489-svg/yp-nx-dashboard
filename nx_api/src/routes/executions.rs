@@ -306,6 +306,12 @@ pub async fn execution_ws(
                                 execution_id.clone()
                             }
                             ExecutionEvent::TokenUsage { execution_id, .. } => execution_id.clone(),
+                            ExecutionEvent::BudgetWarning { execution_id, .. } => {
+                                execution_id.clone()
+                            }
+                            ExecutionEvent::BudgetExceeded { execution_id, .. } => {
+                                execution_id.clone()
+                            }
                         };
 
                         if event_id == target_id {
@@ -428,5 +434,204 @@ impl IntoResponse for ExecutionAppError {
         });
 
         (status, Json(body)).into_response()
+    }
+}
+
+// ============ Git 回滚 + PR 描述 ============
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct RollbackRequest {
+    pub action: String,
+    pub initial_branch: String,
+    pub exec_branch: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct RollbackResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct GitInfoResponse {
+    pub branch_info: crate::services::git_watcher::BranchInfo,
+    pub commits: Vec<crate::services::git_watcher::CommitInfo>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct PrDescriptionResponse {
+    pub description: String,
+}
+
+/// 获取执行的 Git 信息（分支 + commit 列表）
+pub async fn get_git_info(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<GitInfoResponse>, ExecutionAppError> {
+    let branch_info = state.git_service.get_branch_info(&id);
+
+    if !branch_info.is_git_repo {
+        return Ok(Json(GitInfoResponse {
+            branch_info,
+            commits: vec![],
+        }));
+    }
+
+    let current = branch_info.current_branch.as_deref().unwrap_or("main");
+    let exec_branch = &branch_info.exec_branch;
+
+    let commits = state
+        .git_service
+        .list_commits(current, exec_branch)
+        .unwrap_or_default();
+
+    Ok(Json(GitInfoResponse {
+        branch_info,
+        commits,
+    }))
+}
+
+/// 获取 commit 的 diff
+pub async fn get_commit_diff(
+    State(state): State<Arc<AppState>>,
+    Path((id, hash)): Path<(String, String)>,
+) -> Result<Json<serde_json::Value>, ExecutionAppError> {
+    let diff = state
+        .git_service
+        .get_commit_diff(&hash)
+        .map_err(|e| ExecutionAppError::Internal(e))?;
+
+    Ok(Json(serde_json::json!({
+        "execution_id": id,
+        "commit_hash": hash,
+        "diff": diff,
+    })))
+}
+
+/// 回滚执行
+pub async fn rollback_execution(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(req): Json<RollbackRequest>,
+) -> Result<Json<RollbackResponse>, ExecutionAppError> {
+    let result = match req.action.as_str() {
+        "revert" => state
+            .git_service
+            .rollback_revert(&req.initial_branch, &req.exec_branch),
+        "keep" => state
+            .git_service
+            .rollback_keep(&req.initial_branch, &req.exec_branch),
+        "branch" => state
+            .git_service
+            .rollback_branch(&id, &req.initial_branch, &req.exec_branch),
+        _ => Err(format!("未知的回滚操作: {}", req.action)),
+    };
+
+    match result {
+        Ok(()) => Ok(Json(RollbackResponse {
+            success: true,
+            message: format!("回滚操作 {} 完成", req.action),
+        })),
+        Err(e) => Ok(Json(RollbackResponse {
+            success: false,
+            message: e,
+        })),
+    }
+}
+
+/// 获取 PR 描述
+pub async fn get_pr_description(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<PrDescriptionResponse>, ExecutionAppError> {
+    let branch_info = state.git_service.get_branch_info(&id);
+
+    let current = branch_info.current_branch.as_deref().unwrap_or("main");
+    let exec_branch = &branch_info.exec_branch;
+
+    let description = state
+        .git_service
+        .generate_pr_description(current, exec_branch)
+        .map_err(|e| ExecutionAppError::Internal(e))?;
+
+    Ok(Json(PrDescriptionResponse { description }))
+}
+
+// ============ Cost API ============
+
+use axum::extract::Query;
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+pub struct CostByDayQuery {
+    #[serde(default = "default_days")]
+    pub days: u32,
+}
+
+fn default_days() -> u32 {
+    30
+}
+
+/// GET /api/v1/costs/summary — 总体花费统计
+pub async fn cost_summary(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let result = state
+        .execution_repo
+        .as_ref()
+        .map(|repo| repo.cost_summary());
+
+    match result {
+        Some(Ok((total_tokens, total_cost_usd, total_executions))) => Json(serde_json::json!({
+            "total_tokens": total_tokens,
+            "total_cost_usd": total_cost_usd,
+            "total_executions": total_executions,
+        })),
+        _ => Json(serde_json::json!({
+            "total_tokens": 0,
+            "total_cost_usd": 0.0,
+            "total_executions": 0,
+        })),
+    }
+}
+
+/// GET /api/v1/costs/by-day — 按天聚合 token/cost
+pub async fn cost_by_day(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<CostByDayQuery>,
+) -> Json<serde_json::Value> {
+    let result = state
+        .execution_repo
+        .as_ref()
+        .map(|repo| repo.cost_by_day(query.days));
+
+    match result {
+        Some(Ok(rows)) => Json(serde_json::json!({
+            "days": query.days,
+            "data": rows.into_iter().map(|(day, tokens, cost)| serde_json::json!({
+                "date": day,
+                "tokens": tokens,
+                "cost_usd": cost,
+            })).collect::<Vec<_>>(),
+        })),
+        _ => Json(serde_json::json!({"days": query.days, "data": []})),
+    }
+}
+
+/// GET /api/v1/costs/by-workflow — 按工作流聚合 cost
+pub async fn cost_by_workflow(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let result = state
+        .execution_repo
+        .as_ref()
+        .map(|repo| repo.cost_by_workflow());
+
+    match result {
+        Some(Ok(rows)) => Json(serde_json::json!({
+            "workflows": rows.into_iter().map(|(workflow_id, tokens, cost, count)| serde_json::json!({
+                "workflow_id": workflow_id,
+                "total_tokens": tokens,
+                "total_cost_usd": cost,
+                "execution_count": count,
+            })).collect::<Vec<_>>(),
+        })),
+        _ => Json(serde_json::json!({"workflows": []})),
     }
 }

@@ -99,6 +99,10 @@ class ApiClient {
     });
   }
 
+  async listExecutionLogs(executionId: string) {
+    return this.request<ExecutionLog[]>(`/api/v1/executions/${executionId}/logs`);
+  }
+
   async listExecutions() {
     return this.request<Execution[]>('/api/v1/executions');
   }
@@ -416,6 +420,35 @@ class ApiClient {
       body: JSON.stringify({ backend, api_key: apiKey, model }),
     });
   }
+
+  async listRoutingRules() {
+    return this.request<RoutingRule[]>('/api/v1/ai/routing-rules');
+  }
+
+  async createRoutingRule(rule: RoutingRule) {
+    return this.request<RoutingRule>('/api/v1/ai/routing-rules', {
+      method: 'POST',
+      body: JSON.stringify(rule),
+    });
+  }
+
+  async updateRoutingRule(id: string, rule: RoutingRule) {
+    return this.request<RoutingRule>(`/api/v1/ai/routing-rules/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(rule),
+    });
+  }
+
+  async deleteRoutingRule(id: string) {
+    return this.request<void>(`/api/v1/ai/routing-rules/${id}`, { method: 'DELETE' });
+  }
+
+  async testRoutingRule(prompt: string, taskType?: string) {
+    return this.request<{ model: string | null }>('/api/v1/ai/routing-rules/test', {
+      method: 'POST',
+      body: JSON.stringify({ prompt, task_type: taskType }),
+    });
+  }
 }
 
 export interface ExecuteCLIResponse {
@@ -686,6 +719,38 @@ export interface ArtifactsSummaryResponse {
   ok: boolean;
   data?: ArtifactSummary[];
   error?: string;
+}
+
+export interface RoutingCondition {
+  type: 'keyword_match' | 'prompt_length' | 'task_type' | 'file_extension';
+  keywords?: string[];
+  min_chars?: number;
+  task_type?: string;
+  extensions?: string[];
+}
+
+export interface RoutingRule {
+  id: string;
+  name: string;
+  condition: RoutingCondition;
+  model: string;
+  priority: number;
+  enabled: boolean;
+}
+
+export interface ExecutionLog {
+  id: string;
+  trace_id: string;
+  execution_id: string;
+  stage_name: string | null;
+  model: string | null;
+  attempt: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  duration_ms: number;
+  status: string;
+  error: string | null;
+  timestamp: string;
 }
 
 export const api = new ApiClient(API_BASE);

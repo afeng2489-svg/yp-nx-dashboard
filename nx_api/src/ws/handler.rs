@@ -82,6 +82,19 @@ pub enum ServerMessage {
         total_tokens: i64,
         total_cost_usd: f64,
     },
+    /// 预算告警
+    BudgetWarning {
+        execution_id: String,
+        current_usd: f64,
+        limit_usd: f64,
+        percentage: f64,
+    },
+    /// 预算超限
+    BudgetExceeded {
+        execution_id: String,
+        current_usd: f64,
+        limit_usd: f64,
+    },
 }
 
 impl ServerMessage {
@@ -212,6 +225,8 @@ impl WebSocketHandler {
             ExecutionEvent::WorkflowPaused { execution_id, .. } => execution_id.clone(),
             ExecutionEvent::WorkflowResumed { execution_id, .. } => execution_id.clone(),
             ExecutionEvent::TokenUsage { execution_id, .. } => execution_id.clone(),
+            ExecutionEvent::BudgetWarning { execution_id, .. } => execution_id.clone(),
+            ExecutionEvent::BudgetExceeded { execution_id, .. } => execution_id.clone(),
         }
     }
 
@@ -291,6 +306,26 @@ impl WebSocketHandler {
                 execution_id,
                 total_tokens,
                 total_cost_usd,
+            }),
+            ExecutionEvent::BudgetWarning {
+                execution_id,
+                current_usd,
+                limit_usd,
+                percentage,
+            } => Some(ServerMessage::BudgetWarning {
+                execution_id,
+                current_usd,
+                limit_usd,
+                percentage,
+            }),
+            ExecutionEvent::BudgetExceeded {
+                execution_id,
+                current_usd,
+                limit_usd,
+            } => Some(ServerMessage::BudgetExceeded {
+                execution_id,
+                current_usd,
+                limit_usd,
             }),
         }
     }

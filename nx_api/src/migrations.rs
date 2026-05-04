@@ -471,6 +471,77 @@ pub(crate) const CHECKPOINT_SCHEMA: &str = "
     CREATE INDEX IF NOT EXISTS idx_chk_heartbeat ON execution_checkpoints(last_heartbeat);
 ";
 
+// ── Knowledge Base (RAG) ─────────────────────────────────────────────────────
+pub(crate) const KNOWLEDGE_BASE_SCHEMA: &str = "
+    CREATE TABLE IF NOT EXISTS knowledge_bases (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        embedding_provider TEXT NOT NULL DEFAULT 'openai',
+        embedding_model TEXT NOT NULL DEFAULT 'text-embedding-3-small',
+        embedding_dimension INTEGER NOT NULL DEFAULT 1536,
+        chunk_size INTEGER NOT NULL DEFAULT 500,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS kb_documents (
+        id TEXT PRIMARY KEY,
+        knowledge_base_id TEXT NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL,
+        content_type TEXT NOT NULL DEFAULT 'text/markdown',
+        file_size INTEGER NOT NULL DEFAULT 0,
+        chunk_count INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'pending',
+        error TEXT,
+        created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_kb_docs_kb_id ON kb_documents(knowledge_base_id);
+
+    CREATE TABLE IF NOT EXISTS kb_chunks (
+        id TEXT PRIMARY KEY,
+        document_id TEXT NOT NULL REFERENCES kb_documents(id) ON DELETE CASCADE,
+        knowledge_base_id TEXT NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
+        chunk_index INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        token_count INTEGER NOT NULL DEFAULT 0,
+        embedding BLOB,
+        created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_chunks_kb_id ON kb_chunks(knowledge_base_id);
+    CREATE INDEX IF NOT EXISTS idx_chunks_doc_id ON kb_chunks(document_id);
+";
+
+pub(crate) const EXECUTION_LOG_SCHEMA: &str = "
+    CREATE TABLE IF NOT EXISTS execution_logs (
+        id TEXT PRIMARY KEY,
+        trace_id TEXT NOT NULL,
+        execution_id TEXT NOT NULL,
+        stage_name TEXT,
+        model TEXT,
+        attempt INTEGER NOT NULL DEFAULT 0,
+        prompt_tokens INTEGER NOT NULL DEFAULT 0,
+        completion_tokens INTEGER NOT NULL DEFAULT 0,
+        duration_ms INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL,
+        error TEXT,
+        timestamp TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_exec_logs_trace ON execution_logs(trace_id);
+    CREATE INDEX IF NOT EXISTS idx_exec_logs_exec ON execution_logs(execution_id);
+    CREATE INDEX IF NOT EXISTS idx_exec_logs_status ON execution_logs(status);
+";
+
+pub(crate) const ALERT_CONFIG_SCHEMA: &str = "
+    CREATE TABLE IF NOT EXISTS alert_configs (
+        id TEXT PRIMARY KEY,
+        channel TEXT NOT NULL,
+        config_json TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+    );
+";
+
 /// All schema migrations in dependency order.
 const ALL_SCHEMAS: &[&str] = &[
     SESSION_SCHEMA,
@@ -491,6 +562,9 @@ const ALL_SCHEMAS: &[&str] = &[
     PIPELINE_SCHEMA,
     SNAPSHOT_SCHEMA,
     CHECKPOINT_SCHEMA,
+    KNOWLEDGE_BASE_SCHEMA,
+    EXECUTION_LOG_SCHEMA,
+    ALERT_CONFIG_SCHEMA,
 ];
 
 /// Column additions for existing tables (ALTER TABLE).

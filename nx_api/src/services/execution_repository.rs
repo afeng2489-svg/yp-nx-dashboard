@@ -111,6 +111,69 @@ impl SqliteExecutionRepository {
         let conn = self.conn.lock();
         find_all_with_conn(&conn)
     }
+
+    /// 按天聚合 token/cost（最近 N 天）
+    pub fn cost_by_day(
+        &self,
+        days: u32,
+    ) -> Result<Vec<(String, i64, f64)>, ExecutionRepositoryError> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT DATE(started_at) as day, SUM(total_tokens), SUM(total_cost_usd)
+             FROM executions
+             WHERE started_at >= datetime('now', ?1)
+             GROUP BY DATE(started_at)
+             ORDER BY day ASC",
+        )?;
+        let param = format!("-{} days", days);
+        let rows = stmt.query_map(params![param], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1).unwrap_or(0),
+                row.get::<_, f64>(2).unwrap_or(0.0),
+            ))
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    /// 按工作流聚合 cost
+    pub fn cost_by_workflow(
+        &self,
+    ) -> Result<Vec<(String, i64, f64, i64)>, ExecutionRepositoryError> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT workflow_id, SUM(total_tokens), SUM(total_cost_usd), COUNT(*)
+             FROM executions
+             GROUP BY workflow_id
+             ORDER BY SUM(total_cost_usd) DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1).unwrap_or(0),
+                row.get::<_, f64>(2).unwrap_or(0.0),
+                row.get::<_, i64>(3).unwrap_or(0),
+            ))
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    /// 总体花费统计
+    pub fn cost_summary(&self) -> Result<(i64, f64, i64), ExecutionRepositoryError> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT COALESCE(SUM(total_tokens), 0), COALESCE(SUM(total_cost_usd), 0.0), COUNT(*)
+             FROM executions",
+        )?;
+        stmt.query_row([], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, f64>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
+        })
+        .map_err(Into::into)
+    }
 }
 
 fn find_by_id_with_conn(

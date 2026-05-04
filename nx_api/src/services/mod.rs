@@ -3,6 +3,7 @@
 pub mod agent_team_service;
 pub mod ai_provider_repository;
 pub mod ai_provider_service;
+pub mod alert_service;
 pub mod api_key_repository;
 pub mod artifact_repository;
 pub mod artifact_tracker;
@@ -11,12 +12,16 @@ pub mod claude_cli;
 pub mod claude_terminal;
 pub mod events;
 pub mod execution_bridge;
+pub mod execution_log_service;
 pub mod execution_repository;
 pub mod execution_service;
 pub mod file_skill_repository;
+pub mod git_watcher;
 pub mod group_chat_repository;
 pub mod group_chat_service;
 pub mod issue_repository;
+pub mod knowledge;
+pub mod model_router;
 pub mod plugin_service;
 pub mod project_module_repository;
 pub mod project_module_service;
@@ -52,11 +57,14 @@ pub use events::{ExecutionEvent, ExecutionStatus};
 pub use execution_repository::SqliteExecutionRepository;
 pub use execution_service::ExecutionService;
 pub use file_skill_repository::{FileSkillRepository, FileSkillRepositoryError, SkillFileInfo};
+pub use git_watcher::{BranchInfo, CommitInfo, GitService, GitStageWatcher};
 pub use group_chat_repository::{
     GroupChatRepository, GroupChatRepositoryError, SqliteGroupChatRepository,
 };
 pub use group_chat_service::{GroupChatService, GroupChatServiceError, SharedGroupChatService};
 pub use issue_repository::SqliteIssueRepository;
+pub use knowledge::repository::KnowledgeRepository;
+pub use knowledge::KnowledgeService;
 pub use plugin_service::{PluginInfo, PluginService};
 pub use project_repository::{
     ProjectRepository, RepositoryError as ProjectRepositoryError, SqliteProjectRepository,

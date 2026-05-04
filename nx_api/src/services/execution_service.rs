@@ -12,7 +12,7 @@ use nexus_ai::{
     AIManagerConfig as NexusAIManagerConfig, AIModelManager, AIProviderRegistry,
     APIConfig as NexusAPIConfig, ModelConfig, ProviderType,
 };
-use nexus_workflow::{InMemoryEventEmitter, WorkflowDefinition, WorkflowEngine};
+use nexus_workflow::{InMemoryEventEmitter, TriggerType, WorkflowDefinition, WorkflowEngine};
 
 pub use crate::services::events::{ExecutionEvent, ExecutionStatus};
 
@@ -94,8 +94,19 @@ fn load_ai_config_from_env() -> NexusAIManagerConfig {
     }
 }
 use crate::services::execution_bridge::WorkflowEventBridge;
-
 use crate::services::execution_repository::SqliteExecutionRepository;
+use crate::services::model_router::{default_rules, ModelRouter, TaskContext};
+
+/// 链式触发回调：接收下游工作流名和变量，返回下游 execution_id
+pub type ChainTriggerCallback = Arc<
+    dyn Fn(
+            String,
+            serde_json::Value,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Result<String, String>> + Send + Sync>,
+        > + Send
+        + Sync,
+>;
 
 /// 执行服务
 #[derive(Clone)]
@@ -106,8 +117,14 @@ pub struct ExecutionService {
     resume_channels: Arc<Mutex<HashMap<String, tokio::sync::mpsc::Sender<String>>>>,
     /// stage 观察者列表（产物追踪、token 监控等）
     stage_watchers: Arc<Mutex<Vec<Arc<dyn nexus_workflow::watcher::StageWatcher>>>>,
+    /// RAG provider（可选，注入后 engine 在 stage 执行前自动检索知识）
+    rag_provider: Arc<Mutex<Option<Arc<dyn nexus_workflow::watcher::RagProvider>>>>,
     /// 持久化仓储（重启后历史记录不丢失）
     repo: Option<Arc<SqliteExecutionRepository>>,
+    /// 链式触发回调（工作流完成时触发下游）
+    chain_trigger_handler: Option<ChainTriggerCallback>,
+    /// 模型自动路由器
+    model_router: Arc<Mutex<ModelRouter>>,
 }
 
 impl std::fmt::Debug for ExecutionService {
@@ -125,7 +142,10 @@ impl ExecutionService {
             event_sender,
             resume_channels: Arc::new(Mutex::new(HashMap::new())),
             stage_watchers: Arc::new(Mutex::new(Vec::new())),
+            rag_provider: Arc::new(Mutex::new(None)),
             repo: None,
+            chain_trigger_handler: None,
+            model_router: Arc::new(Mutex::new(ModelRouter::new(default_rules()))),
         }
     }
 
@@ -137,13 +157,36 @@ impl ExecutionService {
             event_sender,
             resume_channels: Arc::new(Mutex::new(HashMap::new())),
             stage_watchers: Arc::new(Mutex::new(Vec::new())),
+            rag_provider: Arc::new(Mutex::new(None)),
             repo: Some(repo),
+            chain_trigger_handler: None,
+            model_router: Arc::new(Mutex::new(ModelRouter::new(default_rules()))),
         }
     }
 
     /// 注册一个 stage 观察者（启动期调用一次即可，运行期共享）
     pub fn add_stage_watcher(&self, watcher: Arc<dyn nexus_workflow::watcher::StageWatcher>) {
         self.stage_watchers.lock().push(watcher);
+    }
+
+    /// 注入 RAG provider（启动期调用一次）
+    pub fn set_rag_provider(&self, provider: Arc<dyn nexus_workflow::watcher::RagProvider>) {
+        *self.rag_provider.lock() = Some(provider);
+    }
+
+    /// 获取路由规则（供 API 读取）
+    pub fn get_routing_rules(&self) -> Vec<crate::services::model_router::RoutingRule> {
+        self.model_router.lock().rules().to_vec()
+    }
+
+    /// 替换路由规则（供 API 写入）
+    pub fn set_routing_rules(&self, rules: Vec<crate::services::model_router::RoutingRule>) {
+        self.model_router.lock().set_rules(rules);
+    }
+
+    /// 注册链式触发回调
+    pub fn set_chain_trigger_handler(&mut self, handler: ChainTriggerCallback) {
+        self.chain_trigger_handler = Some(handler);
     }
 
     /// 订阅执行事件
@@ -410,8 +453,19 @@ impl ExecutionService {
         }
     }
 
-    /// 累加 token 消耗和费用
+    /// 累加 token 消耗和费用，并检查预算
     pub fn add_token_usage(&self, id: &str, tokens: i64, cost_usd: f64) {
+        self.add_token_usage_with_budget(id, tokens, cost_usd, None);
+    }
+
+    /// 累加 token 消耗和费用，带预算检查
+    pub fn add_token_usage_with_budget(
+        &self,
+        id: &str,
+        tokens: i64,
+        cost_usd: f64,
+        budget_limit_usd: Option<f64>,
+    ) {
         let mut executions = self.executions.lock();
         if let Some(execution) = executions.get_mut(id) {
             execution.total_tokens += tokens;
@@ -421,10 +475,44 @@ impl ExecutionService {
             let total_cost_usd = execution.total_cost_usd;
             drop(executions);
 
-            // 持久化到数据库
             if let Some(ref repo) = self.repo {
                 if let Err(e) = repo.update_token_usage(&exec_id, total_tokens, total_cost_usd) {
                     tracing::error!("持久化 token 用量失败: {}", e);
+                }
+            }
+
+            // 预算检查
+            if let Some(limit) = budget_limit_usd {
+                if limit > 0.0 {
+                    let percentage = total_cost_usd / limit * 100.0;
+                    if total_cost_usd > limit {
+                        tracing::warn!(
+                            "[Budget] 执行 {} 超预算: ${:.4} > ${:.4}",
+                            exec_id,
+                            total_cost_usd,
+                            limit
+                        );
+                        self.broadcast(ExecutionEvent::BudgetExceeded {
+                            execution_id: exec_id.clone(),
+                            current_usd: total_cost_usd,
+                            limit_usd: limit,
+                        });
+                        self.cancel_execution(&exec_id);
+                    } else if percentage >= 80.0 {
+                        tracing::warn!(
+                            "[Budget] 执行 {} 接近预算上限: ${:.4}/${:.4} ({:.0}%)",
+                            exec_id,
+                            total_cost_usd,
+                            limit,
+                            percentage
+                        );
+                        self.broadcast(ExecutionEvent::BudgetWarning {
+                            execution_id: exec_id,
+                            current_usd: total_cost_usd,
+                            limit_usd: limit,
+                            percentage,
+                        });
+                    }
                 }
             }
         }
@@ -536,8 +624,12 @@ impl ExecutionService {
         let execution = self.start_execution(workflow_id.clone(), variables);
         let exec_id = execution.id.clone();
 
-        // 4. 创建事件发射器（桥接到 ExecutionService，绑定 exec_id）
-        let event_emitter = Arc::new(WorkflowEventBridge::new(self.clone(), exec_id.clone()));
+        // 4. 创建事件发射器（桥接到 ExecutionService，绑定 exec_id + 预算限制）
+        let mut bridge = WorkflowEventBridge::new(self.clone(), exec_id.clone());
+        if let Some(limit) = definition.budget_limit_usd {
+            bridge = bridge.with_budget(limit);
+        }
+        let event_emitter = Arc::new(bridge);
 
         // 5. 创建 resume channel，支持 user_input 暂停/恢复
         let (resume_tx, resume_rx) = tokio::sync::mpsc::channel::<String>(1);
@@ -549,6 +641,23 @@ impl ExecutionService {
         // 6.1 注入注册过的 stage 观察者（产物追踪等）
         for watcher in self.stage_watchers.lock().iter() {
             engine.add_stage_watcher(watcher.clone());
+        }
+
+        // 6.2 注入 RAG provider（如果已配置）
+        if let Some(provider) = self.rag_provider.lock().clone() {
+            engine.set_rag_provider(provider);
+        }
+
+        // 6.3 注入模型路由回调
+        {
+            let router = self.model_router.clone();
+            engine.set_model_router_fn(std::sync::Arc::new(move |prompt| {
+                let ctx = TaskContext {
+                    prompt,
+                    task_type: None,
+                };
+                router.lock().route(&ctx)
+            }));
         }
 
         // 7. 注册 resume channel
@@ -574,6 +683,47 @@ impl ExecutionService {
                     exec_service.broadcast(ExecutionEvent::Completed {
                         execution_id: exec_id,
                     });
+
+                    // 链式触发：检查 workflow triggers 中是否有 type=event 的触发器
+                    if let Some(ref handler) = exec_service.chain_trigger_handler {
+                        for trigger in &workflow_def.triggers {
+                            if trigger.trigger_type == TriggerType::Event {
+                                if let Some(ref target_name) = trigger.workflow_ref {
+                                    let variables = if trigger.pass_output.unwrap_or(false) {
+                                        // 将上游输出作为下游变量
+                                        serde_json::json!({
+                                            "upstream_execution_id": result.execution_id.to_string(),
+                                            "stages": result.stage_results.iter().map(|sr| {
+                                                serde_json::json!({
+                                                    "stage": sr.stage_name,
+                                                    "outputs": sr.outputs,
+                                                })
+                                            }).collect::<Vec<_>>(),
+                                        })
+                                    } else {
+                                        serde_json::json!({})
+                                    };
+
+                                    match handler(target_name.clone(), variables).await {
+                                        Ok(downstream_id) => {
+                                            tracing::info!(
+                                                "[ChainTrigger] 下游工作流 '{}' 已触发, downstream_execution_id={}",
+                                                target_name,
+                                                downstream_id,
+                                            );
+                                        }
+                                        Err(e) => {
+                                            tracing::warn!(
+                                                "[ChainTrigger] 下游工作流 '{}' 触发失败: {}",
+                                                target_name,
+                                                e,
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 Err(e) => {
                     let error_msg = e.to_string();

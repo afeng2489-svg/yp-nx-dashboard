@@ -15,6 +15,13 @@ use crate::{
 };
 use regex::Regex;
 
+/// Claude CLI 调用结果
+struct ClaudeCliResult {
+    text: String,
+    input_tokens: u64,
+    output_tokens: u64,
+}
+
 /// 质量门单次运行结果（内部用）
 struct GateRunResult {
     passed: bool,
@@ -34,6 +41,10 @@ pub struct WorkflowEngine {
     resume_rx: Option<Arc<tokio::sync::Mutex<tokio::sync::mpsc::Receiver<String>>>>,
     /// stage 执行前后的观察者（产物追踪、token 监控等扩展点）
     stage_watchers: crate::watcher::StageWatchers,
+    /// RAG 检索 provider（可选，由 nx_api 注入）
+    rag_provider: Option<Arc<dyn crate::watcher::RagProvider>>,
+    /// 模型路由回调（prompt → model name，stage.model 为 None 时调用）
+    model_router_fn: Option<Arc<dyn Fn(&str) -> Option<String> + Send + Sync>>,
 }
 
 impl WorkflowEngine {
@@ -44,6 +55,8 @@ impl WorkflowEngine {
             working_directory: None,
             resume_rx: None,
             stage_watchers: crate::watcher::StageWatchers::new(),
+            rag_provider: None,
+            model_router_fn: None,
         }
     }
 
@@ -57,6 +70,8 @@ impl WorkflowEngine {
             working_directory,
             resume_rx: None,
             stage_watchers: crate::watcher::StageWatchers::new(),
+            rag_provider: None,
+            model_router_fn: None,
         }
     }
 
@@ -71,7 +86,19 @@ impl WorkflowEngine {
             working_directory,
             resume_rx: Some(Arc::new(tokio::sync::Mutex::new(resume_rx))),
             stage_watchers: crate::watcher::StageWatchers::new(),
+            rag_provider: None,
+            model_router_fn: None,
         }
+    }
+
+    /// 注入 RAG provider
+    pub fn set_rag_provider(&mut self, provider: Arc<dyn crate::watcher::RagProvider>) {
+        self.rag_provider = Some(provider);
+    }
+
+    /// 注入模型路由回调
+    pub fn set_model_router_fn(&mut self, f: Arc<dyn Fn(&str) -> Option<String> + Send + Sync>) {
+        self.model_router_fn = Some(f);
     }
 
     /// 注册 stage 观察者（用于产物追踪、token 监控等）
@@ -232,49 +259,8 @@ impl WorkflowEngine {
                                 .await?
                         }
                         Err(e) => {
-                            // stage 执行失败 → 尝试 on_error 重试
-                            if let Some(ref error_handler) = workflow.on_error {
-                                if error_handler.retry {
-                                    let mut last_err = e;
-                                    let mut retry_result = None;
-                                    for attempt in 1..=error_handler.max_retries {
-                                        tracing::warn!(
-                                            "Stage '{}' 失败，重试 {}/{}",
-                                            stage.name,
-                                            attempt,
-                                            error_handler.max_retries
-                                        );
-                                        match self
-                                            .execute_stage(&state, &stage, &workflow.agents)
-                                            .await
-                                        {
-                                            Ok(out) => {
-                                                retry_result = Some(out);
-                                                break;
-                                            }
-                                            Err(e) => {
-                                                last_err = e;
-                                            }
-                                        }
-                                    }
-                                    match retry_result {
-                                        Some(out) => {
-                                            self.run_quality_gate_loop(
-                                                &state,
-                                                &stage,
-                                                &workflow.agents,
-                                                out,
-                                            )
-                                            .await?
-                                        }
-                                        None => return Err(last_err),
-                                    }
-                                } else {
-                                    return Err(e);
-                                }
-                            } else {
-                                return Err(e);
-                            }
+                            self.handle_stage_failure(e, &state, &stage, &workflow)
+                                .await?
                         }
                     };
 
@@ -753,6 +739,135 @@ impl WorkflowEngine {
         }
     }
 
+    /// stage 失败后的自愈逻辑：同模型重试 → 换模型重试 → then 动作
+    async fn handle_stage_failure(
+        &self,
+        initial_err: WorkflowError,
+        state: &SharedState,
+        stage: &crate::parser::StageDefinition,
+        workflow: &crate::parser::WorkflowDefinition,
+    ) -> Result<(Vec<StageOutput>, Option<QualityGateResult>), WorkflowError> {
+        // 优先用 stage 级 on_fail，否则降级到 workflow 级 on_error
+        if let Some(ref policy) = stage.on_fail {
+            let mut last_err = initial_err;
+
+            // 1. 同模型重试
+            for attempt in 1..=policy.retry {
+                tracing::warn!(
+                    "[FailRecovery] stage='{}' 同模型重试 {}/{}",
+                    stage.name,
+                    attempt,
+                    policy.retry
+                );
+                self.emit_model_escalation(state, &stage.name, None, attempt, policy.retry);
+                match self.execute_stage(state, stage, &workflow.agents).await {
+                    Ok(out) => {
+                        return self
+                            .run_quality_gate_loop(state, stage, &workflow.agents, out)
+                            .await
+                    }
+                    Err(e) => last_err = e,
+                }
+            }
+
+            // 2. 换强模型重试
+            if let Some(ref escalate_model) = policy.escalate_model {
+                let mut escalated_stage = stage.clone();
+                escalated_stage.model = Some(escalate_model.clone());
+                for attempt in 1..=policy.escalate_retries {
+                    tracing::warn!(
+                        "[FailRecovery] stage='{}' 升级模型 {} 重试 {}/{}",
+                        stage.name,
+                        escalate_model,
+                        attempt,
+                        policy.escalate_retries
+                    );
+                    self.emit_model_escalation(
+                        state,
+                        &stage.name,
+                        Some(escalate_model),
+                        attempt,
+                        policy.escalate_retries,
+                    );
+                    match self
+                        .execute_stage(state, &escalated_stage, &workflow.agents)
+                        .await
+                    {
+                        Ok(out) => {
+                            return self
+                                .run_quality_gate_loop(
+                                    state,
+                                    &escalated_stage,
+                                    &workflow.agents,
+                                    out,
+                                )
+                                .await
+                        }
+                        Err(e) => last_err = e,
+                    }
+                }
+            }
+
+            // 3. then 动作
+            match policy.then.as_str() {
+                "continue" => {
+                    tracing::warn!(
+                        "[FailRecovery] stage='{}' 全部重试失败，continue_on_error",
+                        stage.name
+                    );
+                    Ok((vec![], None))
+                }
+                _ => Err(last_err), // "fail" | "rollback"（rollback 由上层 git 处理）
+            }
+        } else if let Some(ref error_handler) = workflow.on_error {
+            // 降级到 workflow 级重试
+            if error_handler.retry {
+                let mut last_err = initial_err;
+                for attempt in 1..=error_handler.max_retries {
+                    tracing::warn!(
+                        "Stage '{}' 失败，重试 {}/{}",
+                        stage.name,
+                        attempt,
+                        error_handler.max_retries
+                    );
+                    match self.execute_stage(state, stage, &workflow.agents).await {
+                        Ok(out) => {
+                            return self
+                                .run_quality_gate_loop(state, stage, &workflow.agents, out)
+                                .await
+                        }
+                        Err(e) => last_err = e,
+                    }
+                }
+                Err(last_err)
+            } else {
+                Err(initial_err)
+            }
+        } else {
+            Err(initial_err)
+        }
+    }
+
+    fn emit_model_escalation(
+        &self,
+        state: &SharedState,
+        stage_name: &str,
+        escalate_model: Option<&str>,
+        attempt: usize,
+        max: usize,
+    ) {
+        let execution_id = state.read().execution_id;
+        let msg = match escalate_model {
+            Some(m) => format!("已升级模型 {} 重试 {}/{}", m, attempt, max),
+            None => format!("同模型重试 {}/{}", attempt, max),
+        };
+        self.event_emitter.emit(WorkflowEvent::AgentMessage {
+            execution_id,
+            agent_id: stage_name.to_string(),
+            message: format!("[FailRecovery] {}", msg),
+        });
+    }
+
     /// 执行单个阶段
     async fn execute_stage(
         &self,
@@ -777,8 +892,17 @@ impl WorkflowEngine {
                 let agent_clone = agent.clone();
                 let engine = self.clone();
 
+                let rag_config = stage.rag.clone();
+                let model = stage.model.clone();
                 handles.push(tokio::spawn(async move {
-                    engine.execute_agent(&state_clone, &agent_clone).await
+                    engine
+                        .execute_agent(
+                            &state_clone,
+                            &agent_clone,
+                            rag_config.as_ref(),
+                            model.as_deref(),
+                        )
+                        .await
                 }));
             }
 
@@ -810,7 +934,10 @@ impl WorkflowEngine {
                     continue;
                 }
 
-                match self.execute_agent(state, agent).await {
+                match self
+                    .execute_agent(state, agent, stage.rag.as_ref(), stage.model.as_deref())
+                    .await
+                {
                     Ok(agent_outputs) => outputs.extend(agent_outputs),
                     Err(e) => {
                         if stage.continue_on_error {
@@ -853,6 +980,8 @@ impl WorkflowEngine {
         &self,
         state: &SharedState,
         agent: &crate::parser::AgentDefinition,
+        rag_config: Option<&crate::parser::RagConfig>,
+        model_override: Option<&str>,
     ) -> Result<Vec<StageOutput>, WorkflowError> {
         let execution_id = state.read().execution_id;
 
@@ -876,20 +1005,57 @@ impl WorkflowEngine {
         // 使用解析后的变量构建提示词
         let resolved_prompt = state.read().resolve_template(&agent.prompt);
 
+        // RAG 注入：检索相关知识并追加到 prompt
+        let rag_context = if let (Some(rag), Some(provider)) = (rag_config, &self.rag_provider) {
+            let texts = provider
+                .retrieve(
+                    &rag.knowledge_base_id,
+                    &resolved_prompt,
+                    rag.top_k,
+                    rag.threshold,
+                )
+                .await;
+            if texts.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    "\n\n<knowledge>\n以下是与当前任务相关的参考知识：\n\n{}\n</knowledge>",
+                    texts.join("\n\n---\n\n")
+                )
+            }
+        } else {
+            String::new()
+        };
+
         // Auto-yes prefix to skip confirmation prompts
         let auto_yes_prefix = "You are operating in auto-yes mode. If you ask any question requiring confirmation (yes/no, continue?, proceed?, etc.), always assume the answer is YES and proceed automatically. Never ask for confirmation.";
 
         // 构建 prompt（Claude CLI 格式）
         let full_prompt = format!(
-            "{}\n\n<system>\n你扮演 {}. 请仔细遵循你的指示。\n</system>\n\n<user>\n{}\n</user>",
-            auto_yes_prefix, agent.role, resolved_prompt
+            "{}\n\n<system>\n你扮演 {}. 请仔细遵循你的指示。\n</system>\n\n<user>\n{}{}\n</user>",
+            auto_yes_prefix, agent.role, resolved_prompt, rag_context
         );
 
-        // 通过 Claude CLI 执行（Claude Switch 切换后自动使用新模型）
-        let output = self.call_claude_cli(&full_prompt).await;
+        // 模型路由：stage 未指定 model 时，用路由器自动选择
+        let routed_model;
+        let effective_model = if model_override.is_some() {
+            model_override
+        } else if let Some(ref router_fn) = self.model_router_fn {
+            routed_model = router_fn(&resolved_prompt);
+            if let Some(ref m) = routed_model {
+                tracing::info!("[ModelRouter] agent='{}' → {}", agent.id, m);
+            }
+            routed_model.as_deref()
+        } else {
+            None
+        };
+
+        // 通过 Claude CLI 执行
+        let output = self.call_claude_cli(&full_prompt, effective_model).await;
 
         match output {
-            Ok(response) => {
+            Ok(cli_result) => {
+                let response = cli_result.text;
                 agent_state.status = AgentStatus::Completed;
                 agent_state.last_message = Some(response.clone());
                 agent_state.updated_at = chrono::Utc::now();
@@ -917,6 +1083,16 @@ impl WorkflowEngine {
 
                 // 写回完成状态
                 state.write().update_agent(&agent.id, agent_state);
+
+                // 发出 token 用量事件
+                if cli_result.input_tokens > 0 || cli_result.output_tokens > 0 {
+                    self.event_emitter.emit(WorkflowEvent::AgentTokenUsage {
+                        execution_id,
+                        agent_id: agent.id.clone(),
+                        input_tokens: cli_result.input_tokens,
+                        output_tokens: cli_result.output_tokens,
+                    });
+                }
 
                 self.event_emitter.emit(WorkflowEvent::AgentCompleted {
                     execution_id,
@@ -951,14 +1127,16 @@ impl WorkflowEngine {
         }
     }
 
-    /// 调用 Claude CLI
-    async fn call_claude_cli(&self, prompt: &str) -> Result<String, WorkflowError> {
+    /// 调用 Claude CLI（stream-json 模式，解析 token usage）
+    async fn call_claude_cli(
+        &self,
+        prompt: &str,
+        model: Option<&str>,
+    ) -> Result<ClaudeCliResult, WorkflowError> {
         let claude_bin = std::env::var("CLAUDE_BIN")
             .or_else(|_| std::env::var("CLAUDE_CLI_PATH_OVERRIDE"))
             .or_else(|_| {
-                // Try common paths as fallback
                 let candidates = if cfg!(target_os = "windows") {
-                    // npm 安装的是 claude.cmd，不是 claude.exe
                     vec![
                         "claude.cmd".to_string(),
                         "claude.exe".to_string(),
@@ -986,9 +1164,17 @@ impl WorkflowEngine {
         } else {
             Command::new(&claude_bin)
         };
-        cmd.args(["-p", "--dangerously-skip-permissions", prompt]);
+        cmd.args([
+            "-p",
+            "--dangerously-skip-permissions",
+            "--output-format",
+            "stream-json",
+        ]);
+        if let Some(m) = model {
+            cmd.args(["--model", m]);
+        }
+        cmd.arg(prompt);
 
-        // 如果设置了 working_directory，设置当前工作目录
         if let Some(ref dir) = self.working_directory {
             cmd.current_dir(dir);
         }
@@ -1023,7 +1209,45 @@ impl WorkflowEngine {
             )));
         }
 
-        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut text_parts: Vec<String> = Vec::new();
+        let mut total_input_tokens: u64 = 0;
+        let mut total_output_tokens: u64 = 0;
+
+        for line in stdout.lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(trimmed) {
+                // 提取文本内容
+                if let Some(content) = json.get("content").and_then(|c| c.as_str()) {
+                    text_parts.push(content.to_string());
+                } else if let Some(result) = json.get("result").and_then(|r| r.as_str()) {
+                    text_parts.push(result.to_string());
+                }
+                // 提取 token usage
+                if let Some(usage) = json.get("usage") {
+                    if let Some(it) = usage.get("input_tokens").and_then(|v| v.as_u64()) {
+                        total_input_tokens += it;
+                    }
+                    if let Some(ot) = usage.get("output_tokens").and_then(|v| v.as_u64()) {
+                        total_output_tokens += ot;
+                    }
+                }
+            } else {
+                // 非 JSON 行，可能是纯文本残留
+                text_parts.push(trimmed.to_string());
+            }
+        }
+
+        let text = text_parts.join("\n").trim().to_string();
+
+        Ok(ClaudeCliResult {
+            text,
+            input_tokens: total_input_tokens,
+            output_tokens: total_output_tokens,
+        })
     }
 }
 
@@ -1046,6 +1270,8 @@ impl Clone for WorkflowEngine {
             working_directory: self.working_directory.clone(),
             resume_rx: self.resume_rx.clone(),
             stage_watchers: self.stage_watchers.clone(),
+            rag_provider: self.rag_provider.clone(),
+            model_router_fn: self.model_router_fn.clone(),
         }
     }
 }

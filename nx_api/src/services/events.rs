@@ -62,6 +62,19 @@ pub enum ExecutionEvent {
         total_tokens: i64,
         total_cost_usd: f64,
     },
+    /// 预算告警（超 80%）
+    BudgetWarning {
+        execution_id: String,
+        current_usd: f64,
+        limit_usd: f64,
+        percentage: f64,
+    },
+    /// 预算超限（超 100%，已自动取消）
+    BudgetExceeded {
+        execution_id: String,
+        current_usd: f64,
+        limit_usd: f64,
+    },
 }
 
 /// 执行状态

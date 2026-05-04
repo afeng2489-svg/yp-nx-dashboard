@@ -67,6 +67,12 @@ const BrowserPage = lazy(() =>
 const UIDesignPage = lazy(() =>
   import('@/pages/UIDesignPage').then((m) => ({ default: m.UIDesignPage })),
 );
+const CostPage = lazy(() =>
+  import('@/pages/CostPage').then((m) => ({ default: m.CostPage })),
+);
+const KnowledgeBasePage = lazy(() =>
+  import('@/pages/KnowledgeBasePage').then((m) => ({ default: m.KnowledgeBasePage })),
+);
 
 // Loading fallback component
 function PageLoadingFallback() {
@@ -289,6 +295,22 @@ function App() {
                 }
               />
               <Route path="/browser" element={<BrowserPage />} />
+              <Route
+                path="/cost"
+                element={
+                  <PageWrapper>
+                    <CostPage />
+                  </PageWrapper>
+                }
+              />
+              <Route
+                path="/knowledge-base"
+                element={
+                  <PageWrapper>
+                    <KnowledgeBasePage />
+                  </PageWrapper>
+                }
+              />
               <Route
                 path="/ui-design"
                 element={

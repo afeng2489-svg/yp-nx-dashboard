@@ -4,17 +4,17 @@
     "vision": "一个普通开发者，用这个软件就能完成一个完整软件产品的设计、开发、测试、监控",
     "scope": "单机单用户，不考虑多租户",
     "codebase": "/Users/Zhuanz/Desktop/yp-nx-dashboard",
-    "tracker_version": "4.1",
-    "last_updated": "2026-05-02T02:00:00+08:00",
-    "current_sprint": "v2.1",
+    "tracker_version": "4.2",
+    "last_updated": "2026-05-04T15:30:00+08:00",
+    "current_sprint": "v4.3",
     "current_stage": "pending",
     "resume_instruction": "读此文件 → 找 current_sprint → 读 docs/sprints/{id}-*.yaml → 从第一个 pending task 开始"
   },
   "summary": {
     "total_sprints": 24,
-    "completed": 7,
+    "completed": 15,
     "in_progress": 0,
-    "pending": 17,
+    "pending": 10,
     "failed": 0
   },
   "architecture": {
@@ -137,7 +137,7 @@
     {
       "id": "v2.1",
       "name": "团队对话体验重构 — CLI优先+流式输出",
-      "status": "pending",
+      "status": "completed",
       "priority": "P1",
       "estimated_hours": 16,
       "card_file": "docs/sprints/v2.1-chat-experience.yaml",
@@ -147,7 +147,7 @@
     {
       "id": "v2.2",
       "name": "产物管理完整 — 预览+下载+版本对比",
-      "status": "pending",
+      "status": "completed",
       "priority": "P1",
       "estimated_hours": 20,
       "card_file": "docs/sprints/v1-S1-artifact-management.yaml",
@@ -157,7 +157,7 @@
     {
       "id": "v2.3",
       "name": "项目状态感知 — AI知道项目做到哪了",
-      "status": "pending",
+      "status": "completed",
       "priority": "P1",
       "estimated_hours": 24,
       "card_file": "docs/sprints/v2.3-project-awareness.yaml",
@@ -167,7 +167,7 @@
     {
       "id": "v2.4",
       "name": "技能系统内置化 — 不依赖本地 Claude CLI",
-      "status": "pending",
+      "status": "completed",
       "priority": "P1",
       "estimated_hours": 16,
       "card_file": "docs/sprints/v2.4-skill-system-internalization.yaml",
@@ -177,7 +177,7 @@
     {
       "id": "v3.1",
       "name": "Git 集成 — 每stage自动commit+失败回滚",
-      "status": "pending",
+      "status": "completed",
       "priority": "P2",
       "estimated_hours": 16,
       "card_file": "docs/sprints/v3.1-git-integration.yaml",
@@ -187,7 +187,7 @@
     {
       "id": "v3.2",
       "name": "触发器系统 — Cron+Webhook+链式",
-      "status": "pending",
+      "status": "completed",
       "priority": "P2",
       "estimated_hours": 8,
       "card_file": "docs/sprints/v3.2-triggers.yaml",
@@ -197,7 +197,7 @@
     {
       "id": "v3.3",
       "name": "Token/Cost 监控",
-      "status": "pending",
+      "status": "completed",
       "priority": "P2",
       "estimated_hours": 16,
       "card_file": "docs/sprints/v3.3-token-cost.yaml",
@@ -207,7 +207,7 @@
     {
       "id": "v3.4",
       "name": "RAG 知识库 — 文档上传+向量检索+注入prompt",
-      "status": "pending",
+      "status": "completed",
       "priority": "P2",
       "estimated_hours": 32,
       "card_file": "docs/sprints/v3.4-rag-knowledge-base.yaml",
@@ -217,7 +217,7 @@
     {
       "id": "v4.1",
       "name": "多模型路由 — 按任务复杂度自动选模型",
-      "status": "pending",
+      "status": "completed",
       "priority": "P1",
       "estimated_hours": 24,
       "card_file": "docs/sprints/v4.1-multi-model-routing.yaml",
@@ -227,7 +227,7 @@
     {
       "id": "v4.2",
       "name": "失败自愈 — 失败→重试→换模型→回滚→通知",
-      "status": "pending",
+      "status": "completed",
       "priority": "P1",
       "estimated_hours": 20,
       "card_file": "docs/sprints/v4.2-failure-recovery.yaml",
@@ -298,6 +298,10 @@
     {"date": "2026-05-02", "event": "v1.2完成", "detail": "断点续跑：R1任务开始时写checkpoint(try_pty_dispatch_pub+resume_service.create_checkpoint)、R2定期更新+完成/失败标记(pty_task_watcher+30s心跳)、R3启动时检测中断并自动恢复PTY重新dispatch、R4前端interrupted状态+已恢复badge"},
     {"date": "2026-05-02", "event": "v4.7更新", "detail": "新增T2(团队对话→Pipeline自动编排)、T3(会话模块合并统一持久化交互会话)，Pipeline和会话模块整合到AI项目追踪流程"},
     {"date": "2026-05-02", "event": "v1.3完成", "detail": "Q1: parser+engine质量门支持(QualityGate结构体/run_quality_gate/失败重试+错误注入)、Q2: 5套内置模板(rust/ts/python/go/docker)、Q3: DB+API+前端全链路quality_gate_result可视化、Q4: 团队对话完成后自动检测项目类型并跑测试"},
-    {"date": "2026-05-03", "event": "v1.4完成", "detail": "O1: 实时进度看板(ActiveExecutionsPanel+StageMetricsPanel+PipelineGanttBar)、O2: Token/Cost实时显示(后端Execution加total_tokens/total_cost_usd+TokenUsage事件+前端TokenCostSummary+ExecutionTokenBadge)、O3: 产物文件列表完整(文件预览react-markdown+highlight.js+二进制判断+产物badge+分页加载)"}
+    {"date": "2026-05-03", "event": "v1.4完成", "detail": "O1: 实时进度看板(ActiveExecutionsPanel+StageMetricsPanel+PipelineGanttBar)、O2: Token/Cost实时显示(后端Execution加total_tokens/total_cost_usd+TokenUsage事件+前端TokenCostSummary+ExecutionTokenBadge)、O3: 产物文件列表完整(文件预览react-markdown+highlight.js+二进制判断+产物badge+分页加载)"},
+    {"date": "2026-05-03", "event": "v3.1完成", "detail": "Git集成：GitStageWatcher(自动创建ai-exec-分支+每stage自动commit)+GitService(rollback revert/keep/branch+commit列表+diff查看+PR描述生成)+前端GitTab(分支信息+commit列表+回滚按钮+PR描述复制)"},
+    {"date": "2026-05-03", "event": "v3.2完成", "detail": "触发器系统：T1 Trigger结构体扩展(cron/workflow_ref/pass_output/secret)+定时任务CRUD API+T2 Webhook触发路由(secret验证)+T3 链式触发(chain_trigger_handler完成时自动触发下游)。链式触发的画布交互延后到v4.7 T5"},
+    {"date": "2026-05-03", "event": "v3.3完成", "detail": "Token/Cost监控：TC1 Claude CLI改用stream-json解析usage字段+AgentTokenUsage事件+成本计算($3/1M input+$15/1M output)、TC2 预算告警(budget_limit_usd+80%warning+100%auto-cancel+BudgetWarning/BudgetExceeded事件)、TC3 Cost Dashboard(3个聚合API+CostPage折线图/柱状图/Top5表格+侧边栏入口)"},
+    {"date": "2026-05-04", "event": "v3.4完成", "detail": "RAG知识库：K1 修复parking_lot::Mutex跨await持锁(Send阻塞)→改用get_provider()clone Arc出锁再await、K2 parser加RagConfig+StageDefinition.rag字段+watcher加RagProvider trait+engine注入检索结果到prompt+KnowledgeService实现RagProvider+ExecutionService注入、K3 KnowledgeBasePage(知识库列表/创建/删除+文档上传/列表/删除+测试检索)+侧边栏入口+路由注册"}
   ]
 }

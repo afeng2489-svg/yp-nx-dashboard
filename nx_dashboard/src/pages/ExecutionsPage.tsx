@@ -4,6 +4,7 @@ import { useExecutionsQuery } from '@/hooks/useReactQuery';
 import { useExecutionStore, Execution, StageResult } from '@/stores/executionStore';
 import { onWorkspaceChange } from '@/stores/workspaceStore';
 import { useWorkflowStore } from '@/stores/workflowStore';
+import { api, type ExecutionLog } from '@/api/client';
 import {
   XCircle,
   Clock,
@@ -16,6 +17,9 @@ import {
   Terminal,
   Activity,
   PauseCircle,
+  GitBranch,
+  Copy,
+  RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WS_BASE_URL } from '@/api/constants';
@@ -118,7 +122,7 @@ function ExecutionDetailModal({
   onClose: () => void;
   onCancel: (id: string) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<'stages' | 'logs' | 'artifacts'>('stages');
+  const [activeTab, setActiveTab] = useState<'stages' | 'logs' | 'artifacts' | 'git'>('stages');
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
   const workflowName = useWorkflowName();
 
@@ -257,6 +261,20 @@ function ExecutionDetailModal({
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500" />
             )}
           </button>
+          <button
+            onClick={() => setActiveTab('git')}
+            className={cn(
+              'flex-1 px-4 py-3 text-sm font-medium transition-all relative',
+              activeTab === 'git'
+                ? 'text-indigo-600'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            Git
+            {activeTab === 'git' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500" />
+            )}
+          </button>
         </div>
 
         {/* 内容区域 */}
@@ -283,8 +301,10 @@ function ExecutionDetailModal({
             </div>
           ) : activeTab === 'logs' ? (
             <ExecutionLogs executionId={execution.id} />
-          ) : (
+          ) : activeTab === 'artifacts' ? (
             <ArtifactsPanel executionId={execution.id} />
+          ) : (
+            <GitTab executionId={execution.id} executionStatus={execution.status} />
           )}
         </div>
 
@@ -459,8 +479,16 @@ function ExecutionLogs({ executionId }: { executionId: string }) {
   const [wsConnected, setWsConnected] = useState(false);
   const [currentStage, setCurrentStage] = useState<string | null>(null);
   const [pauseState, setPauseState] = useState<PauseState | null>(null);
+  const [logTab, setLogTab] = useState<'realtime' | 'trace'>('realtime');
+  const [traceLogs, setTraceLogs] = useState<ExecutionLog[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (logTab === 'trace') {
+      api.listExecutionLogs(executionId).then(setTraceLogs).catch(() => {});
+    }
+  }, [logTab, executionId]);
 
   // 每次新日志追加时自动滚到底部
   useEffect(() => {
@@ -579,10 +607,15 @@ function ExecutionLogs({ executionId }: { executionId: string }) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <div
-            className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-600'}`}
-          />
-          <span className="text-xs text-gray-500">{wsConnected ? '实时' : '历史'}</span>
+          <button
+            onClick={() => setLogTab('realtime')}
+            className={`text-xs px-2 py-0.5 rounded ${logTab === 'realtime' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+          >实时</button>
+          <button
+            onClick={() => setLogTab('trace')}
+            className={`text-xs px-2 py-0.5 rounded ${logTab === 'trace' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+          >追踪</button>
+          <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-600'}`} />
         </div>
       </div>
 
@@ -608,30 +641,52 @@ function ExecutionLogs({ executionId }: { executionId: string }) {
       )}
 
       <div className="flex-1 overflow-auto p-4 font-mono text-xs space-y-0.5">
-        {logs.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-gray-600">等待输出...</p>
-          </div>
-        ) : (
-          logs.map((log, index) => (
-            <div
-              key={index}
-              className={cn(
-                'leading-relaxed px-2 py-0.5 rounded whitespace-pre-wrap break-all',
-                log.type === 'error'
-                  ? 'text-red-400'
-                  : log.type === 'stage'
-                    ? 'text-emerald-400 font-semibold'
-                    : log.type === 'system'
-                      ? 'text-blue-400'
-                      : 'text-gray-300',
-              )}
-            >
-              {log.text}
+        {logTab === 'trace' ? (
+          traceLogs.length === 0 ? (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-gray-600">暂无追踪日志</p>
             </div>
-          ))
+          ) : (
+            traceLogs.map((log) => (
+              <div key={log.id} className={cn('leading-relaxed px-2 py-1 rounded border-b border-white/5', log.status === 'failed' ? 'text-red-400' : log.status === 'escalated' ? 'text-amber-400' : 'text-gray-300')}>
+                <span className="text-gray-500">{log.timestamp.slice(11, 19)}</span>
+                {' '}
+                <span className={cn('font-semibold', log.status === 'failed' ? 'text-red-400' : log.status === 'escalated' ? 'text-amber-400' : 'text-emerald-400')}>[{log.status}]</span>
+                {' '}{log.stage_name ?? '-'}
+                {log.model && <span className="text-blue-400 ml-1">@{log.model}</span>}
+                {log.attempt > 0 && <span className="text-gray-500 ml-1">attempt={log.attempt}</span>}
+                {log.error && <span className="text-red-400 ml-1">— {log.error.slice(0, 80)}</span>}
+              </div>
+            ))
+          )
+        ) : (
+          <>
+            {logs.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-gray-600">等待输出...</p>
+              </div>
+            ) : (
+              logs.map((log, index) => (
+                <div
+                  key={index}
+                  className={cn(
+                    'leading-relaxed px-2 py-0.5 rounded whitespace-pre-wrap break-all',
+                    log.type === 'error'
+                      ? 'text-red-400'
+                      : log.type === 'stage'
+                        ? 'text-emerald-400 font-semibold'
+                        : log.type === 'system'
+                          ? 'text-blue-400'
+                          : 'text-gray-300',
+                  )}
+                >
+                  {log.text}
+                </div>
+              ))
+            )}
+            <div ref={logsEndRef} />
+          </>
         )}
-        <div ref={logsEndRef} />
       </div>
     </div>
   );
@@ -927,6 +982,233 @@ export function ExecutionsPage() {
           onClose={() => setSelectedExecutionId(null)}
           onCancel={handleCancel}
         />
+      )}
+    </div>
+  );
+}
+
+// ============ Git Tab 组件 ============
+
+interface CommitInfo {
+  hash: string;
+  full_hash: string;
+  message: string;
+  timestamp: string;
+  changed_files: number;
+}
+
+interface BranchInfo {
+  current_branch: string | null;
+  exec_branch: string;
+  is_git_repo: boolean;
+}
+
+function GitTab({
+  executionId,
+  executionStatus,
+}: {
+  executionId: string;
+  executionStatus: string;
+}) {
+  const [branchInfo, setBranchInfo] = useState<BranchInfo | null>(null);
+  const [commits, setCommits] = useState<CommitInfo[]>([]);
+  const [expandedCommit, setExpandedCommit] = useState<string | null>(null);
+  const [commitDiff, setCommitDiff] = useState<Record<string, string>>({});
+  const [prDescription, setPrDescription] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [rollingBack, setRollingBack] = useState(false);
+  const [rollbackAction, setRollbackAction] = useState<'revert' | 'keep' | 'branch'>('revert');
+  const [copied, setCopied] = useState(false);
+
+  const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${apiBase}/api/v1/executions/${executionId}/git`)
+      .then((r) => r.json())
+      .then((data) => {
+        setBranchInfo(data.branch_info);
+        setCommits(data.commits || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [executionId, apiBase]);
+
+  const loadCommitDiff = (hash: string) => {
+    if (commitDiff[hash]) {
+      setExpandedCommit(expandedCommit === hash ? null : hash);
+      return;
+    }
+    fetch(`${apiBase}/api/v1/executions/${executionId}/git/commit/${hash}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setCommitDiff((prev) => ({ ...prev, [hash]: data.diff || '' }));
+        setExpandedCommit(hash);
+      })
+      .catch(() => {});
+  };
+
+  const handleRollback = async () => {
+    if (!branchInfo) return;
+    setRollingBack(true);
+    try {
+      const initialBranch = branchInfo.current_branch || 'main';
+      await fetch(`${apiBase}/api/v1/executions/${executionId}/rollback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: rollbackAction,
+          initial_branch: initialBranch,
+          exec_branch: branchInfo.exec_branch,
+        }),
+      });
+      // Refresh git info after rollback
+      const resp = await fetch(`${apiBase}/api/v1/executions/${executionId}/git`);
+      const data = await resp.json();
+      setBranchInfo(data.branch_info);
+      setCommits(data.commits || []);
+    } catch {
+    } finally {
+      setRollingBack(false);
+    }
+  };
+
+  const handleCopyPr = async () => {
+    if (!prDescription) {
+      try {
+        const resp = await fetch(`${apiBase}/api/v1/executions/${executionId}/pr-description`);
+        const data = await resp.json();
+        setPrDescription(data.description);
+        await navigator.clipboard.writeText(data.description || '');
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {}
+    } else {
+      await navigator.clipboard.writeText(prDescription);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  if (loading) {
+    return <div className="p-4 text-center text-muted-foreground">加载 Git 信息...</div>;
+  }
+
+  if (!branchInfo?.is_git_repo) {
+    return (
+      <div className="text-center py-12">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 flex items-center justify-center">
+          <GitBranch className="w-8 h-8 text-indigo-500" />
+        </div>
+        <p className="text-muted-foreground">当前工作区不是 Git 仓库</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* 分支信息 */}
+      <div className="flex items-center justify-between p-3 bg-accent/50 rounded-lg border border-border">
+        <div className="flex items-center gap-2">
+          <GitBranch className="w-4 h-4 text-primary" />
+          <span className="text-sm font-medium">当前分支:</span>
+          <code className="px-2 py-0.5 bg-primary/10 text-primary rounded text-sm">
+            {branchInfo.current_branch || 'unknown'}
+          </code>
+          {branchInfo.current_branch !== branchInfo.exec_branch && (
+            <>
+              <span className="text-muted-foreground text-sm">执行分支:</span>
+              <code className="px-2 py-0.5 bg-purple-500/10 text-purple-500 rounded text-sm">
+                {branchInfo.exec_branch}
+              </code>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Commit 列表 */}
+      {commits.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">暂无 commit 记录</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium text-muted-foreground">Commits ({commits.length})</h3>
+          {commits.map((commit) => (
+            <div key={commit.hash} className="border border-border rounded-lg overflow-hidden">
+              <button
+                onClick={() => loadCommitDiff(commit.hash)}
+                className="w-full p-3 text-left hover:bg-accent/50 transition-colors flex items-center gap-3"
+              >
+                <code className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded">
+                  {commit.hash}
+                </code>
+                <span className="flex-1 text-sm font-medium">{commit.message}</span>
+                <span className="text-xs text-muted-foreground">{commit.changed_files} 文件</span>
+                <ChevronRight
+                  className={cn(
+                    'w-4 h-4 text-muted-foreground transition-transform',
+                    expandedCommit === commit.hash && 'rotate-90',
+                  )}
+                />
+              </button>
+              {expandedCommit === commit.hash && commitDiff[commit.hash] && (
+                <div className="border-t border-border">
+                  <pre className="p-3 text-xs overflow-x-auto bg-card font-mono text-foreground/80 max-h-96 overflow-y-auto">
+                    {commitDiff[commit.hash]}
+                  </pre>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 操作按钮 */}
+      {(executionStatus === 'failed' || executionStatus === 'completed') && (
+        <div className="border-t border-border pt-4 space-y-3">
+          {executionStatus === 'failed' && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-destructive">执行失败 — 回滚选项</h3>
+              <div className="flex gap-2">
+                {(['revert', 'keep', 'branch'] as const).map((action) => (
+                  <button
+                    key={action}
+                    onClick={() => setRollbackAction(action)}
+                    className={cn(
+                      'px-3 py-2 text-sm rounded-lg border transition-colors',
+                      rollbackAction === action
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:bg-accent',
+                    )}
+                  >
+                    {action === 'revert' && '回滚到执行前'}
+                    {action === 'keep' && '保留当前分支'}
+                    {action === 'branch' && '创建 fix 分支'}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={handleRollback}
+                disabled={rollingBack}
+                className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-destructive text-white hover:bg-destructive/90 disabled:opacity-50"
+              >
+                <RotateCcw className="w-4 h-4" />
+                {rollingBack ? '回滚中...' : '执行回滚'}
+              </button>
+            </div>
+          )}
+
+          {executionStatus === 'completed' && commits.length > 0 && (
+            <button
+              onClick={handleCopyPr}
+              className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary/90"
+            >
+              <Copy className="w-4 h-4" />
+              {copied ? '已复制!' : '复制 PR 描述'}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

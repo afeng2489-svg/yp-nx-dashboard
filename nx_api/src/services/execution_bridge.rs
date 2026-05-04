@@ -19,17 +19,21 @@ use tokio::sync::broadcast;
 pub struct WorkflowEventBridge {
     execution_service: ExecutionService,
     api_exec_id: String,
+    budget_limit_usd: Option<f64>,
 }
 
 impl WorkflowEventBridge {
-    /// 创建新的桥接器
-    ///
-    /// `api_exec_id` 是 ExecutionService 分配的执行 ID，所有事件将使用该 ID。
     pub fn new(execution_service: ExecutionService, api_exec_id: String) -> Self {
         Self {
             execution_service,
             api_exec_id,
+            budget_limit_usd: None,
         }
+    }
+
+    pub fn with_budget(mut self, limit: f64) -> Self {
+        self.budget_limit_usd = Some(limit);
+        self
     }
 
     /// 将 WorkflowEvent 转换为 ExecutionEvent 并广播
@@ -155,6 +159,29 @@ impl WorkflowEventBridge {
                     )
                 },
             }),
+            WorkflowEvent::AgentTokenUsage {
+                agent_id,
+                input_tokens,
+                output_tokens,
+                ..
+            } => {
+                let total_tokens = (input_tokens + output_tokens) as i64;
+                let cost_usd = (input_tokens as f64 * 3.0 / 1_000_000.0)
+                    + (output_tokens as f64 * 15.0 / 1_000_000.0);
+                self.execution_service.add_token_usage_with_budget(
+                    &id,
+                    total_tokens,
+                    cost_usd,
+                    self.budget_limit_usd,
+                );
+                Some(ExecutionEvent::Output {
+                    execution_id: id,
+                    line: format!(
+                        "[TokenUsage] {} — input: {}, output: {}, cost: ${:.4}",
+                        agent_id, input_tokens, output_tokens, cost_usd
+                    ),
+                })
+            }
         };
 
         if let Some(event) = execution_event {

@@ -89,6 +89,13 @@ pub enum WorkflowEvent {
         retry_count: usize,
         checks_summary: String,
     },
+    /// 智能体 token 用量
+    AgentTokenUsage {
+        execution_id: Uuid,
+        agent_id: String,
+        input_tokens: u64,
+        output_tokens: u64,
+    },
 }
 
 impl WorkflowEvent {
@@ -114,6 +121,7 @@ impl WorkflowEvent {
             WorkflowEvent::WorkflowPaused { execution_id, .. } => Some(*execution_id),
             WorkflowEvent::WorkflowResumed { execution_id, .. } => Some(*execution_id),
             WorkflowEvent::QualityGateChecked { execution_id, .. } => Some(*execution_id),
+            WorkflowEvent::AgentTokenUsage { execution_id, .. } => Some(*execution_id),
         }
     }
 }

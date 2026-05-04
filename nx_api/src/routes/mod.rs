@@ -33,13 +33,16 @@ use nexus_ai::{AIManagerConfig, AIModelManager, APIConfig, ModelConfig, Provider
 pub mod a2ui;
 pub mod ai_config;
 pub mod artifacts;
+pub mod execution_logs;
 pub mod executions;
 pub mod feature_flags;
 pub mod file_watch;
 pub mod group_chat;
 pub mod health;
 pub mod issues;
+pub mod knowledge;
 pub mod memory;
+pub mod model_routing;
 pub mod pipelines;
 pub mod plugins;
 pub mod process_lifecycle;
@@ -56,6 +59,7 @@ pub mod teams_state;
 pub mod teams_v2;
 pub mod templates;
 pub mod test_gen;
+pub mod triggers;
 pub mod wisdom;
 pub mod workflows;
 pub mod workspaces;
@@ -398,6 +402,11 @@ pub struct AppState {
     pub current_workspace_path: Arc<RwLock<Option<String>>>,
     /// 产物仓储（每次工作流执行的文件 diff，可选）
     pub artifact_repo: Option<Arc<crate::services::artifact_repository::SqliteArtifactRepository>>,
+    /// 执行记录仓储（token/cost 聚合查询用）
+    pub execution_repo:
+        Option<Arc<crate::services::execution_repository::SqliteExecutionRepository>>,
+    /// Git 集成服务（自动 commit + 回滚 + PR 描述）
+    pub git_service: crate::services::git_watcher::GitService,
     /// API 密钥（用于认证中间件）
     pub api_key_config: Option<String>,
     /// Issue 仓储
@@ -423,6 +432,12 @@ pub struct AppState {
     pub file_watcher: Option<Arc<crate::services::team_evolution::FileWatcher>>,
     /// A2UI 人机交互服务
     pub a2ui_service: Arc<crate::a2ui::A2UIService>,
+    /// 知识库服务（RAG：文档上传+向量化+检索）
+    pub knowledge_service: Arc<crate::services::knowledge::KnowledgeService>,
+    /// 执行日志服务（全链路追踪）
+    pub execution_log_service: Arc<crate::services::execution_log_service::ExecutionLogService>,
+    /// 告警通知服务
+    pub alert_service: Arc<crate::services::alert_service::AlertService>,
 }
 
 impl AppState {
@@ -469,7 +484,8 @@ impl AppState {
             )
             .context("Failed to create execution repository")?,
         );
-        let execution_service = ExecutionService::with_repository(execution_repo);
+        let execution_service = ExecutionService::with_repository(execution_repo.clone());
+        let execution_repo_opt = Some(execution_repo);
 
         // 注册产物追踪 watcher：每个 stage 执行前后自动 diff working_dir
         let artifact_repo_arc =
@@ -493,6 +509,18 @@ impl AppState {
                     None
                 }
             };
+
+        // 注册 Git watcher
+        {
+            let git_watcher = Arc::new(crate::services::git_watcher::GitStageWatcher::new(
+                current_workspace_path.clone(),
+            ));
+            execution_service.add_stage_watcher(git_watcher);
+            tracing::info!("[Bootstrap] Git watcher 已注册");
+        }
+
+        let git_service =
+            crate::services::git_watcher::GitService::new(current_workspace_path.clone());
 
         // 创建测试生成器
         let ai_registry = Arc::new(nexus_ai::AIProviderRegistry::new());
@@ -771,6 +799,32 @@ impl AppState {
 
         let a2ui_service = Arc::new(crate::a2ui::A2UIService::new());
 
+        // 创建知识库服务
+        let knowledge_repo = Arc::new(
+            crate::services::knowledge::repository::KnowledgeRepository::new(std::path::Path::new(
+                &config.db_path,
+            ))
+            .context("Failed to create knowledge repository")?,
+        );
+        let knowledge_service = Arc::new(crate::services::knowledge::KnowledgeService::new(
+            knowledge_repo,
+        ));
+        knowledge_service.configure_from_env();
+        execution_service.set_rag_provider(knowledge_service.clone());
+
+        // 执行日志服务
+        let log_conn = Arc::new(std::sync::Mutex::new(
+            rusqlite::Connection::open(&config.db_path)
+                .context("Failed to open DB for execution logs")?,
+        ));
+        let execution_log_service =
+            Arc::new(crate::services::execution_log_service::ExecutionLogService::new(log_conn));
+
+        // 告警通知服务
+        let alert_service = Arc::new(crate::services::alert_service::AlertService::new(Arc::new(
+            TelegramService::new(),
+        )));
+
         Ok(Self {
             workflow_service,
             execution_service,
@@ -794,6 +848,8 @@ impl AppState {
             claude_terminal_manager,
             current_workspace_path,
             artifact_repo: artifact_repo_arc,
+            execution_repo: execution_repo_opt,
+            git_service,
             api_key_config,
             issue_repository,
             feature_flag_service,
@@ -806,6 +862,9 @@ impl AppState {
             team_evolution_handler: None,
             file_watcher,
             a2ui_service,
+            knowledge_service,
+            execution_log_service,
+            alert_service,
         })
     }
 }
@@ -866,6 +925,64 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
                     ),
                 ));
             }
+        }
+    }
+
+    // ── 注册链式触发回调（工作流完成后自动触发下游） ──
+    {
+        let workflow_service = app_state.workflow_service.clone();
+        let execution_service = app_state.execution_service.clone();
+        let workspace_path = app_state.current_workspace_path.clone();
+
+        let handler: crate::services::execution_service::ChainTriggerCallback =
+            Arc::new(move |workflow_ref: String, variables: serde_json::Value| {
+                let ws = workflow_service.clone();
+                let es = execution_service.clone();
+                let wp = workspace_path.clone();
+                Box::pin(async move {
+                    // 按名称查找下游工作流
+                    let workflows = ws.list_workflows().map_err(|e| e.to_string())?;
+                    let target = workflows
+                        .into_iter()
+                        .find(|w| w.name == workflow_ref)
+                        .ok_or_else(|| format!("下游工作流 '{}' 不存在", workflow_ref))?;
+
+                    // 构建 workflow YAML
+                    let mut workflow_def = serde_json::json!({
+                        "name": target.name,
+                        "version": target.version,
+                    });
+                    if let Some(desc) = target.description {
+                        workflow_def["description"] = serde_json::json!(desc);
+                    }
+                    if let Some(obj) = target.definition.as_object() {
+                        for (key, value) in obj {
+                            if !["name", "version", "description"].contains(&key.as_str()) {
+                                workflow_def[key] = value.clone();
+                            }
+                        }
+                    }
+                    let workflow_yaml =
+                        serde_yaml::to_string(&workflow_def).map_err(|e| e.to_string())?;
+
+                    let current_workspace = wp.read().clone();
+                    es.execute_workflow(
+                        target.id.clone(),
+                        &workflow_yaml,
+                        variables,
+                        None,
+                        current_workspace,
+                    )
+                    .await
+                    .map_err(|e| e.to_string())
+                })
+            });
+
+        if let Some(state_mut) = Arc::get_mut(&mut app_state) {
+            state_mut
+                .execution_service
+                .set_chain_trigger_handler(handler);
+            tracing::info!("[Bootstrap] 链式触发回调已注册");
         }
     }
 
@@ -948,6 +1065,20 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         .route(
             "/api/v1/executions/start",
             post(executions::start_execution),
+        )
+        // Git 集成路由
+        .route("/api/v1/executions/:id/git", get(executions::get_git_info))
+        .route(
+            "/api/v1/executions/:id/git/commit/:hash",
+            get(executions::get_commit_diff),
+        )
+        .route(
+            "/api/v1/executions/:id/rollback",
+            post(executions::rollback_execution),
+        )
+        .route(
+            "/api/v1/executions/:id/pr-description",
+            get(executions::get_pr_description),
         )
         // 产物路由
         .route(
@@ -1063,10 +1194,40 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         .route("/api/v1/tasks/stats", get(scheduler::get_stats))
         .route("/api/v1/tasks/:id", get(scheduler::get_task))
         .route("/api/v1/tasks/:id", delete(scheduler::cancel_task))
+        .route(
+            "/api/v1/tasks/schedule",
+            post(scheduler::create_scheduled_job),
+        )
+        .route(
+            "/api/v1/tasks/scheduled",
+            get(scheduler::list_scheduled_jobs),
+        )
+        .route(
+            "/api/v1/tasks/scheduled/:id/toggle",
+            put(scheduler::toggle_scheduled_job),
+        )
+        .route(
+            "/api/v1/tasks/scheduled/:id",
+            delete(scheduler::delete_scheduled_job),
+        )
         // AI 配置路由
         .route("/api/v1/ai/providers", get(ai_config::list_providers))
         .route("/api/v1/ai/clis", get(ai_config::list_clis))
         .route("/api/v1/ai/execute", post(ai_config::execute_cli))
+        // Webhook 触发路由
+        .route(
+            "/api/v1/triggers/webhook/:workflow_id",
+            post(triggers::trigger_webhook),
+        )
+        // Cost 聚合路由
+        .route("/api/v1/costs/summary", get(executions::cost_summary))
+        .route("/api/v1/costs/by-day", get(executions::cost_by_day))
+        .route(
+            "/api/v1/costs/by-workflow",
+            get(executions::cost_by_workflow),
+        )
+        // 知识库路由（RAG）
+        .nest("/api/v1/knowledge-bases", knowledge::knowledge_routes())
         .route("/api/v1/ai/clis/config", put(ai_config::update_cli_config))
         .route(
             "/api/v1/ai/strategy",
@@ -1544,6 +1705,8 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
             "/api/v1/teams/:team_id/terminal/:session_id",
             delete(close_terminal_session_handler),
         )
+        .merge(model_routing::router())
+        .merge(execution_logs::router())
         // 应用认证中间件到所有 API 和 WebSocket 路由
         .route_layer(axum::middleware::from_fn_with_state(
             app_state_for_router.clone(),
@@ -1573,6 +1736,40 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
     };
 
     Ok((app, app_state))
+}
+
+/// 启动 watchdog：每 60 秒检查卡死的 running 执行，超过 5 分钟无更新则标记为 interrupted
+pub fn spawn_watchdog(state: Arc<AppState>) {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            let now = chrono::Utc::now();
+            let stale: Vec<String> = state
+                .execution_service
+                .get_all_executions()
+                .into_iter()
+                .filter(|e| {
+                    matches!(e.status, crate::services::events::ExecutionStatus::Running)
+                        && e.started_at
+                            .map(|t| (now - t).num_minutes() > 5)
+                            .unwrap_or(false)
+                })
+                .map(|e| e.id)
+                .collect();
+
+            for id in stale {
+                tracing::warn!("[Watchdog] 执行 {} 超时，标记为 interrupted", id);
+                state
+                    .execution_service
+                    .update_status(&id, crate::services::events::ExecutionStatus::Failed);
+                state
+                    .alert_service
+                    .notify_pipeline_failure(&id, "执行超时（watchdog 检测）")
+                    .await;
+            }
+        }
+    });
 }
 
 /// 终端 WebSocket 处理函数
