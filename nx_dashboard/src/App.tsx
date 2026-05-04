@@ -73,6 +73,9 @@ const CostPage = lazy(() =>
 const KnowledgeBasePage = lazy(() =>
   import('@/pages/KnowledgeBasePage').then((m) => ({ default: m.KnowledgeBasePage })),
 );
+const CanvasPage = lazy(() =>
+  import('@/pages/CanvasPage').then((m) => ({ default: m.CanvasPage })),
+);
 
 // Loading fallback component
 function PageLoadingFallback() {
@@ -319,6 +322,7 @@ function App() {
                   </PageWrapper>
                 }
               />
+              <Route path="/canvas" element={<CanvasPage />} />
               {/* 404 — unknown routes redirect to home */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

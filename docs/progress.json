@@ -4,10 +4,10 @@
     "vision": "一个普通开发者，用这个软件就能完成一个完整软件产品的设计、开发、测试、监控",
     "scope": "单机单用户，不考虑多租户",
     "codebase": "/Users/Zhuanz/Desktop/yp-nx-dashboard",
-    "tracker_version": "4.2",
-    "last_updated": "2026-05-04T15:30:00+08:00",
+    "tracker_version": "4.3",
+    "last_updated": "2026-05-04T16:10:00+08:00",
     "current_sprint": "v4.3",
-    "current_stage": "pending",
+    "current_stage": "in_progress",
     "resume_instruction": "读此文件 → 找 current_sprint → 读 docs/sprints/{id}-*.yaml → 从第一个 pending task 开始"
   },
   "summary": {

@@ -1,0 +1,141 @@
+import { useCanvasStore } from '@/stores/canvasStore';
+import type { NodeData } from '@/stores/canvasStore';
+
+export function PropertiesPanel() {
+  const { nodes, selectedNodeId, updateNodeData } = useCanvasStore();
+  const node = nodes.find((n) => n.id === selectedNodeId);
+
+  if (!node) {
+    return (
+      <div className="w-56 shrink-0 border-l border-zinc-800 bg-zinc-950 p-4 text-xs text-zinc-600">
+        选中节点后在此配置属性
+      </div>
+    );
+  }
+
+  const d = node.data;
+  const upd = (patch: Partial<NodeData>) => updateNodeData(node.id, patch);
+
+  return (
+    <div className="w-56 shrink-0 border-l border-zinc-800 bg-zinc-950 p-3 overflow-y-auto text-xs text-zinc-300">
+      <p className="mb-3 font-semibold text-zinc-400">属性</p>
+
+      <Field label="名称">
+        <input className={INPUT} value={d.label} onChange={(e) => upd({ label: e.target.value })} />
+      </Field>
+
+      {d.kind === 'agent' && (
+        <>
+          <Field label="模型">
+            <input className={INPUT} value={d.model ?? ''} onChange={(e) => upd({ model: e.target.value })} />
+          </Field>
+          <Field label="System Prompt">
+            <textarea
+              className={`${INPUT} h-24 resize-none`}
+              value={d.system_prompt ?? ''}
+              onChange={(e) => upd({ system_prompt: e.target.value })}
+            />
+          </Field>
+        </>
+      )}
+
+      {d.kind === 'shell' && (
+        <>
+          <Field label="命令">
+            <input className={INPUT} value={d.command ?? ''} onChange={(e) => upd({ command: e.target.value })} />
+          </Field>
+          <Field label="超时(s)">
+            <input
+              className={INPUT}
+              type="number"
+              value={d.timeout ?? 30}
+              onChange={(e) => upd({ timeout: Number(e.target.value) })}
+            />
+          </Field>
+        </>
+      )}
+
+      {d.kind === 'quality_gate' && (
+        <>
+          <Field label="检查命令(每行一条)">
+            <textarea
+              className={`${INPUT} h-20 resize-none`}
+              value={(d.checks ?? []).join('\n')}
+              onChange={(e) => upd({ checks: e.target.value.split('\n').filter(Boolean) })}
+            />
+          </Field>
+          <Field label="失败策略">
+            <select className={INPUT} value={d.on_fail ?? 'retry'} onChange={(e) => upd({ on_fail: e.target.value })}>
+              <option value="retry">retry</option>
+              <option value="continue">continue</option>
+              <option value="fail">fail</option>
+            </select>
+          </Field>
+        </>
+      )}
+
+      {d.kind === 'condition' && (
+        <Field label="条件表达式">
+          <input className={INPUT} value={d.condition ?? ''} onChange={(e) => upd({ condition: e.target.value })} />
+        </Field>
+      )}
+
+      {d.kind === 'http' && (
+        <>
+          <Field label="Method">
+            <select className={INPUT} value={d.method ?? 'GET'} onChange={(e) => upd({ method: e.target.value })}>
+              {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map((m) => (
+                <option key={m}>{m}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="URL">
+            <input className={INPUT} value={d.url ?? ''} onChange={(e) => upd({ url: e.target.value })} />
+          </Field>
+        </>
+      )}
+
+      {d.kind === 'approval' && (
+        <>
+          <Field label="审批问题">
+            <input className={INPUT} value={d.question ?? ''} onChange={(e) => upd({ question: e.target.value })} />
+          </Field>
+          <Field label="选项(每行一条)">
+            <textarea
+              className={`${INPUT} h-16 resize-none`}
+              value={(d.options ?? []).join('\n')}
+              onChange={(e) => upd({ options: e.target.value.split('\n').filter(Boolean) })}
+            />
+          </Field>
+        </>
+      )}
+
+      {d.kind === 'loop' && (
+        <>
+          <Field label="循环变量">
+            <input className={INPUT} value={d.loop_var ?? ''} onChange={(e) => upd({ loop_var: e.target.value })} />
+          </Field>
+          <Field label="最大次数">
+            <input
+              className={INPUT}
+              type="number"
+              value={d.max_iterations ?? 10}
+              onChange={(e) => upd({ max_iterations: Number(e.target.value) })}
+            />
+          </Field>
+        </>
+      )}
+    </div>
+  );
+}
+
+const INPUT = 'w-full rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-200 border border-zinc-700 focus:outline-none focus:border-zinc-500';
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-3">
+      <p className="mb-1 text-zinc-500">{label}</p>
+      {children}
+    </div>
+  );
+}

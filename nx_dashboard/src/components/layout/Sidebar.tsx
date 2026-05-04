@@ -24,6 +24,7 @@ import {
   Cpu,
   DollarSign,
   BookOpen,
+  LayoutTemplate,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -34,6 +35,7 @@ import { api, type ClaudeCliModelResponse } from '@/api/client';
 const tabs = [
   { id: 'dashboard' as const, label: '仪表盘', icon: LayoutDashboard, path: '/' },
   { id: 'workflows' as const, label: '工作流', icon: GitBranch, path: '/workflows' },
+  { id: 'canvas' as const, label: '可视化画布', icon: LayoutTemplate, path: '/canvas' },
   { id: 'templates' as const, label: '模板', icon: FolderOpen, path: '/templates' },
   { id: 'executions' as const, label: '执行', icon: Play, path: '/executions' },
   { id: 'terminal' as const, label: '终端', icon: Monitor, path: '/terminal' },
