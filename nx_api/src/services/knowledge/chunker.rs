@@ -74,7 +74,7 @@ fn split_long_paragraphs(paragraphs: Vec<String>, max_tokens: usize) -> Vec<Stri
 
     for para in paragraphs {
         let tokens = estimate_tokens(&para);
-        if tokens <= max_tokens {
+        if tokens < max_tokens {
             result.push(para);
             continue;
         }
