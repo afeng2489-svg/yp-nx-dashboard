@@ -7,6 +7,8 @@ use std::process::Stdio;
 use std::sync::Arc;
 use tokio::process::Command;
 
+type ModelRouterFn = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
+
 use crate::events::{EventEmitter, WorkflowEvent};
 use crate::parser::{OnFail, QualityGate, StageType, WorkflowError as ParserWorkflowError};
 use crate::{
@@ -44,7 +46,7 @@ pub struct WorkflowEngine {
     /// RAG 检索 provider（可选，由 nx_api 注入）
     rag_provider: Option<Arc<dyn crate::watcher::RagProvider>>,
     /// 模型路由回调（prompt → model name，stage.model 为 None 时调用）
-    model_router_fn: Option<Arc<dyn Fn(&str) -> Option<String> + Send + Sync>>,
+    model_router_fn: Option<ModelRouterFn>,
 }
 
 impl WorkflowEngine {
@@ -97,7 +99,7 @@ impl WorkflowEngine {
     }
 
     /// 注入模型路由回调
-    pub fn set_model_router_fn(&mut self, f: Arc<dyn Fn(&str) -> Option<String> + Send + Sync>) {
+    pub fn set_model_router_fn(&mut self, f: ModelRouterFn) {
         self.model_router_fn = Some(f);
     }
 
@@ -259,7 +261,7 @@ impl WorkflowEngine {
                                 .await?
                         }
                         Err(e) => {
-                            self.handle_stage_failure(e, &state, &stage, &workflow)
+                            self.handle_stage_failure(e, &state, &stage, workflow)
                                 .await?
                         }
                     };
