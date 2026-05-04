@@ -542,6 +542,25 @@ pub(crate) const ALERT_CONFIG_SCHEMA: &str = "
     );
 ";
 
+pub(crate) const SPRINT_SCHEMA: &str = "
+    CREATE TABLE IF NOT EXISTS sprint_cards (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        priority TEXT NOT NULL DEFAULT 'P2',
+        estimated_hours INTEGER NOT NULL DEFAULT 0,
+        data_json TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS sprint_events (
+        id TEXT PRIMARY KEY,
+        sprint_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        detail TEXT,
+        created_at TEXT NOT NULL
+    );
+";
+
 /// All schema migrations in dependency order.
 const ALL_SCHEMAS: &[&str] = &[
     SESSION_SCHEMA,
@@ -565,6 +584,7 @@ const ALL_SCHEMAS: &[&str] = &[
     KNOWLEDGE_BASE_SCHEMA,
     EXECUTION_LOG_SCHEMA,
     ALERT_CONFIG_SCHEMA,
+    SPRINT_SCHEMA,
 ];
 
 /// Column additions for existing tables (ALTER TABLE).

@@ -42,6 +42,7 @@ pub mod health;
 pub mod issues;
 pub mod knowledge;
 pub mod memory;
+pub mod sprints;
 pub mod model_routing;
 pub mod pipelines;
 pub mod plugins;
@@ -438,6 +439,7 @@ pub struct AppState {
     pub execution_log_service: Arc<crate::services::execution_log_service::ExecutionLogService>,
     /// 告警通知服务
     pub alert_service: Arc<crate::services::alert_service::AlertService>,
+    pub sprint_service: Arc<crate::services::sprint_service::SprintService>,
 }
 
 impl AppState {
@@ -825,6 +827,21 @@ impl AppState {
             TelegramService::new(),
         )));
 
+        let sprint_service = Arc::new(
+            crate::services::sprint_service::SprintService::new(&config.db_path)
+                .context("Failed to create sprint service")?,
+        );
+        // seed from progress.json if it exists
+        let progress_path = std::path::Path::new(&config.db_path)
+            .parent()
+            .and_then(|p| p.parent())
+            .map(|p| p.join("docs/progress.json"));
+        if let Some(path) = progress_path {
+            if path.exists() {
+                let _ = sprint_service.seed_from_progress_json(&path.to_string_lossy());
+            }
+        }
+
         Ok(Self {
             workflow_service,
             execution_service,
@@ -865,6 +882,7 @@ impl AppState {
             knowledge_service,
             execution_log_service,
             alert_service,
+            sprint_service,
         })
     }
 }
@@ -1228,6 +1246,7 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         )
         // 知识库路由（RAG）
         .nest("/api/v1/knowledge-bases", knowledge::knowledge_routes())
+        .nest("/api/v1/sprints", sprints::sprint_routes())
         .route("/api/v1/ai/clis/config", put(ai_config::update_cli_config))
         .route(
             "/api/v1/ai/strategy",

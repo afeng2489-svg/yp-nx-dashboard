@@ -76,6 +76,9 @@ const KnowledgeBasePage = lazy(() =>
 const CanvasPage = lazy(() =>
   import('@/pages/CanvasPage').then((m) => ({ default: m.CanvasPage })),
 );
+const SprintBoardPage = lazy(() =>
+  import('@/pages/SprintBoardPage').then((m) => ({ default: m.SprintBoardPage })),
+);
 
 // Loading fallback component
 function PageLoadingFallback() {
@@ -323,6 +326,14 @@ function App() {
                 }
               />
               <Route path="/canvas" element={<CanvasPage />} />
+              <Route
+                path="/sprint-board"
+                element={
+                  <PageWrapper>
+                    <SprintBoardPage />
+                  </PageWrapper>
+                }
+              />
               {/* 404 — unknown routes redirect to home */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

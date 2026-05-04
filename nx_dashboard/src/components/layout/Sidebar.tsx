@@ -52,6 +52,7 @@ const tabs = [
   { id: 'group-chat' as const, label: '群组讨论', icon: MessageSquare, path: '/group-chat' },
   { id: 'processes' as const, label: '进程监测', icon: Activity, path: '/processes' },
   { id: 'cost' as const, label: '成本', icon: DollarSign, path: '/cost' },
+  { id: 'sprint-board' as const, label: 'Sprint 看板', icon: ListTodo, path: '/sprint-board' },
   { id: 'knowledge-base' as const, label: 'RAG 知识库', icon: BookOpen, path: '/knowledge-base' },
   { id: 'browser' as const, label: '浏览器', icon: Globe, path: '/browser' },
   // { id: 'ai-settings' as const, label: 'AI 设置', icon: Bot, path: '/ai-settings' },
