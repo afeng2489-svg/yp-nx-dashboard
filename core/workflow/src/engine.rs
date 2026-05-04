@@ -1168,6 +1168,7 @@ impl WorkflowEngine {
         };
         cmd.args([
             "-p",
+            "--verbose",
             "--dangerously-skip-permissions",
             "--output-format",
             "stream-json",

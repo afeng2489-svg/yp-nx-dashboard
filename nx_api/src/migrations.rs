@@ -542,6 +542,20 @@ pub(crate) const ALERT_CONFIG_SCHEMA: &str = "
     );
 ";
 
+pub(crate) const SESSION_MESSAGES_SCHEMA: &str = "
+    CREATE TABLE IF NOT EXISTS session_messages (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        execution_id TEXT,
+        role TEXT NOT NULL,
+        content_json TEXT NOT NULL,
+        pending INTEGER NOT NULL DEFAULT 0,
+        responded INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_session_messages_session ON session_messages(session_id);
+";
+
 pub(crate) const SPRINT_SCHEMA: &str = "
     CREATE TABLE IF NOT EXISTS sprint_cards (
         id TEXT PRIMARY KEY,
@@ -585,6 +599,7 @@ const ALL_SCHEMAS: &[&str] = &[
     EXECUTION_LOG_SCHEMA,
     ALERT_CONFIG_SCHEMA,
     SPRINT_SCHEMA,
+    SESSION_MESSAGES_SCHEMA,
 ];
 
 /// Column additions for existing tables (ALTER TABLE).

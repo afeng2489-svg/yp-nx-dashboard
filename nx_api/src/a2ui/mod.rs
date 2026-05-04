@@ -16,23 +16,32 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 
 use super::error::ApiResult;
+use crate::services::session_message_store::{PersistedMessage, SessionMessageStore};
 use crate::ws::WebSocketHandler;
 
 /// A2UI service for managing interactive communication
 pub struct A2UIService {
-    /// Session manager
     session_manager: Arc<A2UISessionManager>,
-    /// WebSocket handler for real-time communication
     ws_handler: Arc<RwLock<Option<WebSocketHandler>>>,
+    msg_store: Option<Arc<SessionMessageStore>>,
 }
 
 impl A2UIService {
-    /// Create a new A2UI service
     pub fn new() -> Self {
         Self {
             session_manager: Arc::new(A2UISessionManager::new()),
             ws_handler: Arc::new(RwLock::new(None)),
+            msg_store: None,
         }
+    }
+
+    pub fn with_store(mut self, store: Arc<SessionMessageStore>) -> Self {
+        self.msg_store = Some(store);
+        self
+    }
+
+    pub fn msg_store(&self) -> Option<&Arc<SessionMessageStore>> {
+        self.msg_store.as_ref()
     }
 
     /// Get the session manager
@@ -57,24 +66,28 @@ impl A2UIService {
 
     /// Add an interactive message to a session
     pub fn add_message(&self, session_id: &str, message: InteractiveMessage) -> ApiResult<()> {
-        if message.content.is_ask() || message.content.is_confirm() || message.content.is_select() {
+        let is_pending = message.content.is_ask() || message.content.is_confirm() || message.content.is_select();
+        if is_pending {
             self.session_manager
-                .add_pending_message(session_id, message)
-                .ok_or_else(|| {
-                    crate::error::ApiError::SessionNotFound(format!(
-                        "Session not found: {}",
-                        session_id
-                    ))
-                })?;
+                .add_pending_message(session_id, message.clone())
+                .ok_or_else(|| crate::error::ApiError::SessionNotFound(format!("Session not found: {}", session_id)))?;
         } else {
             self.session_manager
-                .add_message(session_id, message)
-                .ok_or_else(|| {
-                    crate::error::ApiError::SessionNotFound(format!(
-                        "Session not found: {}",
-                        session_id
-                    ))
-                })?;
+                .add_message(session_id, message.clone())
+                .ok_or_else(|| crate::error::ApiError::SessionNotFound(format!("Session not found: {}", session_id)))?;
+        }
+        if let Some(store) = &self.msg_store {
+            let pm = PersistedMessage {
+                id: message.id.clone(),
+                session_id: session_id.to_string(),
+                execution_id: Some(message.execution_id.clone()),
+                role: "agent".to_string(),
+                content_json: serde_json::to_string(&message.content).unwrap_or_default(),
+                pending: is_pending,
+                responded: false,
+                created_at: message.timestamp.to_rfc3339(),
+            };
+            let _ = store.insert(&pm);
         }
         Ok(())
     }
@@ -86,13 +99,17 @@ impl A2UIService {
         message_id: &str,
         response: U2AMessage,
     ) -> ApiResult<InteractiveMessage> {
-        self.session_manager
+        let msg = self.session_manager
             .respond(session_id, message_id, response)
             .ok_or_else(|| {
                 crate::error::ApiError::MessageNotFound(
                     "Message not found or already responded".to_string(),
                 )
-            })
+            })?;
+        if let Some(store) = &self.msg_store {
+            let _ = store.mark_responded(message_id);
+        }
+        Ok(msg)
     }
 
     /// Get pending messages for a session

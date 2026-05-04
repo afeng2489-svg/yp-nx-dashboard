@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useSessionStore, Session } from '@/stores/sessionStore';
 import { onWorkspaceChange } from '@/stores/workspaceStore';
 import { useSessionsQuery } from '@/hooks/useReactQuery';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { API_BASE_URL } from '@/api/constants';
 import {
   Clock,
   AlertCircle,
@@ -229,6 +231,8 @@ function SessionDetailPanel({ session, onClose }: { session: Session; onClose: (
             <DetailRow label="更新时间" value={new Date(session.updated_at).toLocaleString()} />
           </div>
 
+          <SessionMessages sessionId={session.id} />
+
           <div className="space-y-2">
             <button onClick={handleSetCurrent} className="w-full btn-primary text-sm">
               设为当前会话
@@ -358,6 +362,93 @@ export function SessionsPage() {
       {selectedSession && (
         <SessionDetailPanel session={selectedSession} onClose={() => setSelectedSession(null)} />
       )}
+    </div>
+  );
+}
+
+interface PersistedMessage {
+  id: string;
+  session_id: string;
+  execution_id: string | null;
+  role: string;
+  content_json: string;
+  pending: boolean;
+  responded: boolean;
+  created_at: string;
+}
+
+function SessionMessages({ sessionId }: { sessionId: string }) {
+  const qc = useQueryClient();
+  const { data: msgs = [] } = useQuery<PersistedMessage[]>({
+    queryKey: ['session-messages', sessionId],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE_URL}/api/v1/sessions/${sessionId}/messages`);
+      if (!res.ok) return [];
+      const json = await res.json();
+      return json.data ?? json;
+    },
+    refetchInterval: 3000,
+  });
+
+  const respond = useMutation({
+    mutationFn: async ({ msgId, text }: { msgId: string; text: string }) => {
+      await fetch(`${API_BASE_URL}/api/v1/sessions/${sessionId}/messages/${msgId}/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response: text }),
+      });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['session-messages', sessionId] }),
+  });
+
+  if (msgs.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Agent 对话</p>
+      <div className="space-y-2 max-h-64 overflow-y-auto">
+        {msgs.map((m) => (
+          <MessageBubble key={m.id} msg={m} onRespond={(text) => respond.mutate({ msgId: m.id, text })} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({ msg, onRespond }: { msg: PersistedMessage; onRespond: (t: string) => void }) {
+  const [reply, setReply] = useState('');
+  let content = msg.content_json;
+  try {
+    const parsed = JSON.parse(msg.content_json);
+    if (typeof parsed === 'object' && parsed !== null) {
+      const val = parsed.Ask ?? parsed.Inform ?? parsed.Confirm ?? parsed.Select;
+      if (typeof val === 'string') content = val;
+      else if (val?.question) content = val.question;
+      else if (val?.message) content = val.message;
+    }
+  } catch { /* keep raw */ }
+
+  return (
+    <div className="rounded-lg border border-border/50 bg-muted/30 p-2.5 text-sm space-y-1.5">
+      <p className="text-foreground leading-snug">{content}</p>
+      {msg.pending && !msg.responded && (
+        <div className="flex gap-1.5">
+          <input
+            className="flex-1 text-xs bg-background border border-border rounded px-2 py-1 focus:outline-none"
+            placeholder="输入回复..."
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && reply.trim()) { onRespond(reply.trim()); setReply(''); } }}
+          />
+          <button
+            className="text-xs px-2 py-1 rounded bg-primary text-primary-foreground"
+            onClick={() => { if (reply.trim()) { onRespond(reply.trim()); setReply(''); } }}
+          >
+            发送
+          </button>
+        </div>
+      )}
+      {msg.responded && <span className="text-[10px] text-green-500">已回复</span>}
     </div>
   );
 }

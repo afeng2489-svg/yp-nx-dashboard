@@ -4,6 +4,7 @@ pub mod agent_team_service;
 pub mod ai_provider_repository;
 pub mod ai_provider_service;
 pub mod alert_service;
+pub mod session_message_store;
 pub mod sprint_service;
 pub mod api_key_repository;
 pub mod artifact_repository;

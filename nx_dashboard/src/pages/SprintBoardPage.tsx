@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { API_BASE_URL } from '@/api/constants';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 interface SprintCard {
@@ -108,9 +107,9 @@ function SprintCardItem({
     <div className="rounded-lg border border-border/50 bg-card p-3 space-y-2 text-sm">
       <div className="font-medium leading-snug">{card.title}</div>
       <div className="flex items-center gap-1.5 flex-wrap">
-        <Badge className={cn('text-[10px] px-1.5 py-0', PRIORITY_COLORS[card.priority] ?? '')}>
+        <span className={cn('text-[10px] px-1.5 py-0 rounded border', PRIORITY_COLORS[card.priority] ?? '')}>
           {card.priority}
-        </Badge>
+        </span>
         {card.estimated_hours > 0 && (
           <span className="text-[10px] text-muted-foreground">{card.estimated_hours}h</span>
         )}

@@ -799,7 +799,13 @@ impl AppState {
         );
         task_scheduler.start_background();
 
-        let a2ui_service = Arc::new(crate::a2ui::A2UIService::new());
+        let msg_store = Arc::new(
+            crate::services::session_message_store::SessionMessageStore::new(&config.db_path)
+                .context("Failed to create session message store")?,
+        );
+        let a2ui_service = Arc::new(
+            crate::a2ui::A2UIService::new().with_store(msg_store)
+        );
 
         // 创建知识库服务
         let knowledge_repo = Arc::new(
@@ -1122,6 +1128,8 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
             post(sessions::activate_session),
         )
         .route("/api/v1/sessions/:id/sync", post(sessions::sync_session))
+        .route("/api/v1/sessions/:id/messages", get(sessions::get_session_messages))
+        .route("/api/v1/sessions/:session_id/messages/:msg_id/respond", post(sessions::respond_to_message))
         .route(
             "/api/v1/sessions/resume/:resume_key",
             post(sessions::resume_session),

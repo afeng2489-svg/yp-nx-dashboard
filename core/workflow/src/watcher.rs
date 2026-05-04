@@ -10,6 +10,14 @@
 
 use std::sync::Arc;
 
+/// RAG 检索 provider trait（由 nx_api 注入实现）
+#[async_trait::async_trait]
+pub trait RagProvider: Send + Sync {
+    /// 检索相关文本片段
+    async fn retrieve(&self, kb_id: &str, query: &str, top_k: usize, threshold: f32)
+        -> Vec<String>;
+}
+
 /// stage 执行的观察者
 ///
 /// engine 在每个 stage 开始/结束时调用，**同步阻塞**。

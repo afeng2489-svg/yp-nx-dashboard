@@ -237,7 +237,7 @@
     {
       "id": "v4.3",
       "name": "低代码可视化画布 — 拖拽搭建AI流水线",
-      "status": "pending",
+      "status": "completed",
       "priority": "P2",
       "estimated_hours": 80,
       "card_file": "docs/sprints/v4.3-visual-canvas.yaml",

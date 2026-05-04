@@ -1,7 +1,7 @@
 sprint_id: v4.7
-status: pending
+status: in_progress
 priority: P2
-estimated_hours: 34
+estimated_hours: 44
 depends_on: [v1.4, v2.3]
 
 title: "AI 项目追踪自动化 — AI自己管理Sprint进度"
@@ -28,6 +28,7 @@ remaining_tasks:
     name: Sprint 状态持久化到数据库
     priority: P0
     estimated_hours: 6
+    status: completed
     description: |
       创建 sprint_cards 表 + sprint_events 事件流表
       sprint_cards: id, title, status, priority, data_json, updated_at
@@ -91,6 +92,7 @@ remaining_tasks:
     priority: P1
     estimated_hours: 8
     depends_on: [T1]
+    status: completed
     description: |
       前端新增 Sprint 看板页：
       - 总览：Phase 横条 + 每个 Sprint 的状态色块
@@ -103,6 +105,33 @@ remaining_tasks:
       - 事件时间线可查看
 
   - id: T5
+    name: 工作流编排画布 — 连线即链式触发
+    priority: P1
+    estimated_hours: 10
+    depends_on: [T2]
+    description: |
+      现有 PipelineView 只是步骤状态看板（卡片列表 + 进度条），不是工作流编排画布。
+      需要升级为可视化节点编辑器，支持：
+      - 拖拽放置工作流节点（每个节点 = 一个已注册的 workflow）
+      - 节点间拉线连线，连线语义 = "A 完成后自动触发 B"（即 type: event trigger）
+      - 连线时自动写入上游 workflow 的 definition.triggers（type: event, workflow_ref, pass_output）
+      - 断开连线自动删除对应 trigger
+      - 支持条件分支：A 完成后根据结果走 B 或 C（连线可配 condition 表达式）
+      - 画布数据持久化（节点位置 + 连线关系存 DB）
+
+      底层能力已就绪：
+      - core/workflow parser.rs 的 Trigger/TriggerType 支持 type: event + workflow_ref
+      - nx_api execution_service.rs 的 chain_trigger_handler 已实现完成时扫描 triggers 并触发下游
+      - 缺的是前端画布交互 + 数据绑定
+
+    acceptance:
+      - 画布支持拖拽添加工作流节点
+      - 节点间连线 → 自动写入上游 workflow 的 event trigger
+      - 断开连线 → 自动删除 trigger
+      - 执行画布上的工作流 → 按连线关系自动触发下游
+      - 画布布局持久化（刷新后恢复节点位置和连线）
+
+  - id: T6
     name: 进度自动汇报
     priority: P2
     estimated_hours: 6
@@ -123,4 +152,5 @@ quality_gates:
   - 会话模块合并完成，前端可查看 Agent 对话
   - 团队对话能触发 Pipeline 自动编排
   - 前端看板正确展示 Sprint 状态
+  - 工作流编排画布支持拖拽连线，连线自动写入 event trigger
   - 事件时间线可追溯所有状态变更
