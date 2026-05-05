@@ -1,4 +1,3 @@
-import { unwrapEnvelope } from '../api/response';
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
 import { unwrapEnvelope, fetchWithTimeout } from '../api/response';
@@ -108,31 +107,6 @@ class ApiError extends Error {
   }
 }
 
-// 带 timeout 的 fetch
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit = {},
-  timeout = 10000,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new ApiError('Request timeout', 408);
-    }
-    throw error;
-  }
-}
-
 export const useTemplateStore = create<TemplateStore>((set) => ({
   templates: [],
   currentTemplate: null,
@@ -152,7 +126,7 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
         );
       }
 
-      const data = unwrapEnvelope(await response.json());
+      const data = unwrapEnvelope<{ items?: TemplateSummary[] }>(await response.json());
       set({ templates: data.items || [], loading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -177,7 +151,7 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
         );
       }
 
-      const data = unwrapEnvelope(await response.json());
+      const data = unwrapEnvelope<{ items?: TemplateSummary[] }>(await response.json());
       set({ templates: data.items || [], loading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -199,7 +173,7 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
         throw new ApiError(`Failed to fetch template: ${response.status}`, response.status);
       }
 
-      const template = unwrapEnvelope(await response.json());
+      const template = unwrapEnvelope<Template>(await response.json());
       set({ currentTemplate: template });
       return template;
     } catch (error) {
@@ -222,7 +196,7 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
         throw new ApiError(`Failed to create template: ${response.status}`, response.status);
       }
 
-      const newTemplate = unwrapEnvelope(await response.json());
+      const newTemplate = unwrapEnvelope<Template>(await response.json());
       set((state) => ({
         templates: [
           ...state.templates,

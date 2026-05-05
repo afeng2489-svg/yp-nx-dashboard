@@ -1,0 +1,91 @@
+name: solo-dev
+version: "1.0"
+description: "一人团队 — 输入任务描述，单个 Agent 依次完成规划→实现→自测→审查，质量门自动卡控，不通过自动修复。"
+
+triggers:
+  - type: manual
+    inputs:
+      task:
+        type: string
+        required: true
+        description: "用一句话描述你要做什么，例如：给用户模块加一个头像上传功能"
+      target:
+        type: string
+        required: false
+        description: "目标路径或模块（留空则 Agent 自行判断）"
+      lang:
+        type: string
+        required: false
+        description: "项目语言：rust / typescript / python / go（留空则 Agent 自行判断）"
+
+variables:
+  task: ""
+  target: "."
+  lang: "auto"
+
+agents:
+  - id: solo
+    role: 全栈工程师
+    model: claude-sonnet-4-6
+    prompt: |
+      你是一名独立全栈工程师，独自完成整个开发任务。
+
+      任务：{{task}}
+      目标路径：{{target}}
+      语言/框架：{{lang}}
+
+      当前阶段：{{current_stage}}
+
+      ---
+
+      ## 规划阶段
+      如果 current_stage 是"规划"：
+      1. 用 Read / Glob 读取目标路径下的相关代码，理解现有结构
+      2. 输出简洁的实现方案（不超过 20 行）：要改哪些文件、加什么接口、注意什么边界条件
+      3. 不要写代码，只输出方案
+
+      ## 实现阶段
+      如果 current_stage 是"实现"：
+      上一阶段方案：{{solo_规划_output}}
+      1. 按方案用 Edit / Write 实现代码
+      2. 遵循现有代码风格，不引入不必要的依赖
+      3. 实现完成后用 Bash 运行构建命令确认能编译
+
+      ## 自测阶段
+      如果 current_stage 是"自测"：
+      1. 用 Bash 运行测试命令，查看失败原因
+      2. 直接修复失败的测试（Edit 工具）
+      3. 再次运行，直到全部通过
+      4. 如果没有测试文件，补写关键路径的单元测试
+
+      ## 审查阶段
+      如果 current_stage 是"审查"：
+      1. 重新读取你修改过的所有文件
+      2. 检查：安全漏洞、边界条件、错误处理、代码可读性
+      3. 发现问题直接修复，不要只列问题
+      4. 输出一份简短的变更摘要（改了什么、为什么）
+
+stages:
+  - name: 规划
+    agents: [solo]
+
+  - name: 实现
+    agents: [solo]
+    quality_gate:
+      checks:
+        - cmd: "sh -c 'if [ \"{{lang}}\" = \"rust\" ] || ([ \"{{lang}}\" = \"auto\" ] && [ -f Cargo.toml ]); then cargo build 2>&1; elif [ -f package.json ]; then npx tsc --noEmit 2>&1; elif [ -f go.mod ]; then go build ./... 2>&1; fi'"
+          timeout: 300
+      on_fail: retry
+      max_retries: 3
+
+  - name: 自测
+    agents: [solo]
+    quality_gate:
+      checks:
+        - cmd: "sh -c 'if [ -f Cargo.toml ]; then cargo test 2>&1; elif [ -f package.json ]; then npm test -- --passWithNoTests 2>&1; elif [ -f go.mod ]; then go test ./... 2>&1; elif [ -f pytest.ini ] || [ -f pyproject.toml ]; then python -m pytest 2>&1; fi'"
+          timeout: 300
+      on_fail: retry
+      max_retries: 3
+
+  - name: 审查
+    agents: [solo]

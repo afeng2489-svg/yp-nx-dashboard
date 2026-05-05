@@ -12,7 +12,6 @@ import {
   Plus,
   Check,
   X,
-  Bot,
   ArrowRightLeft,
   Terminal,
   AlertTriangle,
@@ -23,15 +22,10 @@ import {
   FlaskConical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 // ── 模型路由规则 ────────────────────────────────────────────────────────────
 
-const CONDITION_LABELS: Record<string, string> = {
-  keyword_match: '关键词匹配',
-  prompt_length: 'Prompt 长度',
-  task_type: '任务类型',
-  file_extension: '文件扩展名',
-};
 
 function ModelRoutingSection() {
   const [rules, setRules] = useState<RoutingRule[]>([]);
@@ -438,7 +432,7 @@ function ClaudeSwitchSection() {
       showSuccess('后端添加成功');
       setNewBackend({ backend: 'minimax', api_key: '', model: '' });
       await fetchBackends();
-    } catch (e) {
+    } catch {
       showError('添加后端失败');
     } finally {
       setAddingBackend(false);
@@ -450,7 +444,7 @@ function ClaudeSwitchSection() {
       await api.switchClaudeSwitchBackend(backend);
       showSuccess(`已切换到 ${backend}`);
       await fetchBackends();
-    } catch (e) {
+    } catch {
       showError('切换后端失败');
     }
   };
@@ -472,7 +466,7 @@ function ClaudeSwitchSection() {
       } else {
         showError(`连接失败: ${result.message}`);
       }
-    } catch (e) {
+    } catch {
       showError('测试连接失败');
     } finally {
       setTestingBackend(null);
@@ -493,7 +487,7 @@ function ClaudeSwitchSection() {
         })),
       );
       showSuccess('Claude Switch 配置成功');
-    } catch (e) {
+    } catch {
       showError('配置失败');
     }
   };
@@ -564,27 +558,24 @@ function ClaudeSwitchSection() {
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">后端类型</label>
-                <select
+                <Select
                   value={newBackend.backend}
-                  onChange={(e) =>
+                  onValueChange={(v) =>
                     setNewBackend({
                       ...newBackend,
-                      backend: e.target.value,
-                      model:
-                        CLAUDE_SWITCH_BACKENDS.find((b) => b.id === e.target.value)?.defaultModel ||
-                        '',
-                      base_url: CLAUDE_SWITCH_BACKENDS.find((b) => b.id === e.target.value)
-                        ?.baseUrl,
+                      backend: v,
+                      model: CLAUDE_SWITCH_BACKENDS.find((b) => b.id === v)?.defaultModel || '',
+                      base_url: CLAUDE_SWITCH_BACKENDS.find((b) => b.id === v)?.baseUrl,
                     })
                   }
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm"
                 >
-                  {CLAUDE_SWITCH_BACKENDS.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CLAUDE_SWITCH_BACKENDS.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">模型</label>

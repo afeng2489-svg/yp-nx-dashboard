@@ -16,6 +16,7 @@ pub fn sprint_routes() -> Router<Arc<AppState>> {
         .route("/:id/status", put(update_status))
         .route("/:id/events", get(list_events))
         .route("/:id/events", post(add_event))
+        .route("/:id/report", get(get_report))
 }
 
 async fn list_sprints(State(state): State<Arc<AppState>>) -> Result<Json<Vec<SprintCard>>, String> {
@@ -55,6 +56,44 @@ async fn list_events(
 struct AddEventBody {
     event_type: String,
     detail: Option<String>,
+}
+
+async fn get_report(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, String> {
+    let card = state.sprint_service.list()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .find(|c| c.id == id)
+        .ok_or_else(|| format!("sprint {} not found", id))?;
+
+    let events = state.sprint_service.events_for(&id).map_err(|e| e.to_string())?;
+
+    let completed = events.iter().filter(|e| e.event_type == "completed").count();
+    let skipped = events.iter().filter(|e| e.event_type == "skipped").count();
+    let blocked = events.iter().filter(|e| e.event_type == "blocked").count();
+
+    let report = serde_json::json!({
+        "sprint_id": id,
+        "title": card.title,
+        "status": card.status,
+        "priority": card.priority,
+        "estimated_hours": card.estimated_hours,
+        "completion_rate": if completed + skipped + blocked > 0 {
+            completed as f64 / (completed + skipped + blocked) as f64
+        } else { 0.0 },
+        "events_summary": {
+            "completed": completed,
+            "skipped": skipped,
+            "blocked": blocked,
+            "total": events.len()
+        },
+        "events": events,
+        "generated_at": chrono::Utc::now().to_rfc3339()
+    });
+
+    Ok(Json(report))
 }
 
 async fn add_event(

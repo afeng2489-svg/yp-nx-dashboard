@@ -32,10 +32,6 @@ import {
   AlertCircle,
   Timer,
   List,
-  GitBranch,
-  Shield,
-  Code,
-  Sparkles,
   Bug,
   Search,
   Layers,
@@ -247,7 +243,7 @@ function TaskDetailPanel({ task, onClose, onCancel }: TaskDetailPanelProps) {
         </div>
 
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/50 bg-gradient-to-r from-indigo-500/5 to-purple-500/5">
-          {task.status === 'pending' && (
+          {task.status === 'queued' && (
             <button
               onClick={() => onCancel(task.id)}
               className="btn-secondary text-red-500 hover:bg-red-500/10 flex items-center gap-2"
@@ -922,11 +918,13 @@ export function TasksPage() {
 
   const statusFilterLabels: Record<TaskStatus | 'all', string> = {
     all: '全部',
-    pending: '等待中',
+    queued: '等待中',
     running: '运行中',
     completed: '已完成',
     failed: '已失败',
     cancelled: '已取消',
+    delayed: '延迟中',
+    timed_out: '已超时',
   };
 
   return (
@@ -1000,7 +998,7 @@ export function TasksPage() {
               {[
                 {
                   label: '等待中',
-                  value: stats.pending,
+                  value: stats.queued,
                   icon: Timer,
                   color: 'text-yellow-500',
                   bg: 'bg-yellow-500/10',

@@ -7,6 +7,7 @@ import {
   LoopConfig,
 } from '@/stores/editorStore';
 import { AGENT_ROLES, CLI_PROVIDERS, MODEL_OPTIONS, NODE_COLORS, NODE_ICONS } from './types';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 export function PropertyPanel() {
   const { nodes, selectedNodeId, updateNodeData, deleteNode } = useEditorStore();
@@ -136,59 +137,38 @@ function AgentConfigPanel({
     <div className="space-y-4">
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">角色</label>
-        <select
-          value={config.role}
-          onChange={(e) => onChange({ role: e.target.value })}
-          className="
-            w-full px-3 py-2 text-sm rounded-md
-            border border-input bg-background
-            focus:outline-none focus:ring-2 focus:ring-primary
-          "
-        >
-          {AGENT_ROLES.map((role) => (
-            <option key={role.value} value={role.value}>
-              {role.label}
-            </option>
-          ))}
-        </select>
+        <Select value={config.role} onValueChange={(v) => onChange({ role: v })}>
+          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {AGENT_ROLES.map((role) => (
+              <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">模型</label>
-        <select
-          value={config.model}
-          onChange={(e) => onChange({ model: e.target.value })}
-          className="
-            w-full px-3 py-2 text-sm rounded-md
-            border border-input bg-background
-            focus:outline-none focus:ring-2 focus:ring-primary
-          "
-        >
-          {MODEL_OPTIONS.map((model) => (
-            <option key={model.value} value={model.value}>
-              {model.label}
-            </option>
-          ))}
-        </select>
+        <Select value={config.model} onValueChange={(v) => onChange({ model: v })}>
+          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {MODEL_OPTIONS.map((model) => (
+              <SelectItem key={model.value} value={model.value}>{model.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">CLI 提供商</label>
-        <select
-          value={config.cliProvider}
-          onChange={(e) => onChange({ cliProvider: e.target.value as AgentConfig['cliProvider'] })}
-          className="
-            w-full px-3 py-2 text-sm rounded-md
-            border border-input bg-background
-            focus:outline-none focus:ring-2 focus:ring-primary
-          "
-        >
-          {CLI_PROVIDERS.map((provider) => (
-            <option key={provider.value} value={provider.value}>
-              {provider.label}
-            </option>
-          ))}
-        </select>
+        <Select value={config.cliProvider} onValueChange={(v) => onChange({ cliProvider: v as AgentConfig['cliProvider'] })}>
+          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {CLI_PROVIDERS.map((provider) => (
+              <SelectItem key={provider.value} value={provider.value}>{provider.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div>

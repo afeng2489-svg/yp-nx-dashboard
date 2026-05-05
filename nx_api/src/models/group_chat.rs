@@ -171,6 +171,7 @@ pub struct GroupMessage {
     pub reply_to: Option<String>,
     pub turn_number: u32,
     pub created_at: DateTime<Utc>,
+    pub tokens_used: u32,
 }
 
 impl GroupMessage {
@@ -183,6 +184,7 @@ impl GroupMessage {
         reply_to: Option<String>,
         turn_number: u32,
     ) -> Self {
+        let tokens_used = estimate_tokens(&content);
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             session_id,
@@ -193,8 +195,13 @@ impl GroupMessage {
             reply_to,
             turn_number,
             created_at: Utc::now(),
+            tokens_used,
         }
     }
+}
+
+pub fn estimate_tokens(text: &str) -> u32 {
+    (text.len() / 4) as u32
 }
 
 /// Tool call from Claude CLI

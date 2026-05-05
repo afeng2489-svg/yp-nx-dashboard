@@ -1,4 +1,7 @@
 import React from 'react';
+import { motion } from 'motion/react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   usePipelineStore,
   PipelineStep,
@@ -20,14 +23,14 @@ const PHASE_LABELS: Record<string, string> = {
   packaging: '打包',
 };
 
-const STATUS_COLORS: Record<StepStatus, string> = {
-  pending: 'bg-gray-200 text-gray-600',
-  ready: 'bg-blue-100 text-blue-700',
-  running: 'bg-blue-500 text-white animate-pulse',
-  completed: 'bg-green-500 text-white',
-  failed: 'bg-red-500 text-white',
-  skipped: 'bg-gray-300 text-gray-500',
-  blocked: 'bg-orange-200 text-orange-700',
+const STATUS_VARIANT: Record<StepStatus, 'secondary' | 'default' | 'success' | 'destructive' | 'warning' | 'outline'> = {
+  pending: 'secondary',
+  ready: 'default',
+  running: 'default',
+  completed: 'success',
+  failed: 'destructive',
+  skipped: 'outline',
+  blocked: 'warning',
 };
 
 const STATUS_LABELS: Record<StepStatus, string> = {
@@ -41,24 +44,9 @@ const STATUS_LABELS: Record<StepStatus, string> = {
 };
 
 const PHASE_GROUPS = [
-  {
-    label: 'Phase 1 - 前置 (串行)',
-    phases: ['requirements_analysis', 'architecture_design', 'project_init'],
-    border: 'border-gray-200 dark:border-gray-700',
-    titleColor: 'text-gray-600 dark:text-gray-400',
-  },
-  {
-    label: 'Phase 2 - 核心 (并行)',
-    phases: ['backend_dev', 'frontend_dev'],
-    border: 'border-blue-200 dark:border-blue-800',
-    titleColor: 'text-blue-600 dark:text-blue-400',
-  },
-  {
-    label: 'Phase 3 - 收尾 (串行)',
-    phases: ['api_integration', 'testing', 'documentation', 'packaging'],
-    border: 'border-gray-200 dark:border-gray-700',
-    titleColor: 'text-gray-600 dark:text-gray-400',
-  },
+  { label: 'Phase 1 - 前置 (串行)', phases: ['requirements_analysis', 'architecture_design', 'project_init'] },
+  { label: 'Phase 2 - 核心 (并行)', phases: ['backend_dev', 'frontend_dev'] },
+  { label: 'Phase 3 - 收尾 (串行)', phases: ['api_integration', 'testing', 'documentation', 'packaging'] },
 ];
 
 interface PipelineViewProps {
@@ -69,49 +57,38 @@ function StepCard({ step, pipelineId }: { step: PipelineStep; pipelineId: string
   const retryStep = usePipelineStore((s) => s.retryStep);
 
   return (
-    <div className="flex items-start gap-2 p-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-      <span
-        className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${STATUS_COLORS[step.status]}`}
+    <div className="flex items-start gap-2 p-2 rounded border border-border bg-card">
+      <Badge
+        variant={STATUS_VARIANT[step.status]}
+        className={`text-[10px] px-1.5 py-0 shrink-0 ${step.status === 'running' ? 'animate-pulse' : ''}`}
       >
         {STATUS_LABELS[step.status]}
-      </span>
+      </Badge>
       <div className="flex-1 min-w-0">
         <span className="text-sm truncate block" title={step.instruction}>
           {step.instruction}
         </span>
         {step.status === 'failed' && step.output && (
-          <p className="text-xs text-red-500 mt-1 break-all">{step.output}</p>
+          <p className="text-xs text-destructive mt-1 break-all">{step.output}</p>
         )}
       </div>
       {step.retry_count > 0 && (
-        <span className="text-xs text-gray-400 shrink-0">retry: {step.retry_count}</span>
+        <span className="text-xs text-muted-foreground shrink-0">retry: {step.retry_count}</span>
       )}
       {(step.status === 'failed' || step.status === 'blocked') && (
-        <button
-          className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700 hover:bg-red-200 shrink-0"
-          onClick={() => retryStep(pipelineId, step.id)}
-        >
+        <Button size="sm" variant="destructive" className="h-6 text-xs px-2 shrink-0"
+          onClick={() => retryStep(pipelineId, step.id)}>
           重试
-        </button>
+        </Button>
       )}
     </div>
   );
 }
 
-function PhaseGroup({
-  phase,
-  steps,
-  pipelineId,
-}: {
-  phase: string;
-  steps: PipelineStep[];
-  pipelineId: string;
-}) {
+function PhaseGroup({ phase, steps, pipelineId }: { phase: string; steps: PipelineStep[]; pipelineId: string }) {
   return (
     <div className="space-y-1">
-      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-        {PHASE_LABELS[phase] || phase}
-      </h4>
+      <h4 className="text-sm font-semibold text-foreground/70">{PHASE_LABELS[phase] || phase}</h4>
       {steps.map((step) => (
         <StepCard key={step.id} step={step} pipelineId={pipelineId} />
       ))}
@@ -158,37 +135,31 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
     return () => {
       stopPolling();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pipeline?.status, projectId, startPolling, stopPolling]);
 
   if (!projectId) {
-    return <div className="text-sm text-gray-400 p-4">请先打开一个项目工作区</div>;
+    return <div className="text-sm text-muted-foreground p-4">请先打开一个项目工作区</div>;
   }
 
   if (loading && !pipeline) {
-    return <div className="text-sm text-gray-500 p-4">加载 Pipeline...</div>;
+    return <div className="text-sm text-muted-foreground p-4">加载 Pipeline...</div>;
   }
 
   if (error) {
     return (
-      <div className="text-sm text-red-500 p-4">
+      <div className="text-sm text-destructive p-4">
         错误: {error}
-        <button className="ml-2 underline text-blue-500" onClick={clearError}>
-          关闭
-        </button>
+        <button className="ml-2 underline text-primary" onClick={clearError}>关闭</button>
       </div>
     );
   }
 
   if (!pipeline) {
     return (
-      <div className="text-sm text-gray-400 p-4">
+      <div className="text-sm text-muted-foreground p-4 flex items-center gap-3">
         暂无 Pipeline
-        <button
-          className="ml-2 px-3 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600"
-          onClick={() => createPipeline(projectId, '')}
-        >
-          创建 Pipeline
-        </button>
+        <Button size="sm" onClick={() => createPipeline(projectId, '')}>创建 Pipeline</Button>
       </div>
     );
   }
@@ -205,75 +176,47 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
   );
 
   return (
-    <div className="space-y-4 p-4">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 p-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-base font-bold">Pipeline</h3>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted-foreground">
             阶段: {PHASE_LABELS[pipeline.current_phase] || pipeline.current_phase}
-            {' | '}
-            状态: {pipeline.status}
+            {' | '}状态: {pipeline.status}
           </p>
         </div>
         <div className="flex gap-2">
           {pipeline.status === 'idle' && (
-            <button
-              className="px-3 py-1 text-sm rounded bg-blue-500 text-white hover:bg-blue-600"
-              onClick={() => startPipeline(pipeline.id)}
-            >
-              启动
-            </button>
+            <Button size="sm" onClick={() => startPipeline(pipeline.id)}>启动</Button>
           )}
           {pipeline.status === 'running' && (
             <>
-              <button
-                className="px-3 py-1 text-sm rounded bg-red-500 text-white hover:bg-red-600"
-                onClick={() => dispatchSteps(pipeline.id)}
-              >
-                调度步骤
-              </button>
-              <button
-                className="px-3 py-1 text-sm rounded bg-yellow-500 text-white hover:bg-yellow-600"
-                onClick={() => pausePipeline(pipeline.id)}
-              >
-                暂停
-              </button>
+              <Button size="sm" variant="destructive" onClick={() => dispatchSteps(pipeline.id)}>调度步骤</Button>
+              <Button size="sm" variant="outline" onClick={() => pausePipeline(pipeline.id)}>暂停</Button>
             </>
           )}
           {pipeline.status === 'paused' && (
-            <button
-              className="px-3 py-1 text-sm rounded bg-green-500 text-white hover:bg-green-600"
-              onClick={() => resumePipeline(pipeline.id)}
-            >
-              恢复
-            </button>
+            <Button size="sm" onClick={() => resumePipeline(pipeline.id)}>恢复</Button>
           )}
           {isTerminalStatus(pipeline.status) && pipeline.status !== 'idle' && (
-            <button
-              className="px-3 py-1 text-sm rounded bg-gray-400 text-white hover:bg-gray-500"
-              onClick={() => fetchPipeline(projectId)}
-            >
-              刷新
-            </button>
+            <Button size="sm" variant="ghost" onClick={() => fetchPipeline(projectId)}>刷新</Button>
           )}
         </div>
       </div>
 
       {/* Progress bar */}
       <div>
-        <div className="flex justify-between text-xs text-gray-500 mb-1">
-          <span>
-            {pipeline.progress.completed_steps}/{pipeline.progress.total_steps} 步骤
-          </span>
+        <div className="flex justify-between text-xs text-muted-foreground mb-1">
+          <span>{pipeline.progress.completed_steps}/{pipeline.progress.total_steps} 步骤</span>
           <span>{pipeline.progress.progress_pct}%</span>
         </div>
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-          <div
-            className={`h-2 rounded-full transition-all duration-300 ${
-              pipeline.progress.failed_steps > 0 ? 'bg-red-500' : 'bg-blue-500'
-            }`}
-            style={{ width: `${pipeline.progress.progress_pct}%` }}
+        <div className="w-full bg-secondary rounded-full h-2">
+          <motion.div
+            className={`h-2 rounded-full ${pipeline.progress.failed_steps > 0 ? 'bg-destructive' : 'bg-primary'}`}
+            initial={{ width: 0 }}
+            animate={{ width: `${pipeline.progress.progress_pct}%` }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
           />
         </div>
       </div>
@@ -283,35 +226,28 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
         {PHASE_GROUPS.map((group, groupIdx) => {
           const isCurrentPhase = groupIdx === currentPhaseIndex;
           const isCompletedPhase = currentPhaseIndex > groupIdx;
-          const highlightBorder = isCurrentPhase
-            ? 'border-red-400 dark:border-red-600 ring-2 ring-red-200 dark:ring-red-800'
+          const borderClass = isCurrentPhase
+            ? 'border-primary ring-2 ring-primary/20'
             : isCompletedPhase
-              ? 'border-green-300 dark:border-green-700'
-              : group.border;
+              ? 'border-green-500/40 dark:border-green-700/40'
+              : 'border-border';
 
           return (
-            <div key={group.label} className={`space-y-2 p-3 rounded-lg border ${highlightBorder}`}>
-              <h3
-                className={`text-sm font-bold ${isCompletedPhase ? 'text-green-600 dark:text-green-400 line-through' : group.titleColor}`}
-              >
+            <div key={group.label} className={`space-y-2 p-3 rounded-lg border ${borderClass}`}>
+              <h3 className={`text-sm font-bold ${isCompletedPhase ? 'text-green-600 dark:text-green-400 line-through' : 'text-foreground/80'}`}>
                 {group.label}
-                {isCurrentPhase && <span className="ml-2 text-xs text-red-500">← 当前</span>}
+                {isCurrentPhase && <span className="ml-2 text-xs text-primary">← 当前</span>}
                 {isCompletedPhase && <span className="ml-2 text-xs text-green-500">✓</span>}
               </h3>
               {group.phases
                 .filter((p) => stepsByPhase.has(p))
                 .map((phase) => (
-                  <PhaseGroup
-                    key={phase}
-                    phase={phase}
-                    steps={stepsByPhase.get(phase)!}
-                    pipelineId={pipeline.id}
-                  />
+                  <PhaseGroup key={phase} phase={phase} steps={stepsByPhase.get(phase)!} pipelineId={pipeline.id} />
                 ))}
             </div>
           );
         })}
       </div>
-    </div>
+    </motion.div>
   );
 }

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   X,
   Edit,
-  Trash2,
   Plus,
   Bot,
   MessageCircle,

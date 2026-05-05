@@ -25,6 +25,8 @@ pub fn knowledge_routes() -> Router<Arc<AppState>> {
         .route("/:kb_id/documents", get(list_documents))
         .route("/:kb_id/documents/:doc_id", delete(delete_document))
         .route("/search", post(search_knowledge_base))
+        .route("/embedding-config", get(get_embedding_config))
+        .route("/embedding-config", post(save_embedding_config))
 }
 
 // ── 请求类型 ──
@@ -280,6 +282,25 @@ pub async fn search_knowledge_base(
         .await
         .map_err(KnowledgeApiError::from)?;
     Ok(Json(results))
+}
+
+/// GET /api/v1/knowledge-bases/embedding-config
+pub async fn get_embedding_config(
+    State(state): State<Arc<AppState>>,
+) -> ApiResponse<crate::services::knowledge::EmbeddingConfig> {
+    let config = state.knowledge_service.get_embedding_config()
+        .map_err(KnowledgeApiError::from)?;
+    Ok(Json(config))
+}
+
+/// POST /api/v1/knowledge-bases/embedding-config
+pub async fn save_embedding_config(
+    State(state): State<Arc<AppState>>,
+    Json(config): Json<crate::services::knowledge::EmbeddingConfig>,
+) -> ApiResponse<serde_json::Value> {
+    state.knowledge_service.save_embedding_config(&config)
+        .map_err(KnowledgeApiError::from)?;
+    Ok(Json(serde_json::json!({"ok": true})))
 }
 
 // ── 辅助 ──

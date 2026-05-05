@@ -1,4 +1,3 @@
-import { unwrapEnvelope } from '../api/response';
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
 import { unwrapEnvelope, fetchWithTimeout } from '../api/response';
@@ -82,30 +81,7 @@ class ApiError extends Error {
   }
 }
 
-// Fetch with timeout helper
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit = {},
-  timeout = 5000,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new ApiError('Request timeout', 408);
-    }
-    throw error;
-  }
-}
+// Fetch with timeout helper (removed — using imported fetchWithTimeout)
 
 // Get error message safely
 function getErrorMessage(error: unknown): string {
@@ -251,7 +227,7 @@ export const useWisdomStore = create<WisdomStore>((set, get) => ({
         throw new ApiError(`Failed to search: ${response.status}`, response.status);
       }
 
-      const data = unwrapEnvelope(await response.json());
+      const data = unwrapEnvelope<WisdomResponse>(await response.json());
       return data.entries as WisdomEntry[];
     } catch (error) {
       console.error('Search failed:', getErrorMessage(error));

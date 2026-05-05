@@ -710,9 +710,19 @@ impl GroupChatService {
     ) -> String {
         let history = history_ctx.render();
 
+        let role_context = match self.team_service.get_role(role_id) {
+            Ok(role) if !role.system_prompt.is_empty() => format!(
+                "你的角色：{}\n你的职责：{}\n\n{}",
+                role.name, role.description, role.system_prompt
+            ),
+            Ok(role) => format!("你的角色：{}\n你的职责：{}", role.name, role.description),
+            Err(_) => format!("你的角色 ID：{}", role_id),
+        };
+
         format!(
             r#"<system>
-你是一个有记忆的 AI 助手，正在以角色 {} 的身份参与团队讨论。
+{}
+
 当前讨论主题：{}
 讨论目标：{}
 
@@ -721,9 +731,9 @@ impl GroupChatService {
 </system>
 
 <user>
-请继续基于以上对话历史，以角色 {} 的身份回复。保持对话的连贯性，记住之前讨论过的内容，继续推进讨论。
+请继续基于以上对话历史，以你的角色身份回复。保持对话的连贯性，记住之前讨论过的内容，继续推进讨论。
 </user>"#,
-            role_id, session.topic, session.name, history, role_id
+            role_context, session.topic, session.name, history
         )
     }
 

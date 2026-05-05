@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { X, Bot, Loader2, Plus, List } from 'lucide-react';
+import { X, Bot, Loader2, List } from 'lucide-react';
 import { Role } from '@/stores/teamStore';
 import { useTeamStore } from '@/stores/teamStore';
 import { useAIConfigStore } from '@/stores/aiConfigStore';
 import { useSkillStore } from '@/stores/skillStore';
 import { showError } from '@/lib/toast';
 import { SkillAssigner } from './SkillAssigner';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 interface RoleEditorProps {
   role: Role | null;
@@ -130,21 +131,20 @@ export function RoleEditor({ role, teamId, onClose, onSave }: RoleEditorProps) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">模型</label>
-                <select
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  className="input-field"
-                >
-                  {models.length > 0 ? (
-                    models.map((m) => (
-                      <option key={m.model_id} value={m.model_id}>
-                        {m.display_name} ({m.model_id})
-                      </option>
-                    ))
-                  ) : (
-                    <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
-                  )}
-                </select>
+                <Select value={model} onValueChange={setModel}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {models.length > 0 ? (
+                      models.map((m) => (
+                        <SelectItem key={m.model_id} value={m.model_id}>
+                          {m.display_name} ({m.model_id})
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="claude-sonnet-4-6">claude-sonnet-4-6</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">

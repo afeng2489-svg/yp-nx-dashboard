@@ -1,0 +1,98 @@
+name: ui-ux-design
+description: UI/UX 设计工作流 — 调研、设计方案、组件规范、可访问性审查
+category: design
+triggers:
+  - type: manual
+    inputs:
+      product_type:
+        type: string
+        required: true
+        description: 产品类型（如：dashboard、landing page、mobile app、admin panel）
+      requirements:
+        type: string
+        required: true
+        description: 设计需求描述（功能、目标用户、风格偏好等）
+      tech_stack:
+        type: string
+        required: false
+        description: 技术栈（如：React + Tailwind + shadcn/ui）
+stages:
+  - name: 设计调研
+    agents: [researcher]
+    parallel: false
+  - name: 设计方案
+    agents: [designer]
+    parallel: false
+  - name: 组件规范
+    agents: [component-spec]
+    parallel: false
+  - name: 可访问性审查
+    agents: [a11y-reviewer]
+    parallel: false
+agents:
+  - id: researcher
+    role: ux-researcher
+    model: claude-sonnet-4-6
+    prompt: |
+      你是一名 UX 研究员。分析设计需求，建立设计基础。
+
+      产品类型：{{product_type}}
+      需求：{{requirements}}
+      技术栈：{{tech_stack}}
+
+      请完成：
+      1. 目标用户画像（主要用户是谁，他们的核心诉求）
+      2. 竞品参考（列举 2-3 个同类产品的设计亮点）
+      3. 推荐设计风格（从 glassmorphism/minimalism/brutalism/neumorphism/bento grid 中选择，说明理由）
+      4. 推荐色彩方案（主色、辅色、语义色，附 hex 值）
+      5. 推荐字体组合（标题字体 + 正文字体）
+      6. 核心 UX 原则（针对此产品类型最重要的 3-5 条）
+
+  - id: designer
+    role: ui-designer
+    model: claude-sonnet-4-6
+    prompt: |
+      你是一名 UI 设计师。基于调研结果，输出具体设计方案。
+
+      产品类型：{{product_type}}
+      需求：{{requirements}}
+      技术栈：{{tech_stack}}
+
+      请完成：
+      1. 页面布局方案（描述整体结构，如：顶部导航 + 左侧边栏 + 主内容区）
+      2. 核心页面设计（用 ASCII 或文字描述每个主要页面的布局）
+      3. 交互设计要点（关键操作的交互流程）
+      4. 动效规范（过渡时长、缓动函数、哪些元素需要动效）
+      5. 响应式断点策略（mobile/tablet/desktop 的布局差异）
+
+  - id: component-spec
+    role: component-designer
+    model: claude-sonnet-4-6
+    prompt: |
+      你是一名组件设计师。基于设计方案，输出可直接实现的组件规范。
+
+      产品类型：{{product_type}}
+      技术栈：{{tech_stack}}
+
+      请完成：
+      1. 列出需要的核心组件（Button、Card、Modal、Table 等）
+      2. 每个组件的变体（size、variant、state）
+      3. 设计 token 定义（spacing、radius、shadow、color token）
+      4. 针对 {{tech_stack}} 的实现建议（使用哪些现有组件库，哪些需要自定义）
+      5. 输出 2-3 个关键组件的伪代码示例
+
+  - id: a11y-reviewer
+    role: a11y-reviewer
+    model: claude-sonnet-4-6
+    prompt: |
+      你是一名可访问性审查员。审查前面的设计方案，确保符合 WCAG 2.1 AA 标准。
+
+      产品类型：{{product_type}}
+
+      请完成：
+      1. 色彩对比度检查（主要文字/背景组合是否达到 4.5:1）
+      2. 键盘导航检查（所有交互是否可通过键盘完成）
+      3. 触控目标检查（移动端点击区域是否 ≥ 44×44px）
+      4. 语义化检查（heading 层级、aria-label、alt text 要求）
+      5. 动效安全检查（是否需要 prefers-reduced-motion 支持）
+      6. 输出修正建议清单（按优先级排序）

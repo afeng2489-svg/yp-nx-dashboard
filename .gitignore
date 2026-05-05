@@ -8,3 +8,8 @@ dist/
 .vscode/
 .idea/
 .playwright-mcp/
+*.db-shm
+*.db-wal
+docs/*.backup
+dashboard-current.png
+dashboard.png

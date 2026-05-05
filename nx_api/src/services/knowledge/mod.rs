@@ -49,22 +49,30 @@ impl KnowledgeService {
 
     /// 从 API key 环境变量自动配置 OpenAI embedding
     pub fn configure_from_env(&self) {
-        if let Ok(api_key) = std::env::var("OPENAI_API_KEY") {
+        let provider_type = std::env::var("EMBEDDING_PROVIDER").unwrap_or_default();
+        let model = std::env::var("EMBEDDING_MODEL").ok();
+
+        let result = if provider_type == "ollama" || provider_type == "local" {
+            let model_str = model.as_deref().unwrap_or("nomic-embed-text");
+            tracing::info!("[KnowledgeService] 使用 Ollama embedding: {}", model_str);
+            create_provider_from_config("ollama", None, Some(model_str), Some(768))
+        } else if let Ok(api_key) = std::env::var("OPENAI_API_KEY") {
             if !api_key.is_empty() {
-                match create_provider_from_config("openai", Some(&api_key), None, None) {
-                    Ok(provider) => {
-                        tracing::info!("[KnowledgeService] OpenAI embedding provider 已配置");
-                        self.set_embedding_provider(provider);
-                    }
-                    Err(e) => {
-                        tracing::warn!("[KnowledgeService] 配置 OpenAI embedding 失败: {}", e);
-                    }
-                }
+                let model_str = model.as_deref().unwrap_or("text-embedding-3-small");
+                tracing::info!("[KnowledgeService] 使用 OpenAI embedding: {}", model_str);
+                create_provider_from_config("openai", Some(&api_key), Some(model_str), None)
+            } else {
+                tracing::info!("[KnowledgeService] 未配置 embedding provider，降级为关键词搜索");
+                return;
             }
         } else {
-            tracing::info!(
-                "[KnowledgeService] 未找到 OPENAI_API_KEY，embedding 不可用，将使用纯文本模式"
-            );
+            tracing::info!("[KnowledgeService] 未配置 embedding provider，降级为关键词搜索");
+            return;
+        };
+
+        match result {
+            Ok(provider) => self.set_embedding_provider(provider),
+            Err(e) => tracing::warn!("[KnowledgeService] 配置 embedding provider 失败: {}", e),
         }
     }
 
@@ -246,9 +254,16 @@ impl KnowledgeService {
             Some(qe) => kb_search::search_similar(&self.repo, kb_id, &qe, top_k, threshold)
                 .map_err(|e| KnowledgeError::Search(e.to_string())),
             None => {
-                // 没有 embedding provider，返回空结果
-                tracing::warn!("[KnowledgeService] 无 embedding provider，无法执行向量检索");
-                Ok(Vec::new())
+                tracing::info!("[KnowledgeService] 无 embedding provider，降级为全文关键词搜索");
+                let chunks = self.repo.search_by_keyword(kb_id, query, top_k)
+                    .map_err(|e| KnowledgeError::Search(e.to_string()))?;
+                Ok(chunks.into_iter().map(|c| kb_search::SearchResult {
+                    chunk_id: c.id,
+                    document_id: c.document_id,
+                    content: c.content,
+                    score: 1.0,
+                    chunk_index: c.chunk_index,
+                }).collect())
             }
         }
     }
@@ -312,6 +327,65 @@ impl nexus_workflow::watcher::RagProvider for KnowledgeService {
                 Vec::new()
             }
         }
+    }
+}
+
+// ── Embedding Config ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EmbeddingConfig {
+    pub provider: String,
+    pub model: String,
+    pub api_key: Option<String>,
+}
+
+impl KnowledgeService {
+    pub fn get_embedding_config(&self) -> Result<EmbeddingConfig, KnowledgeError> {
+        let provider = self.repo.get_setting("embedding_provider")?.unwrap_or_else(|| "none".to_string());
+        let model = self.repo.get_setting("embedding_model")?.unwrap_or_default();
+        let api_key = self.repo.get_setting("embedding_api_key")?;
+        Ok(EmbeddingConfig { provider, model, api_key })
+    }
+
+    pub fn save_embedding_config(&self, config: &EmbeddingConfig) -> Result<(), KnowledgeError> {
+        self.repo.set_setting("embedding_provider", &config.provider)?;
+        self.repo.set_setting("embedding_model", &config.model)?;
+        if let Some(key) = &config.api_key {
+            self.repo.set_setting("embedding_api_key", key)?;
+        }
+        self.apply_embedding_config(config);
+        Ok(())
+    }
+
+    fn apply_embedding_config(&self, config: &EmbeddingConfig) {
+        let result = match config.provider.as_str() {
+            "ollama" => {
+                let model = if config.model.is_empty() { "nomic-embed-text" } else { &config.model };
+                nx_memory::embedding::create_provider_from_config("ollama", None, Some(model), Some(768))
+            }
+            "openai" => {
+                let key = config.api_key.as_deref().unwrap_or("");
+                if key.is_empty() { return; }
+                let model = if config.model.is_empty() { "text-embedding-3-small" } else { &config.model };
+                nx_memory::embedding::create_provider_from_config("openai", Some(key), Some(model), None)
+            }
+            _ => return,
+        };
+        match result {
+            Ok(p) => self.set_embedding_provider(p),
+            Err(e) => tracing::warn!("[KnowledgeService] apply config failed: {}", e),
+        }
+    }
+
+    /// 启动时从 DB 加载配置（优先于 env vars）
+    pub fn configure_from_db_or_env(&self) {
+        if let Ok(config) = self.get_embedding_config() {
+            if config.provider != "none" && !config.provider.is_empty() {
+                self.apply_embedding_config(&config);
+                return;
+            }
+        }
+        self.configure_from_env();
     }
 }
 

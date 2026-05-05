@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { API_BASE_URL } from '@/api/constants';
 import { cn } from '@/lib/utils';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 interface SprintCard {
   id: string;
@@ -117,17 +118,16 @@ function SprintCardItem({
       {data.why && (
         <p className="text-[11px] text-muted-foreground line-clamp-2">{data.why}</p>
       )}
-      <select
-        className="w-full text-[11px] bg-background border border-border rounded px-1 py-0.5"
-        value={card.status}
-        onChange={(e) => onStatusChange(e.target.value)}
-      >
-        <option value="pending">待开始</option>
-        <option value="in_progress">进行中</option>
-        <option value="completed">已完成</option>
-        <option value="skipped">跳过</option>
-        <option value="blocked">阻塞</option>
-      </select>
+      <Select value={card.status} onValueChange={(v) => onStatusChange(v)}>
+        <SelectTrigger className="h-7 text-[11px]"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="pending">待开始</SelectItem>
+          <SelectItem value="in_progress">进行中</SelectItem>
+          <SelectItem value="completed">已完成</SelectItem>
+          <SelectItem value="skipped">跳过</SelectItem>
+          <SelectItem value="blocked">阻塞</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
   );
 }

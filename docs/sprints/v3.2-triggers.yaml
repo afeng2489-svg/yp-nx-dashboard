@@ -1,5 +1,5 @@
 sprint_id: v3.2
-status: pending
+status: completed
 priority: P2
 estimated_hours: 8
 depends_on: [v3.1]

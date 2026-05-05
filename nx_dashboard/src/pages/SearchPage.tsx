@@ -10,7 +10,7 @@ import type { SearchMode } from '@/types/search';
 export function SearchPage() {
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<SearchMode>('hybrid');
-  const { results, loading, refetch } = useSearchQuery(query, mode);
+  const { results, loading } = useSearchQuery(query, mode);
   const { reindex, isIndexing, indexInfo } = useSearchStore();
   const { currentWorkspace } = useWorkspaceStore();
   const hasAutoIndexed = useRef(false);
@@ -21,6 +21,7 @@ export function SearchPage() {
       hasAutoIndexed.current = true;
       reindex(currentWorkspace.root_path);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentWorkspace?.root_path]);
 
   const handleSearch = async (searchQuery: string, searchMode: SearchMode) => {

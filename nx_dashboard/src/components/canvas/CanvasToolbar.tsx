@@ -3,13 +3,14 @@ import { useCanvasStore } from '@/stores/canvasStore';
 import { api } from '@/api/client';
 import { toast } from 'sonner';
 import { TemplatesPanel } from './TemplatesPanel';
+import { WorkflowLaunchModal } from '@/components/workflow/WorkflowLaunchModal';
 
 export function CanvasToolbar() {
   const { workflowName, workflowId, setWorkflowName, setWorkflowId, toYaml, loadFromYaml, resetExecStatus } =
     useCanvasStore();
   const [saving, setSaving] = useState(false);
-  const [running, setRunning] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showLaunch, setShowLaunch] = useState(false);
 
   const save = async () => {
     setSaving(true);
@@ -31,19 +32,21 @@ export function CanvasToolbar() {
 
   const run = async () => {
     if (!workflowId) {
-      toast.error('请先保存工作流');
-      return;
+      // 先保存再弹出
+      setSaving(true);
+      try {
+        const definition = toYaml();
+        const wf = await api.createWorkflow({ name: workflowName, definition });
+        setWorkflowId(wf.id);
+      } catch {
+        toast.error('保存失败，无法运行');
+        setSaving(false);
+        return;
+      }
+      setSaving(false);
     }
-    setRunning(true);
     resetExecStatus();
-    try {
-      await api.executeWorkflow(workflowId);
-      toast.success('已启动执行');
-    } catch {
-      toast.error('启动失败');
-    } finally {
-      setRunning(false);
-    }
+    setShowLaunch(true);
   };
 
   const importFile = () => {
@@ -62,9 +65,15 @@ export function CanvasToolbar() {
   return (
     <>
       {showTemplates && <TemplatesPanel onClose={() => setShowTemplates(false)} />}
-      <div className="flex items-center gap-2 border-b border-zinc-800 bg-zinc-950 px-4 py-2">
+      {showLaunch && workflowId && (
+        <WorkflowLaunchModal
+          workflow={{ id: workflowId, name: workflowName }}
+          onClose={() => setShowLaunch(false)}
+        />
+      )}
+      <div className="flex items-center gap-2 border-b border-border bg-card px-4 py-2">
         <input
-          className="rounded bg-zinc-800 px-2 py-1 text-sm text-zinc-200 border border-zinc-700 focus:outline-none w-48"
+          className="rounded bg-background px-2 py-1 text-sm border border-border focus:outline-none focus:border-primary w-48"
           value={workflowName}
           onChange={(e) => setWorkflowName(e.target.value)}
         />
@@ -74,12 +83,12 @@ export function CanvasToolbar() {
         <button onClick={save} disabled={saving} className={`${BTN} ${saving ? 'opacity-50' : ''}`}>
           {saving ? '保存中...' : '保存'}
         </button>
-        <button onClick={run} disabled={running} className={`${BTN} bg-blue-600 hover:bg-blue-500 ${running ? 'opacity-50' : ''}`}>
-          {running ? '运行中...' : '▶ 运行'}
+        <button onClick={run} disabled={saving} className={`${BTN} bg-primary text-primary-foreground hover:bg-primary/90 ${saving ? 'opacity-50' : ''}`}>
+          ▶ 运行
         </button>
       </div>
     </>
   );
 }
 
-const BTN = 'rounded px-3 py-1 text-xs text-zinc-200 bg-zinc-800 hover:bg-zinc-700 transition-colors';
+const BTN = 'rounded px-3 py-1 text-xs bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors';

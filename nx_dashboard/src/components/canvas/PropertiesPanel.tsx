@@ -1,5 +1,6 @@
 import { useCanvasStore } from '@/stores/canvasStore';
 import type { NodeData } from '@/stores/canvasStore';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 export function PropertiesPanel() {
   const { nodes, selectedNodeId, updateNodeData } = useCanvasStore();
@@ -7,7 +8,7 @@ export function PropertiesPanel() {
 
   if (!node) {
     return (
-      <div className="w-56 shrink-0 border-l border-zinc-800 bg-zinc-950 p-4 text-xs text-zinc-600">
+      <div className="w-56 shrink-0 border-l border-border bg-card p-4 text-xs text-muted-foreground">
         选中节点后在此配置属性
       </div>
     );
@@ -17,8 +18,8 @@ export function PropertiesPanel() {
   const upd = (patch: Partial<NodeData>) => updateNodeData(node.id, patch);
 
   return (
-    <div className="w-56 shrink-0 border-l border-zinc-800 bg-zinc-950 p-3 overflow-y-auto text-xs text-zinc-300">
-      <p className="mb-3 font-semibold text-zinc-400">属性</p>
+    <div className="w-56 shrink-0 border-l border-border bg-card p-3 overflow-y-auto text-xs">
+      <p className="mb-3 font-semibold text-muted-foreground">属性</p>
 
       <Field label="名称">
         <input className={INPUT} value={d.label} onChange={(e) => upd({ label: e.target.value })} />
@@ -65,11 +66,14 @@ export function PropertiesPanel() {
             />
           </Field>
           <Field label="失败策略">
-            <select className={INPUT} value={d.on_fail ?? 'retry'} onChange={(e) => upd({ on_fail: e.target.value })}>
-              <option value="retry">retry</option>
-              <option value="continue">continue</option>
-              <option value="fail">fail</option>
-            </select>
+            <Select value={d.on_fail ?? 'retry'} onValueChange={(v) => upd({ on_fail: v })}>
+              <SelectTrigger className={INPUT}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="retry">retry</SelectItem>
+                <SelectItem value="continue">continue</SelectItem>
+                <SelectItem value="fail">fail</SelectItem>
+              </SelectContent>
+            </Select>
           </Field>
         </>
       )}
@@ -83,11 +87,14 @@ export function PropertiesPanel() {
       {d.kind === 'http' && (
         <>
           <Field label="Method">
-            <select className={INPUT} value={d.method ?? 'GET'} onChange={(e) => upd({ method: e.target.value })}>
-              {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </select>
+            <Select value={d.method ?? 'GET'} onValueChange={(v) => upd({ method: v })}>
+              <SelectTrigger className={INPUT}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map((m) => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
           <Field label="URL">
             <input className={INPUT} value={d.url ?? ''} onChange={(e) => upd({ url: e.target.value })} />
@@ -129,12 +136,12 @@ export function PropertiesPanel() {
   );
 }
 
-const INPUT = 'w-full rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-200 border border-zinc-700 focus:outline-none focus:border-zinc-500';
+const INPUT = 'w-full rounded bg-background px-2 py-1 text-xs border border-border focus:outline-none focus:border-primary';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="mb-3">
-      <p className="mb-1 text-zinc-500">{label}</p>
+      <p className="mb-1 text-muted-foreground">{label}</p>
       {children}
     </div>
   );

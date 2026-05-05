@@ -23,17 +23,17 @@ export function YamlPanel() {
   };
 
   return (
-    <div className="flex h-full flex-col border-l border-zinc-800 bg-zinc-950 w-64 shrink-0">
-      <div className="flex border-b border-zinc-800">
+    <div className="flex h-full flex-col border-l border-border bg-card w-64 shrink-0">
+      <div className="flex border-b border-border">
         <button
           onClick={() => setMode('preview')}
-          className={`flex-1 py-2 text-xs ${mode === 'preview' ? 'text-white bg-zinc-800' : 'text-zinc-500 hover:text-zinc-300'}`}
+          className={`flex-1 py-2 text-xs transition-colors ${mode === 'preview' ? 'text-foreground bg-accent' : 'text-muted-foreground hover:text-foreground'}`}
         >
           YAML 预览
         </button>
         <button
           onClick={() => setMode('import')}
-          className={`flex-1 py-2 text-xs ${mode === 'import' ? 'text-white bg-zinc-800' : 'text-zinc-500 hover:text-zinc-300'}`}
+          className={`flex-1 py-2 text-xs transition-colors ${mode === 'import' ? 'text-foreground bg-accent' : 'text-muted-foreground hover:text-foreground'}`}
         >
           导入
         </button>
@@ -41,36 +41,30 @@ export function YamlPanel() {
 
       {mode === 'preview' ? (
         <>
-          <div className="flex gap-1 p-2 border-b border-zinc-800">
-            <button
-              onClick={() => navigator.clipboard.writeText(yamlStr)}
-              className="flex-1 rounded bg-zinc-800 py-1 text-xs text-zinc-300 hover:bg-zinc-700"
-            >
+          <div className="flex gap-1 p-2 border-b border-border">
+            <button onClick={() => navigator.clipboard.writeText(yamlStr)}
+              className="flex-1 rounded bg-secondary py-1 text-xs text-secondary-foreground hover:bg-secondary/80">
               复制
             </button>
-            <button
-              onClick={download}
-              className="flex-1 rounded bg-zinc-800 py-1 text-xs text-zinc-300 hover:bg-zinc-700"
-            >
+            <button onClick={download}
+              className="flex-1 rounded bg-secondary py-1 text-xs text-secondary-foreground hover:bg-secondary/80">
               下载
             </button>
           </div>
-          <pre className="flex-1 overflow-auto p-3 text-xs text-green-400 font-mono whitespace-pre-wrap">
+          <pre className="flex-1 overflow-auto p-3 text-xs text-green-500 dark:text-green-400 font-mono whitespace-pre-wrap">
             {yamlStr}
           </pre>
         </>
       ) : (
         <div className="flex flex-col flex-1 p-2 gap-2">
           <textarea
-            className="flex-1 rounded bg-zinc-800 p-2 text-xs text-zinc-200 font-mono border border-zinc-700 focus:outline-none resize-none"
+            className="flex-1 rounded bg-background p-2 text-xs font-mono border border-border focus:outline-none focus:border-primary resize-none"
             placeholder="粘贴 YAML..."
             value={importText}
             onChange={(e) => setImportText(e.target.value)}
           />
-          <button
-            onClick={handleImport}
-            className="rounded bg-blue-600 py-1.5 text-xs text-white hover:bg-blue-500"
-          >
+          <button onClick={handleImport}
+            className="rounded bg-primary py-1.5 text-xs text-primary-foreground hover:bg-primary/90">
             导入到画布
           </button>
         </div>

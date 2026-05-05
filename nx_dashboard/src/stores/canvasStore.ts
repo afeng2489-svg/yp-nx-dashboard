@@ -2,12 +2,16 @@ import { create } from 'zustand';
 import { type Node, type Edge, addEdge, applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
 import type { Connection, NodeChange, EdgeChange } from '@xyflow/react';
 import * as yaml from 'js-yaml';
+import { API_BASE_URL } from '@/api/constants';
 
-export type NodeKind = 'agent' | 'shell' | 'quality_gate' | 'condition' | 'http' | 'approval' | 'loop';
+export type NodeKind = 'agent' | 'shell' | 'quality_gate' | 'condition' | 'http' | 'approval' | 'loop' | 'workflow';
 
 export interface NodeData extends Record<string, unknown> {
   kind: NodeKind;
   label: string;
+  // workflow node
+  workflowId?: string;
+  workflowName?: string;
   // agent
   model?: string;
   system_prompt?: string;
@@ -68,6 +72,7 @@ const KIND_DEFAULTS: Record<NodeKind, Partial<NodeData>> = {
   http: { method: 'GET', url: 'https://' },
   approval: { question: '是否继续？', options: ['是', '否'], timeout: 300 },
   loop: { loop_var: 'item', max_iterations: 10 },
+  workflow: { workflowId: '', workflowName: '' },
 };
 
 const KIND_LABELS: Record<NodeKind, string> = {
@@ -78,6 +83,7 @@ const KIND_LABELS: Record<NodeKind, string> = {
   http: 'HTTP 请求',
   approval: '人工审批',
   loop: '循环',
+  workflow: '工作流',
 };
 
 function nodeToStage(node: Node<NodeData>): Record<string, unknown> {
@@ -98,11 +104,13 @@ function nodeToStage(node: Node<NodeData>): Record<string, unknown> {
       return { ...base, type: 'user_input', question: d.question, options: d.options, timeout: d.timeout };
     case 'loop':
       return { ...base, type: 'loop', loop_var: d.loop_var, max_iterations: d.max_iterations };
+    case 'workflow':
+      return { ...base, type: 'workflow', workflowId: d.workflowId, workflowName: d.workflowName };
   }
 }
 
 function stageToNodeData(stage: Record<string, unknown>): NodeData {
-  const kind = (stage.type as NodeKind) === 'user_input' ? 'approval' : (stage.type as NodeKind) || 'agent';
+  const kind = (stage.type as string) === 'user_input' ? 'approval' : (stage.type as NodeKind) || 'agent';
   return {
     kind,
     label: (stage.name as string) || 'Stage',
@@ -121,11 +129,36 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   onNodesChange: (changes) =>
     set((s) => ({ nodes: applyNodeChanges(changes, s.nodes) as Node<NodeData>[] })),
 
-  onEdgesChange: (changes) =>
-    set((s) => ({ edges: applyEdgeChanges(changes, s.edges) })),
+  onEdgesChange: (changes) => {
+    // detect removed edges involving workflow nodes → delete trigger
+    const removedIds = changes
+      .filter((c) => c.type === 'remove')
+      .map((c) => (c as { id: string }).id);
+    if (removedIds.length > 0) {
+      const { nodes, edges } = get();
+      removedIds.forEach((eid) => {
+        const edge = edges.find((e) => e.id === eid);
+        if (!edge) return;
+        const src = nodes.find((n) => n.id === edge.source);
+        const tgt = nodes.find((n) => n.id === edge.target);
+        if (src?.data.kind === 'workflow' && tgt?.data.kind === 'workflow' && src.data.workflowId) {
+          removeWorkflowTrigger(src.data.workflowId as string, tgt.data.workflowName as string);
+        }
+      });
+    }
+    set((s) => ({ edges: applyEdgeChanges(changes, s.edges) }));
+  },
 
-  onConnect: (connection) =>
-    set((s) => ({ edges: addEdge(connection, s.edges) })),
+  onConnect: (connection) => {
+    set((s) => {
+      const src = s.nodes.find((n) => n.id === connection.source);
+      const tgt = s.nodes.find((n) => n.id === connection.target);
+      if (src?.data.kind === 'workflow' && tgt?.data.kind === 'workflow' && src.data.workflowId) {
+        addWorkflowTrigger(src.data.workflowId as string, tgt.data.workflowName as string);
+      }
+      return { edges: addEdge(connection, s.edges) };
+    });
+  },
 
   setSelectedNode: (id) => set({ selectedNodeId: id }),
 
@@ -208,3 +241,46 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       nodes: s.nodes.map((n) => ({ ...n, data: { ...n.data, execStatus: 'idle' as const, execDuration: undefined, execError: undefined } })),
     })),
 }));
+
+async function addWorkflowTrigger(upstreamId: string, downstreamName: string) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/workflows/${upstreamId}`);
+    if (!res.ok) return;
+    const wf = await res.json();
+    const def = wf.data?.definition ?? wf.definition ?? '';
+    const doc = (yaml.load(def) as Record<string, unknown>) ?? {};
+    const triggers: unknown[] = (doc.triggers as unknown[]) ?? [];
+    const already = triggers.some(
+      (t) => (t as Record<string, unknown>).type === 'event' && (t as Record<string, unknown>).workflow_ref === downstreamName
+    );
+    if (already) return;
+    const updated = { ...doc, triggers: [...triggers, { type: 'event', workflow_ref: downstreamName, pass_output: true }] };
+    await fetch(`${API_BASE_URL}/api/v1/workflows/${upstreamId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ definition: updated }),
+    });
+  } catch { /* best-effort */ }
+}
+
+async function removeWorkflowTrigger(upstreamId: string, downstreamName: string) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/workflows/${upstreamId}`);
+    if (!res.ok) return;
+    const wf = await res.json();
+    const def = wf.data?.definition ?? wf.definition ?? '';
+    const doc = (yaml.load(def) as Record<string, unknown>) ?? {};
+    const triggers: unknown[] = (doc.triggers as unknown[]) ?? [];
+    const updated = {
+      ...doc,
+      triggers: triggers.filter(
+        (t) => !((t as Record<string, unknown>).type === 'event' && (t as Record<string, unknown>).workflow_ref === downstreamName)
+      ),
+    };
+    await fetch(`${API_BASE_URL}/api/v1/workflows/${upstreamId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ definition: updated }),
+    });
+  } catch { /* best-effort */ }
+}

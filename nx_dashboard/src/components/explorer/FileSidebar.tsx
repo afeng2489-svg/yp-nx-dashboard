@@ -16,14 +16,13 @@ import {
   ArrowLeft,
   Loader2,
   AlertCircle,
-  GitCommit,
   Play,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProjectRunner } from './ProjectRunner';
 
 // 文件变更类型 - 使用 workspaceStore 中的类型
-type DiffType = 'added' | 'modified' | 'deleted';
+// type DiffType = 'added' | 'modified' | 'deleted';
 
 // 文件图标
 function FileIcon({ name, isDirectory }: { name: string; isDirectory: boolean }) {
@@ -96,6 +95,7 @@ function RealFileNode({
 }
 
 // 变更行组件
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function DiffLine({ type, content }: { type: 'added' | 'deleted' | 'context'; content: string }) {
   const bgMap = {
     added: 'bg-green-500/10',
@@ -274,8 +274,6 @@ export function FileSidebar() {
     gitDiffs,
     gitStatus,
     diffsLoading,
-    fetchGitDiffs,
-    fetchGitStatus,
     getFileDiff,
   } = useWorkspaceStore();
 

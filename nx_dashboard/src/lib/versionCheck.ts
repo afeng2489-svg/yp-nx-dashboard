@@ -37,7 +37,6 @@ export function useVersionCheck() {
         });
 
         if (!response.ok) {
-          console.log('Version check skipped: version.json not found');
           return;
         }
 
@@ -47,8 +46,8 @@ export function useVersionCheck() {
           setVersionInfo(info);
           setUpdateAvailable(true);
         }
-      } catch (error) {
-        console.log('Version check failed:', error);
+      } catch {
+        return;
       }
     }
 

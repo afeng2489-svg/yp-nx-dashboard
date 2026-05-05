@@ -10,7 +10,7 @@ interface AddExistingRoleModalProps {
   onAdded: () => void;
 }
 
-export function AddExistingRoleModal({ teamId, onClose, onAdded }: AddExistingRoleModalProps) {
+export function AddExistingRoleModal({ teamId, onClose }: AddExistingRoleModalProps) {
   const { listAllRoles, assignRoleToTeam, roles } = useTeamStore();
   const [allRoles, setAllRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);

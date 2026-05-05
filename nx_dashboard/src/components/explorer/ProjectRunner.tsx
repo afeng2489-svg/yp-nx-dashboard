@@ -9,16 +9,13 @@ import {
   Loader2,
   Server,
   Settings,
-  CheckCircle,
-  XCircle,
   AlertCircle,
-  Edit2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useCommandRunner, OutputLine } from '@/hooks/useCommandRunner';
 import { useServiceRunner } from '@/hooks/useServiceRunner';
-import { useSettingsStore, ServiceEntry } from '@/stores/settingsStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { API_BASE_URL } from '@/api/constants';
 
 interface ScriptEntry {
@@ -106,6 +103,7 @@ export function ProjectRunner() {
     };
 
     detect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentWorkspace?.id]);
 
   // Fetch scripts when workspace changes

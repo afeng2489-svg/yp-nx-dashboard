@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useTeamStore, Role, Team } from '@/stores/teamStore';
-import { Plus, Trash2, Edit, Search, Filter, Bot, Users, Loader2, X, Sparkles } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useTeamStore, Role } from '@/stores/teamStore';
+import { Plus, Trash2, Edit, Search, Bot, Loader2, X, Sparkles } from 'lucide-react';
 import { ConfirmModal } from '@/lib/ConfirmModal';
 import { showError } from '@/lib/toast';
 import { SkillAssigner } from '@/components/team/SkillAssigner';
 import { API_BASE_URL } from '@/api/constants';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 const API_BASE = API_BASE_URL;
 
@@ -37,7 +37,7 @@ export function RolesPage() {
       const response = await fetch(`${API_BASE}/api/v1/roles/${role.id}/skills`);
       if (response.ok) {
         const skills = await response.json();
-        const skillIds = skills.map((s: any) => s.skill_id);
+        const skillIds = skills.map((s: { skill_id: string }) => s.skill_id);
         setRoleSkills((prev) => ({ ...prev, [role.id]: skillIds }));
       }
     } catch (error) {
@@ -223,13 +223,12 @@ export function RolesPage() {
           />
         </div>
         <div className="relative">
-          <select
-            value={filterTeamId}
-            onChange={(e) => setFilterTeamId(e.target.value)}
-            className="pl-4 pr-8 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary appearance-none cursor-pointer"
-          >
-            <option value="all">所有角色</option>
-          </select>
+          <Select value={filterTeamId} onValueChange={setFilterTeamId}>
+            <SelectTrigger className="h-8 text-sm w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">所有角色</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -335,18 +334,15 @@ export function RolesPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">所属团队 (可选)</label>
-                <select
-                  value={newRoleTeamId}
-                  onChange={(e) => setNewRoleTeamId(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="">全局角色 (不关联团队)</option>
-                  {teams.map((team) => (
-                    <option key={team.id} value={team.id}>
-                      {team.name}
-                    </option>
-                  ))}
-                </select>
+                <Select value={newRoleTeamId} onValueChange={setNewRoleTeamId}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">全局角色 (不关联团队)</SelectItem>
+                    {teams.map((team) => (
+                      <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>

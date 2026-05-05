@@ -12,7 +12,7 @@ interface ProcessStats {
 
 export default function ProcessResourceBar() {
   const [stats, setStats] = React.useState<ProcessStats | null>(null);
-  const [error, setError] = React.useState(false);
+  const [, setError] = React.useState(false);
 
   const fetchStats = React.useCallback(async () => {
     try {

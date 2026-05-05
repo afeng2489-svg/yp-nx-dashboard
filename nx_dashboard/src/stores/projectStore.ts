@@ -1,4 +1,3 @@
-import { unwrapEnvelope } from '../api/response';
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
 import { unwrapEnvelope, fetchWithTimeout } from '../api/response';
@@ -68,31 +67,6 @@ class ApiError extends Error {
   ) {
     super(message);
     this.name = 'ApiError';
-  }
-}
-
-// 带 timeout 的 fetch
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit = {},
-  timeout = 15000,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new ApiError('Request timeout', 408);
-    }
-    throw error;
   }
 }
 
@@ -174,7 +148,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         throw new ApiError(`Failed to fetch project: ${response.status}`, response.status);
       }
 
-      const data = unwrapEnvelope(await response.json());
+      const data = unwrapEnvelope<{ project?: Project } & Project>(await response.json());
       // API returns { project, team_name, workflow_name } for single project
       return data.project || data;
     } catch (error) {

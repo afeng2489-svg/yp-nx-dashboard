@@ -7,7 +7,7 @@ use std::process::Stdio;
 use std::sync::Arc;
 use tokio::process::Command;
 
-type ModelRouterFn = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
+type ModelRouterFn = Arc<dyn Fn(&str, &str) -> Option<String> + Send + Sync>;
 
 use crate::events::{EventEmitter, WorkflowEvent};
 use crate::parser::{OnFail, QualityGate, StageType, WorkflowError as ParserWorkflowError};
@@ -1043,7 +1043,7 @@ impl WorkflowEngine {
         let effective_model = if model_override.is_some() {
             model_override
         } else if let Some(ref router_fn) = self.model_router_fn {
-            routed_model = router_fn(&resolved_prompt);
+            routed_model = router_fn(&resolved_prompt, &agent.id);
             if let Some(ref m) = routed_model {
                 tracing::info!("[ModelRouter] agent='{}' → {}", agent.id, m);
             }

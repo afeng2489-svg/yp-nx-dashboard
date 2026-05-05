@@ -1,4 +1,3 @@
-import { unwrapEnvelope } from '../api/response';
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
 import { unwrapEnvelope, fetchWithTimeout } from '../api/response';
@@ -23,31 +22,6 @@ class ApiError extends Error {
   ) {
     super(message);
     this.name = 'ApiError';
-  }
-}
-
-// 带 timeout 的 fetch
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit = {},
-  timeout = 5000,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new ApiError('Request timeout', 408);
-    }
-    throw error;
   }
 }
 
@@ -87,7 +61,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
         );
       }
 
-      const data = unwrapEnvelope(await response.json());
+      const data = unwrapEnvelope<Session[]>(await response.json());
       set({ sessions: data, loading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -109,7 +83,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
         throw new ApiError(`Failed to fetch session: ${response.status}`, response.status);
       }
 
-      return unwrapEnvelope(await response.json());
+      return unwrapEnvelope<Session>(await response.json());
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       console.error(`Failed to get session ${id}:`, message);
@@ -130,7 +104,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
         throw new ApiError(`Failed to create session: ${response.status}`, response.status);
       }
 
-      const newSession = unwrapEnvelope(await response.json());
+      const newSession = unwrapEnvelope<Session>(await response.json());
       set((state) => ({ sessions: [...state.sessions, newSession] }));
       return newSession;
     } catch (error) {
@@ -151,7 +125,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
         throw new ApiError(`Failed to resume session: ${response.status}`, response.status);
       }
 
-      const resumedSession = unwrapEnvelope(await response.json());
+      const resumedSession = unwrapEnvelope<Session>(await response.json());
       set((state) => ({
         sessions: state.sessions.map((s) => (s.id === resumedSession.id ? resumedSession : s)),
         currentSession:
@@ -175,7 +149,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
         throw new ApiError(`Failed to pause session: ${response.status}`, response.status);
       }
 
-      const pausedSession = unwrapEnvelope(await response.json());
+      const pausedSession = unwrapEnvelope<Session>(await response.json());
       set((state) => ({
         sessions: state.sessions.map((s) => (s.id === pausedSession.id ? pausedSession : s)),
         currentSession:
@@ -199,7 +173,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
         throw new ApiError(`Failed to activate session: ${response.status}`, response.status);
       }
 
-      const activatedSession = unwrapEnvelope(await response.json());
+      const activatedSession = unwrapEnvelope<Session>(await response.json());
       set((state) => ({
         sessions: state.sessions.map((s) => (s.id === activatedSession.id ? activatedSession : s)),
         currentSession:
@@ -225,7 +199,7 @@ export const useSessionStore = create<SessionStore>((set) => ({
         throw new ApiError(`Failed to sync session: ${response.status}`, response.status);
       }
 
-      const syncedSession = unwrapEnvelope(await response.json());
+      const syncedSession = unwrapEnvelope<Session>(await response.json());
       set((state) => ({
         sessions: state.sessions.map((s) => (s.id === syncedSession.id ? syncedSession : s)),
         currentSession:

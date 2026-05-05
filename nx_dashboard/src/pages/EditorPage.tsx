@@ -88,6 +88,7 @@ export function EditorPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { id: _id, ...workflowData } = convertToApiFormat();
       if (loadedWorkflowId) {
         await updateWorkflow(loadedWorkflowId, workflowData);

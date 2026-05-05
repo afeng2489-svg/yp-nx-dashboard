@@ -137,19 +137,15 @@ export function useClaudeStream(options: UseClaudeStreamOptions = {}): UseClaude
   useEffect(() => {
     const wsUrl = `${WS_BASE_URL}/ws/claude-stream`;
 
-    console.log('[ClaudeStream] 尝试连接 WebSocket:', wsUrl);
-
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log('[ClaudeStream] WebSocket 已连接');
       setIsConnected(true);
       setError(null);
     };
 
-    ws.onclose = (event) => {
-      console.log('[ClaudeStream] WebSocket 关闭:', event.code, event.reason);
+    ws.onclose = () => {
       setIsConnected(false);
       setIsExecuting(false);
     };
@@ -161,7 +157,6 @@ export function useClaudeStream(options: UseClaudeStreamOptions = {}): UseClaude
     };
 
     ws.onmessage = (event) => {
-      console.log('[ClaudeStream] 收到消息:', event.data);
       try {
         const msg: ClaudeStreamMessage = JSON.parse(event.data);
 

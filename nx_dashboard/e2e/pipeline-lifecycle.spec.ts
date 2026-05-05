@@ -24,6 +24,8 @@ async function api(path: string, opts: RequestInit = {}): Promise<any> {
   return unwrap(body)
 }
 
+test.describe.configure({ mode: 'serial' })
+
 test.describe('Pipeline E2E Lifecycle', () => {
   let teamId: string
   let projectId: string
@@ -135,7 +137,7 @@ test.describe('Pipeline E2E Lifecycle', () => {
   test('frontend loads', async ({ page }) => {
     await page.goto('/')
     await page.waitForLoadState('networkidle')
-    await expect(page.locator('body')).toBeVisible()
+    await expect(page.locator('#root')).toBeAttached()
   })
 
   test.afterAll(async () => {

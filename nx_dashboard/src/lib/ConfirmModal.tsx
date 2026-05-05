@@ -68,7 +68,7 @@ export function ConfirmModal({
             {cancelText}
           </button>
           <button
-            onClick={onConfirm}
+            onClick={() => { onConfirm(); onCancel(); }}
             className={cn('px-4 py-2 rounded-lg font-medium transition-colors', styles.confirmBtn)}
           >
             {confirmText}
@@ -79,7 +79,7 @@ export function ConfirmModal({
   );
 }
 
-// Hook for managing confirm state
+// eslint-disable-next-line react-refresh/only-export-components
 export function useConfirmModal() {
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;

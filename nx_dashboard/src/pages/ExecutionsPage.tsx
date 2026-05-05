@@ -1068,6 +1068,7 @@ function GitTab({
       setBranchInfo(data.branch_info);
       setCommits(data.commits || []);
     } catch {
+      // ignore rollback error
     } finally {
       setRollingBack(false);
     }
@@ -1082,8 +1083,9 @@ function GitTab({
         await navigator.clipboard.writeText(data.description || '');
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
-      } catch {}
-    } else {
+      } catch {
+        // ignore clipboard error
+      }    } else {
       await navigator.clipboard.writeText(prDescription);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);

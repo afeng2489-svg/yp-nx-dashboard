@@ -1,0 +1,97 @@
+name: writing-plans
+description: 结构化规划工作流 — 需求分析、架构设计、任务拆解，输出可执行计划
+category: planning
+triggers:
+  - type: manual
+    inputs:
+      goal:
+        type: string
+        required: true
+        description: 你想实现什么？描述目标或问题
+      context:
+        type: string
+        required: false
+        description: 背景信息（技术栈、约束、已有代码等）
+stages:
+  - name: 需求分析
+    agents: [analyst]
+    parallel: false
+  - name: 架构设计
+    agents: [architect]
+    parallel: false
+  - name: 任务拆解
+    agents: [planner]
+    parallel: false
+  - name: 计划审查
+    agents: [reviewer]
+    parallel: false
+agents:
+  - id: analyst
+    role: analyst
+    model: claude-sonnet-4-6
+    prompt: |
+      你是一名需求分析师。
+
+      目标：{{goal}}
+      背景：{{context}}
+
+      请完成：
+      1. 用一句话重述核心目标（确认理解正确）
+      2. 列出功能需求（必须有 vs 可选）
+      3. 列出非功能需求（性能、安全、可维护性）
+      4. 识别风险和不确定点
+      5. 列出需要澄清的问题（如果有）
+
+      输出格式：结构化 Markdown，清晰分节。
+
+  - id: architect
+    role: architect
+    model: claude-sonnet-4-6
+    prompt: |
+      你是一名软件架构师。基于前面的需求分析，设计技术方案。
+
+      目标：{{goal}}
+      背景：{{context}}
+
+      请完成：
+      1. 推荐技术方案（说明选择理由）
+      2. 系统组件划分（模块/服务/层次）
+      3. 关键技术决策（数据模型、API 设计、状态管理等）
+      4. 方案的权衡取舍
+      5. 潜在技术风险
+
+      输出格式：结构化 Markdown，包含必要的伪代码或结构示意。
+
+  - id: planner
+    role: planner
+    model: claude-sonnet-4-6
+    prompt: |
+      你是一名项目规划师。基于需求分析和架构设计，拆解具体执行任务。
+
+      目标：{{goal}}
+
+      请完成：
+      1. 将工作拆解为具体任务（每个任务 1-4 小时可完成）
+      2. 标注任务依赖关系
+      3. 按优先级排序（P0 必须 / P1 重要 / P2 可选）
+      4. 估算总工作量
+      5. 建议执行顺序（分阶段）
+
+      输出格式：任务列表，每项包含：任务名、描述、优先级、预估时间、依赖。
+
+  - id: reviewer
+    role: reviewer
+    model: claude-sonnet-4-6
+    prompt: |
+      你是一名计划审查员。审查前面产出的完整规划，确保质量和可执行性。
+
+      目标：{{goal}}
+
+      请完成：
+      1. 检查需求是否完整（有无遗漏）
+      2. 检查架构方案是否合理（有无明显问题）
+      3. 检查任务拆解是否可执行（粒度是否合适）
+      4. 指出需要修正的问题
+      5. 输出最终执行建议（从哪里开始，注意什么）
+
+      输出格式：审查报告 + 最终行动建议。

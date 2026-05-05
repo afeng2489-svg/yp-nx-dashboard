@@ -37,7 +37,6 @@ const WS_RECONNECT_CONFIG = {
 
 // 单个终端面板
 function TerminalPane({
-  terminalId: _terminalId,
   title,
   onClose,
 }: {
@@ -162,7 +161,7 @@ function TerminalPane({
 
         wsRef.current.ws = ws;
         setIsLoading(false);
-      } catch (err) {
+      } catch {
         setConnectionError('连接初始化失败');
         scheduleReconnect(terminal);
       }
@@ -221,6 +220,7 @@ function TerminalPane({
       }
       terminal.dispose();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 外部调整大小时重新 fit

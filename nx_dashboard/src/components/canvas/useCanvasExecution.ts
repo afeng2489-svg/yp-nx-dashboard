@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useCanvasStore } from '@/stores/canvasStore';
+import { WS_BASE_URL } from '@/api/constants';
 
 interface WsEvent {
   type: string;
@@ -16,7 +17,7 @@ export function useCanvasExecution(executionId: string | null) {
 
   useEffect(() => {
     if (!executionId) return;
-    const ws = new WebSocket(`ws://localhost:3000/ws/executions/${executionId}`);
+    const ws = new WebSocket(`${WS_BASE_URL}/ws/executions/${executionId}`);
     wsRef.current = ws;
 
     ws.onmessage = (e) => {

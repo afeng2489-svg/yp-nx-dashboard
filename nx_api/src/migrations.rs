@@ -575,6 +575,14 @@ pub(crate) const SPRINT_SCHEMA: &str = "
     );
 ";
 
+pub(crate) const APP_SETTINGS_SCHEMA: &str = "
+    CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+";
+
 /// All schema migrations in dependency order.
 const ALL_SCHEMAS: &[&str] = &[
     SESSION_SCHEMA,
@@ -600,6 +608,7 @@ const ALL_SCHEMAS: &[&str] = &[
     ALERT_CONFIG_SCHEMA,
     SPRINT_SCHEMA,
     SESSION_MESSAGES_SCHEMA,
+    APP_SETTINGS_SCHEMA,
 ];
 
 /// Column additions for existing tables (ALTER TABLE).
@@ -610,6 +619,8 @@ const COLUMN_MIGRATIONS: &[&str] = &[
     // v1.4: Token/Cost 追踪
     "ALTER TABLE executions ADD COLUMN total_tokens INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE executions ADD COLUMN total_cost_usd REAL NOT NULL DEFAULT 0.0",
+    // v2.5: 群组消息 token 统计
+    "ALTER TABLE group_messages ADD COLUMN tokens_used INTEGER NOT NULL DEFAULT 0",
 ];
 
 /// Run all schema migrations against the given database path.

@@ -149,21 +149,21 @@ export function TemplatesPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-[640px] max-h-[80vh] overflow-y-auto rounded-xl border border-zinc-700 bg-zinc-900 p-6">
+      <div className="w-[640px] max-h-[80vh] overflow-y-auto rounded-xl border border-border bg-card p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-white">模板库</h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white text-lg">✕</button>
+          <h2 className="text-base font-semibold">模板库</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-lg">✕</button>
         </div>
         <div className="grid grid-cols-1 gap-3">
           {TEMPLATES.map((t) => (
-            <div key={t.name} className="flex items-center justify-between rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3">
+            <div key={t.name} className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-3">
               <div>
-                <p className="text-sm font-medium text-white">{t.name}</p>
-                <p className="text-xs text-zinc-400 mt-0.5">{t.desc}</p>
+                <p className="text-sm font-medium">{t.name}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t.desc}</p>
               </div>
               <button
                 onClick={() => use(t.yaml)}
-                className="ml-4 shrink-0 rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-500"
+                className="ml-4 shrink-0 rounded bg-primary px-3 py-1 text-xs text-primary-foreground hover:bg-primary/90"
               >
                 使用
               </button>

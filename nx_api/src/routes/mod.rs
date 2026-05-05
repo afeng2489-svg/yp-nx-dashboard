@@ -30,6 +30,8 @@ use crate::ws::RunCommandWsHandler;
 use crate::ws::TerminalWsHandler;
 use nexus_ai::{AIManagerConfig, AIModelManager, APIConfig, ModelConfig, ProviderType};
 
+pub mod browser;
+pub mod quick_run;
 pub mod a2ui;
 pub mod ai_config;
 pub mod artifacts;
@@ -486,7 +488,7 @@ impl AppState {
             )
             .context("Failed to create execution repository")?,
         );
-        let execution_service = ExecutionService::with_repository(execution_repo.clone());
+        let mut execution_service = ExecutionService::with_repository(execution_repo.clone());
         let execution_repo_opt = Some(execution_repo);
 
         // 注册产物追踪 watcher：每个 stage 执行前后自动 diff working_dir
@@ -817,8 +819,9 @@ impl AppState {
         let knowledge_service = Arc::new(crate::services::knowledge::KnowledgeService::new(
             knowledge_repo,
         ));
-        knowledge_service.configure_from_env();
+        knowledge_service.configure_from_db_or_env();
         execution_service.set_rag_provider(knowledge_service.clone());
+        execution_service.set_a2ui(a2ui_service.clone());
 
         // 执行日志服务
         let log_conn = Arc::new(std::sync::Mutex::new(
@@ -934,6 +937,16 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
                     app_state.agent_execution_manager.event_sender(),
                 );
             }
+        }
+
+        // 启动 Pipeline Dispatcher
+        if let Some(ps) = app_state.pipeline_service.clone() {
+            let ss = Arc::new(app_state.session_service.clone());
+            let ts = Arc::new(app_state.teams_state.team_service.clone());
+            let dispatcher = Arc::new(
+                crate::services::team_evolution::pipeline_dispatcher::PipelineDispatcher::new(ps, ss, ts)
+            );
+            dispatcher.start();
         }
 
         if let Some(state_mut) = Arc::get_mut(&mut app_state) {
@@ -1561,6 +1574,10 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
             "/api/v1/group-sessions/:id/execute-round",
             post(group_chat::execute_round),
         )
+        .route(
+            "/api/v1/group-sessions/:id/auto-pipeline",
+            post(group_chat::auto_pipeline),
+        )
         // 团队记忆路由
         .route(
             "/api/v1/teams/:team_id/memories",
@@ -1631,6 +1648,14 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         .route(
             "/api/v1/pipelines/:id/dispatch",
             post(pipelines::dispatch_pipeline_steps),
+        )
+        .route(
+            "/api/v1/pipelines/:id/approve",
+            post(pipelines::approve_pipeline),
+        )
+        .route(
+            "/api/v1/pipelines/:id/reject",
+            post(pipelines::reject_pipeline),
         )
         .route(
             "/api/v1/pipelines/:pipeline_id/steps/:step_id/retry",
@@ -1734,6 +1759,8 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         )
         .merge(model_routing::router())
         .merge(execution_logs::router())
+        .merge(quick_run::router())
+        .nest("/api/v1/browser", browser::router())
         // 应用认证中间件到所有 API 和 WebSocket 路由
         .route_layer(axum::middleware::from_fn_with_state(
             app_state_for_router.clone(),

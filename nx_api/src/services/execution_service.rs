@@ -125,6 +125,8 @@ pub struct ExecutionService {
     chain_trigger_handler: Option<ChainTriggerCallback>,
     /// 模型自动路由器
     model_router: Arc<Mutex<ModelRouter>>,
+    /// A2UI 服务（可选，注入后 WorkflowPaused 事件自动写入消息）
+    a2ui_service: Option<Arc<crate::a2ui::A2UIService>>,
 }
 
 impl std::fmt::Debug for ExecutionService {
@@ -146,6 +148,7 @@ impl ExecutionService {
             repo: None,
             chain_trigger_handler: None,
             model_router: Arc::new(Mutex::new(ModelRouter::new(default_rules()))),
+            a2ui_service: None,
         }
     }
 
@@ -161,7 +164,13 @@ impl ExecutionService {
             repo: Some(repo),
             chain_trigger_handler: None,
             model_router: Arc::new(Mutex::new(ModelRouter::new(default_rules()))),
+            a2ui_service: None,
         }
+    }
+
+    /// 注入 A2UI 服务
+    pub fn set_a2ui(&mut self, service: Arc<crate::a2ui::A2UIService>) {
+        self.a2ui_service = Some(service);
     }
 
     /// 注册一个 stage 观察者（启动期调用一次即可，运行期共享）
@@ -242,6 +251,32 @@ impl ExecutionService {
                         question: question.clone(),
                         options: options.clone(),
                     });
+                }
+                drop(executions);
+                if let Some(a2ui) = &self.a2ui_service {
+                    let session = a2ui.get_or_create_session(execution_id.as_str());
+                    let msg = crate::a2ui::InteractiveMessage {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        session_id: session.id.clone(),
+                        execution_id: execution_id.clone(),
+                        content: if options.is_empty() {
+                            crate::a2ui::A2UIMessage::Ask {
+                                question: question.clone(),
+                                context: Some(stage_name.clone()),
+                            }
+                        } else {
+                            crate::a2ui::A2UIMessage::Select {
+                                prompt: question.clone(),
+                                options: options.iter().map(|o| o.label.clone()).collect(),
+                            }
+                        },
+                        source: "workflow".to_string(),
+                        timestamp: chrono::Utc::now(),
+                        pending: true,
+                        response: None,
+                        responded_at: None,
+                    };
+                    let _ = a2ui.add_message(&session.id, msg);
                 }
             }
             ExecutionEvent::WorkflowResumed { execution_id, .. } => {
@@ -651,10 +686,11 @@ impl ExecutionService {
         // 6.3 注入模型路由回调
         {
             let router = self.model_router.clone();
-            engine.set_model_router_fn(std::sync::Arc::new(move |prompt| {
+            engine.set_model_router_fn(std::sync::Arc::new(move |prompt, stage_name| {
+                let task_type = infer_task_type(stage_name);
                 let ctx = TaskContext {
                     prompt,
-                    task_type: None,
+                    task_type: task_type.as_deref(),
                 };
                 router.lock().route(&ctx)
             }));
@@ -864,6 +900,22 @@ pub struct StageResult {
     pub completed_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub quality_gate_result: Option<serde_json::Value>,
+}
+
+/// 从 stage 名称推断任务类型，用于模型路由
+fn infer_task_type(stage_name: &str) -> Option<String> {
+    let lower = stage_name.to_lowercase();
+    if lower.contains("test") || lower.contains("qa") {
+        Some("testing".to_string())
+    } else if lower.contains("plan") || lower.contains("design") || lower.contains("arch") {
+        Some("planning".to_string())
+    } else if lower.contains("doc") || lower.contains("summary") || lower.contains("report") {
+        Some("documentation".to_string())
+    } else if lower.contains("review") || lower.contains("audit") {
+        Some("review".to_string())
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]

@@ -9,6 +9,7 @@ import { CommandPalette } from '@/components/command';
 import { useVersionCheck } from '@/lib/versionCheck';
 import { useExecutionStore } from '@/stores/executionStore';
 import { WorkflowPauseModal } from '@/components/execution/WorkflowPauseModal';
+import { closeBrowserWebview } from '@/pages/BrowserPage';
 import './index.css';
 
 // Code splitting for heavy pages
@@ -123,6 +124,12 @@ const queryClient = new QueryClient({
 // Wrapper component to handle page transitions
 function PageWrapper({ children }: { children: React.ReactNode }) {
   const location = useLocation();
+
+  useEffect(() => {
+    if (location.pathname !== '/browser') {
+      closeBrowserWebview();
+    }
+  }, [location.pathname]);
 
   // Editor page doesn't need transitions (fullscreen)
   if (location.pathname === '/editor') {

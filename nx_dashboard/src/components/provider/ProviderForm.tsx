@@ -6,8 +6,8 @@ import {
   CreateProviderRequest,
   UpdateProviderRequest,
   APIFormat,
-  MappingType,
 } from '@/api/client';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 interface ProviderFormProps {
   provider?: AIProvider | null;
@@ -175,28 +175,32 @@ export function ProviderForm({ provider, onSubmit, onCancel, isLoading }: Provid
         {/* API Format */}
         <div>
           <label className="block text-sm font-medium mb-1">API 格式</label>
-          <select
+          <Select
             value={typeof formData.api_format === 'string' ? formData.api_format : 'openai'}
-            onChange={(e) => setFormData({ ...formData, api_format: e.target.value as APIFormat })}
-            className="w-full px-3 py-2 rounded-lg border border-input bg-background"
+            onValueChange={(v) => setFormData({ ...formData, api_format: v as APIFormat })}
           >
-            <option value="openai">OpenAI Compatible</option>
-            <option value="anthropic">Anthropic Message (原生)</option>
-          </select>
+            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="openai">OpenAI Compatible</SelectItem>
+              <SelectItem value="anthropic">Anthropic Message (原生)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Auth Field */}
         <div>
           <label className="block text-sm font-medium mb-1">认证字段</label>
-          <select
+          <Select
             value={formData.auth_field}
-            onChange={(e) => setFormData({ ...formData, auth_field: e.target.value })}
-            className="w-full px-3 py-2 rounded-lg border border-input bg-background"
+            onValueChange={(v) => setFormData({ ...formData, auth_field: v })}
           >
-            <option value="Authorization">Authorization (默认)</option>
-            <option value="x-api-key">x-api-key</option>
-            <option value="api-key">api-key</option>
-          </select>
+            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Authorization">Authorization (默认)</SelectItem>
+              <SelectItem value="x-api-key">x-api-key</SelectItem>
+              <SelectItem value="api-key">api-key</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* API Key */}

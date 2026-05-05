@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useExecutionStore, Execution, StageResult } from '@/stores/executionStore';
+import { useExecutionStore, Execution } from '@/stores/executionStore';
 import {
   BarChart,
   Bar,

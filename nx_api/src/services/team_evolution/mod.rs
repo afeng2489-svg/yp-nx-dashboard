@@ -27,6 +27,7 @@ pub mod feature_flag_service;
 // P1: Pipeline Engine
 pub mod pipeline_repository;
 pub mod pipeline_service;
+pub mod pipeline_dispatcher;
 
 // P2: Snapshots + Progress
 pub mod snapshot_repository;
@@ -46,6 +47,7 @@ pub mod file_watcher;
 
 // Integration layer
 pub mod integration;
+pub mod quality_gate;
 
 // Re-exports
 pub use crash_detector::CrashDetector;

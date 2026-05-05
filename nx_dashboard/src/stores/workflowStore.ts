@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
 import type { CreateWorkflowRequest } from '../api/client';
 import { unwrapEnvelope, fetchWithTimeout } from '../api/response';
-import { onWorkspaceChange } from './workspaceStore';
 
 export interface Workflow {
   id: string;
@@ -149,7 +148,8 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
 
       // 后端返回 { id, name, version, description, definition: { stages, agents, triggers, ... }, created_at, updated_at }
       // 需要把 definition 里的 stages/agents/triggers 提升到顶层
-      const raw = unwrapEnvelope(await response.json());
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = unwrapEnvelope<any>(await response.json());
       const def = raw.definition ?? {};
       return {
         id: raw.id,
@@ -182,7 +182,7 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
         throw new ApiError(`Failed to create workflow: ${response.status}`, response.status);
       }
 
-      const newWorkflow = unwrapEnvelope(await response.json());
+      const newWorkflow = unwrapEnvelope<Workflow>(await response.json());
       set((state) => ({ workflows: [...state.workflows, newWorkflow] }));
       return newWorkflow;
     } catch (error) {

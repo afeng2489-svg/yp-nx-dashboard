@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState, useMemo, useRef } from 'react';
+import { useEffect, useCallback, useState, useMemo } from 'react';
 import { useEditorStore } from '@/stores/editorStore';
 import type { WorkflowTemplate } from './types';
 

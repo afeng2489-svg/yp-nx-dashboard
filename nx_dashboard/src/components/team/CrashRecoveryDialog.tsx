@@ -1,5 +1,7 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { API_BASE_URL } from '../../api/constants';
+import { Button } from '@/components/ui/button';
 
 interface InterruptedExecution {
   id: string;
@@ -74,42 +76,54 @@ export default function CrashRecoveryDialog({ projectId, onResumed }: Props) {
   if (loading || interrupted.length === 0) return null;
 
   return (
-    <div className="border border-orange-200 dark:border-orange-800 rounded-lg bg-orange-50 dark:bg-orange-950/30 p-3 space-y-2">
-      <h4 className="text-sm font-semibold text-orange-600 dark:text-orange-400">
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="border border-warning/40 rounded-lg bg-warning/5 p-3 space-y-2"
+    >
+      <h4 className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">
         检测到 {interrupted.length} 个中断任务
       </h4>
-      <p className="text-xs text-orange-600/70 dark:text-orange-400/70">
+      <p className="text-xs text-muted-foreground">
         以下任务在上次运行中被意外中断，可以选择继续或放弃。
       </p>
 
       <div className="space-y-2 max-h-40 overflow-y-auto">
-        {interrupted.map((exec) => (
-          <div
-            key={exec.execution_id}
-            className="p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700"
-          >
-            <p className="text-xs font-medium truncate">{exec.task_prompt}</p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              中断于: {new Date(exec.last_heartbeat).toLocaleString()}
-            </p>
-            <div className="flex gap-2 mt-1.5">
-              <button
-                className="px-2 py-0.5 text-xs rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
-                onClick={() => handleResume(exec.execution_id)}
-                disabled={resuming === exec.execution_id}
-              >
-                {resuming === exec.execution_id ? '恢复中...' : '继续执行'}
-              </button>
-              <button
-                className="px-2 py-0.5 text-xs rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300"
-                onClick={() => handleAbandon(exec.execution_id)}
-              >
-                放弃
-              </button>
-            </div>
-          </div>
-        ))}
+        <AnimatePresence>
+          {interrupted.map((exec) => (
+            <motion.div
+              key={exec.execution_id}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 8 }}
+              className="p-2 bg-card rounded border border-border"
+            >
+              <p className="text-xs font-medium truncate">{exec.task_prompt}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                中断于: {new Date(exec.last_heartbeat).toLocaleString()}
+              </p>
+              <div className="flex gap-2 mt-1.5">
+                <Button
+                  size="sm"
+                  className="h-6 text-xs px-2"
+                  onClick={() => handleResume(exec.execution_id)}
+                  disabled={resuming === exec.execution_id}
+                >
+                  {resuming === exec.execution_id ? '恢复中...' : '继续执行'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 text-xs px-2"
+                  onClick={() => handleAbandon(exec.execution_id)}
+                >
+                  放弃
+                </Button>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
-    </div>
+    </motion.div>
   );
 }

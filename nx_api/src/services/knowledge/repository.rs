@@ -247,6 +247,37 @@ impl KnowledgeRepository {
         )?;
         Ok(())
     }
+
+    /// 全文关键词搜索（无 embedding 时的降级方案）
+    pub fn search_by_keyword(
+        &self,
+        kb_id: &str,
+        query: &str,
+        top_k: usize,
+    ) -> Result<Vec<KbChunk>, RepositoryError> {
+        let conn = self.conn.lock();
+        let pattern = format!("%{}%", query.replace('%', "\\%").replace('_', "\\_"));
+        let mut stmt = conn.prepare(
+            "SELECT id, document_id, knowledge_base_id, chunk_index, content, token_count, embedding, created_at
+             FROM kb_chunks WHERE knowledge_base_id = ?1 AND content LIKE ?2 ESCAPE '\\'
+             LIMIT ?3",
+        )?;
+        let chunks = stmt.query_map(params![kb_id, pattern, top_k as i64], |row| {
+            let blob: Option<Vec<u8>> = row.get(6)?;
+            Ok(KbChunk {
+                id: row.get(0)?,
+                document_id: row.get(1)?,
+                knowledge_base_id: row.get(2)?,
+                chunk_index: row.get::<_, i64>(3)? as usize,
+                content: row.get(4)?,
+                token_count: row.get(5)?,
+                embedding: blob.map(|b| decode_vector(&b)),
+                created_at: row.get(7)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+        Ok(chunks)
+    }
 }
 
 // ── 向量编解码（与 nx_memory 同模式） ──
@@ -263,4 +294,26 @@ fn decode_vector(blob: &[u8]) -> Vec<f32> {
     blob.chunks_exact(4)
         .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
         .collect()
+}
+
+// ── App Settings ──
+
+impl KnowledgeRepository {
+    pub fn get_setting(&self, key: &str) -> Result<Option<String>, RepositoryError> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare("SELECT value FROM app_settings WHERE key = ?1")?;
+        let mut rows = stmt.query(params![key])?;
+        Ok(rows.next()?.map(|r| r.get(0)).transpose()?)
+    }
+
+    pub fn set_setting(&self, key: &str, value: &str) -> Result<(), RepositoryError> {
+        let conn = self.conn.lock();
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO app_settings(key, value, updated_at) VALUES(?1,?2,?3)
+             ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+            params![key, value, now],
+        )?;
+        Ok(())
+    }
 }

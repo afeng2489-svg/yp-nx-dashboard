@@ -11,17 +11,17 @@ export function PageTransition({ children, className, animation = 'fade' }: Page
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    // Small delay to trigger animation
-    const timer = setTimeout(() => setIsVisible(true), 10);
-    return () => clearTimeout(timer);
+    const timer = requestAnimationFrame(() => setIsVisible(true));
+    return () => cancelAnimationFrame(timer);
   }, []);
 
   return (
     <div
+      style={{ opacity: isVisible ? undefined : 0 }}
       className={cn(
-        animation === 'fade' && isVisible && 'animate-fade-in',
-        animation === 'slide' && isVisible && 'animate-slide-in',
-        animation === 'scale' && isVisible && 'animate-scale-in',
+        isVisible && animation === 'fade' && 'animate-fade-in',
+        isVisible && animation === 'slide' && 'animate-slide-in',
+        isVisible && animation === 'scale' && 'animate-scale-in',
         className,
       )}
     >

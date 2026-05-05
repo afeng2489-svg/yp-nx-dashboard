@@ -25,7 +25,7 @@ interface SearchActions {
 
 type SearchStore = SearchState & SearchActions;
 
-export const useSearchStore = create<SearchStore>((set, get) => ({
+export const useSearchStore = create<SearchStore>((set) => ({
   // State
   results: null,
   isLoading: false,

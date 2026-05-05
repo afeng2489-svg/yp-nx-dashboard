@@ -3,6 +3,7 @@ import { Plus, Trash2, Loader2, Brain, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AIProvider, ModelMapping, MappingType, AddModelMappingRequest } from '@/api/client';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 interface ModelMappingEditorProps {
   provider: AIProvider;
@@ -121,19 +122,19 @@ export function ModelMappingEditor({
           <div className="p-3 bg-muted/50 rounded-lg space-y-3">
             <div>
               <label className="block text-xs font-medium mb-1">映射类型</label>
-              <select
+              <Select
                 value={newMapping.mapping_type}
-                onChange={(e) =>
-                  setNewMapping({ ...newMapping, mapping_type: e.target.value as MappingType })
-                }
-                className="w-full px-2 py-1.5 rounded border border-input bg-background text-sm"
+                onValueChange={(v) => setNewMapping({ ...newMapping, mapping_type: v as MappingType })}
               >
-                <option value="main">主模型</option>
-                <option value="thinking">推理模型 (Thinking)</option>
-                <option value="haiku">Haiku 默认</option>
-                <option value="sonnet">Sonnet 默认</option>
-                <option value="opus">Opus 默认</option>
-              </select>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="main">主模型</SelectItem>
+                  <SelectItem value="thinking">推理模型 (Thinking)</SelectItem>
+                  <SelectItem value="haiku">Haiku 默认</SelectItem>
+                  <SelectItem value="sonnet">Sonnet 默认</SelectItem>
+                  <SelectItem value="opus">Opus 默认</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div>

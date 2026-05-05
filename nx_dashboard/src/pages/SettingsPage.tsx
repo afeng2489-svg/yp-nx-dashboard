@@ -284,8 +284,6 @@ function ToggleSwitch({
   );
 }
 
-// Import useUIStore
-import { useUIStore } from '@/stores/uiStore';
 
 export function SettingsPage() {
   const [activeSection, setActiveSection] = useState('appearance');

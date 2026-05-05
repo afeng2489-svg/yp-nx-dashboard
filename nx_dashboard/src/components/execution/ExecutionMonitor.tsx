@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WS_BASE_URL } from '@/api/constants';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 // WebSocket 日志流 Hook
 function useLogStream(executionId: string | undefined) {
@@ -101,7 +102,7 @@ function useLogStream(executionId: string | undefined) {
       };
 
       wsRef.current = ws;
-    } catch (err) {
+    } catch {
       setError('连接初始化失败');
     }
   }, [executionId]);
@@ -110,12 +111,14 @@ function useLogStream(executionId: string | undefined) {
     if (executionId) {
       connect();
     }
+    const reconnectTimeout = reconnectTimeoutRef.current;
+    const ws = wsRef.current;
     return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
       }
-      if (wsRef.current) {
-        wsRef.current.close();
+      if (ws) {
+        ws.close();
       }
     };
   }, [executionId, connect]);
@@ -131,6 +134,7 @@ const STATUS_ICONS = {
   completed: <CheckCircle className="w-4 h-4 text-green-500" />,
   failed: <XCircle className="w-4 h-4 text-red-500" />,
   cancelled: <Square className="w-4 h-4 text-gray-400" />,
+  interrupted: <AlertCircle className="w-4 h-4 text-orange-400" />,
 } as const;
 
 // 代理状态
@@ -506,21 +510,23 @@ export function ExecutionMonitor() {
     <div className="h-full flex flex-col bg-card border rounded-lg overflow-hidden">
       {/* 执行选择器 */}
       <div className="px-4 py-3 border-b bg-accent/30">
-        <select
+        <Select
           value={displayExecution.id}
-          onChange={(e) => {
-            const exec = executions.find((ex) => ex.id === e.target.value);
+          onValueChange={(v) => {
+            const exec = executions.find((ex) => ex.id === v);
             if (exec) setCurrentExecution(exec);
           }}
-          className="w-full px-3 py-2 rounded-md border bg-background text-sm"
         >
-          {executions.map((exec) => (
-            <option key={exec.id} value={exec.id}>
-              {exec.workflow_id} - {exec.status} (
-              {exec.started_at ? new Date(exec.started_at).toLocaleString() : '未开始'})
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {executions.map((exec) => (
+              <SelectItem key={exec.id} value={exec.id}>
+                {exec.workflow_id} - {exec.status} (
+                {exec.started_at ? new Date(exec.started_at).toLocaleString() : '未开始'})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* 视图切换 */}

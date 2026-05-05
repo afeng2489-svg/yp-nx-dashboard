@@ -157,6 +157,7 @@ pub enum PipelineStatus {
     Idle,
     Running,
     Paused,
+    WaitingForApproval,
     Completed,
     Failed,
 }
@@ -167,6 +168,7 @@ impl PipelineStatus {
             Self::Idle => "idle",
             Self::Running => "running",
             Self::Paused => "paused",
+            Self::WaitingForApproval => "waiting_for_approval",
             Self::Completed => "completed",
             Self::Failed => "failed",
         }
@@ -177,6 +179,7 @@ impl PipelineStatus {
             "idle" => Some(Self::Idle),
             "running" => Some(Self::Running),
             "paused" => Some(Self::Paused),
+            "waiting_for_approval" => Some(Self::WaitingForApproval),
             "completed" => Some(Self::Completed),
             "failed" => Some(Self::Failed),
             _ => None,

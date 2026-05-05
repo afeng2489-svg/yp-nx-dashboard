@@ -2,20 +2,15 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   useGroupChatStore,
   GroupSession,
-  GroupSessionDetail,
-  GroupMessage,
-  GroupParticipant,
-  GroupConclusion,
   CreateGroupSessionRequest,
-  StartDiscussionRequest,
   SendMessageRequest,
   DiscussionTurnInfo,
   SpeakingStrategy,
-  ConsensusStrategy,
 } from '@/stores/groupChatStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useTeamStore } from '@/stores/teamStore';
 import { useSkillStore, SkillSummary } from '@/stores/skillStore';
+import { useSnapshotStore } from '@/stores/snapshotStore';
 import { WS_BASE_URL } from '@/api/constants';
 import { showError, showSuccess } from '@/lib/toast';
 import {
@@ -27,7 +22,6 @@ import {
   Users,
   Clock,
   Zap,
-  ChevronRight,
   Loader2,
   AlertCircle,
   CheckCircle,
@@ -43,6 +37,7 @@ import { AgentThinkingIndicator } from '@/components/team/AgentThinkingIndicator
 import ProjectProgressDashboard from '@/components/team/ProjectProgressDashboard';
 import CrashRecoveryDialog from '@/components/team/CrashRecoveryDialog';
 import ProcessResourceBar from '@/components/team/ProcessResourceBar';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -100,47 +95,40 @@ function useParallelRound() {
         })),
       );
 
-      let doneCount = 0;
+      const checkAllDone = (prev: ParallelBotState[]) => {
+        if (prev.every((b) => b.status === 'done' || b.status === 'failed')) {
+          setIsRunning(false);
+          onAllDone();
+        }
+      };
 
-      for (const { role_id, execution_id } of executions) {
+      for (const { execution_id } of executions) {
         const ws = new WebSocket(`${WS_BASE_URL}/ws/agent-executions/${execution_id}`);
         wsRefs.current.set(execution_id, ws);
 
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            setBots((prev) =>
-              prev.map((b) => {
+            setBots((prev) => {
+              const next = prev.map((b) => {
                 if (b.execution_id !== execution_id) return b;
                 switch (data.type) {
                   case 'started':
-                    return { ...b, status: 'pending' };
+                    return { ...b, status: 'pending' as const };
                   case 'thinking':
-                    return {
-                      ...b,
-                      status: 'thinking',
-                      elapsed_secs: data.elapsed_secs ?? b.elapsed_secs,
-                    };
+                    return { ...b, status: 'thinking' as const, elapsed_secs: data.elapsed_secs ?? b.elapsed_secs };
                   case 'completed':
-                    doneCount++;
-                    if (doneCount === executions.length) {
-                      setIsRunning(false);
-                      onAllDone();
-                    }
-                    return { ...b, status: 'done' };
+                    return { ...b, status: 'done' as const };
                   case 'failed':
                   case 'cancelled':
-                    doneCount++;
-                    if (doneCount === executions.length) {
-                      setIsRunning(false);
-                      onAllDone();
-                    }
-                    return { ...b, status: 'failed' };
+                    return { ...b, status: 'failed' as const };
                   default:
                     return b;
                 }
-              }),
-            );
+              });
+              checkAllDone(next);
+              return next;
+            });
           } catch {
             // ignore parse errors
           }
@@ -148,14 +136,13 @@ function useParallelRound() {
 
         ws.onclose = () => wsRefs.current.delete(execution_id);
         ws.onerror = () => {
-          setBots((prev) =>
-            prev.map((b) => (b.execution_id === execution_id ? { ...b, status: 'failed' } : b)),
-          );
-          doneCount++;
-          if (doneCount === executions.length) {
-            setIsRunning(false);
-            onAllDone();
-          }
+          setBots((prev) => {
+            const next = prev.map((b) =>
+              b.execution_id === execution_id ? { ...b, status: 'failed' as const } : b,
+            );
+            checkAllDone(next);
+            return next;
+          });
         };
       }
     },
@@ -182,16 +169,13 @@ export function GroupChatPage() {
     fetchSessions,
     fetchSession,
     createSession,
-    updateSession,
     deleteSession,
     startDiscussion,
     sendMessage,
     getNextSpeaker,
     advanceSpeaker,
-    executeRoleTurn,
     concludeDiscussion,
     fetchMessages,
-    setCurrentSession,
     clearError,
   } = useGroupChatStore();
 
@@ -203,11 +187,10 @@ export function GroupChatPage() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showStartModal, setShowStartModal] = useState(false);
-  const [showSendMessageModal, setShowSendMessageModal] = useState(false);
   const [showConclusionModal, setShowConclusionModal] = useState(false);
-  const [conclusionResult, setConclusionResult] = useState<string | null>(null);
+  const [, setConclusionResult] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
-  const [turnInfo, setTurnInfo] = useState<DiscussionTurnInfo | null>(null);
+  const [, setTurnInfo] = useState<DiscussionTurnInfo | null>(null);
   const [nextSpeaker, setNextSpeaker] = useState<{ role_id: string; role_name: string } | null>(
     null,
   );
@@ -332,6 +315,7 @@ export function GroupChatPage() {
     ) {
       handleExecuteRoleTurn(nextSpeaker.role_id);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoMode, currentSession?.status, nextSpeaker, executingRole, isAgentActive]);
 
   const handleCreateSession = async () => {
@@ -438,6 +422,7 @@ export function GroupChatPage() {
       setExecutingRole(null);
       agentExec.reset();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentExec.status]);
 
   const handleConcludeDiscussion = async (force = false) => {
@@ -965,18 +950,15 @@ export function GroupChatPage() {
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium mb-1 block">团队</label>
-                <select
-                  value={createForm.team_id}
-                  onChange={(e) => setCreateForm({ ...createForm, team_id: e.target.value })}
-                  className="input w-full"
-                >
-                  <option value="">选择团队</option>
-                  {teams.map((team) => (
-                    <option key={team.id} value={team.id}>
-                      {team.name}
-                    </option>
-                  ))}
-                </select>
+                <Select value={createForm.team_id} onValueChange={(v) => setCreateForm({ ...createForm, team_id: v })}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">选择团队</SelectItem>
+                    {teams.map((team) => (
+                      <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <label className="text-sm font-medium mb-1 block">会话名称</label>
@@ -1001,21 +983,18 @@ export function GroupChatPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium mb-1 block">发言策略</label>
-                  <select
+                  <Select
                     value={createForm.speaking_strategy}
-                    onChange={(e) =>
-                      setCreateForm({
-                        ...createForm,
-                        speaking_strategy: e.target.value as SpeakingStrategy,
-                      })
-                    }
-                    className="input w-full"
+                    onValueChange={(v) => setCreateForm({ ...createForm, speaking_strategy: v as SpeakingStrategy })}
                   >
-                    <option value="round_robin">轮流发言</option>
-                    <option value="free">自由发言</option>
-                    <option value="moderator">主持人模式</option>
-                    <option value="debate">辩论模式</option>
-                  </select>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="round_robin">轮流发言</SelectItem>
+                      <SelectItem value="free">自由发言</SelectItem>
+                      <SelectItem value="moderator">主持人模式</SelectItem>
+                      <SelectItem value="debate">辩论模式</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <label className="text-sm font-medium mb-1 block">最大回合</label>
@@ -1150,21 +1129,86 @@ export function GroupChatPage() {
 /** Collapsible Team Evolution section: progress + resources + crash recovery */
 function TeamEvolutionSection({ projectId }: { projectId: string }) {
   const [expanded, setExpanded] = useState(false);
+  const { progress, fetchProgress } = useSnapshotStore();
+  const [approving, setApproving] = useState(false);
+
+  const pipelineId = progress?.pipeline_id;
+  const needsApproval = progress?.overall_phase === 'waiting_for_approval';
+
+  // 轮询 pipeline 状态（等待审批时加快频率）
+  useEffect(() => {
+    if (!projectId) return;
+    const interval = setInterval(() => fetchProgress(projectId), needsApproval ? 5000 : 15000);
+    return () => clearInterval(interval);
+  }, [projectId, needsApproval, fetchProgress]);
+
+  const handleApprove = async () => {
+    if (!pipelineId) return;
+    setApproving(true);
+    try {
+      await fetch(`${API_BASE}/api/v1/pipelines/${pipelineId}/approve`, { method: 'POST' });
+      await fetchProgress(projectId);
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!pipelineId) return;
+    const reason = window.prompt('拒绝原因（可选）');
+    if (reason === null) return;
+    setApproving(true);
+    try {
+      await fetch(`${API_BASE}/api/v1/pipelines/${pipelineId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+      await fetchProgress(projectId);
+    } finally {
+      setApproving(false);
+    }
+  };
 
   return (
     <div className="bg-card rounded-lg border overflow-hidden">
-      {/* Header bar — always visible */}
       <button
         className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-accent/50 transition-colors text-left"
         onClick={() => setExpanded(!expanded)}
       >
         <GitBranch className="w-4 h-4 text-indigo-500" />
         <span className="text-sm font-medium flex-1">团队进化面板</span>
+        {needsApproval && (
+          <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-medium">
+            等待审批
+          </span>
+        )}
         <ProcessResourceBar />
         <span className="text-xs text-muted-foreground">{expanded ? '收起 ▲' : '展开 ▼'}</span>
       </button>
 
-      {/* Expanded content */}
+      {needsApproval && pipelineId && (
+        <div className="border-t px-4 py-3 bg-yellow-50 dark:bg-yellow-900/20 flex items-center gap-3">
+          <span className="text-sm flex-1 text-yellow-800 dark:text-yellow-200">
+            架构设计已完成，请审批后继续执行
+          </span>
+          <button
+            onClick={handleApprove}
+            disabled={approving}
+            className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+          >
+            通过
+          </button>
+          <button
+            onClick={handleReject}
+            disabled={approving}
+            className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+          >
+            拒绝
+          </button>
+        </div>
+      )}
+
       {expanded && (
         <div className="border-t p-4 space-y-4 max-h-[400px] overflow-y-auto">
           <ProjectProgressDashboard projectId={projectId} />

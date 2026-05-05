@@ -1,28 +1,23 @@
 import { useEffect, useState } from 'react';
-import { useTeamStore, Team, Role, Message, TelegramConfig } from '@/stores/teamStore';
+import { useTeamStore, Team, Role } from '@/stores/teamStore';
 import { useWorkspaceStore, onWorkspaceChange } from '@/stores/workspaceStore';
 import { useTeamsQuery } from '@/hooks/useReactQuery';
 import {
   Plus,
   Trash2,
-  Edit,
   X,
   Users,
   Clock,
   Sparkles,
-  Settings,
-  Send,
   MessageCircle,
   Bot,
   Zap,
   Loader2,
-  UserPlus,
   Eye,
   Radio,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TeamDetailPanel } from '@/components/team/TeamDetailPanel';
-import { RoleCard } from '@/components/team/RoleCard';
 import { RoleEditor } from '@/components/team/RoleEditor';
 import { ConversationView } from '@/components/team/ConversationView';
 import { TelegramConfigPanel } from '@/components/team/TelegramConfigPanel';
@@ -35,7 +30,6 @@ export function TeamsPage() {
     getTeam,
     deleteTeam,
     setCurrentTeam,
-    currentTeam,
     roles,
     fetchRoles,
     teamMonitorMode,
@@ -75,7 +69,7 @@ export function TeamsPage() {
     }
   };
 
-  const [rolesLoading, setRolesLoading] = useState(false);
+  const [, setRolesLoading] = useState(false);
 
   const handleCardClick = async (team: Team, e: React.MouseEvent) => {
     const target = e.target as HTMLElement;

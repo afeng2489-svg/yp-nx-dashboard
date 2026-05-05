@@ -38,7 +38,8 @@ export function WorkflowLaunchModal({ workflow, onClose }: WorkflowLaunchModalPr
         const res = await fetch(`${API_BASE_URL}/api/v1/workflows/${workflow.id}`);
         if (!res.ok) return;
         const full = await res.json();
-        const triggers = full.definition?.triggers ?? full.triggers ?? [];
+        const wf = full.data ?? full;
+        const triggers = wf.definition?.triggers ?? wf.triggers ?? [];
         const wfInputs: Record<string, WorkflowInput> = triggers[0]?.inputs ?? {};
         setInputs(wfInputs);
         const initial: Record<string, string> = {};

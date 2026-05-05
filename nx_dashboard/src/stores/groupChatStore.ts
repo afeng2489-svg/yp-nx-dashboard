@@ -1,4 +1,3 @@
-import { unwrapEnvelope } from '../api/response';
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
 import { unwrapEnvelope, fetchWithTimeout } from '../api/response';
@@ -119,30 +118,6 @@ class ApiError extends Error {
   }
 }
 
-// Fetch with timeout
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit = {},
-  timeout = 30000,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new ApiError('Request timeout', 408);
-    }
-    throw error;
-  }
-}
 
 interface GroupChatStore {
   sessions: GroupSession[];
@@ -196,7 +171,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
         );
       }
 
-      const data = unwrapEnvelope(await response.json());
+      const data = unwrapEnvelope<GroupSession[]>(await response.json());
       set({ sessions: data, loading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -359,7 +334,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
         throw new ApiError(`Failed to get next speaker: ${response.status}`, response.status);
       }
 
-      const data = unwrapEnvelope(await response.json());
+      const data = unwrapEnvelope<{ role_id: string; role_name: string } | null>(await response.json());
       return data; // { role_id, role_name } or null
     } catch (error) {
       console.error(`Failed to get next speaker for ${id}:`, error);

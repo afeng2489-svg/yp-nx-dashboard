@@ -1,5 +1,5 @@
 sprint_id: v4.7
-status: in_progress
+status: completed
 priority: P2
 estimated_hours: 44
 depends_on: [v1.4, v2.3]
@@ -45,6 +45,7 @@ remaining_tasks:
     priority: P0
     estimated_hours: 8
     depends_on: [T3]
+    status: completed
     description: |
       用户在团队对话中提出需求（如"做一个电商后台"），
       AI 自动拆解为具体任务，生成 Pipeline 步骤并自动编排执行。
@@ -70,6 +71,7 @@ remaining_tasks:
     name: 会话模块合并 — 统一持久化交互会话
     priority: P0
     estimated_hours: 6
+    status: completed
     description: |
       现在系统有两套会话，各管各的谁也没真正用起来：
       1. routes/sessions + session_service：持久化会话，绑 workflow_id，有 CRUD API 但没内容
@@ -109,6 +111,7 @@ remaining_tasks:
     priority: P1
     estimated_hours: 10
     depends_on: [T2]
+    status: completed
     description: |
       现有 PipelineView 只是步骤状态看板（卡片列表 + 进度条），不是工作流编排画布。
       需要升级为可视化节点编辑器，支持：
@@ -136,6 +139,7 @@ remaining_tasks:
     priority: P2
     estimated_hours: 6
     depends_on: [T4]
+    status: completed
     description: |
       每完成一个 sprint，自动生成进度报告：
       - 耗时 vs 预估

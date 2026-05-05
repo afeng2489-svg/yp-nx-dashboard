@@ -1,6 +1,5 @@
 import { unwrapEnvelope } from '../api/response';
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 export interface SkillParameter {
   name: string;
@@ -147,7 +146,7 @@ interface SkillStore {
   clearCurrentSkill: () => void;
 }
 
-export const useSkillStore = create<SkillStore>((set, get) => ({
+export const useSkillStore = create<SkillStore>((set) => ({
   skills: [],
   currentSkill: null,
   stats: null,

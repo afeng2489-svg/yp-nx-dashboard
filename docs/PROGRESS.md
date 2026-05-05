@@ -35,47 +35,47 @@
 
 | 字段 | 值 |
 |------|-----|
-| **当前 Sprint** | v1.1 — Pipeline 真正跑通 |
-| **Sprint 状态** | `pending` |
-| **上次工作** | v0.0.3 完成，Phase 0 全部完成 |
-| **下一步** | 执行 v1.1：Pipeline dispatch→执行→完成→推进 |
-| **最后更新** | 2026-05-02 |
+| **当前 Sprint** | v4.7 — AI 项目追踪自动化 |
+| **Sprint 状态** | `completed` |
+| **上次工作** | v4.7 完成，Phase 0~4 全部完成 |
+| **下一步** | 所有规划 Sprint 已完成 |
+| **最后更新** | 2026-05-04 |
 
 ---
 
 ## 总体进度
 
 ```
-Phase 0: 地基（v0.0.x）          ██████░░░░░░░░░░░░░░  30%
+Phase 0: 地基（v0.0.x）          ████████████████████  100%
   v0.0.1 修复关键 Bug             ✅ done
   v0.0.2 部署+认证+API规范        ✅ done
   v0.0.3 接入 core/orchestrator  ✅ done
 
-Phase 1: 生产线核心（v1.x）       ░░░░░░░░░░░░░░░░░░░░  0%
-  v1.1 Pipeline 真正跑通          pending  ← 生产线心跳
-  v1.2 断点续跑                   pending  ← 生产线记忆
-  v1.3 质量门自动化               pending  ← 生产线质检
-  v1.4 可观测性看板               pending  ← 生产线仪表盘
+Phase 1: 生产线核心（v1.x）       ████████████████████  100%
+  v1.1 Pipeline 真正跑通          ✅ done
+  v1.2 断点续跑                   ✅ done
+  v1.3 质量门自动化               ✅ done
+  v1.4 可观测性看板               ✅ done
 
-Phase 2: 用户体验（v2.x）         ░░░░░░░░░░░░░░░░░░░░  0%
-  v2.1 团队对话体验重构           pending
-  v2.2 产物管理完整               pending  (后端90%完成)
-  v2.3 项目状态感知               pending
-  v2.4 技能系统内置化             pending  ← 不依赖本地Claude
+Phase 2: 用户体验（v2.x）         ████████████████████  100%
+  v2.1 团队对话体验重构           ✅ done
+  v2.2 产物管理完整               ✅ done
+  v2.3 项目状态感知               ✅ done
+  v2.4 技能系统内置化             ✅ done
 
-Phase 3: 功能扩展（v3.x）         ░░░░░░░░░░░░░░░░░░░░  0%
-  v3.1 Git 集成                   pending
-  v3.2 触发器系统                 pending
-  v3.3 Token/Cost 监控            pending
-  v3.4 RAG 知识库                 pending
+Phase 3: 功能扩展（v3.x）         ████████████████████  100%
+  v3.1 Git 集成                   ✅ done
+  v3.2 触发器系统                 ✅ done
+  v3.3 Token/Cost 监控            ✅ done
+  v3.4 RAG 知识库                 ✅ done
 
-Phase 4: 智能化升级（v4.x）       ░░░░░░░░░░░░░░░░░░░░  0%
-  v4.1 多模型路由                 pending  ← 不被厂商锁死，降成本60%
-  v4.2 失败自愈                   pending  ← 失败→换模型→回滚→通知
-  v4.3 低代码可视化画布           pending  ← 拖拽搭建AI流水线
-  v4.4 浏览器自动化验证           pending  ← AI写完UI自动验证效果
-  v4.5 用户需求分解UI             pending  ← 界面拆需求→AI接棒执行
-  v4.6 多模态工具链               pending  ← 图片/视频/设计稿生成
+Phase 4: 智能化升级（v4.x）       ████████████████████  100%
+  v4.1 多模型路由                 ✅ done
+  v4.2 失败自愈                   ✅ done
+  v4.3 低代码可视化画布           ✅ done
+  v4.4 浏览器自动化验证           ✅ done
+  v4.5 用户需求分解UI             ✅ done
+  v4.6 多模态工具链               ✅ done
 ```
 
 ---

@@ -152,6 +152,7 @@ const useEditorHistoryStore = create<EditorHistoryStore>((set, get) => ({
 }));
 
 // Hook to use editor history
+// eslint-disable-next-line react-refresh/only-export-components
 export function useEditorHistory() {
   const { nodes, edges } = useEditorStore();
   const { pushState, undo: doUndo, redo: doRedo, canUndo, canRedo, past } = useEditorHistoryStore();

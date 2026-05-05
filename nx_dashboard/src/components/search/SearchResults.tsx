@@ -100,7 +100,7 @@ export function SearchResults({
 
       {/* Results List */}
       <div className="space-y-2">
-        {Object.entries(groupedResults).map(([file, hits], groupIndex) => (
+        {Object.entries(groupedResults).map(([file, hits]) => (
           <div key={file} className="border rounded-lg overflow-hidden">
             {/* File Header */}
             <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border-b">

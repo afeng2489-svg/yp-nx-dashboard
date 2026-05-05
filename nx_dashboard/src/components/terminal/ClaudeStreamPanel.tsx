@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useClaudeStream, ClaudeStreamMessage } from '@/hooks/useClaudeStream';
+import { useClaudeStream } from '@/hooks/useClaudeStream';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Send, Square, Trash2, Loader2 } from 'lucide-react';
@@ -120,6 +120,7 @@ export function ClaudeStreamPanel({
       setInput(initialPrompt);
       execute(initialPrompt, workingDirectory);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPrompt, isConnected, isExecuting]);
 
   const handleExecute = () => {

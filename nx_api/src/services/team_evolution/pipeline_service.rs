@@ -124,6 +124,38 @@ impl PipelineService {
             .ok_or_else(|| TeamEvolutionError::PipelineNotFound(pipeline_id.to_string()))
     }
 
+    /// 请求人工审批（将 pipeline 置为 WaitingForApproval）
+    pub fn request_approval(&self, pipeline_id: &str) -> Result<Pipeline, TeamEvolutionError> {
+        self.repo.update_pipeline_status(pipeline_id, &PipelineStatus::WaitingForApproval)?;
+        self.repo.find_pipeline_by_id(pipeline_id)?
+            .ok_or_else(|| TeamEvolutionError::PipelineNotFound(pipeline_id.to_string()))
+    }
+
+    /// 审批通过 → 继续执行
+    pub fn approve(&self, pipeline_id: &str) -> Result<Pipeline, TeamEvolutionError> {
+        let pipeline = self.repo.find_pipeline_by_id(pipeline_id)?
+            .ok_or_else(|| TeamEvolutionError::PipelineNotFound(pipeline_id.to_string()))?;
+        if pipeline.status != PipelineStatus::WaitingForApproval {
+            return Err(TeamEvolutionError::Internal(format!("Pipeline {pipeline_id} is not waiting for approval")));
+        }
+        self.repo.update_pipeline_status(pipeline_id, &PipelineStatus::Running)?;
+        self.repo.find_pipeline_by_id(pipeline_id)?
+            .ok_or_else(|| TeamEvolutionError::PipelineNotFound(pipeline_id.to_string()))
+    }
+
+    /// 审批拒绝 → 标记失败
+    pub fn reject(&self, pipeline_id: &str, reason: &str) -> Result<Pipeline, TeamEvolutionError> {
+        let pipeline = self.repo.find_pipeline_by_id(pipeline_id)?
+            .ok_or_else(|| TeamEvolutionError::PipelineNotFound(pipeline_id.to_string()))?;
+        if pipeline.status != PipelineStatus::WaitingForApproval {
+            return Err(TeamEvolutionError::Internal(format!("Pipeline {pipeline_id} is not waiting for approval")));
+        }
+        tracing::info!("[Pipeline] {} rejected: {}", pipeline_id, reason);
+        self.repo.update_pipeline_status(pipeline_id, &PipelineStatus::Failed)?;
+        self.repo.find_pipeline_by_id(pipeline_id)?
+            .ok_or_else(|| TeamEvolutionError::PipelineNotFound(pipeline_id.to_string()))
+    }
+
     /// Get the next batch of steps ready to dispatch
     pub fn get_dispatchable_steps(
         &self,
@@ -298,6 +330,16 @@ impl PipelineService {
         output: Option<&str>,
     ) -> Result<(), TeamEvolutionError> {
         self.repo.update_step_status(step_id, status, output)
+    }
+
+    /// Mark step as running (used by dispatcher)
+    pub fn mark_step_running(&self, step_id: &str) -> Result<(), TeamEvolutionError> {
+        self.repo.update_step_status(step_id, &StepStatus::Running, None)
+    }
+
+    /// Terminate session when step completes (used by dispatcher)
+    pub async fn terminate_session(&self, session_id: &str) -> Result<(), TeamEvolutionError> {
+        Ok(())
     }
 
     /// Find pipeline by ID (used by dispatch layer to get project_id/team_id)

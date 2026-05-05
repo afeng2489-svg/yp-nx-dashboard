@@ -378,3 +378,32 @@ pub async fn dispatch_pipeline_steps(
         "steps": dispatched,
     })))
 }
+
+#[derive(Deserialize)]
+pub struct RejectRequest {
+    pub reason: Option<String>,
+}
+
+/// POST /api/v1/pipelines/:id/approve
+pub async fn approve_pipeline(
+    State(state): State<Arc<AppState>>,
+    Path(pipeline_id): Path<String>,
+) -> Result<Json<Pipeline>, (StatusCode, Json<serde_json::Value>)> {
+    let service = state.pipeline_service.as_ref().ok_or_else(|| {
+        (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Pipeline service not available" })))
+    })?;
+    service.approve(&pipeline_id).map(Json).map_err(map_tev_error)
+}
+
+/// POST /api/v1/pipelines/:id/reject
+pub async fn reject_pipeline(
+    State(state): State<Arc<AppState>>,
+    Path(pipeline_id): Path<String>,
+    Json(body): Json<RejectRequest>,
+) -> Result<Json<Pipeline>, (StatusCode, Json<serde_json::Value>)> {
+    let service = state.pipeline_service.as_ref().ok_or_else(|| {
+        (StatusCode::SERVICE_UNAVAILABLE, Json(serde_json::json!({ "error": "Pipeline service not available" })))
+    })?;
+    let reason = body.reason.as_deref().unwrap_or("rejected by user");
+    service.reject(&pipeline_id, reason).map(Json).map_err(map_tev_error)
+}

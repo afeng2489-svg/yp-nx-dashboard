@@ -1,4 +1,4 @@
-import { Edit, Trash2, Bot, Code, Settings } from 'lucide-react';
+import { Edit, Trash2, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Role } from '@/stores/teamStore';
 

@@ -4,14 +4,10 @@ import {
   AIProvider,
   ModelMapping,
   ProviderPreset,
-  APIFormat,
-  MappingType,
   CreateProviderRequest,
   UpdateProviderRequest,
   AddModelMappingRequest,
   ConnectionTestResult,
-  ClaudeSwitchBackendInfo,
-  ClaudeSwitchBackendConfig,
 } from '@/api/client';
 
 // CLI types
@@ -300,7 +296,7 @@ export const useAIConfigStore = create<AIConfigState>((set, get) => {
         if (!state.manualOverride) {
           set({ selectedCLI: data.recommended_cli as CLI });
         }
-      } catch (error) {
+      } catch {
         set({ suggestionLoading: false });
       }
     },
@@ -488,16 +484,13 @@ export const useAIConfigStore = create<AIConfigState>((set, get) => {
 
     // Fetch model mappings for a provider
     fetchMappings: async (providerId) => {
-      console.log('[Store] fetchMappings called for provider:', providerId);
       set({ mappingsLoading: true });
       try {
         const data = await api.getProviderMappings(providerId);
-        console.log('[Store] fetchMappings received data:', data);
         set((prevState) => ({
           mappings: { ...prevState.mappings, [providerId]: data },
           mappingsLoading: false,
         }));
-        console.log('[Store] mappings state updated');
       } catch (error) {
         console.error('[Store] Failed to fetch mappings:', error);
         set({ mappingsLoading: false });
@@ -506,10 +499,8 @@ export const useAIConfigStore = create<AIConfigState>((set, get) => {
 
     // Add model mapping
     addMapping: async (providerId, mapping) => {
-      console.log('[Store] addMapping called:', providerId, mapping);
       try {
-        const result = await api.addModelMapping(providerId, mapping);
-        console.log('[Store] addModelMapping result:', result);
+        await api.addModelMapping(providerId, mapping);
         await get().fetchMappings(providerId);
       } catch (error) {
         console.error('[Store] Failed to add mapping:', error);
@@ -529,16 +520,13 @@ export const useAIConfigStore = create<AIConfigState>((set, get) => {
 
     // Test provider connection
     testConnection: async (providerId: string): Promise<ConnectionTestResult> => {
-      console.log('[Store] testing connection for provider:', providerId);
       const result = await api.testProviderConnection(providerId);
-      console.log('[Store] connection test result:', result);
       return result;
     },
 
     // Enable provider as default AI
     enableProvider: async (providerId: string, model?: string) => {
       const result = await api.enableProvider(providerId, model);
-      console.log('[Store] enable provider result:', result);
       if (result?.success) {
         // Update the selected model state to reflect the change
         const selectedProvider = get().providersV2.find((p) => p.id === providerId);
@@ -558,7 +546,6 @@ export const useAIConfigStore = create<AIConfigState>((set, get) => {
     // Disable provider (switch back to default Claude)
     disableProvider: async (providerId: string) => {
       const result = await api.disableProvider(providerId);
-      console.log('[Store] disable provider result:', result);
       if (result?.success) {
         // Update selected model back to default
         set({

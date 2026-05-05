@@ -7,7 +7,7 @@ import {
   UpsertModuleRequest,
 } from '@/stores/projectStore';
 import { useTeamStore } from '@/stores/teamStore';
-import { useWorkspaceStore, Workspace } from '@/stores/workspaceStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import {
   Plus,
   Trash2,
@@ -27,12 +27,12 @@ import {
   Circle,
   Loader2 as Spinner,
   Ban,
-  Edit3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 import { showError } from '@/lib/toast';
 import { ClaudeStreamPanel } from '@/components/terminal/ClaudeStreamPanel';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 // Extended project type that includes local path projects (workspaces)
 interface DisplayProject {
@@ -52,7 +52,6 @@ export function ProjectsPage() {
     projects,
     loading,
     executing,
-    error,
     projectModules,
     fetchProjects,
     createProject,
@@ -84,6 +83,7 @@ export function ProjectsPage() {
     fetchProjects();
     fetchTeams();
     fetchWorkspaces();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Combine projects and workspaces into a unified list
@@ -522,18 +522,18 @@ export function ProjectsPage() {
                               if (e.key === 'Escape') setEditingModule(null);
                             }}
                           />
-                          <select
+                          <Select
                             value={newModuleStatus}
-                            onChange={(e) =>
-                              setNewModuleStatus(e.target.value as UpsertModuleRequest['status'])
-                            }
-                            className="px-2 py-1 text-xs rounded-md border border-border bg-background focus:outline-none"
+                            onValueChange={(v) => setNewModuleStatus(v as UpsertModuleRequest['status'])}
                           >
-                            <option value="pending">待做</option>
-                            <option value="in_progress">进行中</option>
-                            <option value="completed">已完成</option>
-                            <option value="failed">失败</option>
-                          </select>
+                            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pending">待做</SelectItem>
+                              <SelectItem value="in_progress">进行中</SelectItem>
+                              <SelectItem value="completed">已完成</SelectItem>
+                              <SelectItem value="failed">失败</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <input
                             type="text"
                             value={newModuleSummary}
@@ -686,39 +686,34 @@ function CreateProjectModal({
           </div>
           <div>
             <label className="block text-sm font-medium mb-2">团队</label>
-            <select
-              value={teamId}
-              onChange={(e) => setTeamId(e.target.value)}
-              className="w-full px-4 py-2 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
-              required
-            >
-              {teams.length === 0 ? (
-                <option value="">请先创建团队</option>
-              ) : (
-                teams.map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.name}
-                  </option>
-                ))
-              )}
-            </select>
+            <Select value={teamId} onValueChange={setTeamId}>
+              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {teams.length === 0 ? (
+                  <SelectItem value="">请先创建团队</SelectItem>
+                ) : (
+                  teams.map((team) => (
+                    <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <label className="block text-sm font-medium mb-2">工作区（可选）</label>
-            <select
-              value={workspaceId}
-              onChange={(e) => setWorkspaceId(e.target.value)}
-              className="w-full px-4 py-2 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              <option value="">不关联工作区</option>
-              {workspaces
-                .filter((w) => w.root_path)
-                .map((workspace) => (
-                  <option key={workspace.id} value={workspace.id}>
-                    {workspace.name} ({workspace.root_path?.slice(0, 30)}...)
-                  </option>
-                ))}
-            </select>
+            <Select value={workspaceId} onValueChange={setWorkspaceId}>
+              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">不关联工作区</SelectItem>
+                {workspaces
+                  .filter((w) => w.root_path)
+                  .map((workspace) => (
+                    <SelectItem key={workspace.id} value={workspace.id}>
+                      {workspace.name} ({workspace.root_path?.slice(0, 30)}...)
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary">

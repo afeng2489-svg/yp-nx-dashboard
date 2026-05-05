@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 const STATUS_CONFIG = {
   pending: {
@@ -319,18 +320,17 @@ export function SessionsPage() {
           <p className="text-muted-foreground mt-1">查看和管理所有活动会话</p>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg bg-card border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-          >
-            <option value="all">全部</option>
-            <option value="pending">等待中</option>
-            <option value="active">活跃</option>
-            <option value="idle">空闲</option>
-            <option value="paused">已暂停</option>
-            <option value="terminated">已终止</option>
-          </select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-8 text-sm w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部</SelectItem>
+              <SelectItem value="pending">等待中</SelectItem>
+              <SelectItem value="active">活跃</SelectItem>
+              <SelectItem value="idle">空闲</SelectItem>
+              <SelectItem value="paused">已暂停</SelectItem>
+              <SelectItem value="terminated">已终止</SelectItem>
+            </SelectContent>
+          </Select>
           <span className="px-3 py-2 rounded-full bg-indigo-500/10 text-indigo-600 text-sm font-medium border border-indigo-500/20">
             {filteredSessions.length} 个会话
           </span>

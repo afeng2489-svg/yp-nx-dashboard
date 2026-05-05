@@ -13,13 +13,13 @@ import {
 import { showSuccess, showError } from '@/lib/toast';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 import { Pencil, Trash2, Plus, X, Download, Link, FileText, ClipboardPaste } from 'lucide-react';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 export default function SkillsPage() {
   const {
     currentSkill,
     searchResults,
     stats,
-    loading,
     saving,
     executing,
     error,
@@ -32,7 +32,6 @@ export default function SkillsPage() {
     importSkill,
     fetchStats,
     clearSearch,
-    clearError,
     clearCurrentSkill,
   } = useSkillStore();
 
@@ -72,7 +71,7 @@ export default function SkillsPage() {
   // Use React Query for fetching
   const { skills, loading: skillsLoading, refetch: refetchSkills } = useSkillsQuery();
   const { categories, loading: categoriesLoading } = useSkillCategoriesQuery();
-  const { refetch: refetchSkillDetail } = useSkillDetailQuery(selectedSkill?.id || null);
+  useSkillDetailQuery(selectedSkill?.id || null);
 
   // Get skills directly from store when filtered
   const filteredSkills = useSkillStore((s) => s.skills);
@@ -734,20 +733,19 @@ export default function SkillsPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">类别</label>
-                  <select
-                    value={editForm.category}
-                    onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                    className={inputCls}
-                  >
-                    <option value="workflow_planning">工作流规划 (workflow_planning)</option>
-                    <option value="collaboration">协作 (collaboration)</option>
-                    <option value="development">开发 (development)</option>
-                    <option value="testing">测试 (testing)</option>
-                    <option value="review">审查 (review)</option>
-                    <option value="documentation">文档 (documentation)</option>
-                    <option value="research">研究 (research)</option>
-                    <option value="general">通用 (general)</option>
-                  </select>
+                  <Select value={editForm.category} onValueChange={(v) => setEditForm({ ...editForm, category: v })}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="workflow_planning">工作流规划 (workflow_planning)</SelectItem>
+                      <SelectItem value="collaboration">协作 (collaboration)</SelectItem>
+                      <SelectItem value="development">开发 (development)</SelectItem>
+                      <SelectItem value="testing">测试 (testing)</SelectItem>
+                      <SelectItem value="review">审查 (review)</SelectItem>
+                      <SelectItem value="documentation">文档 (documentation)</SelectItem>
+                      <SelectItem value="research">研究 (research)</SelectItem>
+                      <SelectItem value="general">通用 (general)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div>

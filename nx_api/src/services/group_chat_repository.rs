@@ -266,8 +266,8 @@ impl GroupChatRepository for SqliteGroupChatRepository {
 
         self.conn.lock().execute(
             r#"INSERT INTO group_messages
-               (id, session_id, role_id, role_name, content, tool_calls, reply_to, turn_number, created_at)
-               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"#,
+               (id, session_id, role_id, role_name, content, tool_calls, reply_to, turn_number, created_at, tokens_used)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"#,
             params![
                 message.id,
                 message.session_id,
@@ -278,6 +278,7 @@ impl GroupChatRepository for SqliteGroupChatRepository {
                 message.reply_to,
                 message.turn_number,
                 message.created_at.to_rfc3339(),
+                message.tokens_used,
             ],
         )?;
         Ok(())
@@ -292,10 +293,10 @@ impl GroupChatRepository for SqliteGroupChatRepository {
         let limit = limit.unwrap_or(50);
 
         let query = if before.is_some() {
-            "SELECT id, session_id, role_id, role_name, content, tool_calls, reply_to, turn_number, created_at
+            "SELECT id, session_id, role_id, role_name, content, tool_calls, reply_to, turn_number, created_at, tokens_used
              FROM group_messages WHERE session_id = ?1 AND id < ?2 ORDER BY id DESC LIMIT ?3"
         } else {
-            "SELECT id, session_id, role_id, role_name, content, tool_calls, reply_to, turn_number, created_at
+            "SELECT id, session_id, role_id, role_name, content, tool_calls, reply_to, turn_number, created_at, tokens_used
              FROM group_messages WHERE session_id = ?1 ORDER BY id DESC LIMIT ?2"
         };
 
@@ -468,6 +469,7 @@ impl SqliteGroupChatRepository {
             created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)
                 .map(|dt| dt.with_timezone(&Utc))
                 .unwrap_or_else(|_| Utc::now()),
+            tokens_used: row.get::<_, i64>(9).unwrap_or(0) as u32,
         })
     }
 }

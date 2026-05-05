@@ -339,6 +339,15 @@ fn start_nx_api(resource_dir: &std::path::Path, claude_cli_path: Option<&str>) -
         return Err(format!("nx_api not found at {:?}", nx_api_path).into());
     }
 
+    // macOS/Linux: ensure the binary is executable after being extracted from the bundle
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&nx_api_path)?.permissions();
+        perms.set_mode(perms.mode() | 0o111);
+        std::fs::set_permissions(&nx_api_path, perms)?;
+    }
+
     let (_data_dir, db_path) = if cfg!(debug_assertions) {
         let dir = PathBuf::from("/Users/Zhuanz/Desktop/yp-nx-dashboard");
         let db = dir.join("nx_dashboard/nexus.db");

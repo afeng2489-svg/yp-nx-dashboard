@@ -62,7 +62,7 @@ export const useA2UIStore = create<A2UIStore>((set, get) => ({
   getOrCreateSession: async (executionId: string) => {
     // Check if we already have a session for this execution
     const { sessions } = get();
-    for (const [sessionId, session] of sessions) {
+    for (const [, session] of sessions) {
       if (session.execution_id === executionId && session.state !== 'ended') {
         return session;
       }
@@ -196,21 +196,18 @@ export const useA2UIStore = create<A2UIStore>((set, get) => ({
 
     const ws = new WebSocket(`${WS_BASE_URL}/ws/a2ui/${executionId}`);
 
-    ws.onopen = () => {
-      console.log(`[A2UI WS] Connected to execution ${executionId}`);
-    };
+    ws.onopen = () => {};
 
     ws.onmessage = (event) => {
       try {
         const wsEvent: A2UIWsEvent = JSON.parse(event.data);
-        handleWsEvent(wsEvent, executionId);
+        handleWsEvent(wsEvent);
       } catch (e) {
         console.error('[A2UI WS] Failed to parse message:', e);
       }
     };
 
     ws.onclose = () => {
-      console.log(`[A2UI WS] Disconnected from execution ${executionId}`);
       wsConnections.delete(executionId);
     };
 
@@ -236,7 +233,7 @@ export const useA2UIStore = create<A2UIStore>((set, get) => ({
 }));
 
 // Helper function to handle WebSocket events
-function handleWsEvent(event: A2UIWsEvent, executionId: string) {
+function handleWsEvent(event: A2UIWsEvent) {
   const store = useA2UIStore.getState();
 
   switch (event.type) {
@@ -267,7 +264,6 @@ function handleWsEvent(event: A2UIWsEvent, executionId: string) {
     case 'response':
       if (event.message_id && event.response) {
         // Handle user response confirmation
-        console.log('[A2UI WS] Response sent:', event.message_id);
       }
       break;
 

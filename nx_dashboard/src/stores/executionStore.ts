@@ -1,4 +1,3 @@
-import { unwrapEnvelope } from '../api/response';
 import { create } from 'zustand';
 import { API_BASE_URL, WS_BASE_URL } from '../api/constants';
 import { unwrapEnvelope, fetchWithTimeout } from '../api/response';
@@ -29,7 +28,7 @@ const wsConnectionStates = new Map<string, WsConnectionState>();
 
 // Cleanup all WebSocket connections (call on app unmount)
 export function cleanupAllWebSockets() {
-  allWsConnections.forEach((ws, id) => {
+  allWsConnections.forEach((ws) => {
     if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
       ws.close();
     }
@@ -152,31 +151,6 @@ class ApiError extends Error {
   }
 }
 
-// 带 timeout 的 fetch
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit = {},
-  timeout = 5000,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new ApiError('Request timeout', 408);
-    }
-    throw error;
-  }
-}
-
 interface ExecutionStore {
   executions: Execution[];
   currentExecution: Execution | null;
@@ -223,7 +197,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         );
       }
 
-      const data = unwrapEnvelope(await response.json());
+      const data = unwrapEnvelope<Execution[]>(await response.json());
       set({ executions: data, loading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -245,7 +219,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         throw new ApiError(`Failed to fetch execution: ${response.status}`, response.status);
       }
 
-      return unwrapEnvelope(await response.json());
+      return unwrapEnvelope<Execution>(await response.json());
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       console.error(`Failed to get execution ${id}:`, message);
@@ -266,7 +240,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         throw new ApiError(`Failed to start execution: ${response.status}`, response.status);
       }
 
-      const execution = unwrapEnvelope(await response.json());
+      const execution = unwrapEnvelope<Execution>(await response.json());
 
       set((state) => ({ executions: [...state.executions, execution] }));
 
@@ -325,7 +299,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
   dismissPause: () => set({ pendingPause: null }),
 
   connectWebSocket: (executionId) => {
-    const { wsConnections, wsConnectionStatus } = get();
+    const { wsConnections } = get();
     if (wsConnections.has(executionId)) return;
 
     // Initialize connection state
@@ -599,7 +573,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
                 stage_name: event.stage_name,
                 outputs: [event.output],
                 completed_at: new Date().toISOString(),
-                quality_gate_result: event.quality_gate_result as QualityGateResult | undefined,
+                quality_gate_result: (event as unknown as { quality_gate_result?: QualityGateResult }).quality_gate_result,
               });
               executions[idx] = { ...executions[idx], stage_results: stageResults };
             }

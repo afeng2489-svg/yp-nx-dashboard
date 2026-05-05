@@ -75,7 +75,6 @@ function useWorkflowName() {
 
 function ActiveExecutionRow({ execution, onClick }: { execution: Execution; onClick: () => void }) {
   const config = STATUS_CONFIG[execution.status] ?? STATUS_CONFIG.pending;
-  const Icon = config.icon;
   const workflowName = useWorkflowName();
   const totalStages = execution.stage_results?.length ?? 0;
 
@@ -139,7 +138,7 @@ function PipelineGanttBar({ execution }: { execution: Execution }) {
 
   return (
     <div className="flex items-center gap-1 h-6">
-      {stages.map((stage, idx) => {
+      {stages.map((stage) => {
         const qg = stage.quality_gate_result;
         const passed = qg ? qg.passed : true;
         return (
@@ -173,6 +172,7 @@ function PipelineGanttBar({ execution }: { execution: Execution }) {
 export function ActiveExecutionsPanel() {
   const navigate = useNavigate();
   const { executions, connectWebSocket } = useExecutionStore();
+  const getWorkflowName = useWorkflowName();
   const activeExecutions = executions.filter(
     (e) => e.status === 'running' || e.status === 'paused' || e.status === 'pending',
   );
@@ -274,7 +274,7 @@ export function ActiveExecutionsPanel() {
               >
                 <div className={cn('w-2 h-2 rounded-full shrink-0', config.dot)} />
                 <span className="text-sm truncate group-hover:text-indigo-600 transition-colors flex-1">
-                  {useWorkflowNameStatic(execution.workflow_id)}
+                  {getWorkflowName(execution.workflow_id)}
                 </span>
                 <span
                   className={cn(
@@ -294,11 +294,4 @@ export function ActiveExecutionsPanel() {
       )}
     </div>
   );
-}
-
-function useWorkflowNameStatic(workflowId: string): string {
-  const workflows = useWorkflowStore((s) => s.workflows);
-  const found = workflows.find((w) => w.id === workflowId);
-  if (found) return found.name;
-  return workflowId.length > 12 ? `${workflowId.slice(0, 8)}...` : workflowId;
 }

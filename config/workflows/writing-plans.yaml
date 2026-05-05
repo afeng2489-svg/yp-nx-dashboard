@@ -1,0 +1,149 @@
+name: writing-plans
+description: 结构化实现计划工作流 — 基于 obra/superpowers writing-plans skill，输出可直接执行的 TDD 任务清单
+category: planning
+triggers:
+  - type: manual
+    inputs:
+      goal:
+        type: string
+        required: true
+        description: 功能目标或需求描述（spec/requirements）
+      context:
+        type: string
+        required: false
+        description: 背景信息（技术栈、已有代码结构、约束等）
+stages:
+  - name: 范围检查与文件结构
+    agents: [scope-checker]
+    parallel: false
+  - name: 编写实现计划
+    agents: [plan-writer]
+    parallel: false
+  - name: 自我审查与修正
+    agents: [self-reviewer]
+    parallel: false
+agents:
+  - id: scope-checker
+    role: architect
+    model: claude-sonnet-4-6
+    prompt: |
+      目标：{{goal}}
+      背景：{{context}}
+
+      ## 第一步：读取代码库
+
+      用 Glob 和 Read 工具扫描当前工作目录，理解现有代码结构：
+      1. 用 Glob 列出相关目录和文件
+      2. 读取关键文件（入口、路由、核心模块）理解现有模式
+      3. 记录技术栈、文件组织方式、命名规范
+
+      ## 范围检查
+
+      检查需求是否覆盖多个独立子系统。如果是，建议拆分为独立计划——每个子系统一个，每个计划能独立产出可测试的软件。
+
+      ## 文件结构设计
+
+      在定义任务之前，规划哪些文件需要创建或修改：
+
+      - 每个文件只有一个明确职责，边界清晰、接口明确
+      - 优先小而专注的文件，而非大而全
+      - 一起变化的文件放在一起，按职责拆分而非按技术层拆分
+      - 在已有代码库中遵循已有模式
+
+      输出：
+      1. 范围检查结论（是否需要拆分）
+      2. 文件清单（路径、职责、创建/修改）
+      3. 关键接口和类型定义
+
+  - id: plan-writer
+    role: planner
+    model: claude-sonnet-4-6
+    prompt: |
+      你正在使用 writing-plans skill 创建实现计划。开始时声明："我正在使用 writing-plans skill 创建实现计划。"
+
+      目标：{{goal}}
+      背景：{{context}}
+
+      ## 计划 Header（必须）
+
+      # [功能名称] 实现计划
+
+      **目标：** [一句话]
+      **架构：** [2-3 句话]
+      **技术栈：** [关键技术]
+
+      ---
+
+      ## 任务粒度
+
+      每个步骤是一个动作（2-5 分钟）：
+      - "编写失败的测试" — 一步
+      - "运行测试确认失败" — 一步
+      - "编写最小实现" — 一步
+      - "运行测试确认通过" — 一步
+      - "提交" — 一步
+
+      ## 任务结构（每个任务必须遵循）
+
+      ### 任务 N：[组件名称]
+
+      **文件：**
+      - 创建：`exact/path/to/file.ts`
+      - 修改：`exact/path/to/existing.ts:123-145`
+      - 测试：`tests/exact/path/to/test.ts`
+
+      - [ ] **步骤 1：编写失败的测试**
+      [实际测试代码]
+
+      - [ ] **步骤 2：运行测试确认失败**
+      运行：`命令`
+      预期：FAIL，错误 "..."
+
+      - [ ] **步骤 3：编写最小实现**
+      [实际实现代码]
+
+      - [ ] **步骤 4：运行测试确认通过**
+      运行：`命令`
+      预期：PASS
+
+      - [ ] **步骤 5：提交**
+      ```
+      git add [文件]
+      git commit -m "feat: ..."
+      ```
+
+      ## 禁止占位符（违反即为计划失败）
+
+      - "TBD"、"TODO"、"稍后实现"
+      - "添加适当的错误处理"（没有代码）
+      - "编写测试"（没有实际测试代码）
+      - "类似于任务 N"（必须重复完整代码）
+      - 描述做什么但不展示如何做
+
+      原则：DRY、YAGNI、TDD、频繁提交。每步必须包含工程师需要的实际内容。
+
+  - id: self-reviewer
+    role: reviewer
+    model: claude-sonnet-4-6
+    prompt: |
+      用新鲜眼光审查前面生成的实现计划。
+
+      目标：{{goal}}
+
+      ## 审查清单（逐项执行）
+
+      **1. 需求覆盖**：浏览每个需求，能指出实现它的任务吗？列出缺口。
+
+      **2. 占位符扫描**：搜索以下红旗并列出位置：
+      - "TBD"、"TODO"、"稍后"
+      - 没有代码的"添加错误处理"
+      - 没有测试代码的"编写测试"
+      - "类似于任务 N"
+
+      **3. 类型一致性**：后续任务的类型、方法签名、属性名是否与前面定义的一致？
+
+      ## 输出
+
+      1. 发现的问题清单
+      2. 修正后的完整计划（内联修复所有问题）
+      3. 执行建议：从哪个任务开始、关键依赖、预估总工作量

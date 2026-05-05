@@ -16,7 +16,7 @@ import { PropertiesPanel } from './PropertiesPanel';
 import { YamlPanel } from './YamlPanel';
 import { CanvasToolbar } from './CanvasToolbar';
 
-const nodeTypes: NodeTypes = { custom: CanvasNode };
+const nodeTypes = { custom: CanvasNode } as NodeTypes;
 
 export function CanvasEditor() {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, setSelectedNode, addNode } =
@@ -57,7 +57,7 @@ export function CanvasEditor() {
             onConnect={onConnect}
             onNodeClick={(_, node) => setSelectedNode(node.id)}
             onPaneClick={() => setSelectedNode(null)}
-            onInit={(instance) => { rfRef.current = instance; }}
+            onInit={(instance) => { rfRef.current = instance as unknown as ReactFlowInstance; }}
             fitView
             className="bg-zinc-900"
           >

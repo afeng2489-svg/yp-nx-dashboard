@@ -1,6 +1,5 @@
 import { unwrapEnvelope } from '../api/response';
 import { create } from 'zustand';
-import { onWorkspaceChange } from './workspaceStore';
 
 // Team interfaces
 export interface Team {
@@ -92,6 +91,7 @@ export interface ExecutionResult {
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 // Helper to map backend role to frontend format
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapBackendRole(r: any): Role {
   return {
     id: r.id,
@@ -291,7 +291,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         );
       }
 
-      const teams: Team[] = unwrapEnvelope(await response.json());
+      const teams: Team[] = unwrapEnvelope<Team[]>(await response.json());
       set({ teams, loading: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -313,7 +313,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         throw new ApiError(`Failed to fetch team: ${response.status}`, response.status);
       }
 
-      const data = unwrapEnvelope(await response.json());
+      const data = unwrapEnvelope<{ team?: Team } & Team>(await response.json());
       // API returns TeamWithRoles { team: Team, roles: [] }, extract just the team
       return data.team || data;
     } catch (error) {
@@ -336,7 +336,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         throw new ApiError(`Failed to create team: ${response.status}`, response.status);
       }
 
-      const newTeam = unwrapEnvelope(await response.json());
+      const newTeam = unwrapEnvelope<Team>(await response.json());
       set((state) => ({ teams: [...state.teams, newTeam] }));
       return newTeam;
     } catch (error) {
@@ -409,7 +409,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         throw new ApiError(`Failed to fetch roles: ${response.status}`, response.status);
       }
 
-      const backendRoles = unwrapEnvelope(await response.json());
+      const backendRoles = unwrapEnvelope<unknown[]>(await response.json());
       // Map backend response to frontend format
       const roles: Role[] = backendRoles.map(mapBackendRole);
       set((state) => ({ roles: { ...state.roles, [teamId]: roles } }));
@@ -433,7 +433,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         throw new ApiError(`Failed to create role: ${response.status}`, response.status);
       }
 
-      const backendRole = unwrapEnvelope(await response.json());
+      const backendRole = unwrapEnvelope<unknown>(await response.json());
       const newRole = mapBackendRole(backendRole);
       // role.team_id is guaranteed to be set since we require it for creation
       const teamId = role.team_id!;
@@ -533,7 +533,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       if (!response.ok) {
         throw new ApiError(`Failed to fetch all roles: ${response.status}`, response.status);
       }
-      const backendRoles = unwrapEnvelope(await response.json());
+      const backendRoles = unwrapEnvelope<unknown[]>(await response.json());
       return backendRoles.map(mapBackendRole);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -554,7 +554,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       if (!response.ok) {
         throw new ApiError(`Failed to assign role to team: ${response.status}`, response.status);
       }
-      const backendRole = unwrapEnvelope(await response.json());
+      const backendRole = unwrapEnvelope<unknown>(await response.json());
       const newRole = mapBackendRole(backendRole);
       // Add to the target team's roles (dedup by id to prevent duplicates)
       set((state) => {
@@ -648,7 +648,8 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         throw new ApiError(`Failed to fetch messages: ${response.status}`, response.status);
       }
 
-      const backendMessages: any[] = unwrapEnvelope(await response.json());
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const backendMessages: any[] = unwrapEnvelope<any[]>(await response.json());
       // Map backend message_type to frontend role field
       const messages: Message[] = backendMessages.map((m) => ({
         ...m,
@@ -708,7 +709,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       if (!response.ok) {
         let errorMessage = `Failed to execute task: ${response.status}`;
         try {
-          const errorBody = unwrapEnvelope(await response.json());
+          const errorBody = unwrapEnvelope<{ error?: string; message?: string }>(await response.json());
           if (errorBody?.error) {
             errorMessage = errorBody.error;
           } else if (errorBody?.message) {
@@ -730,8 +731,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         throw new ApiError(errorMessage, response.status);
       }
 
-      const result: ExecutionResult = unwrapEnvelope(await response.json());
-      console.log('[ExecuteTask] Execution result success:', result.success);
+      const result: ExecutionResult = unwrapEnvelope<ExecutionResult>(await response.json());
 
       if (isMonitor) {
         set((state) => ({
@@ -827,7 +827,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         throw new ApiError(`Failed to configure Telegram: ${response.status}`, response.status);
       }
 
-      const updatedConfig: TelegramConfig = unwrapEnvelope(await response.json());
+      const updatedConfig: TelegramConfig = unwrapEnvelope<TelegramConfig>(await response.json());
       set({ telegramConfig: updatedConfig });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -851,7 +851,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         throw new ApiError(`Failed to get Telegram config: ${response.status}`, response.status);
       }
 
-      const config: TelegramConfig = unwrapEnvelope(await response.json());
+      const config: TelegramConfig = unwrapEnvelope<TelegramConfig>(await response.json());
       set({ telegramConfig: config });
       return config;
     } catch (error) {
@@ -907,7 +907,6 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
 
   // Memory actions
   searchMemory: async (teamId, query) => {
-    console.log('[Memory] Searching memory for team:', teamId, 'query:', query);
     try {
       const response = await fetch(`${API_BASE}/api/v1/teams/${teamId}/memories/search`, {
         method: 'POST',
@@ -920,8 +919,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         throw new ApiError(`Failed to search memory: ${response.status}`, response.status);
       }
 
-      const result = unwrapEnvelope(await response.json()) as MemorySearchResponse;
-      console.log('[Memory] Search results:', result.results.length, 'results');
+      const result = unwrapEnvelope<MemorySearchResponse>(await response.json());
       return result;
     } catch (error) {
       console.error(`[Memory] Failed to search memory for team ${teamId}:`, error);
@@ -930,17 +928,8 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
   },
 
   storeMemory: async (teamId, userId, content, role = 'user', sessionId) => {
-    console.log(
-      '[Memory] Storing memory for team:',
-      teamId,
-      'userId:',
-      userId,
-      'content:',
-      content.substring(0, 50),
-    );
     try {
       const url = `${API_BASE}/api/v1/teams/${teamId}/memories`;
-      console.log('[Memory] POST URL:', url);
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -953,16 +942,13 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         }),
       });
 
-      console.log('[Memory] Store response status:', response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
         console.error('[Memory] Store failed with status:', response.status, 'body:', errorText);
         throw new ApiError(`Failed to store memory: ${response.status}`, response.status);
       }
 
-      const result = unwrapEnvelope(await response.json());
-      console.log('[Memory] Store success:', result);
+      unwrapEnvelope<unknown>(await response.json());
     } catch (error) {
       console.error(`[Memory] Failed to store memory for team ${teamId}:`, error);
     }

@@ -5,7 +5,6 @@ import { useWorkflowStore } from '@/stores/workflowStore';
 import { useExecutionStore } from '@/stores/executionStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import {
-  Clock,
   CheckCircle,
   XCircle,
   ChevronRight,
@@ -13,6 +12,7 @@ import {
   Sparkles,
   Workflow as WorkflowIcon,
   Zap,
+  Send,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -185,8 +185,36 @@ export function DashboardPage() {
   const { executions } = useExecutionStore();
   const { sessions } = useSessionStore();
 
+  const [quickPrompt, setQuickPrompt] = useState('');
+  const [quickLoading, setQuickLoading] = useState(false);
+  const [quickError, setQuickError] = useState<string | null>(null);
+
+  const handleQuickRun = async () => {
+    if (!quickPrompt.trim() || quickLoading) return;
+    setQuickLoading(true);
+    setQuickError(null);
+    try {
+      const res = await fetch('http://localhost:3000/api/v1/quick-run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: quickPrompt.trim() }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setQuickPrompt('');
+        navigate(`/executions`);
+      } else {
+        setQuickError(data.error ?? '启动失败');
+      }
+    } catch (e) {
+      setQuickError(e instanceof Error ? e.message : '网络错误');
+    } finally {
+      setQuickLoading(false);
+    }
+  };
+
   // Use React Query for parallel fetching with caching
-  const { isLoading, refetch } = useDashboardData();
+  const { isLoading } = useDashboardData();
 
   // Combine loading states for initial load
   const isInitialLoading = isLoading;
@@ -214,6 +242,29 @@ export function DashboardPage() {
           <Sparkles className="w-4 h-4" />
           新建工作流
         </button>
+      </div>
+
+      {/* Quick Run */}
+      <div className="relative">
+        <div className="flex items-center gap-2 p-1 pl-4 rounded-2xl border border-border/50 bg-card shadow-sm focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
+          <Zap className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <input
+            value={quickPrompt}
+            onChange={(e) => setQuickPrompt(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleQuickRun()}
+            placeholder="告诉我你想做什么，例如：给用户模块加一个头像上传功能..."
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground py-2.5"
+          />
+          <button
+            onClick={handleQuickRun}
+            disabled={!quickPrompt.trim() || quickLoading}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 hover:bg-primary/90 transition-colors"
+          >
+            <Send className="w-3.5 h-3.5" />
+            {quickLoading ? '启动中...' : '开始'}
+          </button>
+        </div>
+        {quickError && <p className="mt-1.5 text-xs text-destructive pl-4">{quickError}</p>}
       </div>
 
       {/* Loading State */}

@@ -4,9 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { useWorkflowStore, Workflow, Agent } from '@/stores/workflowStore';
 import { WorkflowTutorialModal } from '@/components/workflow/WorkflowTutorialModal';
 import { WorkflowLaunchModal } from '@/components/workflow/WorkflowLaunchModal';
-import { useExecutionStore } from '@/stores/executionStore';
 import { useSkillStore, type SkillSummary } from '@/stores/skillStore';
-import { useWorkspaceStore, onWorkspaceChange } from '@/stores/workspaceStore';
+import { onWorkspaceChange } from '@/stores/workspaceStore';
 import {
   Plus,
   Trash2,
@@ -572,8 +571,7 @@ const SAMPLE_WORKFLOWS: Workflow[] = [
 
 export function WorkflowsPage() {
   const navigate = useNavigate();
-  const { getWorkflow, deleteWorkflow, setCurrentWorkflow, createWorkflow } = useWorkflowStore();
-  const { currentWorkspace } = useWorkspaceStore();
+  const { getWorkflow, deleteWorkflow, setCurrentWorkflow } = useWorkflowStore();
   const [displayWorkflows, setDisplayWorkflows] = useState<Workflow[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);

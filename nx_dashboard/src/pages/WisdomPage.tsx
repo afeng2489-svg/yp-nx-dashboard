@@ -1,11 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   useWisdomStore,
   WisdomEntry,
   WisdomCategory,
-  CategorySummary,
   getCategoryDisplayName,
-  getCategoryColor,
 } from '@/stores/wisdomStore';
 import { useWisdomEntriesQuery, useWisdomCategoriesQuery } from '@/hooks/useReactQuery';
 import {
@@ -20,7 +18,6 @@ import {
   Wrench,
   Tag,
   Clock,
-  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -348,12 +345,6 @@ export function WisdomPage() {
     } else {
       refetchEntries();
     }
-  };
-
-  const handleCategoryClick = (category: WisdomCategory | null) => {
-    setSelectedCategory(category);
-    setLocalSearchQuery('');
-    refetchEntries();
   };
 
   const handleCreate = async (data: {

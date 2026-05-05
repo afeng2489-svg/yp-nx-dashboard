@@ -25,7 +25,6 @@ export function TemplateGallery({ isOpen, onClose, onUseTemplate }: TemplateGall
     fetchTemplates,
     fetchTemplatesByCategory,
     getTemplate,
-    instantiateTemplate,
   } = useTemplateStore();
 
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
@@ -34,6 +33,7 @@ export function TemplateGallery({ isOpen, onClose, onUseTemplate }: TemplateGall
     if (isOpen && templates.length === 0) {
       fetchTemplates();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const handleCategoryChange = (category: TemplateCategory | 'all') => {
@@ -51,13 +51,6 @@ export function TemplateGallery({ isOpen, onClose, onUseTemplate }: TemplateGall
     }
   };
 
-  const handleUseTemplate = async (template: TemplateSummary) => {
-    const fullTemplate = await getTemplate(template.id);
-    if (fullTemplate) {
-      onUseTemplate(fullTemplate);
-      onClose();
-    }
-  };
 
   if (!isOpen) return null;
 
