@@ -33,7 +33,7 @@ export function TemplateGallery({ isOpen, onClose, onUseTemplate }: TemplateGall
     if (isOpen && templates.length === 0) {
       fetchTemplates();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const handleCategoryChange = (category: TemplateCategory | 'all') => {
@@ -50,7 +50,6 @@ export function TemplateGallery({ isOpen, onClose, onUseTemplate }: TemplateGall
       setPreviewTemplate(template);
     }
   };
-
 
   if (!isOpen) return null;
 

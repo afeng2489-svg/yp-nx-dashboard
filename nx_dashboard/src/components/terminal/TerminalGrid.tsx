@@ -220,7 +220,7 @@ function TerminalPane({
       }
       terminal.dispose();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 外部调整大小时重新 fit

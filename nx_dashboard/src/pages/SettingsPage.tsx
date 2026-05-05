@@ -284,7 +284,6 @@ function ToggleSwitch({
   );
 }
 
-
 export function SettingsPage() {
   const [activeSection, setActiveSection] = useState('appearance');
   const { reset } = useSettingsStore();

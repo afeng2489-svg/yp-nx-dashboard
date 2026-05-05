@@ -120,7 +120,7 @@ export function ClaudeStreamPanel({
       setInput(initialPrompt);
       execute(initialPrompt, workingDirectory);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPrompt, isConnected, isExecuting]);
 
   const handleExecute = () => {

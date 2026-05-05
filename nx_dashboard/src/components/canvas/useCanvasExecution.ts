@@ -29,7 +29,10 @@ export function useCanvasExecution(executionId: string | null) {
         } else if (ev.type === 'stage_completed') {
           updateNodeExecStatus(ev.stage_name, 'success', { execDuration: ev.duration_ms });
         } else if (ev.type === 'stage_failed') {
-          updateNodeExecStatus(ev.stage_name, 'failed', { execError: ev.error, execDuration: ev.duration_ms });
+          updateNodeExecStatus(ev.stage_name, 'failed', {
+            execError: ev.error,
+            execDuration: ev.duration_ms,
+          });
         } else if (ev.type === 'stage_retrying') {
           updateNodeExecStatus(ev.stage_name, 'retrying');
         } else if (ev.type === 'agent_token') {

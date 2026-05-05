@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AIProvider, CreateProviderRequest, UpdateProviderRequest, APIFormat } from '@/api/client';
 import {
-  AIProvider,
-  CreateProviderRequest,
-  UpdateProviderRequest,
-  APIFormat,
-} from '@/api/client';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 interface ProviderFormProps {
   provider?: AIProvider | null;
@@ -179,7 +180,9 @@ export function ProviderForm({ provider, onSubmit, onCancel, isLoading }: Provid
             value={typeof formData.api_format === 'string' ? formData.api_format : 'openai'}
             onValueChange={(v) => setFormData({ ...formData, api_format: v as APIFormat })}
           >
-            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="openai">OpenAI Compatible</SelectItem>
               <SelectItem value="anthropic">Anthropic Message (原生)</SelectItem>
@@ -194,7 +197,9 @@ export function ProviderForm({ provider, onSubmit, onCancel, isLoading }: Provid
             value={formData.auth_field}
             onValueChange={(v) => setFormData({ ...formData, auth_field: v })}
           >
-            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="Authorization">Authorization (默认)</SelectItem>
               <SelectItem value="x-api-key">x-api-key</SelectItem>

@@ -22,10 +22,15 @@ import {
   FlaskConical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 // ── 模型路由规则 ────────────────────────────────────────────────────────────
-
 
 function ModelRoutingSection() {
   const [rules, setRules] = useState<RoutingRule[]>([]);
@@ -47,7 +52,9 @@ function ModelRoutingSection() {
     }
   };
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    void refresh();
+  }, []);
 
   const handleDelete = async (id: string) => {
     try {
@@ -146,7 +153,10 @@ function ModelRoutingSection() {
                   <button onClick={handleSaveEdit} className="text-green-500 hover:text-green-400">
                     <Check className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingId(null)} className="text-muted-foreground hover:text-foreground">
+                  <button
+                    onClick={() => setEditingId(null)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     <X className="w-4 h-4" />
                   </button>
                 </>
@@ -154,22 +164,37 @@ function ModelRoutingSection() {
                 <>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{rule.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{conditionSummary(rule)}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {conditionSummary(rule)}
+                    </p>
                   </div>
-                  <span className="text-xs font-mono text-primary truncate max-w-[140px]">{rule.model}</span>
+                  <span className="text-xs font-mono text-primary truncate max-w-[140px]">
+                    {rule.model}
+                  </span>
                   <button
                     onClick={() => handleToggle(rule)}
-                    className={cn('text-xs px-2 py-0.5 rounded', rule.enabled ? 'bg-green-500/20 text-green-400' : 'bg-muted text-muted-foreground')}
+                    className={cn(
+                      'text-xs px-2 py-0.5 rounded',
+                      rule.enabled
+                        ? 'bg-green-500/20 text-green-400'
+                        : 'bg-muted text-muted-foreground',
+                    )}
                   >
                     {rule.enabled ? '启用' : '禁用'}
                   </button>
                   <button
-                    onClick={() => { setEditingId(rule.id); setEditDraft({ name: rule.name, model: rule.model }); }}
+                    onClick={() => {
+                      setEditingId(rule.id);
+                      setEditDraft({ name: rule.name, model: rule.model });
+                    }}
                     className="text-muted-foreground hover:text-foreground"
                   >
                     <Save className="w-3.5 h-3.5" />
                   </button>
-                  <button onClick={() => handleDelete(rule.id)} className="text-muted-foreground hover:text-destructive">
+                  <button
+                    onClick={() => handleDelete(rule.id)}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </>
@@ -569,10 +594,14 @@ function ClaudeSwitchSection() {
                     })
                   }
                 >
-                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {CLAUDE_SWITCH_BACKENDS.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

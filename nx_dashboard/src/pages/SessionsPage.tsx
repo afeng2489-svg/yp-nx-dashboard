@@ -18,7 +18,13 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 const STATUS_CONFIG = {
   pending: {
@@ -321,7 +327,9 @@ export function SessionsPage() {
         </div>
         <div className="flex items-center gap-2">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-8 text-sm w-32"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-sm w-32">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部</SelectItem>
               <SelectItem value="pending">等待中</SelectItem>
@@ -405,17 +413,29 @@ function SessionMessages({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Agent 对话</p>
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        Agent 对话
+      </p>
       <div className="space-y-2 max-h-64 overflow-y-auto">
         {msgs.map((m) => (
-          <MessageBubble key={m.id} msg={m} onRespond={(text) => respond.mutate({ msgId: m.id, text })} />
+          <MessageBubble
+            key={m.id}
+            msg={m}
+            onRespond={(text) => respond.mutate({ msgId: m.id, text })}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function MessageBubble({ msg, onRespond }: { msg: PersistedMessage; onRespond: (t: string) => void }) {
+function MessageBubble({
+  msg,
+  onRespond,
+}: {
+  msg: PersistedMessage;
+  onRespond: (t: string) => void;
+}) {
   const [reply, setReply] = useState('');
   let content = msg.content_json;
   try {
@@ -426,7 +446,9 @@ function MessageBubble({ msg, onRespond }: { msg: PersistedMessage; onRespond: (
       else if (val?.question) content = val.question;
       else if (val?.message) content = val.message;
     }
-  } catch { /* keep raw */ }
+  } catch {
+    /* keep raw */
+  }
 
   return (
     <div className="rounded-lg border border-border/50 bg-muted/30 p-2.5 text-sm space-y-1.5">
@@ -438,11 +460,21 @@ function MessageBubble({ msg, onRespond }: { msg: PersistedMessage; onRespond: (
             placeholder="输入回复..."
             value={reply}
             onChange={(e) => setReply(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && reply.trim()) { onRespond(reply.trim()); setReply(''); } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && reply.trim()) {
+                onRespond(reply.trim());
+                setReply('');
+              }
+            }}
           />
           <button
             className="text-xs px-2 py-1 rounded bg-primary text-primary-foreground"
-            onClick={() => { if (reply.trim()) { onRespond(reply.trim()); setReply(''); } }}
+            onClick={() => {
+              if (reply.trim()) {
+                onRespond(reply.trim());
+                setReply('');
+              }
+            }}
           >
             发送
           </button>

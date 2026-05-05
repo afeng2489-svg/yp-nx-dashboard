@@ -18,7 +18,13 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WS_BASE_URL } from '@/api/constants';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 // WebSocket 日志流 Hook
 function useLogStream(executionId: string | undefined) {
@@ -517,7 +523,9 @@ export function ExecutionMonitor() {
             if (exec) setCurrentExecution(exec);
           }}
         >
-          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             {executions.map((exec) => (
               <SelectItem key={exec.id} value={exec.id}>

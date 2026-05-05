@@ -118,7 +118,6 @@ class ApiError extends Error {
   }
 }
 
-
 interface GroupChatStore {
   sessions: GroupSession[];
   currentSession: GroupSessionDetail | null;
@@ -334,7 +333,9 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
         throw new ApiError(`Failed to get next speaker: ${response.status}`, response.status);
       }
 
-      const data = unwrapEnvelope<{ role_id: string; role_name: string } | null>(await response.json());
+      const data = unwrapEnvelope<{ role_id: string; role_name: string } | null>(
+        await response.json(),
+      );
       return data; // { role_id, role_name } or null
     } catch (error) {
       console.error(`Failed to get next speaker for ${id}:`, error);

@@ -37,7 +37,13 @@ import { AgentThinkingIndicator } from '@/components/team/AgentThinkingIndicator
 import ProjectProgressDashboard from '@/components/team/ProjectProgressDashboard';
 import CrashRecoveryDialog from '@/components/team/CrashRecoveryDialog';
 import ProcessResourceBar from '@/components/team/ProcessResourceBar';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -116,7 +122,11 @@ function useParallelRound() {
                   case 'started':
                     return { ...b, status: 'pending' as const };
                   case 'thinking':
-                    return { ...b, status: 'thinking' as const, elapsed_secs: data.elapsed_secs ?? b.elapsed_secs };
+                    return {
+                      ...b,
+                      status: 'thinking' as const,
+                      elapsed_secs: data.elapsed_secs ?? b.elapsed_secs,
+                    };
                   case 'completed':
                     return { ...b, status: 'done' as const };
                   case 'failed':
@@ -950,12 +960,19 @@ export function GroupChatPage() {
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium mb-1 block">团队</label>
-                <Select value={createForm.team_id} onValueChange={(v) => setCreateForm({ ...createForm, team_id: v })}>
-                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <Select
+                  value={createForm.team_id}
+                  onValueChange={(v) => setCreateForm({ ...createForm, team_id: v })}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">选择团队</SelectItem>
                     {teams.map((team) => (
-                      <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -985,9 +1002,13 @@ export function GroupChatPage() {
                   <label className="text-sm font-medium mb-1 block">发言策略</label>
                   <Select
                     value={createForm.speaking_strategy}
-                    onValueChange={(v) => setCreateForm({ ...createForm, speaking_strategy: v as SpeakingStrategy })}
+                    onValueChange={(v) =>
+                      setCreateForm({ ...createForm, speaking_strategy: v as SpeakingStrategy })
+                    }
                   >
-                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="round_robin">轮流发言</SelectItem>
                       <SelectItem value="free">自由发言</SelectItem>

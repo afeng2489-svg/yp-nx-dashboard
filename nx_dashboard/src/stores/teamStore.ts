@@ -709,7 +709,9 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
       if (!response.ok) {
         let errorMessage = `Failed to execute task: ${response.status}`;
         try {
-          const errorBody = unwrapEnvelope<{ error?: string; message?: string }>(await response.json());
+          const errorBody = unwrapEnvelope<{ error?: string; message?: string }>(
+            await response.json(),
+          );
           if (errorBody?.error) {
             errorMessage = errorBody.error;
           } else if (errorBody?.message) {

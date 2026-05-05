@@ -6,8 +6,15 @@ import { TemplatesPanel } from './TemplatesPanel';
 import { WorkflowLaunchModal } from '@/components/workflow/WorkflowLaunchModal';
 
 export function CanvasToolbar() {
-  const { workflowName, workflowId, setWorkflowName, setWorkflowId, toYaml, loadFromYaml, resetExecStatus } =
-    useCanvasStore();
+  const {
+    workflowName,
+    workflowId,
+    setWorkflowName,
+    setWorkflowId,
+    toYaml,
+    loadFromYaml,
+    resetExecStatus,
+  } = useCanvasStore();
   const [saving, setSaving] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showLaunch, setShowLaunch] = useState(false);
@@ -78,12 +85,20 @@ export function CanvasToolbar() {
           onChange={(e) => setWorkflowName(e.target.value)}
         />
         <div className="flex-1" />
-        <button onClick={() => setShowTemplates(true)} className={BTN}>模板库</button>
-        <button onClick={importFile} className={BTN}>导入 YAML</button>
+        <button onClick={() => setShowTemplates(true)} className={BTN}>
+          模板库
+        </button>
+        <button onClick={importFile} className={BTN}>
+          导入 YAML
+        </button>
         <button onClick={save} disabled={saving} className={`${BTN} ${saving ? 'opacity-50' : ''}`}>
           {saving ? '保存中...' : '保存'}
         </button>
-        <button onClick={run} disabled={saving} className={`${BTN} bg-primary text-primary-foreground hover:bg-primary/90 ${saving ? 'opacity-50' : ''}`}>
+        <button
+          onClick={run}
+          disabled={saving}
+          className={`${BTN} bg-primary text-primary-foreground hover:bg-primary/90 ${saving ? 'opacity-50' : ''}`}
+        >
           ▶ 运行
         </button>
       </div>
@@ -91,4 +106,5 @@ export function CanvasToolbar() {
   );
 }
 
-const BTN = 'rounded px-3 py-1 text-xs bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors';
+const BTN =
+  'rounded px-3 py-1 text-xs bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors';

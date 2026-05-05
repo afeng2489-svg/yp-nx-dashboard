@@ -67,7 +67,9 @@ export const CanvasNode = memo(({ data: rawData, selected }: NodeProps) => {
         </div>
       )}
       {data.execDuration != null && data.execStatus !== 'running' && (
-        <div className="mt-1 text-xs text-muted-foreground/60">{(data.execDuration / 1000).toFixed(1)}s</div>
+        <div className="mt-1 text-xs text-muted-foreground/60">
+          {(data.execDuration / 1000).toFixed(1)}s
+        </div>
       )}
 
       <Handle type="source" position={Position.Bottom} className="!bg-border" />

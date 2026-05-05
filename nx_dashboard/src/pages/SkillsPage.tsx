@@ -13,7 +13,13 @@ import {
 import { showSuccess, showError } from '@/lib/toast';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 import { Pencil, Trash2, Plus, X, Download, Link, FileText, ClipboardPaste } from 'lucide-react';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 export default function SkillsPage() {
   const {
@@ -733,10 +739,17 @@ export default function SkillsPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">类别</label>
-                  <Select value={editForm.category} onValueChange={(v) => setEditForm({ ...editForm, category: v })}>
-                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <Select
+                    value={editForm.category}
+                    onValueChange={(v) => setEditForm({ ...editForm, category: v })}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="workflow_planning">工作流规划 (workflow_planning)</SelectItem>
+                      <SelectItem value="workflow_planning">
+                        工作流规划 (workflow_planning)
+                      </SelectItem>
                       <SelectItem value="collaboration">协作 (collaboration)</SelectItem>
                       <SelectItem value="development">开发 (development)</SelectItem>
                       <SelectItem value="testing">测试 (testing)</SelectItem>

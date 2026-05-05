@@ -25,7 +25,7 @@ export function WorkspaceSelector() {
 
   useEffect(() => {
     fetchWorkspaces();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 使用 Tauri 原生对话框选择文件夹

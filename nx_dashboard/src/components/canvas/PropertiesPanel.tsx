@@ -1,6 +1,12 @@
 import { useCanvasStore } from '@/stores/canvasStore';
 import type { NodeData } from '@/stores/canvasStore';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 export function PropertiesPanel() {
   const { nodes, selectedNodeId, updateNodeData } = useCanvasStore();
@@ -28,7 +34,11 @@ export function PropertiesPanel() {
       {d.kind === 'agent' && (
         <>
           <Field label="模型">
-            <input className={INPUT} value={d.model ?? ''} onChange={(e) => upd({ model: e.target.value })} />
+            <input
+              className={INPUT}
+              value={d.model ?? ''}
+              onChange={(e) => upd({ model: e.target.value })}
+            />
           </Field>
           <Field label="System Prompt">
             <textarea
@@ -43,7 +53,11 @@ export function PropertiesPanel() {
       {d.kind === 'shell' && (
         <>
           <Field label="命令">
-            <input className={INPUT} value={d.command ?? ''} onChange={(e) => upd({ command: e.target.value })} />
+            <input
+              className={INPUT}
+              value={d.command ?? ''}
+              onChange={(e) => upd({ command: e.target.value })}
+            />
           </Field>
           <Field label="超时(s)">
             <input
@@ -67,7 +81,9 @@ export function PropertiesPanel() {
           </Field>
           <Field label="失败策略">
             <Select value={d.on_fail ?? 'retry'} onValueChange={(v) => upd({ on_fail: v })}>
-              <SelectTrigger className={INPUT}><SelectValue /></SelectTrigger>
+              <SelectTrigger className={INPUT}>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="retry">retry</SelectItem>
                 <SelectItem value="continue">continue</SelectItem>
@@ -80,7 +96,11 @@ export function PropertiesPanel() {
 
       {d.kind === 'condition' && (
         <Field label="条件表达式">
-          <input className={INPUT} value={d.condition ?? ''} onChange={(e) => upd({ condition: e.target.value })} />
+          <input
+            className={INPUT}
+            value={d.condition ?? ''}
+            onChange={(e) => upd({ condition: e.target.value })}
+          />
         </Field>
       )}
 
@@ -88,16 +108,24 @@ export function PropertiesPanel() {
         <>
           <Field label="Method">
             <Select value={d.method ?? 'GET'} onValueChange={(v) => upd({ method: v })}>
-              <SelectTrigger className={INPUT}><SelectValue /></SelectTrigger>
+              <SelectTrigger className={INPUT}>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </Field>
           <Field label="URL">
-            <input className={INPUT} value={d.url ?? ''} onChange={(e) => upd({ url: e.target.value })} />
+            <input
+              className={INPUT}
+              value={d.url ?? ''}
+              onChange={(e) => upd({ url: e.target.value })}
+            />
           </Field>
         </>
       )}
@@ -105,7 +133,11 @@ export function PropertiesPanel() {
       {d.kind === 'approval' && (
         <>
           <Field label="审批问题">
-            <input className={INPUT} value={d.question ?? ''} onChange={(e) => upd({ question: e.target.value })} />
+            <input
+              className={INPUT}
+              value={d.question ?? ''}
+              onChange={(e) => upd({ question: e.target.value })}
+            />
           </Field>
           <Field label="选项(每行一条)">
             <textarea
@@ -120,7 +152,11 @@ export function PropertiesPanel() {
       {d.kind === 'loop' && (
         <>
           <Field label="循环变量">
-            <input className={INPUT} value={d.loop_var ?? ''} onChange={(e) => upd({ loop_var: e.target.value })} />
+            <input
+              className={INPUT}
+              value={d.loop_var ?? ''}
+              onChange={(e) => upd({ loop_var: e.target.value })}
+            />
           </Field>
           <Field label="最大次数">
             <input
@@ -136,7 +172,8 @@ export function PropertiesPanel() {
   );
 }
 
-const INPUT = 'w-full rounded bg-background px-2 py-1 text-xs border border-border focus:outline-none focus:border-primary';
+const INPUT =
+  'w-full rounded bg-background px-2 py-1 text-xs border border-border focus:outline-none focus:border-primary';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

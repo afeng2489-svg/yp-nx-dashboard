@@ -35,7 +35,7 @@ export function CanvasEditor() {
       });
       addNode(kind, position);
     },
-    [addNode]
+    [addNode],
   );
 
   return (
@@ -43,11 +43,7 @@ export function CanvasEditor() {
       <CanvasToolbar />
       <div className="flex flex-1 overflow-hidden">
         <NodePanel />
-        <div
-          className="flex-1"
-          onDrop={onDrop}
-          onDragOver={(e) => e.preventDefault()}
-        >
+        <div className="flex-1" onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -57,7 +53,9 @@ export function CanvasEditor() {
             onConnect={onConnect}
             onNodeClick={(_, node) => setSelectedNode(node.id)}
             onPaneClick={() => setSelectedNode(null)}
-            onInit={(instance) => { rfRef.current = instance as unknown as ReactFlowInstance; }}
+            onInit={(instance) => {
+              rfRef.current = instance as unknown as ReactFlowInstance;
+            }}
             fitView
             className="bg-zinc-900"
           >

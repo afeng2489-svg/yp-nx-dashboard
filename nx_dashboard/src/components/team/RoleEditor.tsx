@@ -6,7 +6,13 @@ import { useAIConfigStore } from '@/stores/aiConfigStore';
 import { useSkillStore } from '@/stores/skillStore';
 import { showError } from '@/lib/toast';
 import { SkillAssigner } from './SkillAssigner';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 interface RoleEditorProps {
   role: Role | null;
@@ -132,7 +138,9 @@ export function RoleEditor({ role, teamId, onClose, onSave }: RoleEditorProps) {
               <div>
                 <label className="block text-sm font-medium mb-2">模型</label>
                 <Select value={model} onValueChange={setModel}>
-                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {models.length > 0 ? (
                       models.map((m) => (

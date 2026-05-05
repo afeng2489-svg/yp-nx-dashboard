@@ -398,7 +398,9 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             }
             throw new ApiError(`Failed to read file: ${response.status}`, response.status);
           }
-          const data = unwrapEnvelope<{ path: string; content: string; language: string }>(await response.json());
+          const data = unwrapEnvelope<{ path: string; content: string; language: string }>(
+            await response.json(),
+          );
           const newFile: OpenFile = {
             path: data.path,
             content: data.content,

@@ -42,12 +42,16 @@ export function YamlPanel() {
       {mode === 'preview' ? (
         <>
           <div className="flex gap-1 p-2 border-b border-border">
-            <button onClick={() => navigator.clipboard.writeText(yamlStr)}
-              className="flex-1 rounded bg-secondary py-1 text-xs text-secondary-foreground hover:bg-secondary/80">
+            <button
+              onClick={() => navigator.clipboard.writeText(yamlStr)}
+              className="flex-1 rounded bg-secondary py-1 text-xs text-secondary-foreground hover:bg-secondary/80"
+            >
               复制
             </button>
-            <button onClick={download}
-              className="flex-1 rounded bg-secondary py-1 text-xs text-secondary-foreground hover:bg-secondary/80">
+            <button
+              onClick={download}
+              className="flex-1 rounded bg-secondary py-1 text-xs text-secondary-foreground hover:bg-secondary/80"
+            >
               下载
             </button>
           </div>
@@ -63,8 +67,10 @@ export function YamlPanel() {
             value={importText}
             onChange={(e) => setImportText(e.target.value)}
           />
-          <button onClick={handleImport}
-            className="rounded bg-primary py-1.5 text-xs text-primary-foreground hover:bg-primary/90">
+          <button
+            onClick={handleImport}
+            className="rounded bg-primary py-1.5 text-xs text-primary-foreground hover:bg-primary/90"
+          >
             导入到画布
           </button>
         </div>

@@ -7,7 +7,13 @@ import {
   LoopConfig,
 } from '@/stores/editorStore';
 import { AGENT_ROLES, CLI_PROVIDERS, MODEL_OPTIONS, NODE_COLORS, NODE_ICONS } from './types';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 export function PropertyPanel() {
   const { nodes, selectedNodeId, updateNodeData, deleteNode } = useEditorStore();
@@ -138,10 +144,14 @@ function AgentConfigPanel({
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">角色</label>
         <Select value={config.role} onValueChange={(v) => onChange({ role: v })}>
-          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             {AGENT_ROLES.map((role) => (
-              <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
+              <SelectItem key={role.value} value={role.value}>
+                {role.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -150,10 +160,14 @@ function AgentConfigPanel({
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">模型</label>
         <Select value={config.model} onValueChange={(v) => onChange({ model: v })}>
-          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             {MODEL_OPTIONS.map((model) => (
-              <SelectItem key={model.value} value={model.value}>{model.label}</SelectItem>
+              <SelectItem key={model.value} value={model.value}>
+                {model.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -161,11 +175,18 @@ function AgentConfigPanel({
 
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">CLI 提供商</label>
-        <Select value={config.cliProvider} onValueChange={(v) => onChange({ cliProvider: v as AgentConfig['cliProvider'] })}>
-          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+        <Select
+          value={config.cliProvider}
+          onValueChange={(v) => onChange({ cliProvider: v as AgentConfig['cliProvider'] })}
+        >
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             {CLI_PROVIDERS.map((provider) => (
-              <SelectItem key={provider.value} value={provider.value}>{provider.label}</SelectItem>
+              <SelectItem key={provider.value} value={provider.value}>
+                {provider.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>

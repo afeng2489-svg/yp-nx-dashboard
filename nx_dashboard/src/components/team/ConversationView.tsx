@@ -207,13 +207,13 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
       const timer = setTimeout(() => agentExec.reset(), 500);
       return () => clearTimeout(timer);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentExec.status, teamId, fetchMessages]);
 
   useEffect(() => {
     fetchMessages(teamId);
     fetchRoles(teamId);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
 
   // 兜底轮询：isActive 期间每 10s 拉一次消息，防止 WS Completed 事件丢失导致消息不更新
@@ -246,7 +246,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
       agentExec.reset();
     }, 300_000);
     return () => clearTimeout(timeout);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, agentExec.reset]);
 
   useEffect(() => {

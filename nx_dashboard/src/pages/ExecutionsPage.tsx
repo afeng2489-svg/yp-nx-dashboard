@@ -486,7 +486,10 @@ function ExecutionLogs({ executionId }: { executionId: string }) {
 
   useEffect(() => {
     if (logTab === 'trace') {
-      api.listExecutionLogs(executionId).then(setTraceLogs).catch(() => {});
+      api
+        .listExecutionLogs(executionId)
+        .then(setTraceLogs)
+        .catch(() => {});
     }
   }, [logTab, executionId]);
 
@@ -610,12 +613,18 @@ function ExecutionLogs({ executionId }: { executionId: string }) {
           <button
             onClick={() => setLogTab('realtime')}
             className={`text-xs px-2 py-0.5 rounded ${logTab === 'realtime' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}
-          >实时</button>
+          >
+            实时
+          </button>
           <button
             onClick={() => setLogTab('trace')}
             className={`text-xs px-2 py-0.5 rounded ${logTab === 'trace' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}
-          >追踪</button>
-          <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-600'}`} />
+          >
+            追踪
+          </button>
+          <div
+            className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-600'}`}
+          />
         </div>
       </div>
 
@@ -648,13 +657,35 @@ function ExecutionLogs({ executionId }: { executionId: string }) {
             </div>
           ) : (
             traceLogs.map((log) => (
-              <div key={log.id} className={cn('leading-relaxed px-2 py-1 rounded border-b border-white/5', log.status === 'failed' ? 'text-red-400' : log.status === 'escalated' ? 'text-amber-400' : 'text-gray-300')}>
-                <span className="text-gray-500">{log.timestamp.slice(11, 19)}</span>
-                {' '}
-                <span className={cn('font-semibold', log.status === 'failed' ? 'text-red-400' : log.status === 'escalated' ? 'text-amber-400' : 'text-emerald-400')}>[{log.status}]</span>
-                {' '}{log.stage_name ?? '-'}
+              <div
+                key={log.id}
+                className={cn(
+                  'leading-relaxed px-2 py-1 rounded border-b border-white/5',
+                  log.status === 'failed'
+                    ? 'text-red-400'
+                    : log.status === 'escalated'
+                      ? 'text-amber-400'
+                      : 'text-gray-300',
+                )}
+              >
+                <span className="text-gray-500">{log.timestamp.slice(11, 19)}</span>{' '}
+                <span
+                  className={cn(
+                    'font-semibold',
+                    log.status === 'failed'
+                      ? 'text-red-400'
+                      : log.status === 'escalated'
+                        ? 'text-amber-400'
+                        : 'text-emerald-400',
+                  )}
+                >
+                  [{log.status}]
+                </span>{' '}
+                {log.stage_name ?? '-'}
                 {log.model && <span className="text-blue-400 ml-1">@{log.model}</span>}
-                {log.attempt > 0 && <span className="text-gray-500 ml-1">attempt={log.attempt}</span>}
+                {log.attempt > 0 && (
+                  <span className="text-gray-500 ml-1">attempt={log.attempt}</span>
+                )}
                 {log.error && <span className="text-red-400 ml-1">— {log.error.slice(0, 80)}</span>}
               </div>
             ))
@@ -1085,7 +1116,8 @@ function GitTab({
         setTimeout(() => setCopied(false), 2000);
       } catch {
         // ignore clipboard error
-      }    } else {
+      }
+    } else {
       await navigator.clipboard.writeText(prDescription);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);

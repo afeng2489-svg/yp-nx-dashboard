@@ -68,9 +68,7 @@ const BrowserPage = lazy(() =>
 const UIDesignPage = lazy(() =>
   import('@/pages/UIDesignPage').then((m) => ({ default: m.UIDesignPage })),
 );
-const CostPage = lazy(() =>
-  import('@/pages/CostPage').then((m) => ({ default: m.CostPage })),
-);
+const CostPage = lazy(() => import('@/pages/CostPage').then((m) => ({ default: m.CostPage })));
 const KnowledgeBasePage = lazy(() =>
   import('@/pages/KnowledgeBasePage').then((m) => ({ default: m.KnowledgeBasePage })),
 );

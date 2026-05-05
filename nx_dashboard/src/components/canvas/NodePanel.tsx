@@ -30,7 +30,9 @@ export function NodePanel() {
 
   return (
     <div className="w-48 shrink-0 border-r border-border bg-card p-3 overflow-y-auto">
-      <p className="mb-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">节点</p>
+      <p className="mb-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        节点
+      </p>
       {GROUPS.map((g) => (
         <div key={g.label} className="mb-4">
           <p className="mb-1 text-xs text-muted-foreground/60">{g.label}</p>
@@ -39,7 +41,9 @@ export function NodePanel() {
               key={kind}
               draggable
               onDragStart={(e) => onDragStart(e, kind)}
-              onClick={() => addNode(kind, { x: 200 + Math.random() * 200, y: 100 + Math.random() * 200 })}
+              onClick={() =>
+                addNode(kind, { x: 200 + Math.random() * 200, y: 100 + Math.random() * 200 })
+              }
               className="mb-1 cursor-grab rounded px-2 py-1.5 text-xs hover:bg-accent transition-colors active:cursor-grabbing select-none"
             >
               {KIND_LABELS[kind]}

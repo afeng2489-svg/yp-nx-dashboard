@@ -4,7 +4,15 @@ import type { Connection, NodeChange, EdgeChange } from '@xyflow/react';
 import * as yaml from 'js-yaml';
 import { API_BASE_URL } from '@/api/constants';
 
-export type NodeKind = 'agent' | 'shell' | 'quality_gate' | 'condition' | 'http' | 'approval' | 'loop' | 'workflow';
+export type NodeKind =
+  | 'agent'
+  | 'shell'
+  | 'quality_gate'
+  | 'condition'
+  | 'http'
+  | 'approval'
+  | 'loop'
+  | 'workflow';
 
 export interface NodeData extends Record<string, unknown> {
   kind: NodeKind;
@@ -58,7 +66,11 @@ interface CanvasStore {
   toYaml: () => string;
   setNodes: (nodes: Node<NodeData>[]) => void;
   setEdges: (edges: Edge[]) => void;
-  updateNodeExecStatus: (stageName: string, status: NodeData['execStatus'], extra?: Partial<NodeData>) => void;
+  updateNodeExecStatus: (
+    stageName: string,
+    status: NodeData['execStatus'],
+    extra?: Partial<NodeData>,
+  ) => void;
   resetExecStatus: () => void;
 }
 
@@ -95,13 +107,25 @@ function nodeToStage(node: Node<NodeData>): Record<string, unknown> {
     case 'shell':
       return { ...base, type: 'shell', command: d.command, timeout: d.timeout };
     case 'quality_gate':
-      return { ...base, type: 'quality_gate', checks: d.checks, on_fail: d.on_fail, max_retries: d.max_retries };
+      return {
+        ...base,
+        type: 'quality_gate',
+        checks: d.checks,
+        on_fail: d.on_fail,
+        max_retries: d.max_retries,
+      };
     case 'condition':
       return { ...base, type: 'condition', condition: d.condition };
     case 'http':
       return { ...base, type: 'http', method: d.method, url: d.url };
     case 'approval':
-      return { ...base, type: 'user_input', question: d.question, options: d.options, timeout: d.timeout };
+      return {
+        ...base,
+        type: 'user_input',
+        question: d.question,
+        options: d.options,
+        timeout: d.timeout,
+      };
     case 'loop':
       return { ...base, type: 'loop', loop_var: d.loop_var, max_iterations: d.max_iterations };
     case 'workflow':
@@ -110,7 +134,8 @@ function nodeToStage(node: Node<NodeData>): Record<string, unknown> {
 }
 
 function stageToNodeData(stage: Record<string, unknown>): NodeData {
-  const kind = (stage.type as string) === 'user_input' ? 'approval' : (stage.type as NodeKind) || 'agent';
+  const kind =
+    (stage.type as string) === 'user_input' ? 'approval' : (stage.type as NodeKind) || 'agent';
   return {
     kind,
     label: (stage.name as string) || 'Stage',
@@ -215,7 +240,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         nexts.forEach((nextName) => {
           const targetIdx = stages.findIndex((s) => s.name === nextName);
           if (targetIdx >= 0) {
-            newEdges.push({ id: `e-${i}-${targetIdx}`, source: `stage-${i}`, target: `stage-${targetIdx}` });
+            newEdges.push({
+              id: `e-${i}-${targetIdx}`,
+              source: `stage-${i}`,
+              target: `stage-${targetIdx}`,
+            });
           }
         });
       });
@@ -232,13 +261,23 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   updateNodeExecStatus: (stageName, status, extra) =>
     set((s) => ({
       nodes: s.nodes.map((n) =>
-        n.data.label === stageName ? { ...n, data: { ...n.data, execStatus: status, ...extra } } : n
+        n.data.label === stageName
+          ? { ...n, data: { ...n.data, execStatus: status, ...extra } }
+          : n,
       ),
     })),
 
   resetExecStatus: () =>
     set((s) => ({
-      nodes: s.nodes.map((n) => ({ ...n, data: { ...n.data, execStatus: 'idle' as const, execDuration: undefined, execError: undefined } })),
+      nodes: s.nodes.map((n) => ({
+        ...n,
+        data: {
+          ...n.data,
+          execStatus: 'idle' as const,
+          execDuration: undefined,
+          execError: undefined,
+        },
+      })),
     })),
 }));
 
@@ -251,16 +290,23 @@ async function addWorkflowTrigger(upstreamId: string, downstreamName: string) {
     const doc = (yaml.load(def) as Record<string, unknown>) ?? {};
     const triggers: unknown[] = (doc.triggers as unknown[]) ?? [];
     const already = triggers.some(
-      (t) => (t as Record<string, unknown>).type === 'event' && (t as Record<string, unknown>).workflow_ref === downstreamName
+      (t) =>
+        (t as Record<string, unknown>).type === 'event' &&
+        (t as Record<string, unknown>).workflow_ref === downstreamName,
     );
     if (already) return;
-    const updated = { ...doc, triggers: [...triggers, { type: 'event', workflow_ref: downstreamName, pass_output: true }] };
+    const updated = {
+      ...doc,
+      triggers: [...triggers, { type: 'event', workflow_ref: downstreamName, pass_output: true }],
+    };
     await fetch(`${API_BASE_URL}/api/v1/workflows/${upstreamId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ definition: updated }),
     });
-  } catch { /* best-effort */ }
+  } catch {
+    /* best-effort */
+  }
 }
 
 async function removeWorkflowTrigger(upstreamId: string, downstreamName: string) {
@@ -274,7 +320,11 @@ async function removeWorkflowTrigger(upstreamId: string, downstreamName: string)
     const updated = {
       ...doc,
       triggers: triggers.filter(
-        (t) => !((t as Record<string, unknown>).type === 'event' && (t as Record<string, unknown>).workflow_ref === downstreamName)
+        (t) =>
+          !(
+            (t as Record<string, unknown>).type === 'event' &&
+            (t as Record<string, unknown>).workflow_ref === downstreamName
+          ),
       ),
     };
     await fetch(`${API_BASE_URL}/api/v1/workflows/${upstreamId}`, {
@@ -282,5 +332,7 @@ async function removeWorkflowTrigger(upstreamId: string, downstreamName: string)
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ definition: updated }),
     });
-  } catch { /* best-effort */ }
+  } catch {
+    /* best-effort */
+  }
 }

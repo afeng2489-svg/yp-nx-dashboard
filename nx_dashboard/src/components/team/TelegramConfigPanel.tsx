@@ -39,7 +39,7 @@ export function TelegramConfigPanel({ teamId, onClose }: TelegramConfigPanelProp
 
   useEffect(() => {
     loadBots();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
 
   const loadBots = async () => {

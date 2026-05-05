@@ -62,7 +62,11 @@ export default function ProjectProgressDashboard({ projectId }: Props) {
   return (
     <div className="space-y-4 p-4">
       {progress && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-2"
+        >
           <div className="flex items-center justify-between">
             <h3 className="text-base font-bold">项目进度</h3>
             <span className="text-sm text-muted-foreground">{progress.overall_pct}%</span>
@@ -78,14 +82,20 @@ export default function ProjectProgressDashboard({ projectId }: Props) {
           <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
             <span>阶段: {progress.overall_phase}</span>
             <span>总角色: {progress.total_roles}</span>
-            <span className="text-green-600 dark:text-green-400">活跃: {progress.active_roles}</span>
-            <span className="text-green-700 dark:text-green-500">完成: {progress.completed_roles}</span>
+            <span className="text-green-600 dark:text-green-400">
+              活跃: {progress.active_roles}
+            </span>
+            <span className="text-green-700 dark:text-green-500">
+              完成: {progress.completed_roles}
+            </span>
             {progress.failed_roles > 0 && (
               <span className="text-destructive">失败: {progress.failed_roles}</span>
             )}
           </div>
           {progress.last_activity && (
-            <p className="text-xs text-muted-foreground truncate">最近活动: {progress.last_activity}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              最近活动: {progress.last_activity}
+            </p>
           )}
         </motion.div>
       )}
@@ -126,13 +136,17 @@ function RoleProgressCard({
         className="w-full flex items-center gap-3 p-3 text-left hover:bg-accent/50 transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
-        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${phaseColor} ${
-          snapshot.phase === 'coding' || snapshot.phase === 'thinking' ? 'animate-pulse' : ''
-        }`} />
+        <span
+          className={`w-2.5 h-2.5 rounded-full shrink-0 ${phaseColor} ${
+            snapshot.phase === 'coding' || snapshot.phase === 'thinking' ? 'animate-pulse' : ''
+          }`}
+        />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium truncate">{snapshot.role_name}</span>
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{phaseLabel}</Badge>
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+              {phaseLabel}
+            </Badge>
           </div>
           {snapshot.current_task && (
             <p className="text-xs text-muted-foreground truncate">{snapshot.current_task}</p>
@@ -140,10 +154,14 @@ function RoleProgressCard({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <div className="w-16 bg-secondary rounded-full h-1.5">
-            <div className={`h-1.5 rounded-full ${phaseColor} transition-all duration-300`}
-              style={{ width: `${snapshot.progress_pct}%` }} />
+            <div
+              className={`h-1.5 rounded-full ${phaseColor} transition-all duration-300`}
+              style={{ width: `${snapshot.progress_pct}%` }}
+            />
           </div>
-          <span className="text-xs text-muted-foreground w-8 text-right">{snapshot.progress_pct}%</span>
+          <span className="text-xs text-muted-foreground w-8 text-right">
+            {snapshot.progress_pct}%
+          </span>
         </div>
         <span className="text-muted-foreground text-xs">{expanded ? '▼' : '▶'}</span>
       </button>
@@ -171,12 +189,17 @@ function RoleProgressCard({
                   </span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {snapshot.files_touched.slice(0, 8).map((f) => (
-                      <span key={f} className="text-xs bg-secondary px-1.5 py-0.5 rounded truncate max-w-[200px]">
+                      <span
+                        key={f}
+                        className="text-xs bg-secondary px-1.5 py-0.5 rounded truncate max-w-[200px]"
+                      >
                         {f}
                       </span>
                     ))}
                     {snapshot.files_touched.length > 8 && (
-                      <span className="text-xs text-muted-foreground">+{snapshot.files_touched.length - 8}</span>
+                      <span className="text-xs text-muted-foreground">
+                        +{snapshot.files_touched.length - 8}
+                      </span>
                     )}
                   </div>
                 </div>

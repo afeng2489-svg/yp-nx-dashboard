@@ -53,7 +53,10 @@ function ModelRoutingCostSection() {
   const [rules, setRules] = useState<RoutingRule[]>([]);
 
   useEffect(() => {
-    api.listRoutingRules().then(setRules).catch(() => {});
+    api
+      .listRoutingRules()
+      .then(setRules)
+      .catch(() => {});
   }, []);
 
   const enabledRules = rules.filter((r) => r.enabled);
@@ -106,7 +109,9 @@ function ModelRoutingCostSection() {
                       }}
                     />
                     <span className="text-xs text-muted-foreground w-8">
-                      {row.cost_per_mt === 0 ? '0%' : `${Math.round((row.cost_per_mt / 15) * 100)}%`}
+                      {row.cost_per_mt === 0
+                        ? '0%'
+                        : `${Math.round((row.cost_per_mt / 15) * 100)}%`}
                     </span>
                   </div>
                 </td>
@@ -121,7 +126,11 @@ function ModelRoutingCostSection() {
           <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: number) => `$${v}`} />
           <YAxis type="category" dataKey="model" tick={{ fontSize: 10 }} width={120} />
           <Tooltip
-            contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
+            contentStyle={{
+              background: 'hsl(var(--card))',
+              border: '1px solid hsl(var(--border))',
+              borderRadius: '8px',
+            }}
             formatter={(v: number) => [`$${v}/MT`, '参考价格']}
           />
           <Bar dataKey="cost_per_mt" fill="#6366f1" radius={[0, 4, 4, 0]} name="参考价格 ($/MT)" />
@@ -178,8 +187,7 @@ export function CostPage() {
         ? `${(n / 1000).toFixed(1)}K`
         : n.toFixed(0);
 
-  const fmtUsd = (n: number) =>
-    n >= 1 ? `$${n.toFixed(2)}` : `$${(n * 100).toFixed(1)}¢`;
+  const fmtUsd = (n: number) => (n >= 1 ? `$${n.toFixed(2)}` : `$${(n * 100).toFixed(1)}¢`);
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -226,25 +234,19 @@ export function CostPage() {
           icon={<Zap className="w-5 h-5" />}
           label="平均 Token/次"
           value={fmt(
-            summary.total_executions > 0
-              ? summary.total_tokens / summary.total_executions
-              : 0,
+            summary.total_executions > 0 ? summary.total_tokens / summary.total_executions : 0,
           )}
           color="text-emerald-500"
         />
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-48 text-muted-foreground">
-          加载中...
-        </div>
+        <div className="flex items-center justify-center h-48 text-muted-foreground">加载中...</div>
       ) : (
         <>
           {/* Daily Trend */}
           <div className="rounded-xl border bg-card p-4">
-            <h2 className="text-lg font-semibold mb-4">
-              每日 Token / Cost 趋势
-            </h2>
+            <h2 className="text-lg font-semibold mb-4">每日 Token / Cost 趋势</h2>
             {daily.length === 0 ? (
               <EmptyState />
             ) : (
@@ -311,9 +313,7 @@ export function CostPage() {
                   <XAxis
                     dataKey="workflow_id"
                     tick={{ fontSize: 11 }}
-                    tickFormatter={(v: string) =>
-                      v.length > 12 ? `${v.slice(0, 12)}…` : v
-                    }
+                    tickFormatter={(v: string) => (v.length > 12 ? `${v.slice(0, 12)}…` : v)}
                   />
                   <YAxis
                     tick={{ fontSize: 12 }}
@@ -355,13 +355,9 @@ export function CostPage() {
                   <tbody>
                     {workflows.slice(0, 5).map((wf) => (
                       <tr key={wf.workflow_id} className="border-b last:border-0">
-                        <td className="py-2 px-3 font-mono text-xs">
-                          {wf.workflow_id}
-                        </td>
+                        <td className="py-2 px-3 font-mono text-xs">{wf.workflow_id}</td>
                         <td className="text-right py-2 px-3">{fmt(wf.total_tokens)}</td>
-                        <td className="text-right py-2 px-3">
-                          {fmtUsd(wf.total_cost_usd)}
-                        </td>
+                        <td className="text-right py-2 px-3">{fmtUsd(wf.total_cost_usd)}</td>
                         <td className="text-right py-2 px-3">{wf.execution_count}</td>
                       </tr>
                     ))}

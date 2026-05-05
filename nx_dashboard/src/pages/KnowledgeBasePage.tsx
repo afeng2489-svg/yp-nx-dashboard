@@ -1,11 +1,26 @@
 import { useEffect, useState, useRef } from 'react';
-import { Upload, Trash2, Search, Plus, RefreshCw, FileText, Database, Settings } from 'lucide-react';
+import {
+  Upload,
+  Trash2,
+  Search,
+  Plus,
+  RefreshCw,
+  FileText,
+  Database,
+  Settings,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { API_BASE_URL } from '@/api/constants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 interface KnowledgeBase {
@@ -77,39 +92,66 @@ export function KnowledgeBasePage() {
   const [savingConfig, setSavingConfig] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { loadKbs(); loadEmbConfig(); }, []);
-  useEffect(() => { if (selectedKb) loadDocs(selectedKb.id); }, [selectedKb]);
+  useEffect(() => {
+    loadKbs();
+    loadEmbConfig();
+  }, []);
+  useEffect(() => {
+    if (selectedKb) loadDocs(selectedKb.id);
+  }, [selectedKb]);
 
   async function loadKbs() {
-    try { setKbs(await apiFetch<KnowledgeBase[]>('/api/v1/knowledge-bases')); }
-    catch (e) { setError(String(e)); }
+    try {
+      setKbs(await apiFetch<KnowledgeBase[]>('/api/v1/knowledge-bases'));
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   async function loadEmbConfig() {
-    try { setEmbConfig(await apiFetch<EmbeddingConfig>('/api/v1/knowledge-bases/embedding-config')); }
-    catch { /* ignore */ }
+    try {
+      setEmbConfig(await apiFetch<EmbeddingConfig>('/api/v1/knowledge-bases/embedding-config'));
+    } catch {
+      /* ignore */
+    }
   }
 
   async function saveEmbConfig() {
     setSavingConfig(true);
     try {
-      await apiFetch('/api/v1/knowledge-bases/embedding-config', { method: 'POST', body: JSON.stringify(embConfig) });
+      await apiFetch('/api/v1/knowledge-bases/embedding-config', {
+        method: 'POST',
+        body: JSON.stringify(embConfig),
+      });
       setShowConfig(false);
-    } catch (e) { setError(String(e)); }
-    finally { setSavingConfig(false); }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSavingConfig(false);
+    }
   }
 
   async function loadDocs(kbId: string) {
-    try { setDocs(await apiFetch<Document[]>(`/api/v1/knowledge-bases/${kbId}/documents`)); }
-    catch (e) { setError(String(e)); }
+    try {
+      setDocs(await apiFetch<Document[]>(`/api/v1/knowledge-bases/${kbId}/documents`));
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   async function createKb() {
     if (!newKbName.trim()) return;
     try {
-      await apiFetch('/api/v1/knowledge-bases', { method: 'POST', body: JSON.stringify({ name: newKbName.trim() }) });
-      setNewKbName(''); setShowCreate(false); await loadKbs();
-    } catch (e) { setError(String(e)); }
+      await apiFetch('/api/v1/knowledge-bases', {
+        method: 'POST',
+        body: JSON.stringify({ name: newKbName.trim() }),
+      });
+      setNewKbName('');
+      setShowCreate(false);
+      await loadKbs();
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   async function deleteKb(id: string) {
@@ -118,7 +160,9 @@ export function KnowledgeBasePage() {
       await apiFetch(`/api/v1/knowledge-bases/${id}`, { method: 'DELETE' });
       if (selectedKb?.id === id) setSelectedKb(null);
       await loadKbs();
-    } catch (e) { setError(String(e)); }
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   async function uploadFile(file: File) {
@@ -128,31 +172,47 @@ export function KnowledgeBasePage() {
       const form = new FormData();
       form.append('kb_id', selectedKb.id);
       form.append('file', file, file.name);
-      const res = await fetch(`${API_BASE_URL}/api/v1/knowledge-bases/upload`, { method: 'POST', body: form });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+      const res = await fetch(`${API_BASE_URL}/api/v1/knowledge-bases/upload`, {
+        method: 'POST',
+        body: form,
+      });
+      if (!res.ok)
+        throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
       await loadDocs(selectedKb.id);
-    } catch (e) { setError(String(e)); }
-    finally { setUploading(false); }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function deleteDoc(docId: string) {
     if (!selectedKb) return;
     try {
-      await apiFetch(`/api/v1/knowledge-bases/${selectedKb.id}/documents/${docId}`, { method: 'DELETE' });
+      await apiFetch(`/api/v1/knowledge-bases/${selectedKb.id}/documents/${docId}`, {
+        method: 'DELETE',
+      });
       await loadDocs(selectedKb.id);
-    } catch (e) { setError(String(e)); }
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   async function doSearch() {
     if (!selectedKb || !searchQuery.trim()) return;
     setSearching(true);
     try {
-      setSearchResults(await apiFetch<SearchResult[]>('/api/v1/knowledge-bases/search', {
-        method: 'POST',
-        body: JSON.stringify({ kb_id: selectedKb.id, query: searchQuery }),
-      }));
-    } catch (e) { setError(String(e)); }
-    finally { setSearching(false); }
+      setSearchResults(
+        await apiFetch<SearchResult[]>('/api/v1/knowledge-bases/search', {
+          method: 'POST',
+          body: JSON.stringify({ kb_id: selectedKb.id, query: searchQuery }),
+        }),
+      );
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSearching(false);
+    }
   }
 
   return (
@@ -165,10 +225,20 @@ export function KnowledgeBasePage() {
             <span className="font-semibold text-sm">知识库</span>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowConfig(v => !v)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setShowConfig((v) => !v)}
+            >
               <Settings className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowCreate(true)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setShowCreate(true)}
+            >
               <Plus className="w-4 h-4" />
             </Button>
           </div>
@@ -185,7 +255,10 @@ export function KnowledgeBasePage() {
             >
               <div className="p-3 space-y-2">
                 <p className="text-xs font-medium text-muted-foreground">Embedding 配置</p>
-                <Select value={embConfig.provider} onValueChange={v => setEmbConfig(c => ({ ...c, provider: v }))}>
+                <Select
+                  value={embConfig.provider}
+                  onValueChange={(v) => setEmbConfig((c) => ({ ...c, provider: v }))}
+                >
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -197,9 +270,13 @@ export function KnowledgeBasePage() {
                 </Select>
                 {embConfig.provider !== 'none' && (
                   <Input
-                    placeholder={embConfig.provider === 'ollama' ? 'nomic-embed-text' : 'text-embedding-3-small'}
+                    placeholder={
+                      embConfig.provider === 'ollama'
+                        ? 'nomic-embed-text'
+                        : 'text-embedding-3-small'
+                    }
                     value={embConfig.model}
-                    onChange={e => setEmbConfig(c => ({ ...c, model: e.target.value }))}
+                    onChange={(e) => setEmbConfig((c) => ({ ...c, model: e.target.value }))}
                     className="text-xs h-7"
                   />
                 )}
@@ -208,11 +285,16 @@ export function KnowledgeBasePage() {
                     placeholder="sk-..."
                     type="password"
                     value={embConfig.api_key ?? ''}
-                    onChange={e => setEmbConfig(c => ({ ...c, api_key: e.target.value }))}
+                    onChange={(e) => setEmbConfig((c) => ({ ...c, api_key: e.target.value }))}
                     className="text-xs h-7"
                   />
                 )}
-                <Button size="sm" className="w-full" onClick={saveEmbConfig} disabled={savingConfig}>
+                <Button
+                  size="sm"
+                  className="w-full"
+                  onClick={saveEmbConfig}
+                  disabled={savingConfig}
+                >
                   {savingConfig ? '保存中...' : '保存'}
                 </Button>
               </div>
@@ -233,13 +315,22 @@ export function KnowledgeBasePage() {
                 <Input
                   placeholder="知识库名称"
                   value={newKbName}
-                  onChange={e => setNewKbName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && createKb()}
+                  onChange={(e) => setNewKbName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && createKb()}
                   autoFocus
                 />
                 <div className="flex gap-2">
-                  <Button size="sm" className="flex-1" onClick={createKb}>创建</Button>
-                  <Button size="sm" variant="outline" className="flex-1" onClick={() => setShowCreate(false)}>取消</Button>
+                  <Button size="sm" className="flex-1" onClick={createKb}>
+                    创建
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setShowCreate(false)}
+                  >
+                    取消
+                  </Button>
                 </div>
               </div>
             </motion.div>
@@ -269,7 +360,10 @@ export function KnowledgeBasePage() {
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6 opacity-0 group-hover:opacity-100 hover:text-destructive"
-                onClick={e => { e.stopPropagation(); deleteKb(kb.id); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deleteKb(kb.id);
+                }}
               >
                 <Trash2 className="w-3 h-3" />
               </Button>
@@ -295,20 +389,27 @@ export function KnowledgeBasePage() {
             {/* 顶部操作栏 */}
             <div className="px-4 py-3 border-b border-border flex items-center gap-3">
               <span className="font-semibold">{selectedKb.name}</span>
-              <Badge variant="secondary" className="text-xs">{selectedKb.embedding_model}</Badge>
+              <Badge variant="secondary" className="text-xs">
+                {selectedKb.embedding_model}
+              </Badge>
               <div className="flex-1" />
               <input
                 ref={fileRef}
                 type="file"
                 accept=".md,.txt,.pdf,.html"
                 className="hidden"
-                onChange={e => e.target.files?.[0] && uploadFile(e.target.files[0])}
+                onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0])}
               />
               <Button size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
                 <Upload className="w-3.5 h-3.5" />
                 {uploading ? '上传中...' : '上传文件'}
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => loadDocs(selectedKb.id)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => loadDocs(selectedKb.id)}
+              >
                 <RefreshCw className="w-3.5 h-3.5" />
               </Button>
             </div>
@@ -320,7 +421,7 @@ export function KnowledgeBasePage() {
                   {docs.length} 个文档
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                  {docs.map(doc => (
+                  {docs.map((doc) => (
                     <motion.div
                       key={doc.id}
                       initial={{ opacity: 0 }}
@@ -333,10 +434,17 @@ export function KnowledgeBasePage() {
                         <div className="text-xs text-muted-foreground">
                           {doc.chunk_count} chunks · {(doc.file_size / 1024).toFixed(1)}KB
                         </div>
-                        <Badge variant={statusVariant[doc.status] ?? 'warning'} className="mt-1 text-[10px] px-1.5 py-0">
+                        <Badge
+                          variant={statusVariant[doc.status] ?? 'warning'}
+                          className="mt-1 text-[10px] px-1.5 py-0"
+                        >
                           {doc.status}
                         </Badge>
-                        {doc.error && <div className="text-xs text-destructive truncate mt-0.5">{doc.error}</div>}
+                        {doc.error && (
+                          <div className="text-xs text-destructive truncate mt-0.5">
+                            {doc.error}
+                          </div>
+                        )}
                       </div>
                       <Button
                         variant="ghost"
@@ -358,8 +466,8 @@ export function KnowledgeBasePage() {
                   <Input
                     placeholder="输入问题，测试检索效果..."
                     value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && doSearch()}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && doSearch()}
                   />
                   <Button onClick={doSearch} disabled={searching} variant="outline">
                     <Search className="w-3.5 h-3.5" />
@@ -378,7 +486,9 @@ export function KnowledgeBasePage() {
                         className="rounded-lg border border-border bg-card p-3 space-y-1.5"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">#{i + 1} · chunk {r.chunk_index}</span>
+                          <span className="text-xs text-muted-foreground">
+                            #{i + 1} · chunk {r.chunk_index}
+                          </span>
                           <Badge variant="success" className="text-[10px]">
                             {(r.score * 100).toFixed(1)}% 相似
                           </Badge>
@@ -388,7 +498,9 @@ export function KnowledgeBasePage() {
                     ))}
                   </AnimatePresence>
                   {searchResults.length === 0 && searchQuery && !searching && (
-                    <p className="text-sm text-muted-foreground">无结果（可能未配置 OPENAI_API_KEY 或阈值过高）</p>
+                    <p className="text-sm text-muted-foreground">
+                      无结果（可能未配置 OPENAI_API_KEY 或阈值过高）
+                    </p>
                   )}
                 </div>
               </div>
@@ -407,7 +519,9 @@ export function KnowledgeBasePage() {
             className="fixed bottom-4 right-4 bg-destructive text-destructive-foreground px-4 py-2 rounded-lg text-sm max-w-sm flex items-center gap-2 shadow-lg"
           >
             <span className="flex-1">{error}</span>
-            <button onClick={() => setError('')} className="opacity-70 hover:opacity-100">✕</button>
+            <button onClick={() => setError('')} className="opacity-70 hover:opacity-100">
+              ✕
+            </button>
           </motion.div>
         )}
       </AnimatePresence>

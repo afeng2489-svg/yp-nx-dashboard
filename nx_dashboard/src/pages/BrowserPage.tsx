@@ -30,10 +30,13 @@ export async function closeBrowserWebview() {
   if (_activeWebview) {
     const wv = _activeWebview;
     _activeWebview = null;
-    try { await wv.close(); } catch { /* ignore */ }
+    try {
+      await wv.close();
+    } catch {
+      /* ignore */
+    }
   }
 }
-
 
 const DEFAULT_BOOKMARKS = [
   { title: 'Google', url: 'https://www.google.com', icon: '🔍' },
@@ -67,12 +70,19 @@ async function createChildWebview(url: string, x: number, y: number, w: number, 
 async function destroyWebview(wv: { close: () => Promise<void> } | null) {
   if (!wv) return;
   if (_activeWebview === wv) _activeWebview = null;
-  try { await wv.close(); } catch { /* already closed */ }
+  try {
+    await wv.close();
+  } catch {
+    /* already closed */
+  }
 }
 
 const API_BASE = 'http://localhost:3000';
 
-async function browserApi(endpoint: string, body: object): Promise<{ ok: boolean; data?: Record<string, unknown>; error?: string }> {
+async function browserApi(
+  endpoint: string,
+  body: object,
+): Promise<{ ok: boolean; data?: Record<string, unknown>; error?: string }> {
   const res = await fetch(`${API_BASE}/api/v1/browser/${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -93,31 +103,42 @@ export function BrowserPage() {
   const [autoOpen, setAutoOpen] = useState(false);
   const [jsScript, setJsScript] = useState('');
   const [selector, setSelector] = useState('');
-  const [autoResult, setAutoResult] = useState<{ type: 'image' | 'text'; value: string } | null>(null);
+  const [autoResult, setAutoResult] = useState<{ type: 'image' | 'text'; value: string } | null>(
+    null,
+  );
   const [autoLoading, setAutoLoading] = useState(false);
 
-  const runAuto = useCallback(async (action: 'screenshot' | 'evaluate' | 'click') => {
-    setAutoLoading(true);
-    setAutoResult(null);
-    try {
-      let resp;
-      if (action === 'screenshot') {
-        resp = await browserApi('screenshot', { url });
-        if (resp.ok && resp.data) setAutoResult({ type: 'image', value: resp.data.image_base64 as string });
-      } else if (action === 'evaluate') {
-        resp = await browserApi('evaluate', { url, script: jsScript });
-        if (resp.ok && resp.data) setAutoResult({ type: 'text', value: resp.data.result as string });
-      } else {
-        resp = await browserApi('click', { url, selector });
-        if (resp.ok && resp.data) setAutoResult({ type: 'image', value: resp.data.image_base64 as string });
+  const runAuto = useCallback(
+    async (action: 'screenshot' | 'evaluate' | 'click') => {
+      setAutoLoading(true);
+      setAutoResult(null);
+      try {
+        let resp;
+        if (action === 'screenshot') {
+          resp = await browserApi('screenshot', { url });
+          if (resp.ok && resp.data)
+            setAutoResult({ type: 'image', value: resp.data.image_base64 as string });
+        } else if (action === 'evaluate') {
+          resp = await browserApi('evaluate', { url, script: jsScript });
+          if (resp.ok && resp.data)
+            setAutoResult({ type: 'text', value: resp.data.result as string });
+        } else {
+          resp = await browserApi('click', { url, selector });
+          if (resp.ok && resp.data)
+            setAutoResult({ type: 'image', value: resp.data.image_base64 as string });
+        }
+        if (!resp.ok) setAutoResult({ type: 'text', value: `错误: ${resp.error}` });
+      } catch (e) {
+        setAutoResult({
+          type: 'text',
+          value: `请求失败: ${e instanceof Error ? e.message : String(e)}`,
+        });
+      } finally {
+        setAutoLoading(false);
       }
-      if (!resp.ok) setAutoResult({ type: 'text', value: `错误: ${resp.error}` });
-    } catch (e) {
-      setAutoResult({ type: 'text', value: `请求失败: ${e instanceof Error ? e.message : String(e)}` });
-    } finally {
-      setAutoLoading(false);
-    }
-  }, [url, jsScript, selector]);
+    },
+    [url, jsScript, selector],
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const webviewRef = useRef<{ close: () => Promise<void> } | null>(null);
@@ -431,7 +452,11 @@ export function BrowserPage() {
         >
           <Code className="w-3.5 h-3.5" />
           <span>自动化</span>
-          {autoOpen ? <ChevronUp className="w-3 h-3 ml-auto" /> : <ChevronDown className="w-3 h-3 ml-auto" />}
+          {autoOpen ? (
+            <ChevronUp className="w-3 h-3 ml-auto" />
+          ) : (
+            <ChevronDown className="w-3 h-3 ml-auto" />
+          )}
         </button>
         {autoOpen && (
           <div className="px-3 pb-3 space-y-2">
@@ -441,7 +466,8 @@ export function BrowserPage() {
                 disabled={autoLoading}
                 className="flex items-center gap-1 px-2.5 py-1 rounded text-xs bg-primary/10 hover:bg-primary/20 disabled:opacity-50 transition-colors"
               >
-                <Camera className="w-3 h-3" />截图
+                <Camera className="w-3 h-3" />
+                截图
               </button>
               <div className="flex flex-1 gap-1">
                 <input
@@ -455,7 +481,8 @@ export function BrowserPage() {
                   disabled={autoLoading || !jsScript.trim()}
                   className="flex items-center gap-1 px-2.5 py-1 rounded text-xs bg-primary/10 hover:bg-primary/20 disabled:opacity-50 transition-colors"
                 >
-                  <Code className="w-3 h-3" />执行
+                  <Code className="w-3 h-3" />
+                  执行
                 </button>
               </div>
               <div className="flex flex-1 gap-1">
@@ -470,7 +497,8 @@ export function BrowserPage() {
                   disabled={autoLoading || !selector.trim()}
                   className="flex items-center gap-1 px-2.5 py-1 rounded text-xs bg-primary/10 hover:bg-primary/20 disabled:opacity-50 transition-colors"
                 >
-                  <MousePointer className="w-3 h-3" />点击
+                  <MousePointer className="w-3 h-3" />
+                  点击
                 </button>
               </div>
             </div>
@@ -478,9 +506,15 @@ export function BrowserPage() {
             {autoResult && (
               <div className="rounded border border-border/50 overflow-hidden">
                 {autoResult.type === 'image' ? (
-                  <img src={`data:image/png;base64,${autoResult.value}`} alt="screenshot" className="max-h-48 w-full object-contain bg-black/5" />
+                  <img
+                    src={`data:image/png;base64,${autoResult.value}`}
+                    alt="screenshot"
+                    className="max-h-48 w-full object-contain bg-black/5"
+                  />
                 ) : (
-                  <pre className="p-2 text-xs text-foreground bg-background overflow-auto max-h-32 whitespace-pre-wrap">{autoResult.value}</pre>
+                  <pre className="p-2 text-xs text-foreground bg-background overflow-auto max-h-32 whitespace-pre-wrap">
+                    {autoResult.value}
+                  </pre>
                 )}
               </div>
             )}

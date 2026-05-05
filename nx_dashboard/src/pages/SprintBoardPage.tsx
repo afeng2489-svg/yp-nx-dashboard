@@ -1,7 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { API_BASE_URL } from '@/api/constants';
 import { cn } from '@/lib/utils';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 interface SprintCard {
   id: string;
@@ -56,7 +62,9 @@ export function SprintBoardPage() {
   });
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">加载中...</div>;
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground">加载中...</div>
+    );
   }
 
   const byStatus = (s: string) => sprints.filter((c) => c.status === s);
@@ -76,7 +84,9 @@ export function SprintBoardPage() {
       <div className="grid grid-cols-5 gap-3">
         {columns.map(({ key, label }) => (
           <div key={key} className="space-y-2">
-            <div className={cn('text-xs font-semibold px-2 py-1 rounded border', STATUS_COLORS[key])}>
+            <div
+              className={cn('text-xs font-semibold px-2 py-1 rounded border', STATUS_COLORS[key])}
+            >
               {label} ({byStatus(key).length})
             </div>
             {byStatus(key).map((card) => (
@@ -101,25 +111,34 @@ function SprintCardItem({
   onStatusChange: (s: string) => void;
 }) {
   const data = (() => {
-    try { return JSON.parse(card.data_json); } catch { return {}; }
+    try {
+      return JSON.parse(card.data_json);
+    } catch {
+      return {};
+    }
   })();
 
   return (
     <div className="rounded-lg border border-border/50 bg-card p-3 space-y-2 text-sm">
       <div className="font-medium leading-snug">{card.title}</div>
       <div className="flex items-center gap-1.5 flex-wrap">
-        <span className={cn('text-[10px] px-1.5 py-0 rounded border', PRIORITY_COLORS[card.priority] ?? '')}>
+        <span
+          className={cn(
+            'text-[10px] px-1.5 py-0 rounded border',
+            PRIORITY_COLORS[card.priority] ?? '',
+          )}
+        >
           {card.priority}
         </span>
         {card.estimated_hours > 0 && (
           <span className="text-[10px] text-muted-foreground">{card.estimated_hours}h</span>
         )}
       </div>
-      {data.why && (
-        <p className="text-[11px] text-muted-foreground line-clamp-2">{data.why}</p>
-      )}
+      {data.why && <p className="text-[11px] text-muted-foreground line-clamp-2">{data.why}</p>}
       <Select value={card.status} onValueChange={(v) => onStatusChange(v)}>
-        <SelectTrigger className="h-7 text-[11px]"><SelectValue /></SelectTrigger>
+        <SelectTrigger className="h-7 text-[11px]">
+          <SelectValue />
+        </SelectTrigger>
         <SelectContent>
           <SelectItem value="pending">待开始</SelectItem>
           <SelectItem value="in_progress">进行中</SelectItem>

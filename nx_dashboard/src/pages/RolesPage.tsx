@@ -5,7 +5,13 @@ import { ConfirmModal } from '@/lib/ConfirmModal';
 import { showError } from '@/lib/toast';
 import { SkillAssigner } from '@/components/team/SkillAssigner';
 import { API_BASE_URL } from '@/api/constants';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 const API_BASE = API_BASE_URL;
 
@@ -224,7 +230,9 @@ export function RolesPage() {
         </div>
         <div className="relative">
           <Select value={filterTeamId} onValueChange={setFilterTeamId}>
-            <SelectTrigger className="h-8 text-sm w-32"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-sm w-32">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">所有角色</SelectItem>
             </SelectContent>
@@ -335,11 +343,15 @@ export function RolesPage() {
               <div>
                 <label className="block text-sm font-medium mb-1">所属团队 (可选)</label>
                 <Select value={newRoleTeamId} onValueChange={setNewRoleTeamId}>
-                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">全局角色 (不关联团队)</SelectItem>
                     {teams.map((team) => (
-                      <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

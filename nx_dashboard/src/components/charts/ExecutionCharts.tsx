@@ -74,7 +74,10 @@ export function ExecutionTrendChart({ className }: { className?: string }) {
     return last7Days.map((date) => {
       const dayExecs = executions.filter((e) => e.started_at?.split('T')[0] === date);
       return {
-        displayDate: new Date(date + 'T00:00:00').toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),
+        displayDate: new Date(date + 'T00:00:00').toLocaleDateString('zh-CN', {
+          month: 'short',
+          day: 'numeric',
+        }),
         completed: dayExecs.filter((e) => e.status === 'completed').length,
         failed: dayExecs.filter((e) => e.status === 'failed').length,
       };
@@ -84,7 +87,12 @@ export function ExecutionTrendChart({ className }: { className?: string }) {
   const total = data.reduce((s, d) => s + d.completed + d.failed, 0);
 
   return (
-    <ChartCard title="执行趋势" icon={<TrendingUp size={15} />} badge={`近7天 · ${total}次`} className={className}>
+    <ChartCard
+      title="执行趋势"
+      icon={<TrendingUp size={15} />}
+      badge={`近7天 · ${total}次`}
+      className={className}
+    >
       <div className="h-56">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
@@ -99,12 +107,40 @@ export function ExecutionTrendChart({ className }: { className?: string }) {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
-            <XAxis dataKey="displayDate" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} allowDecimals={false} />
+            <XAxis
+              dataKey="displayDate"
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              axisLine={false}
+              tickLine={false}
+              allowDecimals={false}
+            />
             <Tooltip contentStyle={tooltipStyle} />
             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-            <Area type="monotone" dataKey="completed" stroke={COLORS.completed} strokeWidth={2} fill="url(#gradCompleted)" name="完成" dot={{ r: 3, fill: COLORS.completed }} activeDot={{ r: 5 }} />
-            <Area type="monotone" dataKey="failed" stroke={COLORS.failed} strokeWidth={2} fill="url(#gradFailed)" name="失败" dot={{ r: 3, fill: COLORS.failed }} activeDot={{ r: 5 }} />
+            <Area
+              type="monotone"
+              dataKey="completed"
+              stroke={COLORS.completed}
+              strokeWidth={2}
+              fill="url(#gradCompleted)"
+              name="完成"
+              dot={{ r: 3, fill: COLORS.completed }}
+              activeDot={{ r: 5 }}
+            />
+            <Area
+              type="monotone"
+              dataKey="failed"
+              stroke={COLORS.failed}
+              strokeWidth={2}
+              fill="url(#gradFailed)"
+              name="失败"
+              dot={{ r: 3, fill: COLORS.failed }}
+              activeDot={{ r: 5 }}
+            />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -113,13 +149,35 @@ export function ExecutionTrendChart({ className }: { className?: string }) {
 }
 
 const RADIAN = Math.PI / 180;
-function renderCustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: { cx: number; cy: number; midAngle: number; innerRadius: number; outerRadius: number; percent: number }) {
+function renderCustomLabel({
+  cx,
+  cy,
+  midAngle,
+  innerRadius,
+  outerRadius,
+  percent,
+}: {
+  cx: number;
+  cy: number;
+  midAngle: number;
+  innerRadius: number;
+  outerRadius: number;
+  percent: number;
+}) {
   if (percent < 0.08) return null;
   const r = innerRadius + (outerRadius - innerRadius) * 0.5;
   const x = cx + r * Math.cos(-midAngle * RADIAN);
   const y = cy + r * Math.sin(-midAngle * RADIAN);
   return (
-    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={600}>
+    <text
+      x={x}
+      y={y}
+      fill="white"
+      textAnchor="middle"
+      dominantBaseline="central"
+      fontSize={11}
+      fontWeight={600}
+    >
       {`${(percent * 100).toFixed(0)}%`}
     </text>
   );
@@ -129,10 +187,13 @@ export function ExecutionStatusPie({ className }: { className?: string }) {
   const { executions } = useExecutionStore();
 
   const data = useMemo(() => {
-    const counts = executions.reduce((acc, e) => {
-      acc[e.status] = (acc[e.status] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const counts = executions.reduce(
+      (acc, e) => {
+        acc[e.status] = (acc[e.status] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     return [
       { name: '完成', value: counts.completed || 0, color: COLORS.completed },
@@ -148,18 +209,35 @@ export function ExecutionStatusPie({ className }: { className?: string }) {
   if (data.length === 0) {
     return (
       <ChartCard title="状态分布" icon={<PieIcon size={15} />} className={className}>
-        <div className="h-56 flex items-center justify-center text-muted-foreground text-sm">暂无数据</div>
+        <div className="h-56 flex items-center justify-center text-muted-foreground text-sm">
+          暂无数据
+        </div>
       </ChartCard>
     );
   }
 
   return (
-    <ChartCard title="状态分布" icon={<PieIcon size={15} />} badge={`共 ${total} 次`} className={className}>
+    <ChartCard
+      title="状态分布"
+      icon={<PieIcon size={15} />}
+      badge={`共 ${total} 次`}
+      className={className}
+    >
       <div className="flex items-center gap-4">
         <div className="h-48 flex-1 min-w-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={data} cx="50%" cy="50%" innerRadius={52} outerRadius={80} paddingAngle={3} dataKey="value" labelLine={false} label={renderCustomLabel}>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                innerRadius={52}
+                outerRadius={80}
+                paddingAngle={3}
+                dataKey="value"
+                labelLine={false}
+                label={renderCustomLabel}
+              >
                 {data.map((entry, i) => (
                   <Cell key={i} fill={entry.color} stroke="transparent" />
                 ))}
@@ -171,7 +249,10 @@ export function ExecutionStatusPie({ className }: { className?: string }) {
         <div className="flex flex-col gap-2.5 shrink-0">
           {data.map((entry) => (
             <div key={entry.name} className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: entry.color }} />
+              <div
+                className="w-2.5 h-2.5 rounded-sm shrink-0"
+                style={{ backgroundColor: entry.color }}
+              />
               <span className="text-xs text-muted-foreground w-12">{entry.name}</span>
               <span className="text-xs font-semibold tabular-nums">{entry.value}</span>
             </div>
@@ -186,13 +267,16 @@ export function WorkflowPerformanceChart({ className }: { className?: string }) 
   const { executions } = useExecutionStore();
 
   const data = useMemo(() => {
-    const stats = executions.reduce((acc, e) => {
-      const wid = e.workflow_id;
-      if (!acc[wid]) acc[wid] = { total: 0, completed: 0 };
-      acc[wid].total += 1;
-      if (e.status === 'completed') acc[wid].completed += 1;
-      return acc;
-    }, {} as Record<string, { total: number; completed: number }>);
+    const stats = executions.reduce(
+      (acc, e) => {
+        const wid = e.workflow_id;
+        if (!acc[wid]) acc[wid] = { total: 0, completed: 0 };
+        acc[wid].total += 1;
+        if (e.status === 'completed') acc[wid].completed += 1;
+        return acc;
+      },
+      {} as Record<string, { total: number; completed: number }>,
+    );
 
     return Object.entries(stats)
       .map(([id, s]) => ({
@@ -207,7 +291,9 @@ export function WorkflowPerformanceChart({ className }: { className?: string }) 
   if (data.length === 0) {
     return (
       <ChartCard title="工作流成功率" icon={<BarChart2 size={15} />} className={className}>
-        <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">暂无数据</div>
+        <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">
+          暂无数据
+        </div>
       </ChartCard>
     );
   }
@@ -227,9 +313,25 @@ export function WorkflowPerformanceChart({ className }: { className?: string }) 
                 <stop offset="100%" stopColor="#e11d48" stopOpacity={0.8} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} vertical={false} />
-            <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="hsl(var(--border))"
+              strokeOpacity={0.5}
+              vertical={false}
+            />
+            <XAxis
+              dataKey="name"
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              axisLine={false}
+              tickLine={false}
+              domain={[0, 100]}
+              tickFormatter={(v) => `${v}%`}
+            />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`${v}%`, '成功率']} />
             <Bar dataKey="rate" radius={[6, 6, 0, 0]} name="成功率">
               {data.map((entry, i) => (
@@ -260,16 +362,47 @@ export function ExecutionStatsSummary({ className }: { className?: string }) {
   }, [executions]);
 
   const items = [
-    { label: '总执行', value: stats.total, icon: <Activity size={14} />, gradient: 'from-violet-500/10 to-purple-500/5', accent: 'text-violet-500', border: 'border-violet-500/20' },
-    { label: '成功率', value: `${stats.successRate}%`, icon: <TrendingUp size={14} />, gradient: 'from-emerald-500/10 to-green-500/5', accent: 'text-emerald-500', border: 'border-emerald-500/20' },
-    { label: '失败', value: stats.failed, icon: <BarChart2 size={14} />, gradient: 'from-rose-500/10 to-red-500/5', accent: 'text-rose-500', border: 'border-rose-500/20' },
-    { label: '运行中', value: stats.running, icon: <PieIcon size={14} />, gradient: 'from-indigo-500/10 to-blue-500/5', accent: 'text-indigo-500', border: 'border-indigo-500/20' },
+    {
+      label: '总执行',
+      value: stats.total,
+      icon: <Activity size={14} />,
+      gradient: 'from-violet-500/10 to-purple-500/5',
+      accent: 'text-violet-500',
+      border: 'border-violet-500/20',
+    },
+    {
+      label: '成功率',
+      value: `${stats.successRate}%`,
+      icon: <TrendingUp size={14} />,
+      gradient: 'from-emerald-500/10 to-green-500/5',
+      accent: 'text-emerald-500',
+      border: 'border-emerald-500/20',
+    },
+    {
+      label: '失败',
+      value: stats.failed,
+      icon: <BarChart2 size={14} />,
+      gradient: 'from-rose-500/10 to-red-500/5',
+      accent: 'text-rose-500',
+      border: 'border-rose-500/20',
+    },
+    {
+      label: '运行中',
+      value: stats.running,
+      icon: <PieIcon size={14} />,
+      gradient: 'from-indigo-500/10 to-blue-500/5',
+      accent: 'text-indigo-500',
+      border: 'border-indigo-500/20',
+    },
   ];
 
   return (
     <div className={cn('grid grid-cols-2 lg:grid-cols-4 gap-3', className)}>
       {items.map((item) => (
-        <div key={item.label} className={cn('bg-card rounded-xl border p-4 relative overflow-hidden', item.border)}>
+        <div
+          key={item.label}
+          className={cn('bg-card rounded-xl border p-4 relative overflow-hidden', item.border)}
+        >
           <div className={cn('absolute inset-0 bg-gradient-to-br', item.gradient)} />
           <div className="relative">
             <div className={cn('mb-2', item.accent)}>{item.icon}</div>

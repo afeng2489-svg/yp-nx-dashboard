@@ -152,11 +152,16 @@ export function TemplatesPanel({ onClose }: { onClose: () => void }) {
       <div className="w-[640px] max-h-[80vh] overflow-y-auto rounded-xl border border-border bg-card p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold">模板库</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-lg">✕</button>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-lg">
+            ✕
+          </button>
         </div>
         <div className="grid grid-cols-1 gap-3">
           {TEMPLATES.map((t) => (
-            <div key={t.name} className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-3">
+            <div
+              key={t.name}
+              className="flex items-center justify-between rounded-lg border border-border bg-background px-4 py-3"
+            >
               <div>
                 <p className="text-sm font-medium">{t.name}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">{t.desc}</p>

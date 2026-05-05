@@ -32,7 +32,13 @@ import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 import { showError } from '@/lib/toast';
 import { ClaudeStreamPanel } from '@/components/terminal/ClaudeStreamPanel';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 // Extended project type that includes local path projects (workspaces)
 interface DisplayProject {
@@ -83,7 +89,7 @@ export function ProjectsPage() {
     fetchProjects();
     fetchTeams();
     fetchWorkspaces();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Combine projects and workspaces into a unified list
@@ -524,9 +530,13 @@ export function ProjectsPage() {
                           />
                           <Select
                             value={newModuleStatus}
-                            onValueChange={(v) => setNewModuleStatus(v as UpsertModuleRequest['status'])}
+                            onValueChange={(v) =>
+                              setNewModuleStatus(v as UpsertModuleRequest['status'])
+                            }
                           >
-                            <SelectTrigger className="h-7 text-xs w-28"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-7 text-xs w-28">
+                              <SelectValue />
+                            </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="pending">待做</SelectItem>
                               <SelectItem value="in_progress">进行中</SelectItem>
@@ -687,13 +697,17 @@ function CreateProjectModal({
           <div>
             <label className="block text-sm font-medium mb-2">团队</label>
             <Select value={teamId} onValueChange={setTeamId}>
-              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {teams.length === 0 ? (
                   <SelectItem value="">请先创建团队</SelectItem>
                 ) : (
                   teams.map((team) => (
-                    <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                    <SelectItem key={team.id} value={team.id}>
+                      {team.name}
+                    </SelectItem>
                   ))
                 )}
               </SelectContent>
@@ -702,7 +716,9 @@ function CreateProjectModal({
           <div>
             <label className="block text-sm font-medium mb-2">工作区（可选）</label>
             <Select value={workspaceId} onValueChange={setWorkspaceId}>
-              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">不关联工作区</SelectItem>
                 {workspaces

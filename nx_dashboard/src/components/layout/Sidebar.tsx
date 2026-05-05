@@ -34,10 +34,28 @@ import { useState, useEffect } from 'react';
 import { api, type ClaudeCliModelResponse } from '@/api/client';
 
 type TabId =
-  | 'dashboard' | 'workflows' | 'canvas' | 'executions' | 'sprint-board'
-  | 'teams' | 'teams-v2' | 'roles' | 'group-chat' | 'sessions' | 'processes'
-  | 'projects' | 'templates' | 'skills' | 'wisdom' | 'knowledge-base'
-  | 'terminal' | 'browser' | 'search' | 'ui-design' | 'tasks' | 'cost'
+  | 'dashboard'
+  | 'workflows'
+  | 'canvas'
+  | 'executions'
+  | 'sprint-board'
+  | 'teams'
+  | 'teams-v2'
+  | 'roles'
+  | 'group-chat'
+  | 'sessions'
+  | 'processes'
+  | 'projects'
+  | 'templates'
+  | 'skills'
+  | 'wisdom'
+  | 'knowledge-base'
+  | 'terminal'
+  | 'browser'
+  | 'search'
+  | 'ui-design'
+  | 'tasks'
+  | 'cost'
   | 'settings';
 
 interface Tab {
@@ -99,9 +117,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: '系统',
-    items: [
-      { id: 'settings', label: '设置', icon: Settings, path: '/settings' },
-    ],
+    items: [{ id: 'settings', label: '设置', icon: Settings, path: '/settings' }],
   },
 ];
 
@@ -132,7 +148,9 @@ function CliModelDisplay() {
     };
 
     void tryFetch();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (loading) {
@@ -152,7 +170,10 @@ function CliModelDisplay() {
         <p className="text-sm font-medium truncate">{cliModel?.sonnet_model || 'Unknown'}</p>
       </div>
       {cliModel?.base_url && (
-        <span className="text-[10px] text-muted-foreground truncate max-w-[80px]" title={cliModel.base_url}>
+        <span
+          className="text-[10px] text-muted-foreground truncate max-w-[80px]"
+          title={cliModel.base_url}
+        >
           Proxy
         </span>
       )}
@@ -160,7 +181,12 @@ function CliModelDisplay() {
   );
 }
 
-function NavItem({ tab, isActive, sidebarOpen, onClick }: {
+function NavItem({
+  tab,
+  isActive,
+  sidebarOpen,
+  onClick,
+}: {
   tab: Tab;
   isActive: boolean;
   sidebarOpen: boolean;
@@ -178,9 +204,16 @@ function NavItem({ tab, isActive, sidebarOpen, onClick }: {
           : 'hover:bg-accent text-muted-foreground hover:text-foreground',
       )}
     >
-      <Icon className={cn('w-5 h-5 flex-shrink-0 transition-transform duration-200', isActive ? 'text-primary scale-110' : '')} />
+      <Icon
+        className={cn(
+          'w-5 h-5 flex-shrink-0 transition-transform duration-200',
+          isActive ? 'text-primary scale-110' : '',
+        )}
+      />
       {sidebarOpen && (
-        <span className={cn('font-medium transition-all duration-200', isActive ? 'text-primary' : '')}>
+        <span
+          className={cn('font-medium transition-all duration-200', isActive ? 'text-primary' : '')}
+        >
           {tab.label}
         </span>
       )}
@@ -195,11 +228,10 @@ export function Sidebar() {
   const { sidebarOpen, toggleSidebar } = useUIStore();
   const navigate = useNavigate();
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ '工具': true });
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ 工具: true });
 
-  const activeTab = navGroups
-    .flatMap((g) => g.items)
-    .find((t) => t.path === location.pathname)?.id || 'dashboard';
+  const activeTab =
+    navGroups.flatMap((g) => g.items).find((t) => t.path === location.pathname)?.id || 'dashboard';
 
   return (
     <aside
@@ -210,7 +242,12 @@ export function Sidebar() {
       )}
     >
       {/* Header */}
-      <div className={cn('flex items-center h-16 px-4 border-b border-border/50', sidebarOpen ? 'justify-between' : 'justify-center')}>
+      <div
+        className={cn(
+          'flex items-center h-16 px-4 border-b border-border/50',
+          sidebarOpen ? 'justify-between' : 'justify-center',
+        )}
+      >
         {sidebarOpen ? (
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
@@ -229,7 +266,11 @@ export function Sidebar() {
           onClick={toggleSidebar}
           className="p-2 rounded-lg hover:bg-accent transition-all duration-200 hover:scale-105 active:scale-95"
         >
-          {sidebarOpen ? <ChevronLeft className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+          {sidebarOpen ? (
+            <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          )}
         </button>
       </div>
 
@@ -243,17 +284,30 @@ export function Sidebar() {
             <div key={group.label}>
               {sidebarOpen && (
                 <button
-                  onClick={() => group.collapsible && setCollapsed((prev) => ({ ...prev, [group.label]: !prev[group.label] }))}
+                  onClick={() =>
+                    group.collapsible &&
+                    setCollapsed((prev) => ({ ...prev, [group.label]: !prev[group.label] }))
+                  }
                   className={cn(
                     'w-full flex items-center justify-between px-3 py-1 mb-1',
                     group.collapsible ? 'cursor-pointer hover:text-foreground' : 'cursor-default',
                   )}
                 >
-                  <span className={cn('text-[11px] font-semibold uppercase tracking-wider', hasActive ? 'text-primary' : 'text-muted-foreground/60')}>
+                  <span
+                    className={cn(
+                      'text-[11px] font-semibold uppercase tracking-wider',
+                      hasActive ? 'text-primary' : 'text-muted-foreground/60',
+                    )}
+                  >
                     {group.label}
                   </span>
                   {group.collapsible && (
-                    <ChevronDown className={cn('w-3 h-3 text-muted-foreground/60 transition-transform', isCollapsed ? '-rotate-90' : '')} />
+                    <ChevronDown
+                      className={cn(
+                        'w-3 h-3 text-muted-foreground/60 transition-transform',
+                        isCollapsed ? '-rotate-90' : '',
+                      )}
+                    />
                   )}
                 </button>
               )}
@@ -286,7 +340,12 @@ export function Sidebar() {
             </div>
           )}
         </div>
-        <div className={cn('flex items-center gap-3 px-3 py-2 rounded-xl bg-gradient-to-r from-indigo-500/5 to-purple-500/5', !sidebarOpen && 'justify-center')}>
+        <div
+          className={cn(
+            'flex items-center gap-3 px-3 py-2 rounded-xl bg-gradient-to-r from-indigo-500/5 to-purple-500/5',
+            !sidebarOpen && 'justify-center',
+          )}
+        >
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-indigo-500/25">
             N
           </div>

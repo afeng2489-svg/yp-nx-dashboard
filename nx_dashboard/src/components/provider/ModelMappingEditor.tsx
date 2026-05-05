@@ -3,7 +3,13 @@ import { Plus, Trash2, Loader2, Brain, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AIProvider, ModelMapping, MappingType, AddModelMappingRequest } from '@/api/client';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 
 interface ModelMappingEditorProps {
   provider: AIProvider;
@@ -124,9 +130,13 @@ export function ModelMappingEditor({
               <label className="block text-xs font-medium mb-1">映射类型</label>
               <Select
                 value={newMapping.mapping_type}
-                onValueChange={(v) => setNewMapping({ ...newMapping, mapping_type: v as MappingType })}
+                onValueChange={(v) =>
+                  setNewMapping({ ...newMapping, mapping_type: v as MappingType })
+                }
               >
-                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="main">主模型</SelectItem>
                   <SelectItem value="thinking">推理模型 (Thinking)</SelectItem>

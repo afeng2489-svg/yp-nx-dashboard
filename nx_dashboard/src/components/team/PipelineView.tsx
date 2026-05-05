@@ -23,7 +23,10 @@ const PHASE_LABELS: Record<string, string> = {
   packaging: '打包',
 };
 
-const STATUS_VARIANT: Record<StepStatus, 'secondary' | 'default' | 'success' | 'destructive' | 'warning' | 'outline'> = {
+const STATUS_VARIANT: Record<
+  StepStatus,
+  'secondary' | 'default' | 'success' | 'destructive' | 'warning' | 'outline'
+> = {
   pending: 'secondary',
   ready: 'default',
   running: 'default',
@@ -44,9 +47,15 @@ const STATUS_LABELS: Record<StepStatus, string> = {
 };
 
 const PHASE_GROUPS = [
-  { label: 'Phase 1 - 前置 (串行)', phases: ['requirements_analysis', 'architecture_design', 'project_init'] },
+  {
+    label: 'Phase 1 - 前置 (串行)',
+    phases: ['requirements_analysis', 'architecture_design', 'project_init'],
+  },
   { label: 'Phase 2 - 核心 (并行)', phases: ['backend_dev', 'frontend_dev'] },
-  { label: 'Phase 3 - 收尾 (串行)', phases: ['api_integration', 'testing', 'documentation', 'packaging'] },
+  {
+    label: 'Phase 3 - 收尾 (串行)',
+    phases: ['api_integration', 'testing', 'documentation', 'packaging'],
+  },
 ];
 
 interface PipelineViewProps {
@@ -76,8 +85,12 @@ function StepCard({ step, pipelineId }: { step: PipelineStep; pipelineId: string
         <span className="text-xs text-muted-foreground shrink-0">retry: {step.retry_count}</span>
       )}
       {(step.status === 'failed' || step.status === 'blocked') && (
-        <Button size="sm" variant="destructive" className="h-6 text-xs px-2 shrink-0"
-          onClick={() => retryStep(pipelineId, step.id)}>
+        <Button
+          size="sm"
+          variant="destructive"
+          className="h-6 text-xs px-2 shrink-0"
+          onClick={() => retryStep(pipelineId, step.id)}
+        >
           重试
         </Button>
       )}
@@ -85,7 +98,15 @@ function StepCard({ step, pipelineId }: { step: PipelineStep; pipelineId: string
   );
 }
 
-function PhaseGroup({ phase, steps, pipelineId }: { phase: string; steps: PipelineStep[]; pipelineId: string }) {
+function PhaseGroup({
+  phase,
+  steps,
+  pipelineId,
+}: {
+  phase: string;
+  steps: PipelineStep[];
+  pipelineId: string;
+}) {
   return (
     <div className="space-y-1">
       <h4 className="text-sm font-semibold text-foreground/70">{PHASE_LABELS[phase] || phase}</h4>
@@ -135,7 +156,7 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
     return () => {
       stopPolling();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pipeline?.status, projectId, startPolling, stopPolling]);
 
   if (!projectId) {
@@ -150,7 +171,9 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
     return (
       <div className="text-sm text-destructive p-4">
         错误: {error}
-        <button className="ml-2 underline text-primary" onClick={clearError}>关闭</button>
+        <button className="ml-2 underline text-primary" onClick={clearError}>
+          关闭
+        </button>
       </div>
     );
   }
@@ -159,7 +182,9 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
     return (
       <div className="text-sm text-muted-foreground p-4 flex items-center gap-3">
         暂无 Pipeline
-        <Button size="sm" onClick={() => createPipeline(projectId, '')}>创建 Pipeline</Button>
+        <Button size="sm" onClick={() => createPipeline(projectId, '')}>
+          创建 Pipeline
+        </Button>
       </div>
     );
   }
@@ -188,19 +213,29 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
         </div>
         <div className="flex gap-2">
           {pipeline.status === 'idle' && (
-            <Button size="sm" onClick={() => startPipeline(pipeline.id)}>启动</Button>
+            <Button size="sm" onClick={() => startPipeline(pipeline.id)}>
+              启动
+            </Button>
           )}
           {pipeline.status === 'running' && (
             <>
-              <Button size="sm" variant="destructive" onClick={() => dispatchSteps(pipeline.id)}>调度步骤</Button>
-              <Button size="sm" variant="outline" onClick={() => pausePipeline(pipeline.id)}>暂停</Button>
+              <Button size="sm" variant="destructive" onClick={() => dispatchSteps(pipeline.id)}>
+                调度步骤
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => pausePipeline(pipeline.id)}>
+                暂停
+              </Button>
             </>
           )}
           {pipeline.status === 'paused' && (
-            <Button size="sm" onClick={() => resumePipeline(pipeline.id)}>恢复</Button>
+            <Button size="sm" onClick={() => resumePipeline(pipeline.id)}>
+              恢复
+            </Button>
           )}
           {isTerminalStatus(pipeline.status) && pipeline.status !== 'idle' && (
-            <Button size="sm" variant="ghost" onClick={() => fetchPipeline(projectId)}>刷新</Button>
+            <Button size="sm" variant="ghost" onClick={() => fetchPipeline(projectId)}>
+              刷新
+            </Button>
           )}
         </div>
       </div>
@@ -208,7 +243,9 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
       {/* Progress bar */}
       <div>
         <div className="flex justify-between text-xs text-muted-foreground mb-1">
-          <span>{pipeline.progress.completed_steps}/{pipeline.progress.total_steps} 步骤</span>
+          <span>
+            {pipeline.progress.completed_steps}/{pipeline.progress.total_steps} 步骤
+          </span>
           <span>{pipeline.progress.progress_pct}%</span>
         </div>
         <div className="w-full bg-secondary rounded-full h-2">
@@ -234,7 +271,9 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
 
           return (
             <div key={group.label} className={`space-y-2 p-3 rounded-lg border ${borderClass}`}>
-              <h3 className={`text-sm font-bold ${isCompletedPhase ? 'text-green-600 dark:text-green-400 line-through' : 'text-foreground/80'}`}>
+              <h3
+                className={`text-sm font-bold ${isCompletedPhase ? 'text-green-600 dark:text-green-400 line-through' : 'text-foreground/80'}`}
+              >
                 {group.label}
                 {isCurrentPhase && <span className="ml-2 text-xs text-primary">← 当前</span>}
                 {isCompletedPhase && <span className="ml-2 text-xs text-green-500">✓</span>}
@@ -242,7 +281,12 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
               {group.phases
                 .filter((p) => stepsByPhase.has(p))
                 .map((phase) => (
-                  <PhaseGroup key={phase} phase={phase} steps={stepsByPhase.get(phase)!} pipelineId={pipeline.id} />
+                  <PhaseGroup
+                    key={phase}
+                    phase={phase}
+                    steps={stepsByPhase.get(phase)!}
+                    pipelineId={pipeline.id}
+                  />
                 ))}
             </div>
           );

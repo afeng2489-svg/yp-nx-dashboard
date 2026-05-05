@@ -103,7 +103,7 @@ export function ProjectRunner() {
     };
 
     detect();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentWorkspace?.id]);
 
   // Fetch scripts when workspace changes
