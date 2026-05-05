@@ -262,20 +262,21 @@ impl KnowledgeRepository {
              FROM kb_chunks WHERE knowledge_base_id = ?1 AND content LIKE ?2 ESCAPE '\\'
              LIMIT ?3",
         )?;
-        let chunks = stmt.query_map(params![kb_id, pattern, top_k as i64], |row| {
-            let blob: Option<Vec<u8>> = row.get(6)?;
-            Ok(KbChunk {
-                id: row.get(0)?,
-                document_id: row.get(1)?,
-                knowledge_base_id: row.get(2)?,
-                chunk_index: row.get::<_, i64>(3)? as usize,
-                content: row.get(4)?,
-                token_count: row.get(5)?,
-                embedding: blob.map(|b| decode_vector(&b)),
-                created_at: row.get(7)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
+        let chunks = stmt
+            .query_map(params![kb_id, pattern, top_k as i64], |row| {
+                let blob: Option<Vec<u8>> = row.get(6)?;
+                Ok(KbChunk {
+                    id: row.get(0)?,
+                    document_id: row.get(1)?,
+                    knowledge_base_id: row.get(2)?,
+                    chunk_index: row.get::<_, i64>(3)? as usize,
+                    content: row.get(4)?,
+                    token_count: row.get(5)?,
+                    embedding: blob.map(|b| decode_vector(&b)),
+                    created_at: row.get(7)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(chunks)
     }
 }

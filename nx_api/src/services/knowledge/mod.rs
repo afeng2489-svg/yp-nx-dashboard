@@ -255,15 +255,20 @@ impl KnowledgeService {
                 .map_err(|e| KnowledgeError::Search(e.to_string())),
             None => {
                 tracing::info!("[KnowledgeService] 无 embedding provider，降级为全文关键词搜索");
-                let chunks = self.repo.search_by_keyword(kb_id, query, top_k)
+                let chunks = self
+                    .repo
+                    .search_by_keyword(kb_id, query, top_k)
                     .map_err(|e| KnowledgeError::Search(e.to_string()))?;
-                Ok(chunks.into_iter().map(|c| kb_search::SearchResult {
-                    chunk_id: c.id,
-                    document_id: c.document_id,
-                    content: c.content,
-                    score: 1.0,
-                    chunk_index: c.chunk_index,
-                }).collect())
+                Ok(chunks
+                    .into_iter()
+                    .map(|c| kb_search::SearchResult {
+                        chunk_id: c.id,
+                        document_id: c.document_id,
+                        content: c.content,
+                        score: 1.0,
+                        chunk_index: c.chunk_index,
+                    })
+                    .collect())
             }
         }
     }
@@ -341,14 +346,25 @@ pub struct EmbeddingConfig {
 
 impl KnowledgeService {
     pub fn get_embedding_config(&self) -> Result<EmbeddingConfig, KnowledgeError> {
-        let provider = self.repo.get_setting("embedding_provider")?.unwrap_or_else(|| "none".to_string());
-        let model = self.repo.get_setting("embedding_model")?.unwrap_or_default();
+        let provider = self
+            .repo
+            .get_setting("embedding_provider")?
+            .unwrap_or_else(|| "none".to_string());
+        let model = self
+            .repo
+            .get_setting("embedding_model")?
+            .unwrap_or_default();
         let api_key = self.repo.get_setting("embedding_api_key")?;
-        Ok(EmbeddingConfig { provider, model, api_key })
+        Ok(EmbeddingConfig {
+            provider,
+            model,
+            api_key,
+        })
     }
 
     pub fn save_embedding_config(&self, config: &EmbeddingConfig) -> Result<(), KnowledgeError> {
-        self.repo.set_setting("embedding_provider", &config.provider)?;
+        self.repo
+            .set_setting("embedding_provider", &config.provider)?;
         self.repo.set_setting("embedding_model", &config.model)?;
         if let Some(key) = &config.api_key {
             self.repo.set_setting("embedding_api_key", key)?;
@@ -360,14 +376,34 @@ impl KnowledgeService {
     fn apply_embedding_config(&self, config: &EmbeddingConfig) {
         let result = match config.provider.as_str() {
             "ollama" => {
-                let model = if config.model.is_empty() { "nomic-embed-text" } else { &config.model };
-                nx_memory::embedding::create_provider_from_config("ollama", None, Some(model), Some(768))
+                let model = if config.model.is_empty() {
+                    "nomic-embed-text"
+                } else {
+                    &config.model
+                };
+                nx_memory::embedding::create_provider_from_config(
+                    "ollama",
+                    None,
+                    Some(model),
+                    Some(768),
+                )
             }
             "openai" => {
                 let key = config.api_key.as_deref().unwrap_or("");
-                if key.is_empty() { return; }
-                let model = if config.model.is_empty() { "text-embedding-3-small" } else { &config.model };
-                nx_memory::embedding::create_provider_from_config("openai", Some(key), Some(model), None)
+                if key.is_empty() {
+                    return;
+                }
+                let model = if config.model.is_empty() {
+                    "text-embedding-3-small"
+                } else {
+                    &config.model
+                };
+                nx_memory::embedding::create_provider_from_config(
+                    "openai",
+                    Some(key),
+                    Some(model),
+                    None,
+                )
             }
             _ => return,
         };

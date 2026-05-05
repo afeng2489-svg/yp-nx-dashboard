@@ -22,7 +22,11 @@ impl PipelineDispatcher {
         session_service: Arc<SessionService>,
         team_service: Arc<TeamService>,
     ) -> Self {
-        Self { pipeline_service, session_service, team_service }
+        Self {
+            pipeline_service,
+            session_service,
+            team_service,
+        }
     }
 
     pub fn start(self: Arc<Self>) {
@@ -38,12 +42,14 @@ impl PipelineDispatcher {
     }
 
     async fn tick(&self) -> Result<(), String> {
-        let pipelines = self.pipeline_service
+        let pipelines = self
+            .pipeline_service
             .find_running_pipelines()
             .map_err(|e| e.to_string())?;
 
         for pipeline in pipelines {
-            let steps = self.pipeline_service
+            let steps = self
+                .pipeline_service
                 .get_dispatchable_steps(&pipeline.id)
                 .map_err(|e| e.to_string())?;
 
@@ -61,7 +67,9 @@ impl PipelineDispatcher {
                 let _ = ps.mark_step_running(&step_id);
 
                 tokio::spawn(async move {
-                    let session = ss.create_session(format!("pipeline-step:{}", step_id)).await;
+                    let session = ss
+                        .create_session(format!("pipeline-step:{}", step_id))
+                        .await;
 
                     tracing::info!("[Dispatcher] 执行 step {} ({})", step_id, phase);
 
@@ -73,15 +81,26 @@ impl PipelineDispatcher {
                                 let _ = ss.delete_session(&session.id).await;
                             }
                             // 质量门：step 完成后检测项目测试
-                            let working_dir = session.as_ref().ok()
-                                .and_then(|_| None::<String>); // dispatcher 暂无 working_dir，预留接口
+                            let working_dir = session.as_ref().ok().and_then(|_| None::<String>); // dispatcher 暂无 working_dir，预留接口
                             let final_output = match run_quality_gate(working_dir.as_deref()) {
                                 Some(gate) if !gate.passed => {
-                                    let failures: Vec<String> = gate.checks.iter()
+                                    let failures: Vec<String> = gate
+                                        .checks
+                                        .iter()
                                         .filter(|c| !c.passed)
-                                        .map(|c| format!("{}: {}", c.cmd, c.stderr.chars().take(200).collect::<String>()))
+                                        .map(|c| {
+                                            format!(
+                                                "{}: {}",
+                                                c.cmd,
+                                                c.stderr.chars().take(200).collect::<String>()
+                                            )
+                                        })
                                         .collect();
-                                    format!("{}\n\n--- 质量门失败 ---\n{}", output, failures.join("\n"))
+                                    format!(
+                                        "{}\n\n--- 质量门失败 ---\n{}",
+                                        output,
+                                        failures.join("\n")
+                                    )
                                 }
                                 Some(gate) => format!("{}\n\n--- {} ---", output, gate),
                                 None => output,
@@ -91,7 +110,10 @@ impl PipelineDispatcher {
                             // 架构设计完成后请求人工审批
                             if step_phase == PipelinePhase::ArchitectureDesign {
                                 let _ = ps.request_approval(&pipeline_id);
-                                tracing::info!("[Dispatcher] pipeline {} 等待人工审批", pipeline_id);
+                                tracing::info!(
+                                    "[Dispatcher] pipeline {} 等待人工审批",
+                                    pipeline_id
+                                );
                             }
                         }
                         Err(e) => {

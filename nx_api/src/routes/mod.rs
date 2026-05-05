@@ -30,11 +30,10 @@ use crate::ws::RunCommandWsHandler;
 use crate::ws::TerminalWsHandler;
 use nexus_ai::{AIManagerConfig, AIModelManager, APIConfig, ModelConfig, ProviderType};
 
-pub mod browser;
-pub mod quick_run;
 pub mod a2ui;
 pub mod ai_config;
 pub mod artifacts;
+pub mod browser;
 pub mod execution_logs;
 pub mod executions;
 pub mod feature_flags;
@@ -44,19 +43,20 @@ pub mod health;
 pub mod issues;
 pub mod knowledge;
 pub mod memory;
-pub mod sprints;
 pub mod model_routing;
 pub mod pipelines;
 pub mod plugins;
 pub mod process_lifecycle;
 pub mod processes;
 pub mod projects;
+pub mod quick_run;
 pub mod resume;
 pub mod scheduler;
 pub mod search;
 pub mod sessions;
 pub mod skills;
 pub mod snapshots;
+pub mod sprints;
 pub mod teams;
 pub mod teams_state;
 pub mod teams_v2;
@@ -805,9 +805,7 @@ impl AppState {
             crate::services::session_message_store::SessionMessageStore::new(&config.db_path)
                 .context("Failed to create session message store")?,
         );
-        let a2ui_service = Arc::new(
-            crate::a2ui::A2UIService::new().with_store(msg_store)
-        );
+        let a2ui_service = Arc::new(crate::a2ui::A2UIService::new().with_store(msg_store));
 
         // 创建知识库服务
         let knowledge_repo = Arc::new(
@@ -944,7 +942,9 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
             let ss = Arc::new(app_state.session_service.clone());
             let ts = Arc::new(app_state.teams_state.team_service.clone());
             let dispatcher = Arc::new(
-                crate::services::team_evolution::pipeline_dispatcher::PipelineDispatcher::new(ps, ss, ts)
+                crate::services::team_evolution::pipeline_dispatcher::PipelineDispatcher::new(
+                    ps, ss, ts,
+                ),
             );
             dispatcher.start();
         }
@@ -1141,8 +1141,14 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
             post(sessions::activate_session),
         )
         .route("/api/v1/sessions/:id/sync", post(sessions::sync_session))
-        .route("/api/v1/sessions/:id/messages", get(sessions::get_session_messages))
-        .route("/api/v1/sessions/:session_id/messages/:msg_id/respond", post(sessions::respond_to_message))
+        .route(
+            "/api/v1/sessions/:id/messages",
+            get(sessions::get_session_messages),
+        )
+        .route(
+            "/api/v1/sessions/:session_id/messages/:msg_id/respond",
+            post(sessions::respond_to_message),
+        )
         .route(
             "/api/v1/sessions/resume/:resume_key",
             post(sessions::resume_session),

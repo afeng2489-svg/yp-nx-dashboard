@@ -23,7 +23,9 @@ pub struct SessionMessageStore {
 impl SessionMessageStore {
     pub fn new(db_path: &str) -> anyhow::Result<Self> {
         let conn = Connection::open(db_path).context("open session_messages db")?;
-        Ok(Self { conn: Arc::new(Mutex::new(conn)) })
+        Ok(Self {
+            conn: Arc::new(Mutex::new(conn)),
+        })
     }
 
     pub fn insert(&self, msg: &PersistedMessage) -> anyhow::Result<()> {
@@ -33,8 +35,14 @@ impl SessionMessageStore {
              (id, session_id, execution_id, role, content_json, pending, responded, created_at)
              VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
             params![
-                msg.id, msg.session_id, msg.execution_id, msg.role,
-                msg.content_json, msg.pending as i64, msg.responded as i64, msg.created_at
+                msg.id,
+                msg.session_id,
+                msg.execution_id,
+                msg.role,
+                msg.content_json,
+                msg.pending as i64,
+                msg.responded as i64,
+                msg.created_at
             ],
         )?;
         Ok(())
@@ -67,6 +75,7 @@ impl SessionMessageStore {
                 created_at: r.get(7)?,
             })
         })?;
-        rows.collect::<Result<Vec<_>, _>>().context("list session_messages")
+        rows.collect::<Result<Vec<_>, _>>()
+            .context("list session_messages")
     }
 }

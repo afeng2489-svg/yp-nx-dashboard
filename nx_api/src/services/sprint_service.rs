@@ -1,9 +1,9 @@
 use anyhow::Context;
+use parking_lot::Mutex;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use parking_lot::Mutex;
 use serde_json::Value;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SprintCard {
@@ -32,7 +32,9 @@ pub struct SprintService {
 impl SprintService {
     pub fn new(db_path: &str) -> anyhow::Result<Self> {
         let conn = Connection::open(db_path).context("open sprint db")?;
-        Ok(Self { conn: Arc::new(Mutex::new(conn)) })
+        Ok(Self {
+            conn: Arc::new(Mutex::new(conn)),
+        })
     }
 
     pub fn list(&self) -> anyhow::Result<Vec<SprintCard>> {
@@ -51,7 +53,8 @@ impl SprintService {
                 updated_at: row.get(6)?,
             })
         })?;
-        rows.collect::<Result<Vec<_>, _>>().context("list sprint_cards")
+        rows.collect::<Result<Vec<_>, _>>()
+            .context("list sprint_cards")
     }
 
     pub fn upsert(&self, card: &SprintCard) -> anyhow::Result<()> {
@@ -101,27 +104,34 @@ impl SprintService {
                 created_at: row.get(4)?,
             })
         })?;
-        rows.collect::<Result<Vec<_>, _>>().context("list sprint_events")
+        rows.collect::<Result<Vec<_>, _>>()
+            .context("list sprint_events")
     }
 
     pub fn seed_from_progress_json(&self, json_path: &str) -> anyhow::Result<()> {
-        let content = std::fs::read_to_string(json_path)
-            .with_context(|| format!("read {json_path}"))?;
+        let content =
+            std::fs::read_to_string(json_path).with_context(|| format!("read {json_path}"))?;
         let doc: Value = serde_json::from_str(&content)?;
         let tasks = doc["tasks"].as_array().context("tasks not array")?;
         let now = chrono::Utc::now().to_rfc3339();
         for task in tasks {
             let id = task["id"].as_str().unwrap_or_default().to_string();
-            if id.is_empty() { continue; }
+            if id.is_empty() {
+                continue;
+            }
             let exists: bool = {
                 let conn = self.conn.lock();
                 conn.query_row(
                     "SELECT COUNT(*) FROM sprint_cards WHERE id=?1",
                     params![id],
                     |r| r.get::<_, i64>(0),
-                ).unwrap_or(0) > 0
+                )
+                .unwrap_or(0)
+                    > 0
             };
-            if exists { continue; }
+            if exists {
+                continue;
+            }
             let card = SprintCard {
                 id,
                 title: task["name"].as_str().unwrap_or("").to_string(),

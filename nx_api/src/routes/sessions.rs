@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 use super::AppState;
 use crate::response::{ok, ApiErrorResponse, ApiOk};
-use crate::services::session_repository::RepositoryError;
 use crate::services::session_message_store::PersistedMessage;
+use crate::services::session_repository::RepositoryError;
 
 /// 列出会话
 pub async fn list_sessions(
@@ -280,9 +280,14 @@ pub async fn get_session_messages(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<ApiOk<Vec<PersistedMessage>>, ApiErrorResponse> {
-    let store = state.a2ui_service.msg_store()
-        .ok_or_else(|| ApiErrorResponse::new(StatusCode::SERVICE_UNAVAILABLE, "store not ready".to_string()))?;
-    let msgs = store.list_for_session(&id)
+    let store = state.a2ui_service.msg_store().ok_or_else(|| {
+        ApiErrorResponse::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "store not ready".to_string(),
+        )
+    })?;
+    let msgs = store
+        .list_for_session(&id)
         .map_err(|e| ApiErrorResponse::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(ok(msgs))
 }
@@ -300,7 +305,8 @@ pub async fn respond_to_message(
 ) -> Result<ApiOk<serde_json::Value>, ApiErrorResponse> {
     use crate::a2ui::U2AMessage;
     let response = U2AMessage::Response(body.response);
-    state.a2ui_service
+    state
+        .a2ui_service
         .respond(&session_id, &msg_id, response)
         .map_err(|e| ApiErrorResponse::new(StatusCode::BAD_REQUEST, e.to_string()))?;
     Ok(ok(serde_json::json!({ "ok": true })))

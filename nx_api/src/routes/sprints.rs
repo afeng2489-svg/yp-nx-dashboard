@@ -20,14 +20,21 @@ pub fn sprint_routes() -> Router<Arc<AppState>> {
 }
 
 async fn list_sprints(State(state): State<Arc<AppState>>) -> Result<Json<Vec<SprintCard>>, String> {
-    state.sprint_service.list().map(Json).map_err(|e| e.to_string())
+    state
+        .sprint_service
+        .list()
+        .map(Json)
+        .map_err(|e| e.to_string())
 }
 
 async fn upsert_sprint(
     State(state): State<Arc<AppState>>,
     Json(card): Json<SprintCard>,
 ) -> Result<Json<SprintCard>, String> {
-    state.sprint_service.upsert(&card).map_err(|e| e.to_string())?;
+    state
+        .sprint_service
+        .upsert(&card)
+        .map_err(|e| e.to_string())?;
     Ok(Json(card))
 }
 
@@ -41,7 +48,10 @@ async fn update_status(
     Path(id): Path<String>,
     Json(body): Json<StatusBody>,
 ) -> Result<Json<serde_json::Value>, String> {
-    state.sprint_service.update_status(&id, &body.status).map_err(|e| e.to_string())?;
+    state
+        .sprint_service
+        .update_status(&id, &body.status)
+        .map_err(|e| e.to_string())?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
@@ -49,7 +59,11 @@ async fn list_events(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<SprintEvent>>, String> {
-    state.sprint_service.events_for(&id).map(Json).map_err(|e| e.to_string())
+    state
+        .sprint_service
+        .events_for(&id)
+        .map(Json)
+        .map_err(|e| e.to_string())
 }
 
 #[derive(Deserialize, Serialize)]
@@ -62,15 +76,23 @@ async fn get_report(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, String> {
-    let card = state.sprint_service.list()
+    let card = state
+        .sprint_service
+        .list()
         .map_err(|e| e.to_string())?
         .into_iter()
         .find(|c| c.id == id)
         .ok_or_else(|| format!("sprint {} not found", id))?;
 
-    let events = state.sprint_service.events_for(&id).map_err(|e| e.to_string())?;
+    let events = state
+        .sprint_service
+        .events_for(&id)
+        .map_err(|e| e.to_string())?;
 
-    let completed = events.iter().filter(|e| e.event_type == "completed").count();
+    let completed = events
+        .iter()
+        .filter(|e| e.event_type == "completed")
+        .count();
     let skipped = events.iter().filter(|e| e.event_type == "skipped").count();
     let blocked = events.iter().filter(|e| e.event_type == "blocked").count();
 
@@ -108,6 +130,9 @@ async fn add_event(
         detail: body.detail,
         created_at: chrono::Utc::now().to_rfc3339(),
     };
-    state.sprint_service.record_event(&event).map_err(|e| e.to_string())?;
+    state
+        .sprint_service
+        .record_event(&event)
+        .map_err(|e| e.to_string())?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }

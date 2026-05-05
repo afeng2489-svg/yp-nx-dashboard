@@ -37,7 +37,9 @@ pub async fn quick_run(
     };
 
     if workflows.is_empty() {
-        return Json(serde_json::json!({ "ok": false, "error": "没有可用的工作流，请先在工作流页面创建" }));
+        return Json(
+            serde_json::json!({ "ok": false, "error": "没有可用的工作流，请先在工作流页面创建" }),
+        );
     }
 
     // 2. 关键词匹配选工作流
@@ -70,7 +72,13 @@ pub async fn quick_run(
 
     match state
         .execution_service
-        .execute_workflow(workflow.id.clone(), &workflow_yaml, variables.clone(), None, current_workspace)
+        .execute_workflow(
+            workflow.id.clone(),
+            &workflow_yaml,
+            variables.clone(),
+            None,
+            current_workspace,
+        )
         .await
     {
         Ok(execution_id) => Json(serde_json::json!({
@@ -106,7 +114,10 @@ fn match_workflow(
                 .filter(|(kws, _)| kws.iter().any(|k| lower.contains(k)))
                 .filter(|(_, wf_kws)| wf_kws.iter().any(|k| text.contains(k)))
                 .count()
-                + text.split_whitespace().filter(|w| lower.contains(*w)).count();
+                + text
+                    .split_whitespace()
+                    .filter(|w| lower.contains(*w))
+                    .count();
             (score, w)
         })
         .collect();
@@ -120,11 +131,23 @@ fn match_workflow(
 
 /// prompt 关键词 → 工作流关键词映射
 static KEYWORDS: &[(&[&str], &[&str])] = &[
-    (&["bug", "修复", "fix", "错误", "报错", "crash"], &["fix", "bug", "investigate", "quick"]),
-    (&["开发", "功能", "feature", "实现", "implement", "新增"], &["dev", "workflow", "feature"]),
-    (&["测试", "test", "tdd", "单元", "覆盖率"], &["tdd", "test", "fix"]),
+    (
+        &["bug", "修复", "fix", "错误", "报错", "crash"],
+        &["fix", "bug", "investigate", "quick"],
+    ),
+    (
+        &["开发", "功能", "feature", "实现", "implement", "新增"],
+        &["dev", "workflow", "feature"],
+    ),
+    (
+        &["测试", "test", "tdd", "单元", "覆盖率"],
+        &["tdd", "test", "fix"],
+    ),
     (&["审查", "review", "代码质量", "code review"], &["review"]),
-    (&["分析", "brainstorm", "头脑风暴", "方案", "设计"], &["brainstorm", "investigate"]),
+    (
+        &["分析", "brainstorm", "头脑风暴", "方案", "设计"],
+        &["brainstorm", "investigate"],
+    ),
     (&["调查", "根因", "investigate", "排查"], &["investigate"]),
 ];
 

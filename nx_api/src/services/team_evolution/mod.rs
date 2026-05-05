@@ -25,9 +25,9 @@ pub mod feature_flag_repository;
 pub mod feature_flag_service;
 
 // P1: Pipeline Engine
+pub mod pipeline_dispatcher;
 pub mod pipeline_repository;
 pub mod pipeline_service;
-pub mod pipeline_dispatcher;
 
 // P2: Snapshots + Progress
 pub mod snapshot_repository;

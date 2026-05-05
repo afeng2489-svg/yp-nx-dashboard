@@ -50,13 +50,21 @@ pub fn run_quality_gate(working_dir: Option<&str>) -> Option<QualityGateResult> 
         let result = match output {
             Ok(out) => {
                 let passed = out.status.success();
-                if !passed { all_passed = false; }
+                if !passed {
+                    all_passed = false;
+                }
                 CheckResult {
                     cmd: cmd.to_string(),
                     passed,
                     exit_code: out.status.code(),
-                    stdout: String::from_utf8_lossy(&out.stdout).chars().take(2000).collect(),
-                    stderr: String::from_utf8_lossy(&out.stderr).chars().take(2000).collect(),
+                    stdout: String::from_utf8_lossy(&out.stdout)
+                        .chars()
+                        .take(2000)
+                        .collect(),
+                    stderr: String::from_utf8_lossy(&out.stderr)
+                        .chars()
+                        .take(2000)
+                        .collect(),
                 }
             }
             Err(e) => {
@@ -70,9 +78,16 @@ pub fn run_quality_gate(working_dir: Option<&str>) -> Option<QualityGateResult> 
                 }
             }
         };
-        tracing::info!("[QualityGate] '{}' → {}", cmd, if result.passed { "PASS" } else { "FAIL" });
+        tracing::info!(
+            "[QualityGate] '{}' → {}",
+            cmd,
+            if result.passed { "PASS" } else { "FAIL" }
+        );
         results.push(result);
     }
 
-    Some(QualityGateResult { passed: all_passed, checks: results })
+    Some(QualityGateResult {
+        passed: all_passed,
+        checks: results,
+    })
 }

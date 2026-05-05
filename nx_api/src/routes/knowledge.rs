@@ -288,7 +288,9 @@ pub async fn search_knowledge_base(
 pub async fn get_embedding_config(
     State(state): State<Arc<AppState>>,
 ) -> ApiResponse<crate::services::knowledge::EmbeddingConfig> {
-    let config = state.knowledge_service.get_embedding_config()
+    let config = state
+        .knowledge_service
+        .get_embedding_config()
         .map_err(KnowledgeApiError::from)?;
     Ok(Json(config))
 }
@@ -298,7 +300,9 @@ pub async fn save_embedding_config(
     State(state): State<Arc<AppState>>,
     Json(config): Json<crate::services::knowledge::EmbeddingConfig>,
 ) -> ApiResponse<serde_json::Value> {
-    state.knowledge_service.save_embedding_config(&config)
+    state
+        .knowledge_service
+        .save_embedding_config(&config)
         .map_err(KnowledgeApiError::from)?;
     Ok(Json(serde_json::json!({"ok": true})))
 }

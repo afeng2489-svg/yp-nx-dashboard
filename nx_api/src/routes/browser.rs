@@ -20,8 +20,12 @@ pub struct ScreenshotReq {
     #[serde(default = "default_height")]
     pub height: u32,
 }
-fn default_width() -> u32 { 1280 }
-fn default_height() -> u32 { 800 }
+fn default_width() -> u32 {
+    1280
+}
+fn default_height() -> u32 {
+    800
+}
 
 #[derive(Serialize)]
 pub struct ScreenshotResp {
@@ -63,10 +67,16 @@ async fn run_playwright(script: &str) -> Result<String, String> {
     if let Some(stdin) = child.stdin.take() {
         use tokio::io::AsyncWriteExt;
         let mut stdin = stdin;
-        stdin.write_all(script.as_bytes()).await.map_err(|e| format!("写入脚本失败: {e}"))?;
+        stdin
+            .write_all(script.as_bytes())
+            .await
+            .map_err(|e| format!("写入脚本失败: {e}"))?;
     }
 
-    let out = child.wait_with_output().await.map_err(|e| format!("等待 node 失败: {e}"))?;
+    let out = child
+        .wait_with_output()
+        .await
+        .map_err(|e| format!("等待 node 失败: {e}"))?;
     if out.status.success() {
         Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
     } else {

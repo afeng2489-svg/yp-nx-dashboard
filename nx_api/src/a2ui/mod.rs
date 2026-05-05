@@ -66,15 +66,26 @@ impl A2UIService {
 
     /// Add an interactive message to a session
     pub fn add_message(&self, session_id: &str, message: InteractiveMessage) -> ApiResult<()> {
-        let is_pending = message.content.is_ask() || message.content.is_confirm() || message.content.is_select();
+        let is_pending =
+            message.content.is_ask() || message.content.is_confirm() || message.content.is_select();
         if is_pending {
             self.session_manager
                 .add_pending_message(session_id, message.clone())
-                .ok_or_else(|| crate::error::ApiError::SessionNotFound(format!("Session not found: {}", session_id)))?;
+                .ok_or_else(|| {
+                    crate::error::ApiError::SessionNotFound(format!(
+                        "Session not found: {}",
+                        session_id
+                    ))
+                })?;
         } else {
             self.session_manager
                 .add_message(session_id, message.clone())
-                .ok_or_else(|| crate::error::ApiError::SessionNotFound(format!("Session not found: {}", session_id)))?;
+                .ok_or_else(|| {
+                    crate::error::ApiError::SessionNotFound(format!(
+                        "Session not found: {}",
+                        session_id
+                    ))
+                })?;
         }
         if let Some(store) = &self.msg_store {
             let pm = PersistedMessage {
@@ -99,7 +110,8 @@ impl A2UIService {
         message_id: &str,
         response: U2AMessage,
     ) -> ApiResult<InteractiveMessage> {
-        let msg = self.session_manager
+        let msg = self
+            .session_manager
             .respond(session_id, message_id, response)
             .ok_or_else(|| {
                 crate::error::ApiError::MessageNotFound(

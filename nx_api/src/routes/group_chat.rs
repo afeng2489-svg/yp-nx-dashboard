@@ -406,7 +406,16 @@ pub struct AutoPipelineRequest {
 }
 
 fn is_requirement_message(content: &str) -> bool {
-    let keywords = ["做一个", "开发", "实现", "需要", "构建", "创建", "帮我做", "帮我开发"];
+    let keywords = [
+        "做一个",
+        "开发",
+        "实现",
+        "需要",
+        "构建",
+        "创建",
+        "帮我做",
+        "帮我开发",
+    ];
     keywords.iter().any(|kw| content.contains(kw))
 }
 
@@ -433,11 +442,19 @@ async fn auto_create_pipeline(
     // 从团队真实角色构建 role_id 映射
     let role_map = build_role_map(state, &session.session.team_id);
     let steps = build_steps_from_requirement(&pipeline.id, requirement, &role_map);
-    pipeline_service.add_steps(&steps).map_err(|e| e.to_string())?;
+    pipeline_service
+        .add_steps(&steps)
+        .map_err(|e| e.to_string())?;
 
-    pipeline_service.start(&pipeline.id).map_err(|e| e.to_string())?;
+    pipeline_service
+        .start(&pipeline.id)
+        .map_err(|e| e.to_string())?;
 
-    tracing::info!("自动创建 Pipeline {} for session {}", pipeline.id, session_id);
+    tracing::info!(
+        "自动创建 Pipeline {} for session {}",
+        pipeline.id,
+        session_id
+    );
 
     Ok(serde_json::json!({
         "pipeline_id": pipeline.id,
@@ -447,12 +464,21 @@ async fn auto_create_pipeline(
     }))
 }
 
-fn build_steps_from_requirement(pipeline_id: &str, requirement: &str, role_map: &std::collections::HashMap<&str, String>) -> Vec<crate::models::pipeline::PipelineStep> {
+fn build_steps_from_requirement(
+    pipeline_id: &str,
+    requirement: &str,
+    role_map: &std::collections::HashMap<&str, String>,
+) -> Vec<crate::models::pipeline::PipelineStep> {
     use crate::models::pipeline::{PipelinePhase, PipelineStep, StepStatus};
     use chrono::Utc;
     use uuid::Uuid;
 
-    let resolve = |key: &str| role_map.get(key).cloned().unwrap_or_else(|| key.to_string());
+    let resolve = |key: &str| {
+        role_map
+            .get(key)
+            .cloned()
+            .unwrap_or_else(|| key.to_string())
+    };
 
     let phases = [
         (PipelinePhase::RequirementsAnalysis, format!("需求：{}\n\n请分析以上需求，输出详细的需求文档，包括功能列表、用户故事、验收标准。", requirement), resolve("analyst")),
@@ -490,31 +516,42 @@ fn build_steps_from_requirement(pipeline_id: &str, requirement: &str, role_map: 
 
 /// 从团队真实角色构建关键词 → role_id 映射
 /// 按 trigger_keywords 匹配，找不到时 fallback 到第一个角色
-fn build_role_map<'a>(state: &Arc<AppState>, team_id: &str) -> std::collections::HashMap<&'a str, String> {
+fn build_role_map<'a>(
+    state: &Arc<AppState>,
+    team_id: &str,
+) -> std::collections::HashMap<&'a str, String> {
     let mut map = std::collections::HashMap::new();
-    let roles = state.teams_state.team_service.list_roles(team_id).unwrap_or_default();
+    let roles = state
+        .teams_state
+        .team_service
+        .list_roles(team_id)
+        .unwrap_or_default();
     if roles.is_empty() {
         return map;
     }
 
     let role_keys = [
-        ("analyst",   &["分析", "需求", "pm", "产品"][..]),
+        ("analyst", &["分析", "需求", "pm", "产品"][..]),
         ("architect", &["架构", "设计", "architect"][..]),
-        ("backend",   &["后端", "backend", "api", "服务"][..]),
-        ("frontend",  &["前端", "frontend", "ui", "界面"][..]),
+        ("backend", &["后端", "backend", "api", "服务"][..]),
+        ("frontend", &["前端", "frontend", "ui", "界面"][..]),
         ("fullstack", &["全栈", "fullstack", "联调"][..]),
-        ("tester",    &["测试", "test", "qa"][..]),
-        ("writer",    &["文档", "doc", "writer"][..]),
-        ("devops",    &["运维", "devops", "部署", "deploy"][..]),
+        ("tester", &["测试", "test", "qa"][..]),
+        ("writer", &["文档", "doc", "writer"][..]),
+        ("devops", &["运维", "devops", "部署", "deploy"][..]),
     ];
 
     for (key, keywords) in &role_keys {
         let matched = roles.iter().find(|r| {
             let name_lower = r.name.to_lowercase();
-            let kws_lower: Vec<String> = r.trigger_keywords.iter().map(|k| k.to_lowercase()).collect();
-            keywords.iter().any(|kw| {
-                name_lower.contains(kw) || kws_lower.iter().any(|k| k.contains(kw))
-            })
+            let kws_lower: Vec<String> = r
+                .trigger_keywords
+                .iter()
+                .map(|k| k.to_lowercase())
+                .collect();
+            keywords
+                .iter()
+                .any(|kw| name_lower.contains(kw) || kws_lower.iter().any(|k| k.contains(kw)))
         });
         // fallback: 找不到匹配角色时用第一个角色的 id
         let role_id = matched.unwrap_or(&roles[0]).id.clone();
