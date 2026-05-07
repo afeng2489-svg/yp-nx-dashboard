@@ -2,7 +2,6 @@
   "bundle": {
     "targets": ["appimage", "deb"],
     "resources": {
-      "../../target/release/nx_api": "nx_api",
       "../../.claude/agents": "skills",
       "../../nx_dashboard/nexus.db": "nexus_template.db"
     }
