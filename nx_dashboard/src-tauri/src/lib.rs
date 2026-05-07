@@ -218,16 +218,79 @@ pub fn run() {
                 }
             };
 
+            // ── 写入启动标记（确认 setup 执行）──
+            let marker_dir: std::path::PathBuf = dirs::home_dir()
+                .unwrap_or_else(std::env::temp_dir);
+            let marker_path = marker_dir.join("nx_tauri_setup.log");
+            let marker_msg = format!(
+                "[{}] Tauri setup started\n  exe: {:?}\n  temp_dir: {:?}\n",
+                chrono_or_timestamp(),
+                std::env::current_exe().ok(),
+                std::env::temp_dir(),
+            );
+            let _ = std::fs::write(&marker_path, &marker_msg);
+
+            // ── 检查 sidecar 是否存在 ──
+            let sidecar_info = if cfg!(not(debug_assertions)) {
+                let target_triple = if cfg!(target_os = "windows") {
+                    "x86_64-pc-windows-msvc"
+                } else if cfg!(target_os = "macos") {
+                    if cfg!(target_arch = "aarch64") { "aarch64-apple-darwin" } else { "x86_64-apple-darwin" }
+                } else {
+                    "x86_64-unknown-linux-gnu"
+                };
+                let sidecar_name = if cfg!(target_os = "windows") {
+                    format!("nx_api-{}.exe", target_triple)
+                } else {
+                    format!("nx_api-{}", target_triple)
+                };
+                let exe_dir = std::env::current_exe()
+                    .ok()
+                    .and_then(|e| e.parent().map(|p| p.to_path_buf()));
+                let sidecar_path = exe_dir.as_ref().map(|d| d.join(&sidecar_name));
+                let exists = sidecar_path.as_ref().map(|p| p.exists()).unwrap_or(false);
+                let size = sidecar_path.as_ref()
+                    .and_then(|p| std::fs::metadata(p).ok())
+                    .map(|m| m.len())
+                    .unwrap_or(0);
+                format!(
+                    "  sidecar: {:?}\n  exists: {}\n  size: {} bytes",
+                    sidecar_path, exists, size
+                )
+            } else {
+                "  debug mode — sidecar check skipped".to_string()
+            };
+            let _ = std::fs::OpenOptions::new()
+                .create(true).append(true)
+                .open(&marker_path)
+                .and_then(|mut f| std::io::Write::write_all(&mut f, sidecar_info.as_bytes()));
+
             let app_handle = app.handle().clone();
+            let marker_dir_for_thread = marker_dir.clone();
+            let marker_path_for_thread = marker_path.clone();
             // Start nx_api in background
             thread::spawn(move || {
                 match start_nx_api(&app_handle, claude_cli_env.as_deref()) {
                     Ok(()) => {}
                     Err(e) => {
-                        let log_path = std::env::temp_dir().join("nx_startup.log");
-                        let msg = format!("后台服务启动失败: {}\n请查看日志: {:?}", e, log_path);
+                        // 写入多个位置确保用户能找到
+                        let msg = format!("后台服务启动失败: {}", e);
+
+                        // 1. 用户目录
+                        let home_log = marker_dir_for_thread.join("nx_startup_error.log");
+                        let _ = std::fs::write(&home_log, &msg);
+
+                        // 2. 标记文件追加
+                        let _ = std::fs::OpenOptions::new()
+                            .create(true).append(true)
+                            .open(&marker_path_for_thread)
+                            .and_then(|mut f| std::io::Write::write_all(
+                                &mut f, format!("\n\nERROR: {}\n", msg).as_bytes()));
+
+                        // 3. temp dir (原有)
                         write_startup_error(&msg);
-                        // 尝试通知前端（app_handle 可能还不可用，忽略错误）
+
+                        // 4. 通知前端
                         let _ = app_handle.emit("nx-api-startup-error", &msg);
                     }
                 }
