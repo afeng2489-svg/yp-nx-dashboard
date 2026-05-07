@@ -955,8 +955,6 @@ fn get_embedded_template_summaries() -> Vec<TemplateSummary> {
 }
 
 /// 按类别列出模板
-
-/// 按类别列出模板
 pub async fn list_templates_by_category(
     State(_state): State<Arc<AppState>>,
     Path(category): Path<String>,

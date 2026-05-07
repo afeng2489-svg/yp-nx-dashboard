@@ -619,7 +619,7 @@ impl TaskScheduler {
             });
 
             let result: Option<ExecutionResult> =
-                result_json.and_then(|s| serde_json::from_str(&*s).ok());
+                result_json.and_then(|s| serde_json::from_str(&s).ok());
 
             let task = QueuedTask {
                 id,
