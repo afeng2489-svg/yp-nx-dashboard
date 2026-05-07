@@ -472,23 +472,43 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
 
     diag(&format!("nx_api spawned, PID: {:?}", child.id()));
 
-    thread::sleep(std::time::Duration::from_secs(2));
+    // Poll port 8080 until nx_api is ready (max 10 seconds)
+    let mut ready = false;
+    for i in 0..20 {
+        std::thread::sleep(std::time::Duration::from_millis(500));
 
-    match child.try_wait() {
-        Ok(Some(status)) => {
-            let log = std::fs::read_to_string(&log_path).unwrap_or_default();
-            let msg = format!("nx_api exited immediately (status: {})\n--- nx_api log ---\n{}", status, log);
-            diag(&msg);
-            return Err(msg.into());
+        // Check if nx_api crashed
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let log = std::fs::read_to_string(&log_path).unwrap_or_default();
+                let msg = format!("nx_api exited (status: {})\n--- nx_api log ---\n{}", status, log);
+                diag(&msg);
+                return Err(msg.into());
+            }
+            Err(e) => {
+                let msg = format!("Failed to check nx_api status: {}", e);
+                diag(&msg);
+                return Err(msg.into());
+            }
+            Ok(None) => { /* still running */ }
         }
-        Ok(None) => {
-            diag(&format!("nx_api running (PID: {:?})", child.id()));
+
+        // Try connecting to port 8080
+        if std::net::TcpStream::connect_timeout(
+            &"127.0.0.1:8080".parse().unwrap(),
+            std::time::Duration::from_millis(200),
+        ).is_ok() {
+            diag(&format!("nx_api ready on port 8080 (after {}x500ms)", i + 1));
+            ready = true;
+            break;
         }
-        Err(e) => {
-            let msg = format!("Failed to check nx_api status: {}", e);
-            diag(&msg);
-            return Err(msg.into());
-        }
+    }
+
+    if !ready {
+        let log = std::fs::read_to_string(&log_path).unwrap_or_default();
+        let msg = format!("nx_api started but port 8080 not responding after 10s\n--- nx_api log ---\n{}", log);
+        diag(&msg);
+        return Err(msg.into());
     }
 
     // Keep child alive (and wait forever so nx_api is not orphaned on crash)

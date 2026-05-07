@@ -14,4 +14,4 @@ docs/*.backup
 dashboard-current.png
 dashboard.png
 .claude/
-src/
+/src/

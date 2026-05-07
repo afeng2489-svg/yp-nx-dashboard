@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Toaster } from 'sonner';
 import { Dashboard } from '@/components/layout';
 import { PageTransition } from '@/components/ui';
@@ -10,6 +10,7 @@ import { useVersionCheck } from '@/lib/versionCheck';
 import { useExecutionStore } from '@/stores/executionStore';
 import { WorkflowPauseModal } from '@/components/execution/WorkflowPauseModal';
 import { closeBrowserWebview } from '@/pages/BrowserPage';
+import { waitForBackend } from '@/api/backendReady';
 import './index.css';
 
 // Code splitting for heavy pages
@@ -141,6 +142,19 @@ function App() {
   // Initialize keyboard shortcuts handler
   useKeyboardHandler();
 
+  // Wait for backend to be ready before rendering
+  const [backendReady, setBackendReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    waitForBackend().then((ready) => {
+      if (!cancelled) setBackendReady(ready);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Version check on startup
   const { updateAvailable, showUpdateDialog } = useVersionCheck();
 
@@ -153,6 +167,17 @@ function App() {
       return () => clearTimeout(timer);
     }
   }, [updateAvailable, showUpdateDialog]);
+
+  if (!backendReady) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
+          <p className="text-muted-foreground text-sm">正在启动后端服务...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
