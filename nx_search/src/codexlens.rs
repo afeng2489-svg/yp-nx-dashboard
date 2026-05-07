@@ -766,7 +766,7 @@ mod tests {
         );
 
         let result = engine.search("println", None);
-        assert!(result.total_hits >= 0);
+        let _ = result.total_hits;
     }
 
     #[test]

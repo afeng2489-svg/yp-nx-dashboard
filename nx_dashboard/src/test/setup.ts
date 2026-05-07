@@ -2,6 +2,35 @@ import '@testing-library/jest-dom';
 import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
+// Ensure localStorage is available for zustand persist middleware
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => store[key] ?? null,
+    setItem: (key: string, value: string) => {
+      store[key] = String(value);
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+    clear: () => {
+      store = {};
+    },
+    get length() {
+      return Object.keys(store).length;
+    },
+    key: (index: number) => Object.keys(store)[index] ?? null,
+  };
+})();
+
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'localStorage', {
+    value: localStorageMock,
+    writable: true,
+    configurable: true,
+  });
+}
+
 // Cleanup after each test
 afterEach(() => {
   cleanup();
@@ -31,9 +60,16 @@ class ResizeObserverMock {
 window.ResizeObserver = ResizeObserverMock;
 
 // Mock IntersectionObserver
-class IntersectionObserverMock {
+class IntersectionObserverMock implements IntersectionObserver {
+  root: Element | Document | null = null;
+  rootMargin: string = '';
+  scrollMargin: string = '';
+  thresholds: ReadonlyArray<number> = [];
   observe() {}
   unobserve() {}
   disconnect() {}
+  takeRecords(): IntersectionObserverEntry[] {
+    return [];
+  }
 }
 window.IntersectionObserver = IntersectionObserverMock;
