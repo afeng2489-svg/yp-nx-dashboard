@@ -230,33 +230,33 @@ pub fn run() {
             );
             let _ = std::fs::write(&marker_path, &marker_msg);
 
-            // ── 检查 sidecar 是否存在 ──
+            // ── 检查 sidecar 是否存在（两个名字都查）──
             let sidecar_info = if cfg!(not(debug_assertions)) {
-                let target_triple = if cfg!(target_os = "windows") {
-                    "x86_64-pc-windows-msvc"
-                } else if cfg!(target_os = "macos") {
-                    if cfg!(target_arch = "aarch64") { "aarch64-apple-darwin" } else { "x86_64-apple-darwin" }
-                } else {
-                    "x86_64-unknown-linux-gnu"
-                };
-                let sidecar_name = if cfg!(target_os = "windows") {
-                    format!("nx_api-{}.exe", target_triple)
-                } else {
-                    format!("nx_api-{}", target_triple)
-                };
                 let exe_dir = std::env::current_exe()
                     .ok()
                     .and_then(|e| e.parent().map(|p| p.to_path_buf()));
-                let sidecar_path = exe_dir.as_ref().map(|d| d.join(&sidecar_name));
-                let exists = sidecar_path.as_ref().map(|p| p.exists()).unwrap_or(false);
-                let size = sidecar_path.as_ref()
-                    .and_then(|p| std::fs::metadata(p).ok())
-                    .map(|m| m.len())
-                    .unwrap_or(0);
-                format!(
-                    "  sidecar: {:?}\n  exists: {}\n  size: {} bytes",
-                    sidecar_path, exists, size
-                )
+                let names: Vec<&str> = if cfg!(target_os = "windows") {
+                    vec!["nx_api-x86_64-pc-windows-msvc.exe", "nx_api.exe"]
+                } else if cfg!(target_os = "macos") {
+                    if cfg!(target_arch = "aarch64") {
+                        vec!["nx_api-aarch64-apple-darwin", "nx_api"]
+                    } else {
+                        vec!["nx_api-x86_64-apple-darwin", "nx_api"]
+                    }
+                } else {
+                    vec!["nx_api-x86_64-unknown-linux-gnu", "nx_api"]
+                };
+                let mut info = String::new();
+                for name in &names {
+                    let path = exe_dir.as_ref().map(|d| d.join(name));
+                    let exists = path.as_ref().map(|p| p.exists()).unwrap_or(false);
+                    let size = path.as_ref()
+                        .and_then(|p| std::fs::metadata(p).ok())
+                        .map(|m| m.len())
+                        .unwrap_or(0);
+                    info.push_str(&format!("  sidecar {}: exists={}, size={} bytes, path={:?}\n", name, exists, size, path));
+                }
+                info
             } else {
                 "  debug mode — sidecar check skipped".to_string()
             };
@@ -410,24 +410,35 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
             format!("nx_api-{}", target_triple)
         };
 
+        // Plain name without target triple (Tauri may strip the suffix during bundling)
+        let plain_name: String = if cfg!(target_os = "windows") {
+            "nx_api.exe".to_string()
+        } else {
+            "nx_api".to_string()
+        };
+
         let resource_dir = app_handle.path().resource_dir()
             .expect("failed to resolve resource directory");
 
         // Try multiple candidate paths for the sidecar
         let mut candidates: Vec<std::path::PathBuf> = Vec::new();
 
-        // Candidate 1: next to the main executable (externalBin default location)
         if let Ok(exe) = std::env::current_exe() {
             if let Some(exe_dir) = exe.parent() {
+                // Candidate 1: next to main exe — triple-suffixed name
                 candidates.push(exe_dir.join(&sidecar_name));
+                // Candidate 2: next to main exe — plain name (Tauri may strip suffix)
+                candidates.push(exe_dir.join(&plain_name));
             }
         }
 
-        // Candidate 2: resource directory (fallback)
+        // Candidate 3-4: resource directory
         candidates.push(resource_dir.join(&sidecar_name));
+        candidates.push(resource_dir.join(&plain_name));
 
-        // Candidate 3: resource dir / MacOS (macOS .app structure)
+        // Candidate 5-6: resource dir / MacOS (macOS .app structure)
         candidates.push(resource_dir.join("MacOS").join(&sidecar_name));
+        candidates.push(resource_dir.join("MacOS").join(&plain_name));
 
         diag(&format!("Sidecar name: {}", sidecar_name));
         diag(&format!("Resource dir: {:?}", resource_dir));
