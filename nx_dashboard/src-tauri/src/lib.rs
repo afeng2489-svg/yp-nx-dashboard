@@ -308,7 +308,18 @@ fn find_workspace_root() -> Option<PathBuf> {
 }
 
 fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
-    let _ = std::fs::write(std::env::temp_dir().join("nx_start_called.txt"), "start_nx_api called");
+    // All diagnostic output goes to this log file — on Windows stderr is invisible
+    let diag_path = std::env::temp_dir().join("nx_startup.log");
+    let diag = |msg: &str| {
+        let entry = format!("[{}] {}\n", chrono_or_timestamp(), msg);
+        eprintln!("{}", entry.trim());
+        let _ = std::fs::OpenOptions::new()
+            .create(true).append(true)
+            .open(&diag_path)
+            .and_then(|mut f| std::io::Write::write_all(&mut f, entry.as_bytes()));
+    };
+
+    diag("start_nx_api called");
 
     // Kill any stale nx_api on port 8080 before starting
     kill_stale_nx_api();
@@ -335,22 +346,54 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
         } else {
             format!("nx_api-{}", target_triple)
         };
-        // macOS: sidecar is in Contents/MacOS/ (next to the main app binary)
-        // Linux/Windows: sidecar is next to the main executable
-        let exe = std::env::current_exe()
-            .expect("failed to resolve current executable path");
-        let exe_dir = exe.parent()
-            .expect("failed to resolve executable directory");
-        let nx_api = exe_dir.join(&sidecar_name);
+
         let resource_dir = app_handle.path().resource_dir()
             .expect("failed to resolve resource directory");
+
+        // Try multiple candidate paths for the sidecar
+        let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+
+        // Candidate 1: next to the main executable (externalBin default location)
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(exe_dir) = exe.parent() {
+                candidates.push(exe_dir.join(&sidecar_name));
+            }
+        }
+
+        // Candidate 2: resource directory (fallback)
+        candidates.push(resource_dir.join(&sidecar_name));
+
+        // Candidate 3: resource dir / MacOS (macOS .app structure)
+        candidates.push(resource_dir.join("MacOS").join(&sidecar_name));
+
+        diag(&format!("Sidecar name: {}", sidecar_name));
+        diag(&format!("Resource dir: {:?}", resource_dir));
+
+        let nx_api = match candidates.iter().find(|p| p.exists()) {
+            Some(found) => {
+                diag(&format!("Sidecar found at: {:?}", found));
+                found.clone()
+            }
+            None => {
+                for c in &candidates {
+                    diag(&format!("NOT found: {:?}", c));
+                }
+                // Return first candidate as the error path
+                candidates.into_iter().next().unwrap_or_else(|| resource_dir.join(&sidecar_name))
+            }
+        };
+
         let skills = resource_dir.join("skills");
         (nx_api, skills, resource_dir)
     };
 
     if !nx_api_path.exists() {
-        return Err(format!("nx_api not found at {:?}\nresources_dir: {:?}", nx_api_path, resources_dir).into());
+        let msg = format!("nx_api not found at {:?}", nx_api_path);
+        diag(&msg);
+        return Err(msg.into());
     }
+
+    diag(&format!("nx_api path: {:?}", nx_api_path));
 
     // macOS/Linux: ensure the binary is executable after being extracted from the bundle
     #[cfg(unix)]
@@ -369,7 +412,7 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
     } else {
         // 用户数据目录
         let app_data = dirs::data_dir()
-            .unwrap_or_else(|| std::env::temp_dir())
+            .unwrap_or_else(std::env::temp_dir)
             .join("com.nx.dashboard");
         std::fs::create_dir_all(&app_data)?;
 
@@ -381,9 +424,9 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
 
             if template.exists() {
                 std::fs::copy(&template, &db)?;
-                println!("[NX Dashboard] Copied template DB to {:?}", db);
+                diag(&format!("Copied template DB to {:?}", db));
             } else {
-                eprintln!("[NX Dashboard] WARNING: template DB not found at {:?}, nx_api will create empty DB", template);
+                diag(&format!("WARNING: template DB not found at {:?}, nx_api will create empty DB", template));
             }
         }
 
@@ -399,6 +442,10 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
         .map_err(|e| format!("Failed to open log file: {}", e))?;
     let log_file2 = log_file.try_clone()?;
 
+    diag(&format!("DB path: {:?}", db_path));
+    diag(&format!("Skills path: {:?}", skills_path));
+    diag(&format!("nx_api log: {:?}", log_path));
+
     let mut child_cmd = Command::new(&nx_api_path);
     child_cmd
         .env("AGENTS_DIR", &skills_path)
@@ -408,32 +455,51 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
 
     // Pass resolved Claude CLI path to nx_api
     if let Some(cli_path) = claude_cli_path {
-        eprintln!("[NX Dashboard] Claude CLI path: {}", cli_path);
+        diag(&format!("Claude CLI path: {}", cli_path));
         child_cmd.env("CLAUDE_CLI_PATH_OVERRIDE", cli_path);
     }
 
+    diag("Spawning nx_api...");
     let mut child = child_cmd
         .stdout(log_file)
         .stderr(log_file2)
         .spawn()
-        .map_err(|e| format!("Failed to spawn nx_api: {}", e))?;
+        .map_err(|e| {
+            let msg = format!("Failed to spawn nx_api: {} (path: {:?})", e, nx_api_path);
+            diag(&msg);
+            msg
+        })?;
+
+    diag(&format!("nx_api spawned, PID: {:?}", child.id()));
 
     thread::sleep(std::time::Duration::from_secs(2));
 
     match child.try_wait() {
         Ok(Some(status)) => {
             let log = std::fs::read_to_string(&log_path).unwrap_or_default();
-            return Err(format!("nx_api exited (status: {})\nlog: {}", status, log).into());
+            let msg = format!("nx_api exited immediately (status: {})\n--- nx_api log ---\n{}", status, log);
+            diag(&msg);
+            return Err(msg.into());
         }
         Ok(None) => {
-            println!("[NX Dashboard] nx_api started (PID: {:?}), log: {:?}", child.id(), log_path);
+            diag(&format!("nx_api running (PID: {:?})", child.id()));
         }
         Err(e) => {
-            return Err(format!("Failed to check nx_api status: {}", e).into());
+            let msg = format!("Failed to check nx_api status: {}", e);
+            diag(&msg);
+            return Err(msg.into());
         }
     }
 
     // Keep child alive (and wait forever so nx_api is not orphaned on crash)
     let _ = child.wait();
     Ok(())
+}
+
+/// Simple timestamp for diagnostic logs
+fn chrono_or_timestamp() -> String {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| format!("{}", d.as_secs()))
+        .unwrap_or_else(|_| "???".to_string())
 }
