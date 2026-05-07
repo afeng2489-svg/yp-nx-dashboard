@@ -51,7 +51,7 @@ impl ModelRouter {
     /// 按优先级匹配规则，返回模型名；无匹配返回 None（使用全局默认）
     pub fn route(&self, ctx: &TaskContext<'_>) -> Option<String> {
         let mut sorted: Vec<&RoutingRule> = self.rules.iter().filter(|r| r.enabled).collect();
-        sorted.sort_by(|a, b| b.priority.cmp(&a.priority));
+        sorted.sort_by_key(|b| std::cmp::Reverse(b.priority));
 
         for rule in sorted {
             if self.matches(&rule.condition, ctx) {

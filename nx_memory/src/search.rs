@@ -384,7 +384,7 @@ pub enum SearchError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{MemoryChunk, MessageRole, Transcript, TranscriptMetadata};
+    use crate::types::{MemoryChunk, MessageRole, Transcript};
     use tempfile::tempdir;
 
     #[tokio::test]

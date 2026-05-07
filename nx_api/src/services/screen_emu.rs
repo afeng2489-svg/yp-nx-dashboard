@@ -150,11 +150,9 @@ impl Perform for ScreenEmu {
                 // TAB：跳到下一个 8 倍数列
                 self.cursor_col = (self.cursor_col / 8 + 1) * 8;
             }
-            0x08 => {
+            0x08 if self.cursor_col > 0 => {
                 // Backspace
-                if self.cursor_col > 0 {
-                    self.cursor_col -= 1;
-                }
+                self.cursor_col -= 1;
             }
             _ => {}
         }

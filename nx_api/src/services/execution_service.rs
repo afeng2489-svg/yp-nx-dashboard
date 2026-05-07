@@ -361,7 +361,7 @@ impl ExecutionService {
             }
         }
         // 按 started_at 降序排列
-        all.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+        all.sort_by_key(|b| std::cmp::Reverse(b.started_at));
         all
     }
 

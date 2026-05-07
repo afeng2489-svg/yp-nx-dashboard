@@ -484,6 +484,6 @@ mod tests {
     fn test_telegram_service_creation() {
         let service = TelegramService::new();
         let rx = service.subscribe();
-        assert!(rx.len() == 0);
+        assert!(rx.is_empty());
     }
 }

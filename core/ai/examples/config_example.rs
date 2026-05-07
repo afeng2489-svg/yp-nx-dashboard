@@ -3,7 +3,7 @@
 //! 展示如何配置和使用 AI 模型管理器
 
 use nexus_ai::{
-    AIManagerConfig, AIModelManager, AIRequestParams, AIResponse, APIConfig, ModelConfig,
+    AIManagerConfig, AIModelManager, AIRequestParams, APIConfig, ModelConfig,
     ProviderType,
 };
 

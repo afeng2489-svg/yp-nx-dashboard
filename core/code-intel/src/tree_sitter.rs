@@ -221,7 +221,5 @@ mod tests {
         let result = parser.parse_str("fn main() {}", CodeLanguage::Rust);
         // 在没有加载 language grammar 的情况下，parse 可能返回 None
         assert!(result.is_ok() || result.is_err());
-        // 这个测试只是验证解析器可以创建
-        assert!(true, "Parser created successfully");
     }
 }

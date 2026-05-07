@@ -402,6 +402,7 @@ mod tests {
     }
 
     impl TestSkill {
+        #[allow(dead_code)]
         fn new(name: &str, description: &str, phases: Vec<SkillPhase>) -> Self {
             Self {
                 name: name.to_string(),
