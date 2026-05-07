@@ -446,12 +446,32 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
     diag(&format!("Skills path: {:?}", skills_path));
     diag(&format!("nx_api log: {:?}", log_path));
 
+    // Verify binary is not empty/corrupt
+    let bin_size = std::fs::metadata(&nx_api_path)
+        .map(|m| m.len())
+        .unwrap_or(0);
+    diag(&format!("Binary size: {} bytes", bin_size));
+    if bin_size == 0 {
+        let msg = format!("nx_api binary is empty (0 bytes) at {:?}", nx_api_path);
+        diag(&msg);
+        return Err(msg.into());
+    }
+
     let mut child_cmd = Command::new(&nx_api_path);
     child_cmd
         .env("AGENTS_DIR", &skills_path)
         .env("NEXUS_DB_PATH", &db_path)
         .env("NEXUS_ALLOWED_ORIGINS", "tauri://localhost,http://localhost:5173,http://localhost:3000")
         .env("RUST_LOG", "info");
+
+    // On Windows, add sidecar directory to PATH so DLLs can be found
+    #[cfg(target_os = "windows")]
+    if let Some(sidecar_dir) = nx_api_path.parent() {
+        let path_env = std::env::var("PATH").unwrap_or_default();
+        let new_path = format!("{};{}", sidecar_dir.display(), path_env);
+        child_cmd.env("PATH", &new_path);
+        diag(&format!("Added to PATH: {:?}", sidecar_dir));
+    }
 
     // Pass resolved Claude CLI path to nx_api
     if let Some(cli_path) = claude_cli_path {

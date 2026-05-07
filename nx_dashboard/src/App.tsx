@@ -11,6 +11,7 @@ import { useExecutionStore } from '@/stores/executionStore';
 import { WorkflowPauseModal } from '@/components/execution/WorkflowPauseModal';
 import { closeBrowserWebview } from '@/pages/BrowserPage';
 import { waitForBackend } from '@/api/backendReady';
+import { listen } from '@tauri-apps/api/event';
 import './index.css';
 
 // Code splitting for heavy pages
@@ -144,14 +145,33 @@ function App() {
 
   // Wait for backend to be ready before rendering
   const [backendReady, setBackendReady] = useState(false);
+  const [startupError, setStartupError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    let unlisten: (() => void) | null = null;
+
+    // Listen for backend startup error from Tauri
+    listen<string>('nx-api-startup-error', (event) => {
+      if (!cancelled) {
+        setStartupError(event.payload);
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    }).catch(() => {
+      // Not running in Tauri — ignore
+    });
+
     waitForBackend().then((ready) => {
+      if (!cancelled && !ready) {
+        setStartupError('后端服务未能在规定时间内启动，请检查日志：%TEMP%\\nx_startup.log');
+      }
       if (!cancelled) setBackendReady(ready);
     });
+
     return () => {
       cancelled = true;
+      unlisten?.();
     };
   }, []);
 
@@ -167,6 +187,26 @@ function App() {
       return () => clearTimeout(timer);
     }
   }, [updateAvailable, showUpdateDialog]);
+
+  if (startupError) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="flex flex-col items-center gap-4 max-w-md text-center">
+          <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
+            <span className="text-red-500 text-xl">!</span>
+          </div>
+          <p className="text-foreground text-sm font-medium">后端服务启动失败</p>
+          <p className="text-muted-foreground text-xs leading-relaxed">{startupError}</p>
+          <button
+            className="mt-2 px-4 py-2 text-sm bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+            onClick={() => window.location.reload()}
+          >
+            重试
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!backendReady) {
     return (
