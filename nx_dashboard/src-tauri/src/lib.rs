@@ -326,18 +326,26 @@ fn start_nx_api(resource_dir: &std::path::Path, claude_cli_path: Option<&str>) -
         let resources = root.join("nx_dashboard");
         (nx_api, skills, resources)
     } else {
-        // Release: use Tauri-resolved resource directory (cross-platform)
-        let nx_api = if cfg!(target_os = "windows") {
-            resource_dir.join("nx_api.exe")
+        // Release: resolve sidecar binary path (bundled via tauri.conf.json externalBin)
+        let target_triple = if cfg!(target_os = "windows") {
+            "x86_64-pc-windows-msvc"
+        } else if cfg!(target_os = "macos") {
+            if cfg!(target_arch = "aarch64") { "aarch64-apple-darwin" } else { "x86_64-apple-darwin" }
         } else {
-            resource_dir.join("nx_api")
+            "x86_64-unknown-linux-gnu"
         };
+        let sidecar_name = if cfg!(target_os = "windows") {
+            format!("nx_api-{}.exe", target_triple)
+        } else {
+            format!("nx_api-{}", target_triple)
+        };
+        let nx_api = resource_dir.join(&sidecar_name);
         let skills = resource_dir.join("skills");
         (nx_api, skills, resource_dir.to_path_buf())
     };
 
     if !nx_api_path.exists() {
-        return Err(format!("nx_api not found at {:?}", nx_api_path).into());
+        return Err(format!("nx_api not found at {:?}\nresource_dir: {:?}", nx_api_path, resource_dir).into());
     }
 
     // macOS/Linux: ensure the binary is executable after being extracted from the bundle

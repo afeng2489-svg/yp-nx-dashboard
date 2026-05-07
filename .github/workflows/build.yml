@@ -78,18 +78,18 @@ jobs:
       - name: Build nx_api binary
         run: cargo build --release --bin nx_api --target ${{ matrix.target }}
 
-      - name: Copy nx_api to release dir
+      - name: Copy nx_api to sidecar dir
         if: matrix.target != ''
         shell: bash
         run: |
-          mkdir -p target/release
+          mkdir -p nx_dashboard/src-tauri/binaries
           src="target/${{ matrix.target }}/release/nx_api"
+          dest="nx_dashboard/src-tauri/binaries/nx_api-${{ matrix.target }}"
           if [ "$RUNNER_OS" = "Windows" ]; then
-            cp "${src}.exe" target/release/nx_api.exe
-            # Also copy as nx_api (without .exe) for Tauri resource bundling
-            cp "${src}.exe" target/release/nx_api
+            cp "${src}.exe" "${dest}.exe"
           else
-            cp "$src" target/release/nx_api
+            cp "$src" "$dest"
+            chmod +x "$dest"
           fi
 
       - name: Build Tauri app
