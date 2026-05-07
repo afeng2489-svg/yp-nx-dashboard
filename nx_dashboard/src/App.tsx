@@ -156,11 +156,13 @@ function App() {
       if (!cancelled) {
         setStartupError(event.payload);
       }
-    }).then((fn) => {
-      unlisten = fn;
-    }).catch(() => {
-      // Not running in Tauri — ignore
-    });
+    })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(() => {
+        // Not running in Tauri — ignore
+      });
 
     waitForBackend().then((ready) => {
       if (!cancelled && !ready) {
