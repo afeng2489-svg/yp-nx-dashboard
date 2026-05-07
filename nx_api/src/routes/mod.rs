@@ -592,16 +592,16 @@ impl AppState {
         );
 
         // 创建 Memory 状态（使用单独的数据库文件）- 需要在 teams_state 之前创建
-        let memory_db_path = if config.db_path.contains('/') {
-            // 如果是绝对路径或包含目录
-            format!("{}_memory.db", config.db_path.replace(".db", ""))
+        let db_base = config.db_path.replace(".db", "");
+        let memory_db_path = if std::path::Path::new(&config.db_path).is_absolute() {
+            format!("{}_memory.db", db_base)
         } else {
-            // 相对路径：加上当前工作目录
             let cwd = std::env::current_dir().unwrap_or_default();
             format!(
-                "{}/{}_memory.db",
+                "{}{}{}_memory.db",
                 cwd.display(),
-                config.db_path.replace(".db", "")
+                std::path::MAIN_SEPARATOR,
+                db_base
             )
         };
         tracing::info!("[Memory] Using database path: {}", memory_db_path);
