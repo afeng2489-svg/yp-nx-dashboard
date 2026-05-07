@@ -39,6 +39,8 @@ test.describe('AI Config', () => {
         provider_key: 'openai',
         api_key: 'sk-test',
         base_url: 'https://api.openai.com',
+        api_format: 'openai',
+        auth_field: 'Authorization',
       }),
     }) as { id: string }
     expect(pv.id).toBeTruthy()

@@ -24,7 +24,7 @@ export async function api(path: string, opts: RequestInit = {}): Promise<unknown
 export async function createWorkflow(name = `e2e-wf-${Date.now()}`) {
   return api('/api/v1/workflows', {
     method: 'POST',
-    body: JSON.stringify({ name, description: 'e2e test', stages: [{ name: 's1', prompt: 'hello' }] }),
+    body: JSON.stringify({ name, description: 'e2e test', definition: { stages: [{ name: 's1', prompt: 'hello' }] } }),
   }) as Promise<{ id: string }>
 }
 

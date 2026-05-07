@@ -22,6 +22,7 @@ import {
   ExecutionStatsSummary,
 } from '@/components/charts';
 import { ActiveExecutionsPanel, StageMetricsPanel, TokenCostSummary } from '@/components/dashboard';
+import { API_BASE_URL } from '@/api/constants';
 
 // 数字滚动动画组件
 function AnimatedNumber({ value }: { value: number }) {
@@ -194,7 +195,7 @@ export function DashboardPage() {
     setQuickLoading(true);
     setQuickError(null);
     try {
-      const res = await fetch('http://localhost:3000/api/v1/quick-run', {
+      const res = await fetch(`${API_BASE_URL}/api/v1/quick-run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: quickPrompt.trim() }),

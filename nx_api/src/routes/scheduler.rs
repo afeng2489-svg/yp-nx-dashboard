@@ -5,16 +5,40 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use futures_util::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use nexus_orchestrator::{
-    CliManager, MessageBus, QueueStatus, QueuedTask, SchedulerStats, TaskPriority, TaskScheduler,
-    TeamId, TeamManager, WorkflowDefinition,
+    CliManager, MessageBus, Planner, QueueStatus, QueuedTask, SchedulerStats, TaskExecutor,
+    TaskPriority, TaskScheduler, TeamId, TeamManager, WorkflowDefinition,
 };
 
 use crate::routes::AppState;
+
+/// Bridge from TaskScheduler to ExecutionService
+struct ExecutionServiceBridge {
+    execution_service: crate::services::execution_service::ExecutionService,
+}
+
+impl TaskExecutor for ExecutionServiceBridge {
+    fn execute<'a>(
+        &'a self,
+        task_id: uuid::Uuid,
+        workflow_yaml: &'a str,
+        variables: serde_json::Value,
+    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + 'a>> {
+        Box::pin(async move {
+            self.execution_service
+                .execute_workflow(task_id.to_string(), workflow_yaml, variables, None, None)
+                .await
+                .map_err(|e| format!("Execution failed: {}", e))
+        })
+    }
+}
 
 /// Wrapper to hold the orchestrator TaskScheduler in AppState
 pub struct OrchestratorScheduler {
@@ -32,9 +56,27 @@ impl OrchestratorScheduler {
             .init_database(db_path)
             .map_err(|e| anyhow::anyhow!("Failed to init scheduler database: {e}"))?;
 
-        Ok(Self {
-            scheduler: Arc::new(scheduler),
-        })
+        let scheduler = Arc::new(scheduler);
+        // Initialize self-reference for spawned task callbacks
+        scheduler.init_self_ref(scheduler.clone());
+
+        Ok(Self { scheduler })
+    }
+
+    /// Wire up ExecutionService and Planner after AppState is constructed.
+    /// Call this once during AppState initialization.
+    pub fn wire_execution(
+        &self,
+        execution_service: crate::services::execution_service::ExecutionService,
+    ) {
+        // Set up the execution bridge
+        let bridge = Arc::new(ExecutionServiceBridge { execution_service });
+        self.scheduler.set_task_executor(bridge);
+
+        // Set up the Planner (creates its own CliManager)
+        let cli_manager = Arc::new(CliManager::new());
+        let planner = Arc::new(Planner::new(cli_manager));
+        self.scheduler.set_planner(planner);
     }
 
     /// Start the scheduler event loop as a background task
@@ -57,6 +99,12 @@ pub struct CreateTaskRequest {
     pub variables: std::collections::HashMap<String, Value>,
     #[serde(default = "default_priority")]
     pub priority: String,
+    /// Execution mode: "auto_plan" (AI auto-generates plan), "workflow" (use predefined workflow), "manual" (queue only)
+    #[serde(default = "default_execution_mode")]
+    pub execution_mode: String,
+    /// Workflow ID (required when execution_mode="workflow")
+    #[serde(default)]
+    pub workflow_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -71,6 +119,16 @@ pub struct StageRequest {
 
 fn default_priority() -> String {
     "normal".to_string()
+}
+
+fn default_execution_mode() -> String {
+    "auto_plan".to_string()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateTaskRequest {
+    pub status: Option<String>,
+    pub priority: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -109,21 +167,76 @@ pub async fn create_task(
 ) -> Result<Json<TaskResponse>, StatusCode> {
     let scheduler = &state.task_scheduler.scheduler;
 
+    // Build stages based on execution mode
+    let stages = match request.execution_mode.as_str() {
+        "auto_plan" => {
+            // Empty stages — Planner will generate at execution time
+            vec![]
+        }
+        "workflow" => {
+            // Look up predefined workflow
+            if let Some(ref wf_id) = request.workflow_id {
+                match state.workflow_service.get_workflow(wf_id) {
+                    Ok(Some(wf)) => wf
+                        .definition
+                        .get("stages")
+                        .and_then(|s| s.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|s| {
+                                    Some(nexus_orchestrator::StageDefinition {
+                                        name: s.get("name")?.as_str()?.to_string(),
+                                        agents: s
+                                            .get("agents")
+                                            .and_then(|a| a.as_array())
+                                            .map(|a| {
+                                                a.iter()
+                                                    .filter_map(|v| v.as_str().map(String::from))
+                                                    .collect()
+                                            })
+                                            .unwrap_or_default(),
+                                        parallel: s
+                                            .get("parallel")
+                                            .and_then(|p| p.as_bool())
+                                            .unwrap_or(false),
+                                        continue_on_error: false,
+                                        prompt_template: s
+                                            .get("prompt_template")
+                                            .and_then(|p| p.as_str())
+                                            .unwrap_or("")
+                                            .to_string(),
+                                    })
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    _ => return Err(StatusCode::NOT_FOUND),
+                }
+            } else {
+                return Err(StatusCode::BAD_REQUEST);
+            }
+        }
+        _ => {
+            // "manual" or unknown — use provided stages as-is
+            request
+                .stages
+                .into_iter()
+                .map(|s| nexus_orchestrator::StageDefinition {
+                    name: s.name,
+                    agents: s.agents,
+                    parallel: s.parallel,
+                    continue_on_error: false,
+                    prompt_template: s.prompt_template,
+                })
+                .collect()
+        }
+    };
+
     let workflow = WorkflowDefinition {
         id: uuid::Uuid::new_v4(),
         name: request.name,
         description: request.description,
-        stages: request
-            .stages
-            .into_iter()
-            .map(|s| nexus_orchestrator::StageDefinition {
-                name: s.name,
-                agents: s.agents,
-                parallel: s.parallel,
-                continue_on_error: false,
-                prompt_template: s.prompt_template,
-            })
-            .collect(),
+        stages,
     };
 
     let priority = match request.priority.to_lowercase().as_str() {
@@ -194,6 +307,49 @@ pub async fn cancel_task(
     } else {
         Err(StatusCode::NOT_FOUND)
     }
+}
+
+/// PUT /api/v1/tasks/:id - Update task status/priority
+pub async fn update_task(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(request): Json<UpdateTaskRequest>,
+) -> Result<Json<TaskResponse>, StatusCode> {
+    let scheduler = &state.task_scheduler.scheduler;
+
+    let uuid = uuid::Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    let status = request
+        .status
+        .map(|s| match s.to_lowercase().as_str() {
+            "queued" => Ok(QueueStatus::Queued),
+            "delayed" => Ok(QueueStatus::Delayed),
+            "running" => Ok(QueueStatus::Running),
+            "completed" => Ok(QueueStatus::Completed),
+            "failed" => Ok(QueueStatus::Failed),
+            "cancelled" => Ok(QueueStatus::Cancelled),
+            "timed_out" => Ok(QueueStatus::TimedOut),
+            _ => Err(StatusCode::BAD_REQUEST),
+        })
+        .transpose()?;
+
+    let priority = request
+        .priority
+        .map(|p| match p.to_lowercase().as_str() {
+            "low" => Ok(TaskPriority::Low),
+            "normal" => Ok(TaskPriority::Normal),
+            "high" => Ok(TaskPriority::High),
+            "critical" => Ok(TaskPriority::Critical),
+            _ => Err(StatusCode::BAD_REQUEST),
+        })
+        .transpose()?;
+
+    if !scheduler.update_task(uuid, status, priority) {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let task = scheduler.get_task(uuid).ok_or(StatusCode::NOT_FOUND)?;
+    Ok(Json(TaskResponse::from(&task)))
 }
 
 /// GET /api/v1/tasks/stats - Get queue statistics

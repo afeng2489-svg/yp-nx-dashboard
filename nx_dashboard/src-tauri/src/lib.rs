@@ -228,7 +228,8 @@ pub fn run() {
                 match start_nx_api(&resource_dir, claude_cli_env.as_deref()) {
                     Ok(()) => {}
                     Err(e) => {
-                        let msg = format!("后台服务启动失败: {}\n请查看日志: %TEMP%/nx_startup.log", e);
+                        let log_path = std::env::temp_dir().join("nx_startup.log");
+                        let msg = format!("后台服务启动失败: {}\n请查看日志: {:?}", e, log_path);
                         write_startup_error(&msg);
                         // 尝试通知前端（app_handle 可能还不可用，忽略错误）
                         let _ = app_handle.emit("nx-api-startup-error", &msg);
@@ -279,7 +280,6 @@ fn kill_stale_nx_api() {
 }
 
 /// 查找 workspace root：包含 Cargo.toml（含 [workspace]）和 nx_dashboard/ 的目录
-#[allow(dead_code)]
 fn find_workspace_root() -> Option<PathBuf> {
     let is_workspace = |dir: &std::path::Path| -> bool {
         if !dir.join("Cargo.toml").exists() || !dir.join("nx_dashboard").is_dir() {
@@ -319,7 +319,8 @@ fn start_nx_api(resource_dir: &std::path::Path, claude_cli_path: Option<&str>) -
     std::thread::sleep(std::time::Duration::from_millis(500));
 
     let (nx_api_path, skills_path, resources_dir) = if cfg!(debug_assertions) {
-        let root = PathBuf::from("/Users/Zhuanz/Desktop/yp-nx-dashboard");
+        let root = find_workspace_root()
+            .expect("无法找到 workspace root（包含 Cargo.toml 和 nx_dashboard/ 的目录）");
         let nx_api = root.join("target/debug/nx_api");
         let skills = root.join(".claude/agents");
         let resources = root.join("nx_dashboard");
@@ -349,7 +350,8 @@ fn start_nx_api(resource_dir: &std::path::Path, claude_cli_path: Option<&str>) -
     }
 
     let (_data_dir, db_path) = if cfg!(debug_assertions) {
-        let dir = PathBuf::from("/Users/Zhuanz/Desktop/yp-nx-dashboard");
+        let dir = find_workspace_root()
+            .expect("无法找到 workspace root（包含 Cargo.toml 和 nx_dashboard/ 的目录）");
         let db = dir.join("nx_dashboard/nexus.db");
         (dir, db)
     } else {

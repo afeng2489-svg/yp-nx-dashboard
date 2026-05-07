@@ -799,6 +799,8 @@ impl AppState {
             OrchestratorScheduler::new(&config.db_path)
                 .context("Failed to create orchestrator scheduler")?,
         );
+        // Wire up ExecutionService + Planner to the scheduler
+        task_scheduler.wire_execution(execution_service.clone());
         task_scheduler.start_background();
 
         let msg_store = Arc::new(
@@ -1238,6 +1240,7 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         .route("/api/v1/tasks", post(scheduler::create_task))
         .route("/api/v1/tasks/stats", get(scheduler::get_stats))
         .route("/api/v1/tasks/:id", get(scheduler::get_task))
+        .route("/api/v1/tasks/:id", put(scheduler::update_task))
         .route("/api/v1/tasks/:id", delete(scheduler::cancel_task))
         .route(
             "/api/v1/tasks/schedule",

@@ -9,9 +9,14 @@ test.describe('Group Sessions & Processes', () => {
   let gsId: string
 
   test('create group session', async () => {
+    // First create a team to use its ID
+    const team = await api('/api/v1/teams', {
+      method: 'POST',
+      body: JSON.stringify({ name: `e2e-gs-team-${Date.now()}`, description: 'test' }),
+    }) as { id: string }
     const gs = await api('/api/v1/group-sessions', {
       method: 'POST',
-      body: JSON.stringify({ name: `e2e-gs-${Date.now()}`, members: [] }),
+      body: JSON.stringify({ team_id: team.id, name: `e2e-gs-${Date.now()}`, topic: 'test topic' }),
     }) as { id: string }
     gsId = gs.id
     expect(gsId).toBeTruthy()

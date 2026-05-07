@@ -135,7 +135,7 @@ impl SandboxExecutor {
         if let Some(ref dir) = request.working_dir {
             cmd.current_dir(dir);
         } else {
-            cmd.current_dir("/tmp");
+            cmd.current_dir(std::env::temp_dir());
         }
 
         // 设置环境变量

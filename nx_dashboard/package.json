@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:backend": "cargo build --release --bin nx_api --manifest-path ../Cargo.toml",
+    "build:backend:dev": "cargo build --bin nx_api --manifest-path ../Cargo.toml",
     "build:all": "npm run build && npm run build:backend",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -14,7 +15,7 @@
     "test:unit": "vitest run",
     "test:watch": "vitest",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
+    "tauri:dev": "npm run build:backend:dev && tauri dev",
     "tauri:build": "tauri build",
     "format": "prettier --write 'src/**/*.{ts,tsx,css,json}'",
     "format:check": "prettier --check 'src/**/*.{ts,tsx,css,json}'"

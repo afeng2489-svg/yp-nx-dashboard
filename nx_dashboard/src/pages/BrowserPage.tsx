@@ -17,6 +17,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { API_BASE_URL } from '@/api/constants';
 
 const isTauri = '__TAURI_INTERNALS__' in window;
 
@@ -77,13 +78,11 @@ async function destroyWebview(wv: { close: () => Promise<void> } | null) {
   }
 }
 
-const API_BASE = 'http://localhost:3000';
-
 async function browserApi(
   endpoint: string,
   body: object,
 ): Promise<{ ok: boolean; data?: Record<string, unknown>; error?: string }> {
-  const res = await fetch(`${API_BASE}/api/v1/browser/${endpoint}`, {
+  const res = await fetch(`${API_BASE_URL}/api/v1/browser/${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

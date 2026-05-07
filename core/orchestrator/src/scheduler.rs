@@ -10,19 +10,35 @@
 use crate::error::OrchestratorError;
 use crate::executor::{ExecutionResult, WorkflowDefinition};
 use crate::message_bus::MessageBus;
+use crate::planner::{ExecutionPlan, Planner};
 use crate::team::TeamId;
 use crate::CliManager;
 use crate::TeamManager;
 use crate::WorkflowExecutor;
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
+use futures_util::future::BoxFuture;
 use parking_lot::RwLock;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::collections::{BinaryHeap, HashMap};
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use thiserror::Error;
 use uuid::Uuid;
+
+/// Trait for external task execution (bridges to ExecutionService in API layer)
+pub trait TaskExecutor: Send + Sync + 'static {
+    /// Execute a task with the given workflow YAML and variables.
+    /// Returns the execution_id on success.
+    fn execute<'a>(
+        &'a self,
+        task_id: Uuid,
+        workflow_yaml: &'a str,
+        variables: serde_json::Value,
+    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + 'a>>;
+}
 
 /// 调度器错误类型
 #[derive(Error, Debug)]
@@ -365,8 +381,14 @@ pub struct SchedulerStats {
 
 /// 增强版任务调度器
 pub struct TaskScheduler {
-    /// 工作流执行器
+    /// 工作流执行器（内部 fallback）
     executor: Arc<WorkflowExecutor>,
+    /// 外部任务执行器（桥接 ExecutionService）
+    task_executor: RwLock<Option<Arc<dyn TaskExecutor>>>,
+    /// Planner Agent（自动生成执行计划）
+    planner: RwLock<Option<Arc<Planner>>>,
+    /// Self-reference for spawned tasks to update status
+    self_ref: RwLock<Option<Arc<TaskScheduler>>>,
     /// 任务队列（优先级堆）
     queue: RwLock<BinaryHeap<PriorityTask>>,
     /// 延迟队列（按执行时间排序）
@@ -401,6 +423,9 @@ impl TaskScheduler {
 
         Self {
             executor,
+            task_executor: RwLock::new(None),
+            planner: RwLock::new(None),
+            self_ref: RwLock::new(None),
             queue: RwLock::new(BinaryHeap::new()),
             delayed: RwLock::new(Vec::new()),
             tasks: RwLock::new(HashMap::new()),
@@ -410,6 +435,35 @@ impl TaskScheduler {
             running: RwLock::new(HashMap::new()),
             running_flag: RwLock::new(false),
         }
+    }
+
+    /// 设置外部任务执行器（桥接 ExecutionService）
+    pub fn set_task_executor(&self, executor: Arc<dyn TaskExecutor>) {
+        *self.task_executor.write() = Some(executor);
+    }
+
+    /// 设置 Planner Agent（用于自动规划执行计划）
+    pub fn set_planner(&self, planner: Arc<Planner>) {
+        *self.planner.write() = Some(planner);
+    }
+
+    /// Initialize self-reference (call once after Arc<Self> is created)
+    pub fn init_self_ref(self: &Arc<Self>, self_ref: Arc<TaskScheduler>) {
+        *self.self_ref.write() = Some(self_ref);
+    }
+
+    /// Update task status and result from a spawned task
+    pub fn complete_task(&self, task_id: Uuid, status: QueueStatus, error: Option<String>) {
+        {
+            let mut tasks = self.tasks.write();
+            if let Some(task) = tasks.get_mut(&task_id) {
+                task.status = status;
+                task.finished_at = Some(Utc::now());
+                task.error = error;
+            }
+        }
+        self.update_task_status_in_db(task_id, status);
+        self.running.write().remove(&task_id);
     }
 
     /// 初始化数据库
@@ -470,23 +524,30 @@ impl TaskScheduler {
                     result, error FROM tasks WHERE status IN ('queued', 'delayed')",
         )?;
 
-        let tasks = stmt.query_map([], |row| {
-            let id_str: String = row.get(0)?;
-            let workflow_json: String = row.get(1)?;
-            let team_id_str: String = row.get(2)?;
-            let variables_json: String = row.get(3)?;
-            let priority_str: String = row.get(4)?;
-            let status_str: String = row.get(5)?;
-            let retry_count: u32 = row.get(6)?;
-            let retry_config_json: String = row.get(7)?;
-            let timeout_secs: Option<u64> = row.get(8)?;
-            let created_at_str: String = row.get(9)?;
-            let started_at_str: Option<String> = row.get(10)?;
-            let finished_at_str: Option<String> = row.get(11)?;
-            let result_json: Option<String> = row.get(12)?;
-            let error_str: Option<String> = row.get(13)?;
+        let mut tasks = self.tasks.write();
+        let mut queue = self.queue.write();
 
+        let rows = stmt.query_map([], |row| {
             Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, u32>(6)?,
+                row.get::<_, String>(7)?,
+                row.get::<_, Option<u64>>(8)?,
+                row.get::<_, String>(9)?,
+                row.get::<_, Option<String>>(10)?,
+                row.get::<_, Option<String>>(11)?,
+                row.get::<_, Option<String>>(12)?,
+                row.get::<_, Option<String>>(13)?,
+            ))
+        })?;
+
+        for row_result in rows {
+            let (
                 id_str,
                 workflow_json,
                 team_id_str,
@@ -501,55 +562,95 @@ impl TaskScheduler {
                 finished_at_str,
                 result_json,
                 error_str,
-            ))
-        })?;
+            ) = match row_result {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
 
-        for task_result in tasks {
-            let (
-                id_str,
-                _workflow_json,
-                _team_id_str,
-                _variables_json,
-                priority_str,
-                status_str,
-                _retry_count,
-                _retry_config_json,
-                _timeout_secs,
-                _created_at_str,
-                _started_at_str,
-                _finished_at_str,
-                _result_json,
-                _error_str,
-            ) = task_result?;
+            let id = match Uuid::parse_str(&id_str) {
+                Ok(id) => id,
+                Err(_) => continue,
+            };
 
-            let id = Uuid::parse_str(&id_str).ok();
+            let workflow: WorkflowDefinition = match serde_json::from_str(&workflow_json) {
+                Ok(w) => w,
+                Err(_) => continue,
+            };
+
+            let team_id = TeamId(Uuid::parse_str(&team_id_str).unwrap_or_else(|_| Uuid::new_v4()));
+
+            let variables: HashMap<String, serde_json::Value> =
+                serde_json::from_str(&variables_json).unwrap_or_default();
+
             let priority = match priority_str.as_str() {
                 "low" => TaskPriority::Low,
                 "high" => TaskPriority::High,
                 "critical" => TaskPriority::Critical,
                 _ => TaskPriority::Normal,
             };
+
             let status = match status_str.as_str() {
                 "running" => QueueStatus::Running,
                 "completed" => QueueStatus::Completed,
                 "failed" => QueueStatus::Failed,
                 "cancelled" => QueueStatus::Cancelled,
                 "timed_out" => QueueStatus::TimedOut,
+                "delayed" => QueueStatus::Delayed,
                 _ => QueueStatus::Queued,
             };
 
-            if let Some(task_id) = id {
-                if status == QueueStatus::Queued {
-                    let mut queue = self.queue.write();
-                    queue.push(PriorityTask {
-                        task_id,
-                        priority,
-                        scheduled_at: Utc::now(),
-                    });
-                }
+            let retry_config: RetryConfig =
+                serde_json::from_str(&retry_config_json).unwrap_or_default();
+
+            let created_at = DateTime::parse_from_rfc3339(&created_at_str)
+                .map(|dt| dt.with_timezone(&Utc))
+                .unwrap_or_else(|_| Utc::now());
+
+            let started_at = started_at_str.and_then(|s| {
+                DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&Utc))
+            });
+
+            let finished_at = finished_at_str.and_then(|s| {
+                DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&Utc))
+            });
+
+            let result: Option<ExecutionResult> =
+                result_json.and_then(|s| serde_json::from_str(&*s).ok());
+
+            let task = QueuedTask {
+                id,
+                workflow,
+                team_id,
+                variables,
+                priority,
+                status,
+                retry_count,
+                retry_config,
+                timeout_secs,
+                created_at,
+                started_at,
+                finished_at,
+                result,
+                error: error_str,
+            };
+
+            // Add to priority queue if queued
+            if status == QueueStatus::Queued {
+                queue.push(PriorityTask {
+                    task_id: id,
+                    priority,
+                    scheduled_at: created_at,
+                });
             }
+
+            tasks.insert(id, task);
         }
 
+        tracing::info!("从数据库恢复了 {} 个任务", tasks.len());
         Ok(())
     }
 
@@ -698,6 +799,33 @@ impl TaskScheduler {
         let mut jobs = self.scheduled_jobs.write();
         if jobs.remove(&job_id).is_some() {
             self.delete_scheduled_job_from_db(job_id);
+            return true;
+        }
+        false
+    }
+
+    /// 更新任务（状态、优先级）
+    pub fn update_task(
+        &self,
+        task_id: Uuid,
+        status: Option<QueueStatus>,
+        priority: Option<TaskPriority>,
+    ) -> bool {
+        let mut tasks = self.tasks.write();
+        if let Some(task) = tasks.get_mut(&task_id) {
+            if let Some(new_status) = status {
+                task.status = new_status;
+                if new_status == QueueStatus::Completed
+                    || new_status == QueueStatus::Failed
+                    || new_status == QueueStatus::Cancelled
+                {
+                    task.finished_at = Some(Utc::now());
+                }
+            }
+            if let Some(new_priority) = priority {
+                task.priority = new_priority;
+            }
+            self.update_task_fields_in_db(task_id, task);
             return true;
         }
         false
@@ -906,7 +1034,7 @@ impl TaskScheduler {
 
     /// 启动任务
     async fn start_task(&self, task_id: Uuid) {
-        let (workflow, team_id, timeout_secs) = {
+        let (workflow, team_id, timeout_secs, variables, has_stages) = {
             let mut tasks = self.tasks.write();
             if let Some(task) = tasks.get_mut(&task_id) {
                 if task.status != QueueStatus::Queued {
@@ -914,7 +1042,14 @@ impl TaskScheduler {
                 }
                 task.status = QueueStatus::Running;
                 task.started_at = Some(Utc::now());
-                (task.workflow.clone(), task.team_id, task.timeout_secs)
+                let has_stages = !task.workflow.stages.is_empty();
+                (
+                    task.workflow.clone(),
+                    task.team_id,
+                    task.timeout_secs,
+                    serde_json::to_value(&task.variables).unwrap_or(serde_json::Value::Null),
+                    has_stages,
+                )
             } else {
                 return;
             }
@@ -922,48 +1057,164 @@ impl TaskScheduler {
 
         tracing::info!("启动任务: {}", task_id);
 
-        // 添加到运行中映射
-        let task_id_clone = task_id;
-        let executor = self.executor.clone();
+        // Check if external executor is available
+        let external_executor = self.task_executor.read().clone();
+        let planner = self.planner.read().clone();
+        let self_ref = self.self_ref.read().clone();
 
-        let handle = tokio::spawn(async move {
-            let timeout = timeout_secs.map(StdDuration::from_secs);
+        if let Some(executor) = external_executor {
+            // External execution path (bridges to ExecutionService)
+            let task_id_clone = task_id;
+            let task_name = workflow.name.clone();
+            let task_desc = workflow.description.clone();
 
-            let result = if let Some(timeout) = timeout {
-                tokio::time::timeout(timeout, executor.execute(workflow, team_id))
-                    .await
-                    .map_err(|_| std::time::Duration::from_secs(u64::MAX))
+            // Determine workflow YAML: use planner if stages are empty
+            let workflow_yaml = if !has_stages {
+                if let Some(ref planner) = planner {
+                    match planner.plan(&task_name, &task_desc).await {
+                        Ok(plan) => {
+                            tracing::info!(
+                                "Planner 生成执行计划: task_type={}, complexity={}",
+                                plan.task_type,
+                                plan.complexity
+                            );
+                            plan.workflow_yaml
+                        }
+                        Err(e) => {
+                            tracing::error!("Planner 规划失败: {}", e);
+                            self.mark_task_failed(task_id, format!("Planner 规划失败: {}", e));
+                            return;
+                        }
+                    }
+                } else {
+                    // No planner, no stages — can't execute
+                    self.mark_task_failed(task_id, "任务无 stages 且未配置 Planner".to_string());
+                    return;
+                }
             } else {
-                Ok(executor.execute(workflow, team_id).await)
+                // Convert orchestrator WorkflowDefinition to YAML for ExecutionService
+                self.workflow_to_yaml(&workflow)
             };
 
-            // 更新任务结果
-            Self::handle_task_result(task_id_clone, result).await;
-        });
+            let scheduler_ref = self_ref.clone();
+            let handle = tokio::spawn(async move {
+                let result = executor
+                    .execute(task_id_clone, &workflow_yaml, variables)
+                    .await;
+                match result {
+                    Ok(exec_id) => {
+                        tracing::info!("任务 {} 已提交执行: exec_id={}", task_id_clone, exec_id);
+                        // Status will be updated via execution events or when exec completes
+                        // For now, mark as running (already set); completion handled by event bridge
+                    }
+                    Err(e) => {
+                        tracing::error!("任务 {} 执行失败: {}", task_id_clone, e);
+                        if let Some(sched) = scheduler_ref {
+                            sched.complete_task(task_id_clone, QueueStatus::Failed, Some(e));
+                        }
+                    }
+                }
+            });
 
-        self.running.write().insert(task_id, handle);
+            self.running.write().insert(task_id, handle);
+        } else {
+            // Internal executor fallback (original path)
+            let task_id_clone = task_id;
+            let executor = self.executor.clone();
+            let scheduler_ref = self_ref.clone();
+
+            let handle = tokio::spawn(async move {
+                let timeout = timeout_secs.map(StdDuration::from_secs);
+
+                let result = if let Some(timeout) = timeout {
+                    tokio::time::timeout(timeout, executor.execute(workflow, team_id))
+                        .await
+                        .map_err(|_| std::time::Duration::from_secs(u64::MAX))
+                } else {
+                    Ok(executor.execute(workflow, team_id).await)
+                };
+
+                let (status, error) = match result {
+                    Ok(Ok(_exec_result)) => (QueueStatus::Completed, None),
+                    Ok(Err(e)) => (QueueStatus::Failed, Some(e.to_string())),
+                    Err(_) => (QueueStatus::TimedOut, Some("任务执行超时".to_string())),
+                };
+
+                if let Some(sched) = scheduler_ref {
+                    sched.complete_task(task_id_clone, status, error);
+                }
+            });
+
+            self.running.write().insert(task_id, handle);
+        }
 
         self.update_task_status_in_db(task_id, QueueStatus::Running);
     }
 
-    /// 处理任务结果
-    async fn handle_task_result(
-        task_id: Uuid,
-        _result: Result<Result<ExecutionResult, OrchestratorError>, StdDuration>,
-    ) {
-        // 这个方法需要在静态上下文中调用，因为它不使用 self
-        tracing::info!("任务 {} 完成", task_id);
+    /// Mark a task as failed (from start_task context where we have &self)
+    fn mark_task_failed(&self, task_id: Uuid, error: String) {
+        {
+            let mut tasks = self.tasks.write();
+            if let Some(task) = tasks.get_mut(&task_id) {
+                task.status = QueueStatus::Failed;
+                task.finished_at = Some(Utc::now());
+                task.error = Some(error);
+            }
+        }
+        self.update_task_status_in_db(task_id, QueueStatus::Failed);
     }
 
-    /// 清理已完成的任务
+    /// Convert orchestrator WorkflowDefinition to YAML string for ExecutionService
+    fn workflow_to_yaml(&self, workflow: &WorkflowDefinition) -> String {
+        let mut yaml = String::new();
+        yaml.push_str(&format!("name: \"{}\"\n", workflow.name));
+        yaml.push_str("version: \"1.0\"\n");
+        if !workflow.description.is_empty() {
+            yaml.push_str(&format!("description: \"{}\"\n", workflow.description));
+        }
+        yaml.push('\n');
+        yaml.push_str("stages:\n");
+        for stage in &workflow.stages {
+            yaml.push_str(&format!("  - name: \"{}\"\n", stage.name));
+            yaml.push_str("    agents:\n");
+            for agent in &stage.agents {
+                yaml.push_str(&format!("      - \"{}\"\n", agent));
+            }
+            yaml.push_str(&format!("    parallel: {}\n", stage.parallel));
+            yaml.push_str(&format!(
+                "    continue_on_error: {}\n",
+                stage.continue_on_error
+            ));
+            if !stage.prompt_template.is_empty() {
+                yaml.push_str(&format!(
+                    "    prompt_template: \"{}\"\n",
+                    stage.prompt_template.replace('"', "\\\"")
+                ));
+            }
+        }
+        yaml
+    }
+
+    /// 清理已完成的任务（从队列和运行映射中移除，但保留在任务映射中供查询）
     fn cleanup_finished_tasks(&self) {
-        let mut tasks = self.tasks.write();
-        tasks.retain(|_, task| {
-            // 保留队列中、延迟中、运行中的任务
-            matches!(
-                task.status,
-                QueueStatus::Queued | QueueStatus::Delayed | QueueStatus::Running
-            )
+        let tasks = self.tasks.read();
+
+        // 从优先级队列中移除已完成的任务
+        let mut queue = self.queue.write();
+        queue.retain(|pt| {
+            tasks
+                .get(&pt.task_id)
+                .map(|t| matches!(t.status, QueueStatus::Queued | QueueStatus::Delayed))
+                .unwrap_or(false)
+        });
+
+        // 从运行中映射中移除已结束的任务
+        let mut running = self.running.write();
+        running.retain(|task_id, _| {
+            tasks
+                .get(task_id)
+                .map(|t| t.status == QueueStatus::Running)
+                .unwrap_or(false)
         });
     }
 
@@ -1037,6 +1288,21 @@ impl TaskScheduler {
                     status.to_string(),
                     Utc::now().to_rfc3339(),
                     task_id.to_string(),
+                ],
+            );
+        }
+    }
+
+    fn update_task_fields_in_db(&self, task_id: Uuid, task: &QueuedTask) {
+        let guard = self.db.lock().unwrap();
+        if let Some(ref conn) = *guard {
+            let _ = conn.execute(
+                "UPDATE tasks SET status = ?1, priority = ?2, finished_at = ?3 WHERE id = ?4",
+                params![
+                    task.status.to_string(),
+                    task.priority.to_string(),
+                    task.finished_at.map(|t| t.to_rfc3339()),
+                    task.id.to_string(),
                 ],
             );
         }

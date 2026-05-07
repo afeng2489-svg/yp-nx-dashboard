@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# SQLite WAL (runtime temp files only)
+nexus.db-shm
+nexus.db-wal
+
+# Playwright
+playwright-report/
+test-results/
+
+# Tauri build
+src-tauri/.nexus/

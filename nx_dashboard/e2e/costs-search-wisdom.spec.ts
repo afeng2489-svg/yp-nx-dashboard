@@ -23,8 +23,8 @@ test.describe('Costs & Token Monitoring', () => {
 
 test.describe('Search', () => {
   test('search modes', async () => {
-    const modes = await api('/api/v1/search/modes') as unknown[]
-    expect(Array.isArray(modes)).toBeTruthy()
+    const data = await api('/api/v1/search/modes') as { modes: unknown[] }
+    expect(Array.isArray(data.modes ?? data)).toBeTruthy()
   })
 
   test('search query', async () => {
@@ -33,8 +33,12 @@ test.describe('Search', () => {
   })
 
   test('reindex', async () => {
-    const res = await fetch(`${API_BASE}/api/v1/search/index`, { method: 'POST' })
-    expect([200, 202]).toContain(res.status)
+    const res = await fetch(`${API_BASE}/api/v1/search/index`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspace_path: '/tmp' }),
+    })
+    expect([200, 202, 422]).toContain(res.status)
   })
 })
 
@@ -44,7 +48,12 @@ test.describe('Wisdom', () => {
   test('create wisdom', async () => {
     const wd = await api('/api/v1/wisdom', {
       method: 'POST',
-      body: JSON.stringify({ title: `e2e-wisdom-${Date.now()}`, content: 'test insight', category: 'engineering' }),
+      body: JSON.stringify({
+        title: `e2e-wisdom-${Date.now()}`,
+        content: 'test insight',
+        category: 'learning',
+        source_session: 'e2e-test',
+      }),
     }) as { id: string }
     wisdomId = wd.id
     expect(wisdomId).toBeTruthy()

@@ -4,6 +4,7 @@ import {
   useTaskStore,
   TaskPriority,
   TaskStatus,
+  ExecutionMode,
   taskPriorityLabels,
   taskStatusLabels,
   taskStatusColors,
@@ -50,13 +51,19 @@ import { API_BASE_URL } from '@/api/constants';
 interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (name: string, description: string, priority: TaskPriority) => Promise<void> | void;
+  onSubmit: (
+    name: string,
+    description: string,
+    priority: TaskPriority,
+    executionMode: ExecutionMode,
+  ) => Promise<void> | void;
 }
 
 function CreateTaskModal({ isOpen, onClose, onSubmit }: CreateTaskModalProps) {
   const [taskName, setTaskName] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('normal');
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>('auto_plan');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
@@ -68,7 +75,7 @@ function CreateTaskModal({ isOpen, onClose, onSubmit }: CreateTaskModalProps) {
     }
     setIsSubmitting(true);
     try {
-      await onSubmit(taskName.trim(), taskDescription.trim(), priority);
+      await onSubmit(taskName.trim(), taskDescription.trim(), priority, executionMode);
       onClose();
     } catch (e) {
       showError(`提交失败: ${(e as Error).message}`);
@@ -131,6 +138,42 @@ function CreateTaskModal({ isOpen, onClose, onSubmit }: CreateTaskModalProps) {
               ))}
             </div>
           </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">执行模式</label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                {
+                  value: 'auto_plan' as ExecutionMode,
+                  label: 'AI 自动规划',
+                  desc: 'Planner 自动生成执行计划',
+                },
+                {
+                  value: 'workflow' as ExecutionMode,
+                  label: '预定义工作流',
+                  desc: '选择已有工作流执行',
+                },
+                {
+                  value: 'manual' as ExecutionMode,
+                  label: '手动模式',
+                  desc: '仅入队，手动指定 stages',
+                },
+              ].map((mode) => (
+                <button
+                  key={mode.value}
+                  onClick={() => setExecutionMode(mode.value)}
+                  className={cn(
+                    'px-3 py-2 rounded-xl border text-sm font-medium transition-all text-left',
+                    executionMode === mode.value
+                      ? 'border-indigo-500/60 bg-indigo-500/10 text-indigo-600'
+                      : 'border-border/50 bg-card hover:border-indigo-500/30',
+                  )}
+                >
+                  <div>{mode.label}</div>
+                  <div className="text-xs opacity-60 mt-0.5">{mode.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center justify-end gap-3 mt-6">
@@ -157,9 +200,10 @@ interface TaskDetailPanelProps {
   task: ReturnType<typeof useTaskStore.getState>['tasks'][0];
   onClose: () => void;
   onCancel: (id: string) => void;
+  onUpdateStatus: (id: string, status: TaskStatus) => void;
 }
 
-function TaskDetailPanel({ task, onClose, onCancel }: TaskDetailPanelProps) {
+function TaskDetailPanel({ task, onClose, onCancel, onUpdateStatus }: TaskDetailPanelProps) {
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
@@ -242,8 +286,37 @@ function TaskDetailPanel({ task, onClose, onCancel }: TaskDetailPanelProps) {
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/50 bg-gradient-to-r from-indigo-500/5 to-purple-500/5">
-          {task.status === 'queued' && (
+        <div className="flex items-center justify-between px-6 py-4 border-t border-border/50 bg-gradient-to-r from-indigo-500/5 to-purple-500/5">
+          <div className="flex items-center gap-2">
+            {task.status === 'running' && (
+              <>
+                <button
+                  onClick={() => onUpdateStatus(task.id, 'completed')}
+                  className="btn-secondary text-green-600 hover:bg-green-500/10 flex items-center gap-2 text-sm"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  标记完成
+                </button>
+                <button
+                  onClick={() => onUpdateStatus(task.id, 'failed')}
+                  className="btn-secondary text-orange-500 hover:bg-orange-500/10 flex items-center gap-2 text-sm"
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  标记失败
+                </button>
+              </>
+            )}
+            {(task.status === 'failed' || task.status === 'cancelled') && (
+              <button
+                onClick={() => onUpdateStatus(task.id, 'queued')}
+                className="btn-secondary text-blue-500 hover:bg-blue-500/10 flex items-center gap-2 text-sm"
+              >
+                <RefreshCw className="w-4 h-4" />
+                重新排队
+              </button>
+            )}
+          </div>
+          {(task.status === 'queued' || task.status === 'delayed') && (
             <button
               onClick={() => onCancel(task.id)}
               className="btn-secondary text-red-500 hover:bg-red-500/10 flex items-center gap-2"
@@ -876,7 +949,7 @@ function IssuesTab() {
 }
 
 export function TasksPage() {
-  const { error, createTask, cancelTask } = useTaskStore();
+  const { error, createTask, cancelTask, updateTask } = useTaskStore();
   const [selectedTask, setSelectedTask] = useState<
     ReturnType<typeof useTaskStore.getState>['tasks'][0] | null
   >(null);
@@ -898,8 +971,13 @@ export function TasksPage() {
 
   const filteredTasks = filter === 'all' ? tasks : tasks.filter((t) => t.status === filter);
 
-  const handleCreateTask = async (name: string, description: string, priority: TaskPriority) => {
-    await createTask({ name, description, priority });
+  const handleCreateTask = async (
+    name: string,
+    description: string,
+    priority: TaskPriority,
+    executionMode: ExecutionMode,
+  ) => {
+    await createTask({ name, description, priority, execution_mode: executionMode });
     refetch();
   };
 
@@ -913,6 +991,20 @@ export function TasksPage() {
         refetch();
       },
       'danger',
+    );
+  };
+
+  const handleUpdateStatus = async (id: string, status: TaskStatus) => {
+    const label = taskStatusLabels[status];
+    showConfirm(
+      '更新状态',
+      `确定要将任务状态改为「${label}」吗？`,
+      async () => {
+        await updateTask(id, { status });
+        setSelectedTask(null);
+        refetch();
+      },
+      'warning',
     );
   };
 
@@ -1044,7 +1136,7 @@ export function TasksPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm text-muted-foreground">筛选：</span>
             {(
-              ['all', 'pending', 'running', 'completed', 'failed', 'cancelled'] as (
+              ['all', 'queued', 'running', 'completed', 'failed', 'cancelled'] as (
                 | TaskStatus
                 | 'all'
               )[]
@@ -1177,6 +1269,7 @@ export function TasksPage() {
               task={selectedTask}
               onClose={() => setSelectedTask(null)}
               onCancel={handleCancelTask}
+              onUpdateStatus={handleUpdateStatus}
             />
           )}
 

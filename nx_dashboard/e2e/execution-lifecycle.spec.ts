@@ -13,9 +13,9 @@ test.describe('Execution Lifecycle', () => {
   })
 
   test('create execution', async () => {
-    const ex = await api('/api/v1/executions', {
+    const ex = await api('/api/v1/executions/start', {
       method: 'POST',
-      body: JSON.stringify({ workflow_id: wfId, input: {} }),
+      body: JSON.stringify({ workflow_id: wfId, variables: {} }),
     }) as { id: string; status: string }
     exId = ex.id
     expect(exId).toBeTruthy()

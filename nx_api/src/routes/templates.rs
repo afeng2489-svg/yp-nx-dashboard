@@ -104,6 +104,26 @@ pub struct TemplateState {
     pub templates_path: PathBuf,
 }
 
+/// 从可执行文件位置向上查找 workspace root（包含 config/workflows/ 的目录）
+fn find_workspace_root() -> Option<PathBuf> {
+    if let Ok(exe) = std::env::current_exe() {
+        let exe = exe.canonicalize().unwrap_or(exe);
+        for ancestor in exe.ancestors().skip(1) {
+            if ancestor.join("config/workflows").is_dir() {
+                return Some(ancestor.to_path_buf());
+            }
+        }
+    }
+    if let Ok(cwd) = std::env::current_dir() {
+        for ancestor in cwd.ancestors() {
+            if ancestor.join("config/workflows").is_dir() {
+                return Some(ancestor.to_path_buf());
+            }
+        }
+    }
+    None
+}
+
 /// 获取模板目录路径
 fn get_templates_path() -> PathBuf {
     PathBuf::from(std::env::var("TEMPLATES_PATH").unwrap_or_else(|_| {
@@ -164,6 +184,15 @@ pub async fn list_templates(
         }
     }
 
+    // 追加嵌入的 YAML 模板（去重：跳过已存在的 id）
+    let existing_ids: std::collections::HashSet<String> =
+        templates.iter().map(|t| t.id.clone()).collect();
+    for tmpl in get_embedded_template_summaries() {
+        if !existing_ids.contains(&tmpl.id) {
+            templates.push(tmpl);
+        }
+    }
+
     // 按名称排序
     templates.sort_by(|a, b| a.name.cmp(&b.name));
 
@@ -208,6 +237,15 @@ pub async fn get_template(
                 agents: template.agents,
                 variables: template.variables,
             }));
+        }
+    }
+
+    // 尝试从嵌入的 YAML 模板中查找
+    for (yaml_id, yaml_content) in get_embedded_yaml_templates() {
+        if yaml_id == id {
+            if let Some(resp) = parse_embedded_yaml_response(yaml_id, yaml_content) {
+                return Ok(Json(resp));
+            }
         }
     }
 
@@ -275,17 +313,17 @@ pub async fn instantiate_template(
     let template_path = templates_path.join(format!("{}.yaml", id));
 
     // 优先检查 config/workflows/{id}.yaml（支持完整 stage_type/user_input 等特性）
-    let config_workflow_path = std::path::PathBuf::from(
-        std::env::var("NEXUS_BASE_DIR")
-            .unwrap_or_else(|_| "/Users/Zhuanz/Desktop/yp-nx-dashboard".to_string()),
-    )
-    .join("config/workflows")
-    .join(format!("{}.yaml", id));
+    let config_workflow_path = std::env::var("NEXUS_BASE_DIR")
+        .map(std::path::PathBuf::from)
+        .ok()
+        .or_else(find_workspace_root)
+        .map(|root| root.join("config/workflows").join(format!("{}.yaml", id)))
+        .filter(|p| p.exists());
 
     let (workflow_name, workflow_description, workflow_definition) =
-        if config_workflow_path.exists() {
+        if let Some(ref config_workflow_path) = config_workflow_path {
             // 直接读取完整 YAML，用 serde_json::Value 保留所有字段（含 stage_type 等）
-            let yaml_content = fs::read_to_string(&config_workflow_path)
+            let yaml_content = fs::read_to_string(config_workflow_path)
                 .map_err(|e| AppError::Internal(e.to_string()))?;
             let mut yaml_val: serde_json::Value = serde_yaml::from_str(&yaml_content)
                 .map_err(|e| AppError::Internal(format!("YAML 解析失败: {}", e)))?;
@@ -317,10 +355,55 @@ pub async fn instantiate_template(
                 .map(|s| s.to_string());
             (name, desc, yaml_val)
         } else {
-            // 从模板文件系统或内置模板获取定义（简单模板，不含 user_input）
+            // 从模板文件系统、嵌入 YAML 或内置模板获取定义
             let template_def = if template_path.exists() {
                 let (_, def) = parse_template_file(&template_path)?;
                 def
+            } else if let Some((_, yaml_content)) = get_embedded_yaml_templates()
+                .into_iter()
+                .find(|(yaml_id, _)| *yaml_id == id.as_str())
+            {
+                // 嵌入的 YAML 模板：解析完整 workflow YAML 并直接实例化
+                let mut yaml_val: serde_json::Value = serde_yaml::from_str(yaml_content)
+                    .map_err(|e| AppError::Internal(format!("YAML 解析失败: {}", e)))?;
+                if let Some(user_vars) = payload.variables.as_ref().and_then(|v| v.as_object()) {
+                    if let Some(vars) = yaml_val
+                        .get_mut("variables")
+                        .and_then(|v| v.as_object_mut())
+                    {
+                        for (k, v) in user_vars {
+                            if let Some(s) = v.as_str() {
+                                if !s.is_empty() {
+                                    vars.insert(k.clone(), v.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+                let name = yaml_val
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&id)
+                    .to_string();
+                let desc = yaml_val
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let workflow = state
+                    .workflow_service
+                    .create_workflow(name, Some("1.0.0".to_string()), desc, yaml_val)
+                    .map_err(AppError::from)?;
+                tracing::info!(
+                    "Instantiated embedded YAML template '{}' into workflow '{}'",
+                    id,
+                    workflow.id
+                );
+                return Ok(Json(InstantiateResponse {
+                    workflow_id: workflow.id,
+                    name: workflow.name,
+                    description: workflow.description,
+                    created_at: workflow.created_at.to_rfc3339(),
+                }));
             } else {
                 get_builtin_templates()
                     .into_iter()
@@ -660,6 +743,219 @@ fn get_builtin_templates() -> Vec<(String, TemplateDefinition)> {
     ]
 }
 
+// ============ 嵌入式 YAML 模板 ============
+// 从 config/workflows/ 目录嵌入的 YAML 模板，打包后仍可用
+
+/// YAML 模板的简化结构（用于从嵌入的 YAML 解析模板摘要）
+#[derive(Debug, Deserialize)]
+struct EmbeddedYamlTemplate {
+    name: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    category: String,
+    #[serde(default)]
+    workflow: Option<EmbeddedYamlWorkflow>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EmbeddedYamlWorkflow {
+    #[serde(default)]
+    stages: Vec<serde_yaml::Value>,
+    #[serde(default)]
+    agents: Vec<serde_yaml::Value>,
+}
+
+/// 从嵌入的 YAML 内容解析模板摘要
+fn parse_embedded_yaml_summary(id: &str, yaml_content: &str) -> Option<TemplateSummary> {
+    let tmpl: EmbeddedYamlTemplate = serde_yaml::from_str(yaml_content).ok()?;
+    let wf = tmpl.workflow.as_ref();
+    Some(TemplateSummary {
+        id: id.to_string(),
+        name: tmpl.name,
+        description: tmpl.description,
+        category: if tmpl.category.is_empty() {
+            "workflow".to_string()
+        } else {
+            tmpl.category
+        },
+        stage_count: wf.map(|w| w.stages.len()).unwrap_or(0),
+        agent_count: wf.map(|w| w.agents.len()).unwrap_or(0),
+    })
+}
+
+/// 从嵌入的 YAML 内容解析完整模板响应
+fn parse_embedded_yaml_response(id: &str, yaml_content: &str) -> Option<TemplateResponse> {
+    let tmpl: EmbeddedYamlTemplate = serde_yaml::from_str(yaml_content).ok()?;
+    let wf = tmpl.workflow.as_ref();
+    let stages: Vec<Stage> = wf
+        .map(|w| {
+            w.stages
+                .iter()
+                .filter_map(|s| {
+                    Some(Stage {
+                        name: s.get("name")?.as_str()?.to_string(),
+                        agents: s
+                            .get("agent_refs")
+                            .and_then(|a| a.as_sequence())
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|v| v.as_str().map(String::from))
+                                    .collect()
+                            })
+                            .unwrap_or_default(),
+                        parallel: s.get("parallel").and_then(|p| p.as_bool()).unwrap_or(false),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let agents: Vec<Agent> = wf
+        .map(|w| {
+            w.agents
+                .iter()
+                .filter_map(|a| {
+                    Some(Agent {
+                        id: a.get("id")?.as_str()?.to_string(),
+                        role: a
+                            .get("role")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        model: a
+                            .get("model")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        prompt: a
+                            .get("prompt")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        depends_on: a
+                            .get("depends_on")
+                            .and_then(|d| d.as_sequence())
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|v| v.as_str().map(String::from))
+                                    .collect()
+                            })
+                            .unwrap_or_default(),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    Some(TemplateResponse {
+        id: id.to_string(),
+        name: tmpl.name,
+        description: tmpl.description,
+        category: if tmpl.category.is_empty() {
+            "workflow".to_string()
+        } else {
+            tmpl.category
+        },
+        stages,
+        agents,
+        variables: std::collections::HashMap::new(),
+    })
+}
+
+/// 嵌入的 YAML 模板列表：(id, yaml_content)
+fn get_embedded_yaml_templates() -> Vec<(&'static str, &'static str)> {
+    vec![
+        // ── 根目录模板 ──
+        (
+            "brainstorm",
+            include_str!("../../../config/workflows/brainstorm.yaml"),
+        ),
+        (
+            "dev-workflow",
+            include_str!("../../../config/workflows/dev-workflow.yaml"),
+        ),
+        (
+            "investigate",
+            include_str!("../../../config/workflows/investigate.yaml"),
+        ),
+        (
+            "quick-fix",
+            include_str!("../../../config/workflows/quick-fix.yaml"),
+        ),
+        (
+            "solo-dev",
+            include_str!("../../../config/workflows/solo-dev.yaml"),
+        ),
+        (
+            "ui-ux-design",
+            include_str!("../../../config/workflows/ui-ux-design.yaml"),
+        ),
+        (
+            "workflow-tdd-plan",
+            include_str!("../../../config/workflows/workflow-tdd-plan.yaml"),
+        ),
+        (
+            "workflow-test-fix",
+            include_str!("../../../config/workflows/workflow-test-fix.yaml"),
+        ),
+        (
+            "writing-plans",
+            include_str!("../../../config/workflows/writing-plans.yaml"),
+        ),
+        // ── issue/ 子目录 ──
+        (
+            "issue-discover",
+            include_str!("../../../config/workflows/issue/issue-discover.yaml"),
+        ),
+        (
+            "issue-execute",
+            include_str!("../../../config/workflows/issue/issue-execute.yaml"),
+        ),
+        (
+            "issue-plan",
+            include_str!("../../../config/workflows/issue/issue-plan.yaml"),
+        ),
+        (
+            "issue-queue",
+            include_str!("../../../config/workflows/issue/issue-queue.yaml"),
+        ),
+        // ── ui-design/ 子目录 ──
+        (
+            "animation-extract",
+            include_str!("../../../config/workflows/ui-design/animation-extract.yaml"),
+        ),
+        (
+            "codify-style",
+            include_str!("../../../config/workflows/ui-design/codify-style.yaml"),
+        ),
+        (
+            "design-sync",
+            include_str!("../../../config/workflows/ui-design/design-sync.yaml"),
+        ),
+        (
+            "generate",
+            include_str!("../../../config/workflows/ui-design/generate.yaml"),
+        ),
+        (
+            "layout-extract",
+            include_str!("../../../config/workflows/ui-design/layout-extract.yaml"),
+        ),
+        (
+            "style-extract",
+            include_str!("../../../config/workflows/ui-design/style-extract.yaml"),
+        ),
+    ]
+}
+
+/// 获取所有嵌入式 YAML 模板摘要
+fn get_embedded_template_summaries() -> Vec<TemplateSummary> {
+    get_embedded_yaml_templates()
+        .iter()
+        .filter_map(|(id, yaml)| parse_embedded_yaml_summary(id, yaml))
+        .collect()
+}
+
+/// 按类别列出模板
+
 /// 按类别列出模板
 pub async fn list_templates_by_category(
     State(_state): State<Arc<AppState>>,
@@ -709,6 +1005,17 @@ pub async fn list_templates_by_category(
                     agent_count: template.agents.len(),
                 });
             }
+        }
+    }
+
+    // 追加嵌入的 YAML 模板（去重）
+    let existing_ids: std::collections::HashSet<String> =
+        templates.iter().map(|t| t.id.clone()).collect();
+    for tmpl in get_embedded_template_summaries() {
+        if !existing_ids.contains(&tmpl.id)
+            && tmpl.category.to_lowercase() == category.to_lowercase()
+        {
+            templates.push(tmpl);
         }
     }
 

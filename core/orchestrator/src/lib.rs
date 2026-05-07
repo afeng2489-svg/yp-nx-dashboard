@@ -21,6 +21,7 @@ pub mod cli;
 pub mod error;
 pub mod executor;
 pub mod message_bus;
+pub mod planner;
 pub mod scheduler;
 pub mod team;
 
@@ -30,8 +31,9 @@ pub use executor::{
     ExecutionResult, ExecutionStatus, StageDefinition, WorkflowDefinition, WorkflowExecutor,
 };
 pub use message_bus::{BusMessage, Channel, MessageBus, MessagePayload};
+pub use planner::{ExecutionPlan, Planner, PlannerError};
 pub use scheduler::{
     CronSchedule, QueueStatus, QueuedTask, RetryConfig, ScheduledJob, SchedulerError,
-    SchedulerStats, TaskPriority, TaskScheduler,
+    SchedulerStats, TaskExecutor, TaskPriority, TaskScheduler,
 };
 pub use team::{AgentId, AgentRole, Capability, Team, TeamId, TeamManager, TeamMember};

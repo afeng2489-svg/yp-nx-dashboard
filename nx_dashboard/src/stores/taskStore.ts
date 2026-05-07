@@ -39,12 +39,16 @@ export interface QueueStats {
   scheduled_jobs: number;
 }
 
+export type ExecutionMode = 'auto_plan' | 'workflow' | 'manual';
+
 export interface CreateTaskRequest {
   name: string;
   description: string;
   stages?: StageRequest[];
   variables?: Record<string, unknown>;
   priority?: TaskPriority;
+  execution_mode?: ExecutionMode;
+  workflow_id?: string;
 }
 
 export interface TaskListResponse {
@@ -62,6 +66,10 @@ interface TaskStore {
   fetchStats: () => Promise<void>;
   createTask: (request: CreateTaskRequest) => Promise<QueuedTask | null>;
   getTask: (id: string) => Promise<QueuedTask | null>;
+  updateTask: (
+    id: string,
+    updates: { status?: TaskStatus; priority?: TaskPriority },
+  ) => Promise<QueuedTask | null>;
   cancelTask: (id: string) => Promise<boolean>;
   clearError: () => void;
 }
@@ -142,6 +150,31 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       return task;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Failed to get task' });
+      return null;
+    }
+  },
+
+  updateTask: async (id: string, updates: { status?: TaskStatus; priority?: TaskPriority }) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null;
+        }
+        throw new Error(`API Error: ${response.status}`);
+      }
+      const task: QueuedTask = await response.json();
+      set((state) => ({
+        tasks: state.tasks.map((t) => (t.id === id ? task : t)),
+      }));
+      get().fetchStats();
+      return task;
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Failed to update task' });
       return null;
     }
   },

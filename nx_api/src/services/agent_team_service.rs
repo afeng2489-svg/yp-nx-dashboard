@@ -461,6 +461,13 @@ impl AgentTeamService {
                     use std::process::Command;
                     let _ = Command::new("kill").arg("-9").arg(pid.to_string()).output();
                 }
+                #[cfg(windows)]
+                {
+                    use std::process::Command;
+                    let _ = Command::new("taskkill")
+                        .args(["/F", "/PID", &pid.to_string()])
+                        .output();
+                }
                 p.status = ProcessStatus::Killed;
             }
             Ok(())

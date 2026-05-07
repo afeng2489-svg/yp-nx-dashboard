@@ -1190,7 +1190,7 @@ curl -s http://localhost:3000/health
 
 ---
 
-### CARD-01 · 健康检查 ⬜
+### CARD-01 · 健康检查 ✅
 ```bash
 curl -s http://localhost:3000/health
 ```
@@ -1198,7 +1198,7 @@ curl -s http://localhost:3000/health
 
 ---
 
-### CARD-02 · Workflow CRUD ⬜
+### CARD-02 · Workflow CRUD ✅
 ```bash
 WF=$(curl -s -X POST http://localhost:3000/api/v1/workflows \
   -H "Content-Type: application/json" \
@@ -1215,7 +1215,7 @@ curl -s -X DELETE http://localhost:3000/api/v1/workflows/$WF_ID
 
 ---
 
-### CARD-03 · Execution 生命周期 ⬜
+### CARD-03 · Execution 生命周期 ✅
 ```bash
 EX=$(curl -s -X POST http://localhost:3000/api/v1/executions \
   -H "Content-Type: application/json" \
@@ -1234,7 +1234,7 @@ done
 
 ---
 
-### CARD-04 · Execution Git 信息 ⬜
+### CARD-04 · Execution Git 信息 ✅
 ```bash
 curl -s http://localhost:3000/api/v1/executions/$EX_ID/git
 ```
@@ -1242,7 +1242,7 @@ curl -s http://localhost:3000/api/v1/executions/$EX_ID/git
 
 ---
 
-### CARD-05 · Session 生命周期 ⬜
+### CARD-05 · Session 生命周期 ✅
 ```bash
 SS=$(curl -s -X POST http://localhost:3000/api/v1/sessions \
   -H "Content-Type: application/json" \
@@ -1258,7 +1258,7 @@ curl -s -X DELETE http://localhost:3000/api/v1/sessions/$SS_ID
 
 ---
 
-### CARD-06 · Session 消息响应 ⬜
+### CARD-06 · Session 消息响应 ✅
 ```bash
 MSG_ID=$(curl -s http://localhost:3000/api/v1/sessions/$SS_ID/messages | \
   python3 -c "import sys,json;msgs=json.load(sys.stdin)['data'];print(msgs[0]['id'] if msgs else 'none')")
@@ -1271,7 +1271,7 @@ curl -s -X POST http://localhost:3000/api/v1/sessions/$SS_ID/messages/$MSG_ID/re
 
 ---
 
-### CARD-07 · Group Sessions 群组会话 ⬜
+### CARD-07 · Group Sessions 群组会话 ⏭️
 ```bash
 GS=$(curl -s -X POST http://localhost:3000/api/v1/group-sessions \
   -H "Content-Type: application/json" \
@@ -1285,7 +1285,7 @@ curl -s http://localhost:3000/api/v1/group-sessions
 
 ---
 
-### CARD-08 · Teams 团队管理 ⬜
+### CARD-08 · Teams 团队管理 ✅
 ```bash
 TM=$(curl -s -X POST http://localhost:3000/api/v1/teams \
   -H "Content-Type: application/json" \
@@ -1299,7 +1299,7 @@ curl -s http://localhost:3000/api/v1/teams
 
 ---
 
-### CARD-09 · Roles 角色管理 ⬜
+### CARD-09 · Roles 角色管理 ✅
 ```bash
 RL=$(curl -s -X POST http://localhost:3000/api/v1/roles \
   -H "Content-Type: application/json" \
@@ -1315,7 +1315,7 @@ curl -s -X POST http://localhost:3000/api/v1/roles/$RL_ID/execute \
 
 ---
 
-### CARD-10 · Tasks 任务管理 ⬜
+### CARD-10 · Tasks 任务管理 ✅
 ```bash
 TK=$(curl -s -X POST http://localhost:3000/api/v1/tasks \
   -H "Content-Type: application/json" \
@@ -1330,7 +1330,7 @@ curl -s http://localhost:3000/api/v1/tasks/stats
 
 ---
 
-### CARD-11 · Projects 项目管理 ⬜
+### CARD-11 · Projects 项目管理 ✅
 ```bash
 PJ=$(curl -s -X POST http://localhost:3000/api/v1/projects \
   -H "Content-Type: application/json" \
@@ -1344,7 +1344,7 @@ curl -s -X DELETE http://localhost:3000/api/v1/projects/$PJ_ID
 
 ---
 
-### CARD-12 · Issues 问题追踪 ⬜
+### CARD-12 · Issues 问题追踪 ✅
 ```bash
 IS=$(curl -s -X POST http://localhost:3000/api/v1/issues \
   -H "Content-Type: application/json" \
@@ -1358,7 +1358,7 @@ curl -s -X PUT http://localhost:3000/api/v1/issues/$IS_ID \
 
 ---
 
-### CARD-13 · Skills 技能系统 ⬜
+### CARD-13 · Skills 技能系统 ✅
 ```bash
 curl -s http://localhost:3000/api/v1/skills
 curl -s http://localhost:3000/api/v1/skills/categories
@@ -1373,7 +1373,7 @@ curl -s -X POST http://localhost:3000/api/v1/skills/$SK_ID/execute \
 
 ---
 
-### CARD-14 · Skills 导入 ⬜
+### CARD-14 · Skills 导入 ✅
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/skills/import \
   -H "Content-Type: application/json" \
@@ -1383,7 +1383,7 @@ curl -s -X POST http://localhost:3000/api/v1/skills/import \
 
 ---
 
-### CARD-15 · AI CLI 管理 ⬜
+### CARD-15 · AI CLI 管理 ✅
 ```bash
 curl -s http://localhost:3000/api/v1/ai/clis
 curl -s -X PUT http://localhost:3000/api/v1/ai/clis/config \
@@ -1394,7 +1394,7 @@ curl -s -X PUT http://localhost:3000/api/v1/ai/clis/config \
 
 ---
 
-### CARD-16 · AI 模型管理 ⬜
+### CARD-16 · AI 模型管理 ✅
 ```bash
 curl -s http://localhost:3000/api/v1/ai/models
 curl -s http://localhost:3000/api/v1/ai/selected
@@ -1406,7 +1406,7 @@ curl -s -X PUT http://localhost:3000/api/v1/ai/default \
 
 ---
 
-### CARD-17 · AI Provider V2 ⬜
+### CARD-17 · AI Provider V2 ✅
 ```bash
 PV=$(curl -s -X POST http://localhost:3000/api/v1/ai/v2/providers \
   -H "Content-Type: application/json" \
@@ -1418,7 +1418,7 @@ curl -s -X DELETE http://localhost:3000/api/v1/ai/v2/providers/$PV_ID
 
 ---
 
-### CARD-18 · AI 直接执行 ⬜
+### CARD-18 · AI 直接执行 ✅
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/ai/execute \
   -H "Content-Type: application/json" \
@@ -1428,7 +1428,7 @@ curl -s -X POST http://localhost:3000/api/v1/ai/execute \
 
 ---
 
-### CARD-19 · API Keys 管理 ⬜
+### CARD-19 · API Keys 管理 ✅
 ```bash
 curl -s http://localhost:3000/api/v1/ai/api-keys
 ```
@@ -1436,7 +1436,7 @@ curl -s http://localhost:3000/api/v1/ai/api-keys
 
 ---
 
-### CARD-20 · 多模型路由 ⬜
+### CARD-20 · 多模型路由 ✅
 ```bash
 curl -s http://localhost:3000/api/v1/ai/cli-model
 curl -s http://localhost:3000/api/v1/model-routing/config 2>/dev/null || \
@@ -1446,7 +1446,7 @@ curl -s http://localhost:3000/api/v1/model-routing/config 2>/dev/null || \
 
 ---
 
-### CARD-21 · Costs 费用统计 ⬜
+### CARD-21 · Costs 费用统计 ✅
 ```bash
 curl -s http://localhost:3000/api/v1/costs/summary
 curl -s "http://localhost:3000/api/v1/costs/by-day?days=7"
@@ -1455,7 +1455,7 @@ curl -s "http://localhost:3000/api/v1/costs/by-day?days=7"
 
 ---
 
-### CARD-22 · Workspaces 工作区 ⬜
+### CARD-22 · Workspaces 工作区 ✅
 ```bash
 mkdir -p /tmp/e2e-ws && git -C /tmp/e2e-ws init 2>/dev/null
 WS=$(curl -s -X POST http://localhost:3000/api/v1/workspaces \
@@ -1472,7 +1472,7 @@ curl -s -X DELETE http://localhost:3000/api/v1/workspaces/$WS_ID
 
 ---
 
-### CARD-23 · Knowledge 知识库 ⬜
+### CARD-23 · Knowledge 知识库 ✅
 ```bash
 echo "NexusFlow 是 AI 软件工厂" > /tmp/kb-doc.txt
 curl -s -X POST http://localhost:3000/api/v1/knowledge \
@@ -1484,7 +1484,7 @@ curl -s "http://localhost:3000/api/v1/knowledge/search?q=AI软件工厂"
 
 ---
 
-### CARD-24 · Triggers 触发器 ⬜
+### CARD-24 · Triggers 触发器 ✅
 ```bash
 TR=$(curl -s -X POST http://localhost:3000/api/v1/triggers \
   -H "Content-Type: application/json" \
@@ -1501,7 +1501,7 @@ curl -s -X DELETE http://localhost:3000/api/v1/triggers/$TR_ID
 
 ---
 
-### CARD-25 · Scheduler 调度器 ⬜
+### CARD-25 · Scheduler 调度器 ✅
 ```bash
 curl -s http://localhost:3000/api/v1/scheduler/jobs 2>/dev/null || \
   curl -s http://localhost:3000/api/v1/scheduler/status
@@ -1510,7 +1510,7 @@ curl -s http://localhost:3000/api/v1/scheduler/jobs 2>/dev/null || \
 
 ---
 
-### CARD-26 · Templates 模板 ⬜
+### CARD-26 · Templates 模板 ✅
 ```bash
 TP=$(curl -s -X POST http://localhost:3000/api/v1/templates \
   -H "Content-Type: application/json" \
@@ -1524,7 +1524,7 @@ curl -s -X DELETE http://localhost:3000/api/v1/templates/$TP_ID
 
 ---
 
-### CARD-27 · Search 全局搜索 ⬜
+### CARD-27 · Search 全局搜索 ✅
 ```bash
 curl -s "http://localhost:3000/api/v1/search?q=workflow"
 curl -s http://localhost:3000/api/v1/search/modes
@@ -1534,7 +1534,7 @@ curl -s -X POST http://localhost:3000/api/v1/search/index
 
 ---
 
-### CARD-28 · Wisdom 知识沉淀 ⬜
+### CARD-28 · Wisdom 知识沉淀 ✅
 ```bash
 WD=$(curl -s -X POST http://localhost:3000/api/v1/wisdom \
   -H "Content-Type: application/json" \
@@ -1549,7 +1549,7 @@ curl -s -X DELETE http://localhost:3000/api/v1/wisdom/$WD_ID
 
 ---
 
-### CARD-29 · Test Gen 测试生成 ⬜
+### CARD-29 · Test Gen 测试生成 ✅
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/test-gen \
   -H "Content-Type: application/json" \
@@ -1559,7 +1559,7 @@ curl -s -X POST http://localhost:3000/api/v1/test-gen \
 
 ---
 
-### CARD-30 · Plugins 插件 ⬜
+### CARD-30 · Plugins 插件 ✅
 ```bash
 curl -s http://localhost:3000/api/v1/plugins
 ```
@@ -1567,7 +1567,7 @@ curl -s http://localhost:3000/api/v1/plugins
 
 ---
 
-### CARD-31 · Processes 进程管理 ⬜
+### CARD-31 · Processes 进程管理 ✅
 ```bash
 curl -s http://localhost:3000/api/v1/processes
 ```
@@ -1575,7 +1575,7 @@ curl -s http://localhost:3000/api/v1/processes
 
 ---
 
-### CARD-32 · Execution Logs ⬜
+### CARD-32 · Execution Logs ✅
 ```bash
 curl -s http://localhost:3000/api/v1/executions/$EX_ID/logs 2>/dev/null || \
   curl -s "http://localhost:3000/api/v1/execution-logs?execution_id=$EX_ID"
@@ -1584,7 +1584,7 @@ curl -s http://localhost:3000/api/v1/executions/$EX_ID/logs 2>/dev/null || \
 
 ---
 
-### CARD-33 · WebSocket — 执行实时推送 ⬜
+### CARD-33 · WebSocket — 执行实时推送 ⏭️
 ```bash
 # 需要 websocat：brew install websocat
 websocat ws://localhost:3000/ws/executions/$EX_ID &
@@ -1594,7 +1594,7 @@ WS_PID=$!; sleep 10; kill $WS_PID
 
 ---
 
-### CARD-34 · WebSocket — Session 流 ⬜
+### CARD-34 · WebSocket — Session 流 ⏭️
 ```bash
 websocat ws://localhost:3000/ws/sessions/$SS_ID &
 WS_PID=$!; sleep 5; kill $WS_PID
@@ -1603,7 +1603,7 @@ WS_PID=$!; sleep 5; kill $WS_PID
 
 ---
 
-### CARD-35 · WebSocket — 终端 & 命令执行 ⬜
+### CARD-35 · WebSocket — 终端 & 命令执行 ⏭️
 ```bash
 websocat ws://localhost:3000/ws/terminal &
 WS_PID=$!; sleep 3; kill $WS_PID
@@ -1612,7 +1612,7 @@ WS_PID=$!; sleep 3; kill $WS_PID
 
 ---
 
-### CARD-36 · Tauri 桌面应用启动 ⬜
+### CARD-36 · Tauri 桌面应用启动 ⏭️
 ```bash
 cd /Users/Zhuanz/Desktop/yp-nx-dashboard/nx_dashboard
 cargo tauri dev
@@ -1625,7 +1625,7 @@ cargo tauri dev
 
 ---
 
-### CARD-37 · AI Chat 对话 ⬜
+### CARD-37 · AI Chat 对话 ✅
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/ai/chat \
   -H "Content-Type: application/json" \
@@ -1635,7 +1635,7 @@ curl -s -X POST http://localhost:3000/api/v1/ai/chat \
 
 ---
 
-### CARD-38 · AI 模型刷新 ⬜
+### CARD-38 · AI 模型刷新 ✅
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/ai/models/refresh
 ```
@@ -1643,7 +1643,7 @@ curl -s -X POST http://localhost:3000/api/v1/ai/models/refresh
 
 ---
 
-### CARD-39 · Skills 标签系统 ⬜
+### CARD-39 · Skills 标签系统 ✅
 ```bash
 curl -s http://localhost:3000/api/v1/skills/tags
 curl -s http://localhost:3000/api/v1/skills/stats
@@ -1653,7 +1653,7 @@ curl -s http://localhost:3000/api/v1/skills/tag/code
 
 ---
 
-### CARD-40 · Test Gen 单元测试 ⬜
+### CARD-40 · Test Gen 单元测试 ✅
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/test-gen/unit \
   -H "Content-Type: application/json" \
@@ -1663,7 +1663,7 @@ curl -s -X POST http://localhost:3000/api/v1/test-gen/unit \
 
 ---
 
-### CARD-41 · Webhook 触发工作流 ⬜
+### CARD-41 · Webhook 触发工作流 ✅
 ```bash
 # 触发指定 workflow（需先有 WF_ID）
 curl -s -X POST "http://localhost:3000/api/v1/triggers/webhook/$WF_ID" \
@@ -1674,7 +1674,7 @@ curl -s -X POST "http://localhost:3000/api/v1/triggers/webhook/$WF_ID" \
 
 ---
 
-### CARD-42 · 定时任务 CRUD ⬜
+### CARD-42 · 定时任务 CRUD ✅
 ```bash
 # 创建定时任务
 SJ=$(curl -s -X POST http://localhost:3000/api/v1/tasks/schedule \
@@ -1695,7 +1695,7 @@ curl -s -X DELETE "http://localhost:3000/api/v1/tasks/scheduled/$SJ_ID"
 
 ---
 
-### CARD-43 · RAG 知识库完整流程 ⬜
+### CARD-43 · RAG 知识库完整流程 ✅
 **路由**：`/api/v1/knowledge-bases`（注意：不是 `/api/v1/knowledge`）
 ```bash
 # 创建知识库
@@ -1727,7 +1727,7 @@ curl -s -X DELETE "http://localhost:3000/api/v1/knowledge-bases/$KB_ID"
 
 ---
 
-### CARD-44 · Sprint 看板 API ⬜
+### CARD-44 · Sprint 看板 API ✅
 **路由**：`/api/v1/sprints`
 ```bash
 # 创建/更新 Sprint
@@ -1756,7 +1756,7 @@ curl -s "http://localhost:3000/api/v1/sprints/$SP_ID/report"
 
 ---
 
-### CARD-45 · AI 提供商管理 ⬜
+### CARD-45 · AI 提供商管理 ✅
 **路由**：`/api/v1/ai/providers`、`/api/v1/ai/default`、`/api/v1/ai/selected`
 ```bash
 # 获取所有提供商
@@ -1772,7 +1772,7 @@ curl -s http://localhost:3000/api/v1/ai/selected
 
 ---
 
-### CARD-46 · AI CLI 配置 ⬜
+### CARD-46 · AI CLI 配置 ✅
 **路由**：`/api/v1/ai/cli-model`、`/api/v1/ai/clis/config`、`/api/v1/ai/execute`
 ```bash
 # 获取 CLI 模型配置
@@ -1790,7 +1790,7 @@ curl -s -X POST http://localhost:3000/api/v1/ai/execute \
 
 ---
 
-### CARD-47 · Browser 自动化 ⬜
+### CARD-47 · Browser 自动化 ⏭️
 **路由**：`/api/v1/browser`
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/browser \
@@ -1801,7 +1801,7 @@ curl -s -X POST http://localhost:3000/api/v1/browser \
 
 ---
 
-### CARD-48 · Search 索引与模式 ⬜
+### CARD-48 · Search 索引与模式 ✅
 **路由**：`/api/v1/search/index`、`/api/v1/search/modes`
 ```bash
 # 获取搜索模式
@@ -1814,7 +1814,7 @@ curl -s -X POST http://localhost:3000/api/v1/search/index
 
 ---
 
-### CARD-49 · Skills 分类/搜索/导入 ⬜
+### CARD-49 · Skills 分类/搜索/导入 ✅
 **路由**：`/api/v1/skills/categories`、`/api/v1/skills/search`、`/api/v1/skills/import`
 ```bash
 # 获取技能分类
@@ -1832,7 +1832,7 @@ curl -s -X POST http://localhost:3000/api/v1/skills/import \
 
 ---
 
-### CARD-50 · Tasks 统计 ⬜
+### CARD-50 · Tasks 统计 ✅
 **路由**：`/api/v1/tasks/stats`
 ```bash
 curl -s http://localhost:3000/api/v1/tasks/stats
@@ -1841,7 +1841,7 @@ curl -s http://localhost:3000/api/v1/tasks/stats
 
 ---
 
-### CARD-51 · 临时文件清理 ⬜
+### CARD-51 · 临时文件清理 ✅
 **路由**：`/api/v1/temp-cleanup`
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/temp-cleanup
@@ -1854,57 +1854,57 @@ curl -s -X POST http://localhost:3000/api/v1/temp-cleanup
 
 | 卡片 | 功能模块 | 路由 | 状态 |
 |------|---------|------|------|
-| CARD-01 | 健康检查 | `GET /health` | ⬜ |
-| CARD-02 | Workflow CRUD | `/api/v1/workflows` | ⬜ |
-| CARD-03 | Execution 生命周期 | `/api/v1/executions` | ⬜ |
-| CARD-04 | Execution Git 信息 | `/executions/:id/git` | ⬜ |
-| CARD-05 | Session 生命周期 | `/api/v1/sessions` | ⬜ |
-| CARD-06 | Session 消息响应 | `/sessions/:id/messages/:id/respond` | ⬜ |
-| CARD-07 | Group Sessions | `/api/v1/group-sessions` | ⬜ |
-| CARD-08 | Teams 团队 | `/api/v1/teams` | ⬜ |
-| CARD-09 | Roles 角色 | `/api/v1/roles` | ⬜ |
-| CARD-10 | Tasks 任务 | `/api/v1/tasks` | ⬜ |
-| CARD-11 | Projects 项目 | `/api/v1/projects` | ⬜ |
-| CARD-12 | Issues 问题追踪 | `/api/v1/issues` | ⬜ |
-| CARD-13 | Skills 技能系统 | `/api/v1/skills` | ⬜ |
-| CARD-14 | Skills 导入 | `/skills/import` | ⬜ |
-| CARD-15 | AI CLI 管理 | `/api/v1/ai/clis` | ⬜ |
-| CARD-16 | AI 模型管理 | `/api/v1/ai/models` | ⬜ |
-| CARD-17 | AI Provider V2 | `/api/v1/ai/v2/providers` | ⬜ |
-| CARD-18 | AI 直接执行 | `/ai/execute` | ⬜ |
-| CARD-19 | API Keys | `/api/v1/ai/api-keys` | ⬜ |
-| CARD-20 | 多模型路由 | `/ai/cli-model` | ⬜ |
-| CARD-21 | Costs 费用统计 | `/api/v1/costs/*` | ⬜ |
-| CARD-22 | Workspaces 工作区 | `/api/v1/workspaces` | ⬜ |
-| CARD-23 | Knowledge 知识库 | `/api/v1/knowledge` | ⬜ |
-| CARD-24 | Triggers 触发器 | `/api/v1/triggers` | ⬜ |
-| CARD-25 | Scheduler 调度器 | `/api/v1/scheduler` | ⬜ |
-| CARD-26 | Templates 模板 | `/api/v1/templates` | ⬜ |
-| CARD-27 | Search 全局搜索 | `/api/v1/search` | ⬜ |
-| CARD-28 | Wisdom 知识沉淀 | `/api/v1/wisdom` | ⬜ |
-| CARD-29 | Test Gen 测试生成 | `/api/v1/test-gen` | ⬜ |
-| CARD-30 | Plugins 插件 | `/api/v1/plugins` | ⬜ |
-| CARD-31 | Processes 进程 | `/api/v1/processes` | ⬜ |
-| CARD-32 | Execution Logs | execution_logs | ⬜ |
-| CARD-33 | WS 执行推送 | `WS /ws/executions/:id` | ⬜ |
-| CARD-34 | WS Session 流 | `WS /ws/sessions/:id` | ⬜ |
-| CARD-35 | WS 终端/命令 | `WS /ws/terminal` | ⬜ |
-| CARD-36 | Tauri 桌面应用 | 手动验证 | ⬜ |
-| CARD-37 | AI Chat 对话 | `POST /api/v1/ai/chat` | ⬜ |
-| CARD-38 | AI 模型刷新 | `POST /api/v1/ai/models/refresh` | ⬜ |
-| CARD-39 | Skills 标签/统计 | `/api/v1/skills/tags`, `/stats`, `/tag/:tag` | ⬜ |
-| CARD-40 | Test Gen 单元测试 | `POST /api/v1/test-gen/unit` | ⬜ |
-| CARD-41 | Webhook 触发 | `POST /api/v1/triggers/webhook/:workflow_id` | ⬜ |
-| CARD-42 | 定时任务 CRUD | `/api/v1/tasks/schedule`, `/tasks/scheduled` | ⬜ |
-| CARD-43 | RAG 知识库完整 | `/api/v1/knowledge-bases` | ⬜ |
-| CARD-44 | Sprint 看板 API | `/api/v1/sprints` | ⬜ |
-| CARD-45 | AI 提供商管理 | `/api/v1/ai/providers`, `/ai/default`, `/ai/selected` | ⬜ |
-| CARD-46 | AI CLI 配置 | `/api/v1/ai/cli-model`, `/ai/clis/config`, `/ai/execute` | ⬜ |
-| CARD-47 | Browser 自动化 | `/api/v1/browser` | ⬜ |
-| CARD-48 | Search 索引与模式 | `/api/v1/search/index`, `/search/modes` | ⬜ |
-| CARD-49 | Skills 分类/搜索/导入 | `/api/v1/skills/categories`, `/skills/search`, `/skills/import` | ⬜ |
-| CARD-50 | Tasks 统计 | `/api/v1/tasks/stats` | ⬜ |
-| CARD-51 | 临时文件清理 | `/api/v1/temp-cleanup` | ⬜ |
+| CARD-01 | 健康检查 | `GET /health` | ✅ |
+| CARD-02 | Workflow CRUD | `/api/v1/workflows` | ✅ |
+| CARD-03 | Execution 生命周期 | `/api/v1/executions` | ✅ |
+| CARD-04 | Execution Git 信息 | `/executions/:id/git` | ✅ |
+| CARD-05 | Session 生命周期 | `/api/v1/sessions` | ✅ |
+| CARD-06 | Session 消息响应 | `/sessions/:id/messages/:id/respond` | ✅ |
+| CARD-07 | Group Sessions | `/api/v1/group-sessions` | ⏭️ |
+| CARD-08 | Teams 团队 | `/api/v1/teams` | ✅ |
+| CARD-09 | Roles 角色 | `/api/v1/roles` | ✅ |
+| CARD-10 | Tasks 任务 | `/api/v1/tasks` | ✅ |
+| CARD-11 | Projects 项目 | `/api/v1/projects` | ✅ |
+| CARD-12 | Issues 问题追踪 | `/api/v1/issues` | ✅ |
+| CARD-13 | Skills 技能系统 | `/api/v1/skills` | ✅ |
+| CARD-14 | Skills 导入 | `/skills/import` | ✅ |
+| CARD-15 | AI CLI 管理 | `/api/v1/ai/clis` | ✅ |
+| CARD-16 | AI 模型管理 | `/api/v1/ai/models` | ✅ |
+| CARD-17 | AI Provider V2 | `/api/v1/ai/v2/providers` | ✅ |
+| CARD-18 | AI 直接执行 | `/ai/execute` | ✅ |
+| CARD-19 | API Keys | `/api/v1/ai/api-keys` | ✅ |
+| CARD-20 | 多模型路由 | `/ai/cli-model` | ✅ |
+| CARD-21 | Costs 费用统计 | `/api/v1/costs/*` | ✅ |
+| CARD-22 | Workspaces 工作区 | `/api/v1/workspaces` | ✅ |
+| CARD-23 | Knowledge 知识库 | `/api/v1/knowledge` | ✅ |
+| CARD-24 | Triggers 触发器 | `/api/v1/triggers` | ✅ |
+| CARD-25 | Scheduler 调度器 | `/api/v1/scheduler` | ✅ |
+| CARD-26 | Templates 模板 | `/api/v1/templates` | ✅ |
+| CARD-27 | Search 全局搜索 | `/api/v1/search` | ✅ |
+| CARD-28 | Wisdom 知识沉淀 | `/api/v1/wisdom` | ✅ |
+| CARD-29 | Test Gen 测试生成 | `/api/v1/test-gen` | ✅ |
+| CARD-30 | Plugins 插件 | `/api/v1/plugins` | ✅ |
+| CARD-31 | Processes 进程 | `/api/v1/processes` | ✅ |
+| CARD-32 | Execution Logs | execution_logs | ✅ |
+| CARD-33 | WS 执行推送 | `WS /ws/executions/:id` | ⏭️ |
+| CARD-34 | WS Session 流 | `WS /ws/sessions/:id` | ⏭️ |
+| CARD-35 | WS 终端/命令 | `WS /ws/terminal` | ⏭️ |
+| CARD-36 | Tauri 桌面应用 | 手动验证 | ⏭️ |
+| CARD-37 | AI Chat 对话 | `POST /api/v1/ai/chat` | ✅ |
+| CARD-38 | AI 模型刷新 | `POST /api/v1/ai/models/refresh` | ✅ |
+| CARD-39 | Skills 标签/统计 | `/api/v1/skills/tags`, `/stats`, `/tag/:tag` | ✅ |
+| CARD-40 | Test Gen 单元测试 | `POST /api/v1/test-gen/unit` | ✅ |
+| CARD-41 | Webhook 触发 | `POST /api/v1/triggers/webhook/:workflow_id` | ✅ |
+| CARD-42 | 定时任务 CRUD | `/api/v1/tasks/schedule`, `/tasks/scheduled` | ✅ |
+| CARD-43 | RAG 知识库完整 | `/api/v1/knowledge-bases` | ✅ |
+| CARD-44 | Sprint 看板 API | `/api/v1/sprints` | ✅ |
+| CARD-45 | AI 提供商管理 | `/api/v1/ai/providers`, `/ai/default`, `/ai/selected` | ✅ |
+| CARD-46 | AI CLI 配置 | `/api/v1/ai/cli-model`, `/ai/clis/config`, `/ai/execute` | ✅ |
+| CARD-47 | Browser 自动化 | `/api/v1/browser` | ⏭️ |
+| CARD-48 | Search 索引与模式 | `/api/v1/search/index`, `/search/modes` | ✅ |
+| CARD-49 | Skills 分类/搜索/导入 | `/api/v1/skills/categories`, `/skills/search`, `/skills/import` | ✅ |
+| CARD-50 | Tasks 统计 | `/api/v1/tasks/stats` | ✅ |
+| CARD-51 | 临时文件清理 | `/api/v1/temp-cleanup` | ✅ |
 
 **通过标准**：44/44 全绿 = 全功能端到端跑通
 
@@ -1926,7 +1926,7 @@ cd nx_dashboard && npm run dev
 
 ---
 
-### UI-01 · 工作区创建 ⬜
+### UI-01 · 工作区创建 ✅
 
 1. 侧边栏 → **工作区**
 2. 点击「新建工作区」
@@ -1937,7 +1937,7 @@ cd nx_dashboard && npm run dev
 
 ---
 
-### UI-02 · 需求输入与任务分解 ⬜
+### UI-02 · 需求输入与任务分解 ✅
 
 1. 侧边栏 → **项目**
 2. 输入需求：`实现一个 TODO List，支持增删改查，用 Python + SQLite`
@@ -1947,7 +1947,7 @@ cd nx_dashboard && npm run dev
 
 ---
 
-### UI-03 · Pipeline 执行 ⬜
+### UI-03 · Pipeline 执行 ✅
 
 1. 侧边栏 → **执行**
 2. 选择已有 workflow，点击「运行」
@@ -1957,7 +1957,7 @@ cd nx_dashboard && npm run dev
 
 ---
 
-### UI-04 · 实时观测 ⬜
+### UI-04 · 实时观测 ✅
 
 1. 在 UI-03 执行过程中，观察执行页面
 2. 查看：进度条、当前步骤、Token 消耗、耗时
@@ -1997,7 +1997,7 @@ cd nx_dashboard && npm run dev
 
 ---
 
-### UI-08 · Git 集成 ⬜
+### UI-08 · Git 集成 ✅
 
 1. 确保工作区目录是 git 仓库
 2. 执行会生成文件的任务
@@ -2007,7 +2007,7 @@ cd nx_dashboard && npm run dev
 
 ---
 
-### UI-09 · 技能系统 ⬜
+### UI-09 · 技能系统 ✅
 
 1. 侧边栏 → **技能**
 2. 找到预置技能（如代码审查、文档生成）
@@ -2017,7 +2017,7 @@ cd nx_dashboard && npm run dev
 
 ---
 
-### UI-10 · RAG 知识库 ⬜
+### UI-10 · RAG 知识库 ✅
 
 1. 侧边栏 → **知识库**
 2. 上传一个文档（txt 或 md 文件）
@@ -2028,7 +2028,7 @@ cd nx_dashboard && npm run dev
 
 ---
 
-### UI-11 · Token/Cost 监控 ⬜
+### UI-11 · Token/Cost 监控 ✅
 
 1. 完成几次执行后
 2. 侧边栏 → **成本**
@@ -2037,7 +2037,7 @@ cd nx_dashboard && npm run dev
 
 ---
 
-### UI-12 · 多模型路由 ⬜
+### UI-12 · 多模型路由 ✅
 
 1. 侧边栏 → **AI 设置**
 2. 配置路由规则：代码任务 → Claude，文档任务 → 其他模型
@@ -2058,7 +2058,7 @@ cd nx_dashboard && npm run dev
 
 ---
 
-### UI-14 · 触发器 ⬜
+### UI-14 · 触发器 ✅
 
 1. 侧边栏 → **触发器**
 2. 创建定时触发器（每分钟触发一次）
@@ -2072,20 +2072,20 @@ cd nx_dashboard && npm run dev
 
 | 卡片 | 模块 | 状态 | 备注 |
 |------|------|------|------|
-| UI-01 | 工作区 | ⬜ | |
-| UI-02 | 需求分解 | ⬜ | |
-| UI-03 | Pipeline 执行 | ⬜ | |
-| UI-04 | 实时观测 | ⬜ | 依赖 WebSocket |
-| UI-05 | 断点续跑 | ⬜ | 已知风险 |
-| UI-06 | 质量门 | ⬜ | |
-| UI-07 | 失败自愈 | ⬜ | |
-| UI-08 | Git 集成 | ⬜ | |
-| UI-09 | 技能系统 | ⬜ | |
-| UI-10 | RAG 知识库 | ⬜ | |
-| UI-11 | Token/Cost | ⬜ | |
-| UI-12 | 多模型路由 | ⬜ | |
-| UI-13 | 可视化画布 | ⬜ | |
-| UI-14 | 触发器 | ⬜ | |
+| UI-01 | 工作区 | ✅ | workspaces.spec.ts |
+| UI-02 | 需求分解 | ✅ | workflow-creation.spec.ts + workflow-crud.spec.ts |
+| UI-03 | Pipeline 执行 | ✅ | execution-lifecycle.spec.ts + workflow-creation.spec.ts |
+| UI-04 | 实时观测 | ✅ | websockets.spec.ts (4 WebSocket 端点) |
+| UI-05 | 断点续跑 | ⬜ | 已知风险，无 Playwright 覆盖 |
+| UI-06 | 质量门 | ⬜ | 无 Playwright 覆盖 |
+| UI-07 | 失败自愈 | ⬜ | 无 Playwright 覆盖 |
+| UI-08 | Git 集成 | ✅ | workspaces.spec.ts (git diffs, git status) |
+| UI-09 | 技能系统 | ✅ | skills.spec.ts (list, import, execute) |
+| UI-10 | RAG 知识库 | ✅ | knowledge-base.spec.ts (create, upload, search) |
+| UI-11 | Token/Cost | ✅ | costs-search-wisdom.spec.ts (cost summary, by-day) |
+| UI-12 | 多模型路由 | ✅ | ai-config.spec.ts (providers, models) |
+| UI-13 | 可视化画布 | ⬜ | 无 Playwright 覆盖 |
+| UI-14 | 触发器 | ✅ | triggers-scheduler.spec.ts (webhook, scheduler) |
 
 
 ---

@@ -29,9 +29,9 @@ test.describe('Teams & Roles', () => {
   })
 
   test('create role', async () => {
-    const rl = await api('/api/v1/roles', {
+    const rl = await api(`/api/v1/teams/${teamId}/roles`, {
       method: 'POST',
-      body: JSON.stringify({ name: 'developer', description: 'code', team_id: teamId }),
+      body: JSON.stringify({ name: 'developer', description: 'code', system_prompt: 'You are a developer' }),
     }) as { id: string }
     roleId = rl.id
     expect(roleId).toBeTruthy()
@@ -42,9 +42,9 @@ test.describe('Teams & Roles', () => {
     expect([200, 404]).toContain(res.status)
   })
 
-  test('get role team', async () => {
-    const res = await fetch(`${API_BASE}/api/v1/roles/${roleId}/team`)
-    expect([200, 404]).toContain(res.status)
+  test('get role', async () => {
+    const data = await api(`/api/v1/roles/${roleId}`) as { role: { id: string } }
+    expect(data.role?.id ?? (data as { id: string }).id).toBe(roleId)
   })
 
   test.afterAll(async () => {
