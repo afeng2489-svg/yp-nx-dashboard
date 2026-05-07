@@ -168,10 +168,6 @@ pub fn run() {
                 )?;
             }
 
-            // Resolve resource directory via Tauri API (works cross-platform)
-            let resource_dir = app.path().resource_dir()
-                .expect("failed to resolve resource directory");
-
             // Resolve Claude CLI path and pass to nx_api as env var
             let claude_cli_env = if cfg!(debug_assertions) {
                 // Debug: let nx_api find it from shell PATH
@@ -225,7 +221,7 @@ pub fn run() {
             let app_handle = app.handle().clone();
             // Start nx_api in background
             thread::spawn(move || {
-                match start_nx_api(&resource_dir, claude_cli_env.as_deref()) {
+                match start_nx_api(&app_handle, claude_cli_env.as_deref()) {
                     Ok(()) => {}
                     Err(e) => {
                         let log_path = std::env::temp_dir().join("nx_startup.log");
@@ -311,7 +307,7 @@ fn find_workspace_root() -> Option<PathBuf> {
     None
 }
 
-fn start_nx_api(resource_dir: &std::path::Path, claude_cli_path: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
     let _ = std::fs::write(std::env::temp_dir().join("nx_start_called.txt"), "start_nx_api called");
 
     // Kill any stale nx_api on port 8080 before starting
@@ -339,13 +335,21 @@ fn start_nx_api(resource_dir: &std::path::Path, claude_cli_path: Option<&str>) -
         } else {
             format!("nx_api-{}", target_triple)
         };
-        let nx_api = resource_dir.join(&sidecar_name);
+        // macOS: sidecar is in Contents/MacOS/ (next to the main app binary)
+        // Linux/Windows: sidecar is next to the main executable
+        let exe = std::env::current_exe()
+            .expect("failed to resolve current executable path");
+        let exe_dir = exe.parent()
+            .expect("failed to resolve executable directory");
+        let nx_api = exe_dir.join(&sidecar_name);
+        let resource_dir = app_handle.path().resource_dir()
+            .expect("failed to resolve resource directory");
         let skills = resource_dir.join("skills");
-        (nx_api, skills, resource_dir.to_path_buf())
+        (nx_api, skills, resource_dir)
     };
 
     if !nx_api_path.exists() {
-        return Err(format!("nx_api not found at {:?}\nresource_dir: {:?}", nx_api_path, resource_dir).into());
+        return Err(format!("nx_api not found at {:?}\nresources_dir: {:?}", nx_api_path, resources_dir).into());
     }
 
     // macOS/Linux: ensure the binary is executable after being extracted from the bundle
