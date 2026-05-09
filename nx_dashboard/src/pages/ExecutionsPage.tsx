@@ -595,7 +595,7 @@ function ExecutionLogs({ executionId }: { executionId: string }) {
   const handleResume = (value: string) => {
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ action: 'resume', execution_id: executionId, value }));
+      ws.send(JSON.stringify({ type: 'resume_workflow', execution_id: executionId, value }));
       setPauseState(null);
       setLogs((prev) => [...prev, { type: 'system', text: `▶ 已选择: ${value}` }]);
     }
@@ -922,8 +922,9 @@ function ExecutionCard({
 // 主页面组件
 export function ExecutionsPage() {
   const location = useLocation();
-  const { cancelExecution, deleteExecutions, connectWebSocket } = useExecutionStore();
+  const { cancelExecution, deleteExecutions, connectWebSocket, getExecution } = useExecutionStore();
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
+  const [fullExecution, setFullExecution] = useState<Execution | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
@@ -944,6 +945,19 @@ export function ExecutionsPage() {
   const liveSelectedExecution = selectedExecutionId
     ? (executions.find((e) => e.id === selectedExecutionId) ?? null)
     : null;
+
+  // 打开详情时拉完整数据（列表接口不含 stage_results）
+  useEffect(() => {
+    if (!selectedExecutionId) {
+      setFullExecution(null);
+      return;
+    }
+    let cancelled = false;
+    getExecution(selectedExecutionId).then((full) => {
+      if (!cancelled) setFullExecution(full);
+    });
+    return () => { cancelled = true; };
+  }, [selectedExecutionId, getExecution]);
 
   useEffect(() => {
     const unsubscribe = onWorkspaceChange(() => {
@@ -1120,9 +1134,9 @@ export function ExecutionsPage() {
         </>
       )}
 
-      {liveSelectedExecution && (
+      {(fullExecution ?? liveSelectedExecution) && (
         <ExecutionDetailModal
-          execution={liveSelectedExecution}
+          execution={fullExecution ?? liveSelectedExecution!}
           onClose={() => setSelectedExecutionId(null)}
           onCancel={handleCancel}
         />

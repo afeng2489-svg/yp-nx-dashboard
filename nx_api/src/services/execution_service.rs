@@ -127,6 +127,8 @@ pub struct ExecutionService {
     model_router: Arc<Mutex<ModelRouter>>,
     /// A2UI 服务（可选，注入后 WorkflowPaused 事件自动写入消息）
     a2ui_service: Option<Arc<crate::a2ui::A2UIService>>,
+    /// 产物追踪 watcher（单独保存以便注册 engine_id → api_id 映射）
+    artifact_watcher: Option<Arc<crate::services::artifact_watcher::ArtifactStageWatcher>>,
 }
 
 impl std::fmt::Debug for ExecutionService {
@@ -149,10 +151,10 @@ impl ExecutionService {
             chain_trigger_handler: None,
             model_router: Arc::new(Mutex::new(ModelRouter::new(default_rules()))),
             a2ui_service: None,
+            artifact_watcher: None,
         }
     }
 
-    /// 创建带持久化的执行服务
     pub fn with_repository(repo: Arc<SqliteExecutionRepository>) -> Self {
         let (event_sender, _) = broadcast::channel(1000);
         Self {
@@ -165,6 +167,23 @@ impl ExecutionService {
             chain_trigger_handler: None,
             model_router: Arc::new(Mutex::new(ModelRouter::new(default_rules()))),
             a2ui_service: None,
+            artifact_watcher: None,
+        }
+    }
+
+    /// 注入产物追踪 watcher（同时也加入 stage_watchers）
+    pub fn set_artifact_watcher(
+        &mut self,
+        watcher: Arc<crate::services::artifact_watcher::ArtifactStageWatcher>,
+    ) {
+        self.stage_watchers.lock().push(watcher.clone());
+        self.artifact_watcher = Some(watcher);
+    }
+
+    /// 注册引擎内部 UUID → API exec_id 映射（供产物追踪使用）
+    pub fn register_engine_id(&self, engine_id: &str, api_id: &str) {
+        if let Some(ref watcher) = self.artifact_watcher {
+            watcher.register_id(engine_id, api_id);
         }
     }
 

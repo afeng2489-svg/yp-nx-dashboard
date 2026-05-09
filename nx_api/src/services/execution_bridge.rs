@@ -42,10 +42,18 @@ impl WorkflowEventBridge {
     fn convert_and_broadcast(&self, event: WorkflowEvent) {
         let id = self.api_exec_id.clone();
         let execution_event = match event {
-            WorkflowEvent::WorkflowStarted { workflow_id, .. } => Some(ExecutionEvent::Started {
-                execution_id: id,
+            WorkflowEvent::WorkflowStarted {
+                execution_id: engine_id,
                 workflow_id,
-            }),
+            } => {
+                // 注册引擎内部 UUID → API exec_id 映射，供产物追踪使用
+                self.execution_service
+                    .register_engine_id(&engine_id.to_string(), &id);
+                Some(ExecutionEvent::Started {
+                    execution_id: id,
+                    workflow_id,
+                })
+            }
             WorkflowEvent::StageStarted { stage_name, .. } => Some(ExecutionEvent::StageStarted {
                 execution_id: id,
                 stage_name,

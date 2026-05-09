@@ -119,6 +119,7 @@ type ExecutionEvent =
       status: string;
       current_stage?: string;
       output_log?: string[];
+      stage_results?: StageResult[];
       pending_pause?: {
         stage_name: string;
         question: string;
@@ -497,6 +498,14 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
 
       // Handle snapshot (catch-up when connecting to already-running execution)
       if (event.type === 'snapshot') {
+        set((state) => {
+          const executions = [...state.executions];
+          const idx = executions.findIndex((e) => e.id === event.execution_id);
+          if (idx >= 0 && event.stage_results) {
+            executions[idx] = { ...executions[idx], stage_results: event.stage_results };
+          }
+          return { executions };
+        });
         if (event.pending_pause) {
           set({
             pendingPause: {
@@ -512,7 +521,6 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
             const map = new Map(state.outputLines);
             const existing = map.get(event.execution_id) ?? [];
             if (existing.length === 0) {
-              // Only restore from snapshot if no lines yet (avoid duplicates)
               const lines = event.output_log!.map((content) => ({
                 id: nextLineId(event.execution_id),
                 type: 'output' as const,
@@ -566,7 +574,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
             options: event.options,
           },
           executions: state.executions.map((e) =>
-            e.id === event.execution_id ? { ...e, status: 'running' as const } : e,
+            e.id === event.execution_id ? { ...e, status: 'paused' as const } : e,
           ),
         }));
         return;

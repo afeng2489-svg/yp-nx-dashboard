@@ -105,9 +105,39 @@ pub async fn get_artifact_by_path(
         return Json(serde_json::json!({ "ok": false, "error": "产物仓库未启用" }));
     };
 
-    match repo.find_by_path(&execution_id, &query.path) {
-        Ok(Some(record)) => Json(serde_json::json!({ "ok": true, "data": record })),
-        Ok(None) => Json(serde_json::json!({ "ok": true, "data": null })),
-        Err(e) => Json(serde_json::json!({ "ok": false, "error": e.to_string() })),
+    let record = match repo.find_by_path(&execution_id, &query.path) {
+        Ok(Some(r)) => r,
+        Ok(None) => return Json(serde_json::json!({ "ok": false, "error": "文件记录不存在" })),
+        Err(e) => return Json(serde_json::json!({ "ok": false, "error": e.to_string() })),
+    };
+
+    // 从 workspace 读取实际文件内容
+    let workspace = state.current_workspace_path.read().clone();
+    let Some(workspace_dir) = workspace else {
+        return Json(serde_json::json!({ "ok": false, "error": "未设置工作区" }));
+    };
+
+    let file_path = std::path::Path::new(&workspace_dir).join(&query.path);
+    match std::fs::read(&file_path) {
+        Ok(bytes) => {
+            let size_bytes = bytes.len();
+            let mime_type = record.mime_type.clone();
+            // 尝试 UTF-8 解码，失败则返回 base64
+            match String::from_utf8(bytes) {
+                Ok(content) => Json(serde_json::json!({
+                    "ok": true,
+                    "content": content,
+                    "size_bytes": size_bytes,
+                    "mime_type": mime_type,
+                })),
+                Err(_) => Json(serde_json::json!({
+                    "ok": false,
+                    "error": "二进制文件，不支持预览",
+                    "size_bytes": size_bytes,
+                    "mime_type": mime_type,
+                })),
+            }
+        }
+        Err(e) => Json(serde_json::json!({ "ok": false, "error": format!("读取文件失败: {}", e) })),
     }
 }

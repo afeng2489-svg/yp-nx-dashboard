@@ -119,11 +119,11 @@ class ApiClient {
 
   async listArtifacts(executionId: string, stage?: string) {
     const query = stage ? `?stage=${encodeURIComponent(stage)}` : '';
-    return this.request<ArtifactsResponse>(`/api/v1/executions/${executionId}/artifacts${query}`);
+    return this.request<ArtifactRecord[]>(`/api/v1/executions/${executionId}/artifacts${query}`);
   }
 
   async getArtifactsSummary(executionId: string) {
-    return this.request<ArtifactsSummaryResponse>(
+    return this.request<ArtifactSummary[]>(
       `/api/v1/executions/${executionId}/artifacts/summary`,
     );
   }
@@ -131,9 +131,7 @@ class ApiClient {
   async getArtifactContent(executionId: string, relativePath: string) {
     const query = `?path=${encodeURIComponent(relativePath)}`;
     return this.request<{
-      ok: boolean;
       content?: string;
-      error?: string;
       size_bytes?: number;
       mime_type?: string;
     }>(`/api/v1/executions/${executionId}/artifacts/file${query}`);
@@ -449,14 +447,6 @@ class ApiClient {
       body: JSON.stringify({ prompt, task_type: taskType }),
     });
   }
-}
-
-export interface ExecuteCLIResponse {
-  output: string;
-  error?: string;
-  exit_code: number;
-  execution_time_ms: number;
-  cli: string;
 }
 
 export interface ExecuteCLIResponse {

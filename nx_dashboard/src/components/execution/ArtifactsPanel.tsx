@@ -19,7 +19,7 @@ import {
   ChevronRight as ChevronRightIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { api, ArtifactRecord, ArtifactsResponse } from '@/api/client';
+import { api, ArtifactRecord } from '@/api/client';
 
 const PAGE_SIZE = 50;
 const BINARY_THRESHOLD_BYTES = 1024 * 1024; // 1MB
@@ -167,10 +167,10 @@ function FilePreviewModal({
       try {
         const res = await api.getArtifactContent(executionId, file.relative_path);
         if (cancelled) return;
-        if (res.ok && res.content !== undefined) {
+        if (res.content !== undefined) {
           setContent(res.content);
         } else {
-          setError(res.error || '无法读取文件内容');
+          setError('无法读取文件内容');
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : '网络错误');
@@ -272,16 +272,9 @@ export function ArtifactsPanel({ executionId }: { executionId: string }) {
       setLoading(true);
       setError(null);
       try {
-        const res: ArtifactsResponse = await api.listArtifacts(
-          executionId,
-          stageFilter || undefined,
-        );
+        const data = await api.listArtifacts(executionId, stageFilter || undefined);
         if (cancelled) return;
-        if (res.ok) {
-          setRecords(res.data || []);
-        } else {
-          setError(res.error || '获取产物数据失败');
-        }
+        setRecords(data || []);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : '网络错误');
       } finally {

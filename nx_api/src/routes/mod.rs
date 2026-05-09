@@ -504,7 +504,7 @@ impl AppState {
                             current_workspace_path.clone(),
                         ),
                     );
-                    execution_service.add_stage_watcher(watcher);
+                    execution_service.set_artifact_watcher(watcher);
                     tracing::info!("[Bootstrap] 产物追踪 watcher 已注册");
                     Some(repo)
                 }
