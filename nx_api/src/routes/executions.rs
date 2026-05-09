@@ -2,6 +2,8 @@
 
 use axum::{
     extract::{Path, State},
+    http::StatusCode,
+    response::{IntoResponse, Response},
     Json,
 };
 use futures_util::{SinkExt, StreamExt};
@@ -81,6 +83,45 @@ pub async fn get_execution(
             total_cost_usd: 0.0,
         })
     }
+}
+
+/// 删除执行记录（单条）
+pub async fn delete_execution(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    // 从内存中移除
+    state.execution_service.remove_from_memory(&id);
+    // 从数据库删除
+    let deleted = state
+        .execution_service
+        .delete_from_db(&id)
+        .unwrap_or(false);
+    if deleted {
+        (StatusCode::OK, Json(serde_json::json!({"ok": true})))
+    } else {
+        (StatusCode::NOT_FOUND, Json(serde_json::json!({"ok": false, "error": "not found"})))
+    }
+}
+
+/// 批量删除执行记录
+pub async fn delete_executions_batch(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<DeleteBatchRequest>,
+) -> Json<serde_json::Value> {
+    for id in &req.ids {
+        state.execution_service.remove_from_memory(id);
+    }
+    let deleted = state
+        .execution_service
+        .delete_many_from_db(&req.ids)
+        .unwrap_or(0);
+    Json(serde_json::json!({"ok": true, "deleted": deleted}))
+}
+
+#[derive(serde::Deserialize)]
+pub struct DeleteBatchRequest {
+    pub ids: Vec<String>,
 }
 
 /// 取消执行
@@ -401,11 +442,6 @@ pub struct CancelResponse {
 }
 
 // ============ 错误类型 ============
-
-use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
 
 /// 执行路由错误
 #[derive(Debug)]

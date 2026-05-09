@@ -246,7 +246,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         });
 
         // Create agent nodes for this stage
-        stage.agents.forEach((agentRole, agentIndex) => {
+        (stage.agents ?? []).forEach((agentRole, agentIndex) => {
           const agent = workflow.agents?.find((a) => a.role === agentRole);
           if (agent) {
             const agentNodeId = agent.id;
@@ -281,7 +281,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
       // Create dependency edges
       workflow.agents.forEach((agent) => {
-        agent.depends_on.forEach((depId) => {
+        (agent.depends_on ?? []).forEach((depId) => {
           const depNodeId = agentIdToNodeId[depId];
           const agentNodeId = agentIdToNodeId[agent.id];
           if (depNodeId && agentNodeId) {

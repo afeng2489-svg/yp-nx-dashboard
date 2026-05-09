@@ -13,20 +13,85 @@ pub struct TextChunk {
 /// 将文本拆分为 chunks
 ///
 /// 策略：按段落拆分 → 短段落合并 → 长段落二次拆分
+///
+/// # 参数
+/// - `content`: 输入文本
+/// - `max_tokens`: 每个 chunk 的最大 token 数
+/// - `overlap_ratio`: 重叠比例 (0.0 ~ 0.5)，默认 0.1 表示 10% 重叠
 pub fn chunk_text(content: &str, max_tokens: usize) -> Vec<TextChunk> {
+    chunk_text_with_overlap(content, max_tokens, 0.1)
+}
+
+/// 带重叠的文本分块
+pub fn chunk_text_with_overlap(
+    content: &str,
+    max_tokens: usize,
+    overlap_ratio: f32,
+) -> Vec<TextChunk> {
     let paragraphs = split_paragraphs(content);
     let merged = merge_short_paragraphs(paragraphs, max_tokens);
     let final_chunks = split_long_paragraphs(merged, max_tokens);
+
+    if overlap_ratio <= 0.0 || final_chunks.len() <= 1 {
+        // 无重叠，直接返回
+        return final_chunks
+            .into_iter()
+            .enumerate()
+            .map(|(i, content)| {
+                let tc = estimate_tokens(&content);
+                TextChunk {
+                    index: i,
+                    content,
+                    token_count: tc,
+                }
+            })
+            .collect();
+    }
+
+    // 计算重叠 token 数
+    let overlap_tokens = (max_tokens as f32 * overlap_ratio) as usize;
     let mut result = Vec::new();
-    for (i, chunk_content) in final_chunks.into_iter().enumerate() {
-        let tc = estimate_tokens(&chunk_content);
+
+    for (i, chunk_content) in final_chunks.iter().enumerate() {
+        let mut enhanced_content = String::new();
+
+        // 添加前一个 chunk 的尾部作为上下文
+        if i > 0 {
+            let prev = &final_chunks[i - 1];
+            let tail = get_tail_tokens(prev, overlap_tokens);
+            if !tail.is_empty() {
+                enhanced_content.push_str(&tail);
+                enhanced_content.push_str("\n---\n");
+            }
+        }
+
+        enhanced_content.push_str(chunk_content);
+
+        let tc = estimate_tokens(&enhanced_content);
         result.push(TextChunk {
             index: i,
-            content: chunk_content,
+            content: enhanced_content,
             token_count: tc,
         });
     }
+
     result
+}
+
+/// 获取文本末尾的 N 个 token（按字符估算）
+fn get_tail_tokens(text: &str, target_tokens: usize) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let total_chars = chars.len();
+
+    if total_chars == 0 {
+        return String::new();
+    }
+
+    // 估算需要的字符数（CJK: 2 char/token, ASCII: 4 char/token）
+    let target_chars = target_tokens * 3; // 平均值
+    let start = total_chars.saturating_sub(target_chars);
+
+    chars[start..].iter().collect::<String>().trim().to_string()
 }
 
 /// 按空行拆分段落
@@ -173,7 +238,6 @@ mod tests {
         let content = "First paragraph with some content.\n\nSecond paragraph with more text.\n\nThird short one.";
         let chunks = chunk_text(content, 500);
         assert!(!chunks.is_empty());
-        // 短段落可能被合并
         for chunk in &chunks {
             assert!(!chunk.content.is_empty());
         }
@@ -191,6 +255,33 @@ mod tests {
     }
 
     #[test]
+    fn test_chunk_text_with_overlap() {
+        // 使用足够长的文本确保会被分成多个 chunk
+        let para1 = "This is the first paragraph with enough content to be its own chunk. ".repeat(10);
+        let para2 = "This is the second paragraph with different content for testing overlap. ".repeat(10);
+        let para3 = "This is the third paragraph for additional testing. ".repeat(10);
+        let content = format!("{}\n\n{}\n\n{}", para1, para2, para3);
+        let chunks = chunk_text_with_overlap(&content, 100, 0.2);
+        assert!(chunks.len() >= 2, "Should have multiple chunks, got {}", chunks.len());
+
+        // 第二个 chunk 应该包含分隔符
+        if chunks.len() > 1 {
+            assert!(
+                chunks[1].content.contains("---"),
+                "Overlap chunk should contain separator"
+            );
+        }
+    }
+
+    #[test]
+    fn test_chunk_text_no_overlap_single_chunk() {
+        let content = "Short text";
+        let chunks = chunk_text_with_overlap(content, 500, 0.2);
+        assert_eq!(chunks.len(), 1);
+        assert!(!chunks[0].content.contains("---"));
+    }
+
+    #[test]
     fn test_estimate_tokens_english() {
         let text = "Hello world this is a test";
         let tokens = estimate_tokens(text);
@@ -201,7 +292,6 @@ mod tests {
     fn test_estimate_tokens_chinese() {
         let text = "你好世界这是一个测试";
         let tokens = estimate_tokens(text);
-        // 9 CJK chars → ~5 tokens
         assert!(tokens > 0 && tokens <= 9);
     }
 
@@ -209,5 +299,13 @@ mod tests {
     fn test_empty_content() {
         let chunks = chunk_text("", 500);
         assert!(chunks.is_empty());
+    }
+
+    #[test]
+    fn test_get_tail_tokens() {
+        let text = "Hello world this is a test sentence";
+        let tail = get_tail_tokens(text, 2);
+        assert!(!tail.is_empty());
+        assert!(tail.len() <= text.len());
     }
 }

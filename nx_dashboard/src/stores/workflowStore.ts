@@ -33,8 +33,8 @@ export interface WorkflowInput {
 export interface Stage {
   name: string;
   stage_type?: string;
-  agents: string[];
-  parallel: boolean;
+  agents?: string[];
+  parallel?: boolean;
   question?: string;
   options?: Array<{ label: string; value: string; description?: string }>;
 }
@@ -44,7 +44,7 @@ export interface Agent {
   role: string;
   model: string;
   prompt: string;
-  depends_on: string[];
+  depends_on?: string[];
 }
 
 // API 返回的摘要类型
@@ -151,13 +151,25 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const raw = unwrapEnvelope<any>(await response.json());
       const def = raw.definition ?? {};
+
+      // 确保每个 stage 的 agents 和每个 agent 的 depends_on 都有默认值
+      const stages = (def.stages ?? []).map((stage: Record<string, unknown>) => ({
+        ...stage,
+        agents: stage.agents ?? [],
+        parallel: stage.parallel ?? false,
+      }));
+      const agents = (def.agents ?? []).map((agent: Record<string, unknown>) => ({
+        ...agent,
+        depends_on: agent.depends_on ?? [],
+      }));
+
       return {
         id: raw.id,
         name: raw.name,
         version: raw.version,
         description: raw.description,
-        stages: def.stages ?? [],
-        agents: def.agents ?? [],
+        stages,
+        agents,
         triggers: def.triggers ?? [],
         created_at: raw.created_at,
         updated_at: raw.updated_at,

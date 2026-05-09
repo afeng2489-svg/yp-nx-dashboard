@@ -200,9 +200,9 @@ function TemplatePreviewModal({ template, onClose, onUse }: TemplatePreviewModal
                       </span>
                     )}
                   </div>
-                  {stage.agents.length > 0 && (
+                  {(stage.agents ?? []).length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
-                      {stage.agents.map((agentId, i) => (
+                      {(stage.agents ?? []).map((agentId, i) => (
                         <span
                           key={i}
                           className="px-2 py-0.5 text-xs bg-background rounded border border-border capitalize"

@@ -174,6 +174,30 @@ impl SqliteExecutionRepository {
         })
         .map_err(Into::into)
     }
+
+    /// 删除执行记录（级联删除 stage_results）
+    pub fn delete(&self, id: &str) -> Result<bool, ExecutionRepositoryError> {
+        let conn = self.conn.lock();
+        conn.execute("DELETE FROM stage_results WHERE execution_id = ?1", params![id])?;
+        let rows = conn.execute("DELETE FROM executions WHERE id = ?1", params![id])?;
+        Ok(rows > 0)
+    }
+
+    /// 批量删除执行记录
+    pub fn delete_many(&self, ids: &[String]) -> Result<usize, ExecutionRepositoryError> {
+        if ids.is_empty() {
+            return Ok(0);
+        }
+        let mut conn = self.conn.lock();
+        let tx = conn.transaction()?;
+        let mut deleted = 0usize;
+        for id in ids {
+            tx.execute("DELETE FROM stage_results WHERE execution_id = ?1", params![id])?;
+            deleted += tx.execute("DELETE FROM executions WHERE id = ?1", params![id])?;
+        }
+        tx.commit()?;
+        Ok(deleted)
+    }
 }
 
 fn find_by_id_with_conn(

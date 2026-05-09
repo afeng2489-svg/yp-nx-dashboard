@@ -167,6 +167,7 @@ interface ExecutionStore {
   getExecution: (id: string) => Promise<Execution | null>;
   startExecution: (workflowId: string, variables?: Record<string, unknown>) => Promise<Execution>;
   cancelExecution: (id: string) => Promise<void>;
+  deleteExecutions: (ids: string[]) => Promise<void>;
   resumeExecution: (executionId: string, value: string) => boolean;
   setCurrentExecution: (execution: Execution | null) => void;
   connectWebSocket: (executionId: string) => void;
@@ -279,6 +280,36 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
   },
 
   setCurrentExecution: (execution) => set({ currentExecution: execution }),
+
+  deleteExecutions: async (ids) => {
+    if (ids.length === 0) return;
+    // Optimistic: 前端先移除
+    const prev = get().executions;
+    set({ executions: prev.filter((e) => !ids.includes(e.id)) });
+
+    // 先断开相关 WS 连接（避免幽灵连接）
+    ids.forEach((id) => get().disconnectWebSocket(id));
+
+    try {
+      const response = await fetchWithTimeout(
+        `${API_BASE_URL}/api/v1/executions/batch-delete`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids }),
+        },
+      );
+      if (!response.ok) {
+        throw new ApiError(`批量删除失败: ${response.status}`, response.status);
+      }
+    } catch (error) {
+      // 回滚
+      set({ executions: prev });
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      set({ error: `批量删除失败: ${message}` });
+      throw error;
+    }
+  },
 
   resumeExecution: (executionId, value) => {
     const { wsConnections } = get();

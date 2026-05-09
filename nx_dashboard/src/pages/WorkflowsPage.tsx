@@ -394,7 +394,7 @@ function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelP
                     )}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {stage.agents.map((agentRole) => (
+                    {(stage.agents ?? []).map((agentRole) => (
                       <span
                         key={agentRole}
                         className="px-2.5 py-1 text-xs bg-card rounded-lg border border-border"
@@ -416,7 +416,7 @@ function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelP
             </h4>
             <div className="space-y-3">
               {workflow.agents?.map((agent) => {
-                const dependsOnAgents = agent.depends_on
+                const dependsOnAgents = (agent.depends_on ?? [])
                   .map((id) => agentMap.get(id)?.role)
                   .filter(Boolean);
                 return (
@@ -646,12 +646,15 @@ export function WorkflowsPage() {
     const target = e.target as HTMLElement;
     if (target.closest('button')) return;
 
-    // 如果工作流没有完整数据（stages为空），则获取完整详情
     if (!workflow.stages || workflow.stages.length === 0) {
       setDetailLoading(true);
       const fullWorkflow = await getWorkflow(workflow.id);
-      setSelectedWorkflow(fullWorkflow);
       setDetailLoading(false);
+      if (!fullWorkflow) {
+        showError('加载工作流详情失败，请重试');
+        return;
+      }
+      setSelectedWorkflow(fullWorkflow);
     } else {
       setSelectedWorkflow(workflow);
     }

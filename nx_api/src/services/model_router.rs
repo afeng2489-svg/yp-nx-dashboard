@@ -88,65 +88,7 @@ impl ModelRouter {
     }
 }
 
-/// 内置默认规则
+/// 内置默认规则（空：由终端当前登录的模型决定，不强制路由）
 pub fn default_rules() -> Vec<RoutingRule> {
-    vec![
-        RoutingRule {
-            id: "rule_sensitive".to_string(),
-            name: "敏感任务 → 本地模型".to_string(),
-            condition: RoutingCondition::KeywordMatch {
-                keywords: vec![
-                    "密码".to_string(),
-                    "密钥".to_string(),
-                    "内网".to_string(),
-                    "secret".to_string(),
-                    "private_key".to_string(),
-                ],
-            },
-            model: "ollama/llama3".to_string(),
-            priority: 100,
-            enabled: true,
-        },
-        RoutingRule {
-            id: "rule_rust".to_string(),
-            name: "Rust 代码 → Claude Sonnet".to_string(),
-            condition: RoutingCondition::FileExtension {
-                extensions: vec!["rs".to_string(), "toml".to_string()],
-            },
-            model: "claude-sonnet-4-6".to_string(),
-            priority: 80,
-            enabled: true,
-        },
-        RoutingRule {
-            id: "rule_frontend".to_string(),
-            name: "前端代码 → MiMo".to_string(),
-            condition: RoutingCondition::FileExtension {
-                extensions: vec![
-                    "tsx".to_string(),
-                    "ts".to_string(),
-                    "jsx".to_string(),
-                    "css".to_string(),
-                ],
-            },
-            model: "mimo-v2.5-pro".to_string(),
-            priority: 70,
-            enabled: true,
-        },
-        RoutingRule {
-            id: "rule_summary".to_string(),
-            name: "总结/报告 → Qwen".to_string(),
-            condition: RoutingCondition::KeywordMatch {
-                keywords: vec![
-                    "总结".to_string(),
-                    "报告".to_string(),
-                    "summary".to_string(),
-                    "report".to_string(),
-                    "文档".to_string(),
-                ],
-            },
-            model: "qwen-2.5-72b".to_string(),
-            priority: 50,
-            enabled: true,
-        },
-    ]
+    vec![]
 }
