@@ -956,7 +956,9 @@ export function ExecutionsPage() {
     getExecution(selectedExecutionId).then((full) => {
       if (!cancelled) setFullExecution(full);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [selectedExecutionId, getExecution]);
 
   useEffect(() => {
