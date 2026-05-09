@@ -52,7 +52,7 @@ impl ArtifactStageWatcher {
         }
     }
 
-    fn resolve_id<'a>(&self, execution_id: &'a str) -> String {
+    fn resolve_id(&self, execution_id: &str) -> String {
         self.id_map
             .lock()
             .get(execution_id)
