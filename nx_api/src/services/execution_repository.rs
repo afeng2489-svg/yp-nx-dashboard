@@ -178,7 +178,10 @@ impl SqliteExecutionRepository {
     /// 删除执行记录（级联删除 stage_results）
     pub fn delete(&self, id: &str) -> Result<bool, ExecutionRepositoryError> {
         let conn = self.conn.lock();
-        conn.execute("DELETE FROM stage_results WHERE execution_id = ?1", params![id])?;
+        conn.execute(
+            "DELETE FROM stage_results WHERE execution_id = ?1",
+            params![id],
+        )?;
         let rows = conn.execute("DELETE FROM executions WHERE id = ?1", params![id])?;
         Ok(rows > 0)
     }
@@ -192,7 +195,10 @@ impl SqliteExecutionRepository {
         let tx = conn.transaction()?;
         let mut deleted = 0usize;
         for id in ids {
-            tx.execute("DELETE FROM stage_results WHERE execution_id = ?1", params![id])?;
+            tx.execute(
+                "DELETE FROM stage_results WHERE execution_id = ?1",
+                params![id],
+            )?;
             deleted += tx.execute("DELETE FROM executions WHERE id = ?1", params![id])?;
         }
         tx.commit()?;

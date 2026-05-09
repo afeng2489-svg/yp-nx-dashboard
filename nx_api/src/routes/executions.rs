@@ -93,14 +93,14 @@ pub async fn delete_execution(
     // 从内存中移除
     state.execution_service.remove_from_memory(&id);
     // 从数据库删除
-    let deleted = state
-        .execution_service
-        .delete_from_db(&id)
-        .unwrap_or(false);
+    let deleted = state.execution_service.delete_from_db(&id).unwrap_or(false);
     if deleted {
         (StatusCode::OK, Json(serde_json::json!({"ok": true})))
     } else {
-        (StatusCode::NOT_FOUND, Json(serde_json::json!({"ok": false, "error": "not found"})))
+        (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"ok": false, "error": "not found"})),
+        )
     }
 }
 

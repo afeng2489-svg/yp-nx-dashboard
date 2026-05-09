@@ -372,12 +372,16 @@ impl ExecutionService {
 
     /// 从数据库删除执行记录
     pub fn delete_from_db(&self, id: &str) -> Option<bool> {
-        self.repo.as_ref().map(|repo| repo.delete(id).unwrap_or(false))
+        self.repo
+            .as_ref()
+            .map(|repo| repo.delete(id).unwrap_or(false))
     }
 
     /// 批量从数据库删除执行记录
     pub fn delete_many_from_db(&self, ids: &[String]) -> Option<usize> {
-        self.repo.as_ref().map(|repo| repo.delete_many(ids).unwrap_or(0))
+        self.repo
+            .as_ref()
+            .map(|repo| repo.delete_many(ids).unwrap_or(0))
     }
 
     /// 取消执行

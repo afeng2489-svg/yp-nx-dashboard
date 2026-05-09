@@ -1096,8 +1096,14 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         )
         // 执行路由
         .route("/api/v1/executions", get(executions::list_executions))
-        .route("/api/v1/executions/:id", get(executions::get_execution).delete(executions::delete_execution))
-        .route("/api/v1/executions/batch-delete", post(executions::delete_executions_batch))
+        .route(
+            "/api/v1/executions/:id",
+            get(executions::get_execution).delete(executions::delete_execution),
+        )
+        .route(
+            "/api/v1/executions/batch-delete",
+            post(executions::delete_executions_batch),
+        )
         .route(
             "/api/v1/executions/:id/cancel",
             post(executions::cancel_execution),

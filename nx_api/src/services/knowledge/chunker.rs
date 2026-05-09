@@ -257,12 +257,18 @@ mod tests {
     #[test]
     fn test_chunk_text_with_overlap() {
         // 使用足够长的文本确保会被分成多个 chunk
-        let para1 = "This is the first paragraph with enough content to be its own chunk. ".repeat(10);
-        let para2 = "This is the second paragraph with different content for testing overlap. ".repeat(10);
+        let para1 =
+            "This is the first paragraph with enough content to be its own chunk. ".repeat(10);
+        let para2 =
+            "This is the second paragraph with different content for testing overlap. ".repeat(10);
         let para3 = "This is the third paragraph for additional testing. ".repeat(10);
         let content = format!("{}\n\n{}\n\n{}", para1, para2, para3);
         let chunks = chunk_text_with_overlap(&content, 100, 0.2);
-        assert!(chunks.len() >= 2, "Should have multiple chunks, got {}", chunks.len());
+        assert!(
+            chunks.len() >= 2,
+            "Should have multiple chunks, got {}",
+            chunks.len()
+        );
 
         // 第二个 chunk 应该包含分隔符
         if chunks.len() > 1 {
