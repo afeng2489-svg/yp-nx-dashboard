@@ -291,14 +291,11 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
     ids.forEach((id) => get().disconnectWebSocket(id));
 
     try {
-      const response = await fetchWithTimeout(
-        `${API_BASE_URL}/api/v1/executions/batch-delete`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids }),
-        },
-      );
+      const response = await fetchWithTimeout(`${API_BASE_URL}/api/v1/executions/batch-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
       if (!response.ok) {
         throw new ApiError(`批量删除失败: ${response.status}`, response.status);
       }
