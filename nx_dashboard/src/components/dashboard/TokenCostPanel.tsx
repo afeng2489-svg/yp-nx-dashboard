@@ -96,8 +96,9 @@ export function ExecutionTokenBadge({ executionId }: { executionId: string }) {
         <span>{formatTokens(tokens)}</span>
       </div>
       <div
+        title="理论 API 成本（订阅用户可忽略）"
         className={cn(
-          'flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs',
+          'flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs cursor-help',
           'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20',
         )}
       >

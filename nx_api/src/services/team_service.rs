@@ -368,4 +368,13 @@ impl TeamService {
             .delete_telegram_config(role_id)
             .map_err(Into::into)
     }
+
+    /// List all Telegram configs with `enabled = true`. Used on startup to resume polling.
+    pub fn list_enabled_telegram_configs(
+        &self,
+    ) -> Result<Vec<TelegramBotConfig>, TeamServiceError> {
+        self.repository
+            .find_all_enabled_telegram_configs()
+            .map_err(Into::into)
+    }
 }

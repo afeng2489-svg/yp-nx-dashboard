@@ -29,6 +29,7 @@ import { ArtifactsPanel } from '@/components/execution/ArtifactsPanel';
 import { ExecutionTokenBadge } from '@/components/dashboard';
 import { showSuccess, showError } from '@/lib/toast';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
+import { ErrorState } from '@/components/ui/ErrorState';
 
 // 工作流操作说明
 const WORKFLOW_OPERATIONS = [
@@ -1075,17 +1076,19 @@ export function ExecutionsPage() {
       <WorkflowOperationsGuide />
 
       {executions.length === 0 ? (
-        <div className="text-center py-16 bg-gradient-to-b from-card to-accent/20 rounded-2xl border border-border/50">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 flex items-center justify-center">
-            <Clock className="w-10 h-10 text-indigo-500" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">暂无执行记录</h3>
-          <p className="text-muted-foreground mb-4">从工作流列表选择一个工作流开始执行</p>
-          <button className="btn-primary">
-            <Play className="w-4 h-4" />
-            前往工作流
-          </button>
-        </div>
+        <ErrorState
+          variant="empty"
+          title="暂无执行记录"
+          message="从工作流列表或首页选择一个工作流开始执行"
+          actions={[
+            { label: '前往工作流', onClick: () => (window.location.href = '/workflows') },
+            {
+              label: '返回首页',
+              onClick: () => (window.location.href = '/'),
+              variant: 'secondary',
+            },
+          ]}
+        />
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2 stagger-children">

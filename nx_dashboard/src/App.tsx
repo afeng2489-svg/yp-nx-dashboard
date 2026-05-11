@@ -18,6 +18,7 @@ import './index.css';
 const DashboardPage = lazy(() =>
   import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })),
 );
+const GuidePage = lazy(() => import('@/pages/GuidePage').then((m) => ({ default: m.GuidePage })));
 const WorkflowsPage = lazy(() =>
   import('@/pages/WorkflowsPage').then((m) => ({ default: m.WorkflowsPage })),
 );
@@ -30,17 +31,11 @@ const TerminalPage = lazy(() =>
 const EditorPage = lazy(() =>
   import('@/pages/EditorPage').then((m) => ({ default: m.EditorPage })),
 );
-const SessionsPage = lazy(() =>
-  import('@/pages/SessionsPage').then((m) => ({ default: m.SessionsPage })),
-);
 const SettingsPage = lazy(() =>
   import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 );
 const AISettingsPage = lazy(() =>
   import('@/pages/AISettingsPage').then((m) => ({ default: m.AISettingsPage })),
-);
-const WisdomPage = lazy(() =>
-  import('@/pages/WisdomPage').then((m) => ({ default: m.WisdomPage })),
 );
 const TasksPage = lazy(() => import('@/pages/TasksPage').then((m) => ({ default: m.TasksPage })));
 const SearchPage = lazy(() =>
@@ -71,9 +66,6 @@ const UIDesignPage = lazy(() =>
   import('@/pages/UIDesignPage').then((m) => ({ default: m.UIDesignPage })),
 );
 const CostPage = lazy(() => import('@/pages/CostPage').then((m) => ({ default: m.CostPage })));
-const KnowledgeBasePage = lazy(() =>
-  import('@/pages/KnowledgeBasePage').then((m) => ({ default: m.KnowledgeBasePage })),
-);
 const CanvasPage = lazy(() =>
   import('@/pages/CanvasPage').then((m) => ({ default: m.CanvasPage })),
 );
@@ -137,6 +129,23 @@ function PageWrapper({ children }: { children: React.ReactNode }) {
   }
 
   return <PageTransition key={location.pathname}>{children}</PageTransition>;
+}
+
+function WipPage({ title, description }: { title: string; description?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center px-6">
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center mb-4">
+        <span className="text-2xl">🚧</span>
+      </div>
+      <h1 className="text-2xl font-semibold text-foreground mb-2">{title}</h1>
+      <span className="inline-block px-2.5 py-1 mb-4 text-xs font-medium rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+        开发中
+      </span>
+      <p className="text-sm text-muted-foreground max-w-md leading-relaxed">
+        {description || '该功能正在开发中，尚未对接业务链路。请先使用其他模块，我们会尽快上线。'}
+      </p>
+    </div>
+  );
 }
 
 function App() {
@@ -236,6 +245,14 @@ function App() {
                 }
               />
               <Route
+                path="/guide"
+                element={
+                  <PageWrapper>
+                    <GuidePage />
+                  </PageWrapper>
+                }
+              />
+              <Route
                 path="/workflows"
                 element={
                   <PageWrapper>
@@ -272,7 +289,10 @@ function App() {
                 path="/sessions"
                 element={
                   <PageWrapper>
-                    <SessionsPage />
+                    <WipPage
+                      title="会话"
+                      description="会话模块尚未接入工作流执行链路，暂不可用。请使用「执行记录」查看工作流运行情况。"
+                    />
                   </PageWrapper>
                 }
               />
@@ -288,7 +308,10 @@ function App() {
                 path="/wisdom"
                 element={
                   <PageWrapper>
-                    <WisdomPage />
+                    <WipPage
+                      title="知识库"
+                      description="团队经验沉淀的知识库功能正在开发中，尚未接入 Agent 执行链路。敬请期待。"
+                    />
                   </PageWrapper>
                 }
               />
@@ -385,7 +408,10 @@ function App() {
                 path="/knowledge-base"
                 element={
                   <PageWrapper>
-                    <KnowledgeBasePage />
+                    <WipPage
+                      title="RAG 知识库"
+                      description="基于文档向量检索的 RAG 知识库正在开发中，仅 workflow stage 的 rag 字段可手动配置。敬请期待完整 UI。"
+                    />
                   </PageWrapper>
                 }
               />

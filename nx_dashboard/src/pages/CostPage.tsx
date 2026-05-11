@@ -210,6 +210,16 @@ export function CostPage() {
         </div>
       </div>
 
+      {/* 订阅用户提示 */}
+      <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs">
+        <span className="text-amber-600 mt-0.5">ⓘ</span>
+        <div className="text-muted-foreground leading-relaxed">
+          所有金额为 <b>理论 API 成本</b>（按 Claude Sonnet 4 标准定价：input $3/M · output $15/M
+          估算）。 如果你使用的是 <b>Claude Code 订阅（$20/月）</b>，实际不按 token
+          计费，此数字仅供参考。
+        </div>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard

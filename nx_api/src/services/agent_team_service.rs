@@ -529,6 +529,33 @@ impl AgentTeamService {
     /// Start background workers (call once after construction)
     pub fn start_workers(&self) {
         self.spawn_telegram_handler();
+        self.resume_telegram_polling();
+    }
+
+    /// Resume long polling for every Telegram bot that was `enabled=true` at shutdown.
+    /// Without this, restarting the backend leaves polling off until the user
+    /// toggles bots back on from the UI.
+    fn resume_telegram_polling(&self) {
+        let configs = match self.team_service.list_enabled_telegram_configs() {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!("[Telegram] Failed to load enabled bots on startup: {}", e);
+                return;
+            }
+        };
+
+        if configs.is_empty() {
+            return;
+        }
+
+        tracing::info!(
+            "[Telegram] Resuming long polling for {} enabled bot(s)",
+            configs.len()
+        );
+        for cfg in configs {
+            self.telegram_service
+                .start_polling(cfg.role_id.clone(), cfg.bot_token.clone());
+        }
     }
 
     /// Spawn background task that listens for Telegram messages and processes them
@@ -1033,18 +1060,35 @@ impl AgentTeamService {
             .await
             .map_err(|e| AgentTeamServiceError::AiError(e.to_string()))?;
 
-        // Save conversation
-        let user_msg =
-            TeamMessage::user_message(role.team_id.clone().unwrap_or_default(), message.text);
+        // Save conversation with telegram metadata
+        let team_id_for_msg = role.team_id.clone().unwrap_or_default();
+        let mut user_msg = TeamMessage::user_message(team_id_for_msg.clone(), message.text.clone());
+        user_msg
+            .metadata
+            .insert("source".to_string(), "telegram".to_string());
+        user_msg
+            .metadata
+            .insert("chat_id".to_string(), message.chat_id.to_string());
+        user_msg
+            .metadata
+            .insert("role_id".to_string(), message.role_id.clone());
+        if let Some(mid) = message.message_id {
+            user_msg
+                .metadata
+                .insert("message_id".to_string(), mid.to_string());
+        }
         if let Err(e) = self.team_service.add_message(user_msg) {
             tracing::warn!("[TeamMsg] Failed to save user message (telegram): {}", e);
         }
 
-        let assistant_msg = TeamMessage::assistant_message(
-            role.team_id.clone().unwrap_or_default(),
-            role.id.clone(),
-            response.clone(),
-        );
+        let mut assistant_msg =
+            TeamMessage::assistant_message(team_id_for_msg, role.id.clone(), response.clone());
+        assistant_msg
+            .metadata
+            .insert("source".to_string(), "telegram".to_string());
+        assistant_msg
+            .metadata
+            .insert("chat_id".to_string(), message.chat_id.to_string());
         if let Err(e) = self.team_service.add_message(assistant_msg) {
             tracing::warn!(
                 "[TeamMsg] Failed to save assistant message (telegram): {}",

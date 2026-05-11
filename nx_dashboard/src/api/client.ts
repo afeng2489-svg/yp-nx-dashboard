@@ -123,9 +123,7 @@ class ApiClient {
   }
 
   async getArtifactsSummary(executionId: string) {
-    return this.request<ArtifactSummary[]>(
-      `/api/v1/executions/${executionId}/artifacts/summary`,
-    );
+    return this.request<ArtifactSummary[]>(`/api/v1/executions/${executionId}/artifacts/summary`);
   }
 
   async getArtifactContent(executionId: string, relativePath: string) {

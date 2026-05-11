@@ -273,6 +273,7 @@ pub struct TelegramMessageObj {
     pub from: Option<TelegramUser>,
     pub chat: TelegramChat,
     pub text: Option<String>,
+    #[serde(default)]
     pub entities: Vec<TelegramEntity>,
     pub reply_to_message: Option<Box<TelegramMessageObj>>,
 }

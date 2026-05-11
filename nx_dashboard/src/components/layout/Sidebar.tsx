@@ -2,7 +2,6 @@ import {
   LayoutDashboard,
   GitBranch,
   Play,
-  Terminal,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -24,6 +23,7 @@ import {
   Cpu,
   DollarSign,
   BookOpen,
+  Compass,
   LayoutTemplate,
   ChevronDown,
 } from 'lucide-react';
@@ -32,9 +32,11 @@ import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/uiStore';
 import { useState, useEffect } from 'react';
 import { api, type ClaudeCliModelResponse } from '@/api/client';
+import { showInfo } from '@/lib/toast';
 
 type TabId =
   | 'dashboard'
+  | 'guide'
   | 'workflows'
   | 'canvas'
   | 'executions'
@@ -63,6 +65,7 @@ interface Tab {
   label: string;
   icon: React.ElementType;
   path: string;
+  wip?: boolean;
 }
 
 interface NavGroup {
@@ -76,6 +79,7 @@ const navGroups: NavGroup[] = [
     label: '主流程',
     items: [
       { id: 'dashboard', label: '仪表盘', icon: LayoutDashboard, path: '/' },
+      { id: 'guide', label: '使用指南', icon: Compass, path: '/guide' },
       { id: 'workflows', label: '工作流', icon: GitBranch, path: '/workflows' },
       { id: 'executions', label: '执行记录', icon: Play, path: '/executions' },
       { id: 'canvas', label: '可视化画布', icon: LayoutTemplate, path: '/canvas' },
@@ -88,7 +92,6 @@ const navGroups: NavGroup[] = [
       { id: 'teams', label: '团队', icon: Users, path: '/teams' },
       { id: 'roles', label: '角色', icon: Bot, path: '/roles' },
       { id: 'group-chat', label: '群组讨论', icon: MessageSquare, path: '/group-chat' },
-      { id: 'sessions', label: '会话', icon: Terminal, path: '/sessions' },
       { id: 'processes', label: '进程监测', icon: Activity, path: '/processes' },
       { id: 'teams-v2', label: '团队 CLI', icon: Users, path: '/teams-v2' },
     ],
@@ -99,8 +102,14 @@ const navGroups: NavGroup[] = [
       { id: 'projects', label: '项目', icon: FolderPlus, path: '/projects' },
       { id: 'templates', label: '模板', icon: FolderOpen, path: '/templates' },
       { id: 'skills', label: '技能', icon: Wrench, path: '/skills' },
-      { id: 'wisdom', label: '知识库', icon: Brain, path: '/wisdom' },
-      { id: 'knowledge-base', label: 'RAG 知识库', icon: BookOpen, path: '/knowledge-base' },
+      { id: 'wisdom', label: '知识库', icon: Brain, path: '/wisdom', wip: true },
+      {
+        id: 'knowledge-base',
+        label: 'RAG 知识库',
+        icon: BookOpen,
+        path: '/knowledge-base',
+        wip: true,
+      },
     ],
   },
   {
@@ -193,15 +202,21 @@ function NavItem({
   onClick: () => void;
 }) {
   const Icon = tab.icon;
+  const isWip = tab.wip === true;
   return (
     <button
       onClick={onClick}
+      title={isWip ? '开发中，暂未开放' : undefined}
       className={cn(
         'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200',
-        'hover:scale-[1.02] active:scale-[0.98]',
+        isWip
+          ? 'opacity-50 cursor-not-allowed hover:bg-transparent'
+          : 'hover:scale-[1.02] active:scale-[0.98]',
         isActive
           ? 'bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 text-primary border border-primary/20 shadow-sm'
-          : 'hover:bg-accent text-muted-foreground hover:text-foreground',
+          : isWip
+            ? 'text-muted-foreground'
+            : 'hover:bg-accent text-muted-foreground hover:text-foreground',
       )}
     >
       <Icon
@@ -212,12 +227,20 @@ function NavItem({
       />
       {sidebarOpen && (
         <span
-          className={cn('font-medium transition-all duration-200', isActive ? 'text-primary' : '')}
+          className={cn(
+            'font-medium transition-all duration-200 truncate',
+            isActive ? 'text-primary' : '',
+          )}
         >
           {tab.label}
         </span>
       )}
-      {isActive && sidebarOpen && (
+      {sidebarOpen && isWip && (
+        <span className="ml-auto px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+          开发中
+        </span>
+      )}
+      {isActive && sidebarOpen && !isWip && (
         <div className="ml-auto w-1.5 h-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500" />
       )}
     </button>
@@ -254,7 +277,7 @@ export function Sidebar() {
               <Workflow className="w-4 h-4 text-white" />
             </div>
             <span className="font-bold text-lg bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              YpNextFlow
+              TeamFlow
             </span>
           </div>
         ) : (
@@ -319,7 +342,13 @@ export function Sidebar() {
                       tab={tab}
                       isActive={activeTab === tab.id}
                       sidebarOpen={sidebarOpen}
-                      onClick={() => navigate(tab.path)}
+                      onClick={() => {
+                        if (tab.wip) {
+                          showInfo('开发中', `${tab.label} 功能正在开发中，敬请期待`);
+                          return;
+                        }
+                        navigate(tab.path);
+                      }}
                     />
                   ))}
                 </div>
@@ -351,7 +380,7 @@ export function Sidebar() {
           </div>
           {sidebarOpen && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">YpNextFlow</p>
+              <p className="text-sm font-medium truncate">TeamFlow</p>
               <p className="text-xs text-muted-foreground truncate">v0.1.0</p>
             </div>
           )}

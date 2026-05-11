@@ -606,7 +606,8 @@ export function WorkflowsPage() {
   }, [loading, workflows]);
 
   const handleCreate = () => {
-    navigate('/editor');
+    setCurrentWorkflow(null);
+    navigate('/canvas');
   };
 
   const handleCreateFromSkill = async (skill: SkillSummary) => {
@@ -639,7 +640,7 @@ export function WorkflowsPage() {
       return;
     }
     setCurrentWorkflow(workflow);
-    navigate('/editor');
+    navigate('/canvas');
   };
 
   const handleCardClick = async (workflow: Workflow, e: React.MouseEvent) => {

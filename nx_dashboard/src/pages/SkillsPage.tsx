@@ -12,7 +12,18 @@ import {
 } from '@/hooks/useReactQuery';
 import { showSuccess, showError } from '@/lib/toast';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
-import { Pencil, Trash2, Plus, X, Download, Link, FileText, ClipboardPaste } from 'lucide-react';
+import {
+  Pencil,
+  Trash2,
+  Plus,
+  X,
+  Download,
+  Link,
+  FileText,
+  ClipboardPaste,
+  CheckSquare,
+  Square,
+} from 'lucide-react';
 import {
   Select,
   SelectTrigger,
@@ -51,6 +62,11 @@ export default function SkillsPage() {
   const [executionResult, setExecutionResult] = useState<string | null>(null);
   const { confirmState, showConfirm, hideConfirm } = useConfirmModal();
 
+  // Multi-select state
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchDeleting, setBatchDeleting] = useState(false);
+
   // Import dialog state
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importMode, setImportMode] = useState<'url' | 'file' | 'paste'>('url');
@@ -84,6 +100,13 @@ export default function SkillsPage() {
 
   // Combined loading state
   const isLoading = skillsLoading || categoriesLoading;
+
+  // Current displayed skills (search results > category filter > all)
+  const displaySkills = searchQuery.trim()
+    ? searchResults
+    : selectedCategory
+      ? filteredSkills
+      : skills;
 
   // Fetch stats on mount (not managed by React Query)
   useEffect(() => {
@@ -227,6 +250,68 @@ export default function SkillsPage() {
         } else {
           showError('删除失败', '请稍后重试');
         }
+      },
+    );
+  };
+
+  // === 多选删除 ===
+  const toggleMultiSelectMode = () => {
+    setMultiSelectMode((prev) => {
+      if (prev) setSelectedIds(new Set());
+      return !prev;
+    });
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectableSkills = (): SkillSummary[] => displaySkills.filter((s) => !s.is_preset);
+
+  const toggleSelectAll = () => {
+    const all = selectableSkills();
+    const allSelected = all.length > 0 && all.every((s) => selectedIds.has(s.id));
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(all.map((s) => s.id)));
+    }
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedIds.size === 0) return;
+    showConfirm(
+      '批量删除技能',
+      `确定要删除选中的 ${selectedIds.size} 个技能吗？此操作不可撤销。`,
+      async () => {
+        setBatchDeleting(true);
+        const ids = Array.from(selectedIds);
+        const results = await Promise.all(ids.map((id) => deleteSkill(id)));
+        setBatchDeleting(false);
+
+        const successCount = results.filter(Boolean).length;
+        const failCount = results.length - successCount;
+
+        if (successCount > 0) {
+          showSuccess('批量删除完成', `成功删除 ${successCount} 个技能`);
+        }
+        if (failCount > 0) {
+          showError('部分删除失败', `${failCount} 个技能删除失败`);
+        }
+
+        if (currentSkill && selectedIds.has(currentSkill.id)) {
+          clearCurrentSkill();
+          setSelectedSkill(null);
+        }
+        setSelectedIds(new Set());
+        setMultiSelectMode(false);
+        refetchSkills();
+        fetchStats();
       },
     );
   };
@@ -378,12 +463,6 @@ export default function SkillsPage() {
     }
   };
 
-  const displaySkills = searchQuery.trim()
-    ? searchResults
-    : selectedCategory
-      ? filteredSkills
-      : skills;
-
   // Common input class
   const inputCls =
     'w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground';
@@ -441,7 +520,45 @@ export default function SkillsPage() {
               <Download className="w-4 h-4" />
               导入
             </button>
+            <button
+              onClick={toggleMultiSelectMode}
+              className={`flex items-center justify-center gap-1 px-3 py-2 rounded-lg border transition-colors ${
+                multiSelectMode
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-background text-muted-foreground border-border hover:bg-accent'
+              }`}
+              title={multiSelectMode ? '退出多选' : '多选'}
+            >
+              <CheckSquare className="w-4 h-4" />
+            </button>
           </div>
+
+          {/* 多选操作栏 */}
+          {multiSelectMode && (
+            <div className="px-4 py-2 border-b border-border bg-accent/40 flex items-center justify-between gap-2">
+              <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={
+                    selectableSkills().length > 0 &&
+                    selectableSkills().every((s) => selectedIds.has(s.id))
+                  }
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 accent-primary"
+                />
+                全选
+                <span className="text-xs text-muted-foreground">（已选 {selectedIds.size}）</span>
+              </label>
+              <button
+                onClick={handleBatchDelete}
+                disabled={selectedIds.size === 0 || batchDeleting}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-4 h-4" />
+                {batchDeleting ? '删除中...' : '删除所选'}
+              </button>
+            </div>
+          )}
 
           {/* 统计信息 */}
           {stats && (
@@ -484,40 +601,74 @@ export default function SkillsPage() {
               <div className="p-4 text-center text-muted-foreground">没有找到技能</div>
             ) : (
               <div className="divide-y divide-border">
-                {displaySkills.map((skill) => (
-                  <button
-                    key={skill.id}
-                    onClick={() => handleSkillClick(skill)}
-                    className={`w-full p-4 text-left hover:bg-accent transition-colors ${
-                      selectedSkill?.id === skill.id ? 'bg-primary/5' : ''
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="font-medium text-foreground">{skill.name}</div>
-                      {skill.is_preset && (
-                        <span className="px-2 py-0.5 text-xs bg-purple-500/10 text-purple-500 rounded">
-                          预设
-                        </span>
-                      )}
+                {displaySkills.map((skill) => {
+                  const isSelected = selectedIds.has(skill.id);
+                  const isDisabled = multiSelectMode && skill.is_preset;
+                  const onRowClick = () => {
+                    if (multiSelectMode) {
+                      if (!skill.is_preset) toggleSelectOne(skill.id);
+                    } else {
+                      handleSkillClick(skill);
+                    }
+                  };
+                  return (
+                    <div
+                      key={skill.id}
+                      onClick={onRowClick}
+                      className={`w-full p-4 text-left transition-colors cursor-pointer ${
+                        isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent'
+                      } ${
+                        !multiSelectMode && selectedSkill?.id === skill.id ? 'bg-primary/5' : ''
+                      } ${multiSelectMode && isSelected ? 'bg-primary/10' : ''}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        {multiSelectMode && (
+                          <div
+                            className="pt-0.5"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!skill.is_preset) toggleSelectOne(skill.id);
+                            }}
+                          >
+                            {skill.is_preset ? (
+                              <Square className="w-4 h-4 text-muted-foreground/40" />
+                            ) : isSelected ? (
+                              <CheckSquare className="w-4 h-4 text-primary" />
+                            ) : (
+                              <Square className="w-4 h-4 text-muted-foreground" />
+                            )}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <div className="font-medium text-foreground truncate">{skill.name}</div>
+                            {skill.is_preset && (
+                              <span className="px-2 py-0.5 text-xs bg-purple-500/10 text-purple-500 rounded shrink-0 ml-2">
+                                预设
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                            {skill.description}
+                          </div>
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+                            <span className="px-2 py-0.5 text-xs bg-accent text-muted-foreground rounded">
+                              {skill.category.replace('_', ' ')}
+                            </span>
+                            {skill.tags.slice(0, 2).map((tag) => (
+                              <span
+                                key={tag}
+                                className="px-2 py-0.5 text-xs bg-primary/10 text-primary rounded"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                      {skill.description}
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="px-2 py-0.5 text-xs bg-accent text-muted-foreground rounded">
-                        {skill.category.replace('_', ' ')}
-                      </span>
-                      {skill.tags.slice(0, 2).map((tag) => (
-                        <span
-                          key={tag}
-                          className="px-2 py-0.5 text-xs bg-primary/10 text-primary rounded"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </button>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

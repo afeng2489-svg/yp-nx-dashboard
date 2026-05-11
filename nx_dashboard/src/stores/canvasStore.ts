@@ -98,49 +98,126 @@ const KIND_LABELS: Record<NodeKind, string> = {
   workflow: '工作流',
 };
 
-function nodeToStage(node: Node<NodeData>): Record<string, unknown> {
+// === Agent prompt templates (for non-AI nodes) ===
+// 把 shell/http/workflow 节点翻译成真实可执行的 agent。
+// Claude CLI 带 Bash / Fetch 工具，agent prompt 指示它调用相应工具。
+
+function buildAgentFromNode(node: Node<NodeData>, agentId: string): Record<string, unknown> | null {
   const d = node.data;
-  const base: Record<string, unknown> = { name: d.label };
   switch (d.kind) {
     case 'agent':
-      return { ...base, type: 'agent', model: d.model, system_prompt: d.system_prompt };
+      return {
+        id: agentId,
+        role: d.label,
+        model: d.model || 'claude-sonnet-4-6',
+        prompt: d.system_prompt || '',
+      };
     case 'shell':
-      return { ...base, type: 'shell', command: d.command, timeout: d.timeout };
-    case 'quality_gate':
       return {
-        ...base,
-        type: 'quality_gate',
-        checks: d.checks,
-        on_fail: d.on_fail,
-        max_retries: d.max_retries,
+        id: agentId,
+        role: '命令执行',
+        model: d.model || 'claude-haiku-4-5',
+        prompt: [
+          '使用 Bash 工具执行以下命令，然后把 stdout、stderr 和退出码完整返回：',
+          '',
+          `命令: ${d.command || 'echo hello'}`,
+          d.timeout ? `超时: ${d.timeout} 秒` : '',
+          '',
+          '不要解释，直接执行并返回结果。',
+        ]
+          .filter(Boolean)
+          .join('\n'),
       };
-    case 'condition':
-      return { ...base, type: 'condition', condition: d.condition };
     case 'http':
-      return { ...base, type: 'http', method: d.method, url: d.url };
-    case 'approval':
       return {
-        ...base,
-        type: 'user_input',
-        question: d.question,
-        options: d.options,
-        timeout: d.timeout,
+        id: agentId,
+        role: 'HTTP 请求',
+        model: d.model || 'claude-haiku-4-5',
+        prompt: [
+          '使用 Fetch / WebFetch 工具发起 HTTP 请求，返回状态码和响应体：',
+          '',
+          `方法: ${d.method || 'GET'}`,
+          `URL: ${d.url || ''}`,
+          '',
+          '返回 JSON 格式：{ "status": 状态码, "body": "响应内容" }',
+        ].join('\n'),
       };
-    case 'loop':
-      return { ...base, type: 'loop', loop_var: d.loop_var, max_iterations: d.max_iterations };
     case 'workflow':
-      return { ...base, type: 'workflow', workflowId: d.workflowId, workflowName: d.workflowName };
+      return {
+        id: agentId,
+        role: '子工作流调用',
+        model: 'claude-haiku-4-5',
+        prompt: [
+          '使用 Fetch 工具调用本地 API 启动子工作流并等待结果：',
+          '',
+          `POST http://localhost:8080/api/v1/workflows/${d.workflowId || ''}/execute`,
+          'Body: {"variables": {}}',
+          '',
+          '返回执行 ID 即可。',
+        ].join('\n'),
+      };
+    default:
+      return null; // condition / quality_gate 不生成 agent
   }
 }
 
-function stageToNodeData(stage: Record<string, unknown>): NodeData {
-  const kind =
-    (stage.type as string) === 'user_input' ? 'approval' : (stage.type as NodeKind) || 'agent';
+function nodeToStage(
+  node: Node<NodeData>,
+  agentId: string | null,
+  qualityGate: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  const d = node.data;
+  const base: Record<string, unknown> = { name: d.label };
+  if (qualityGate) base.quality_gate = qualityGate;
+
+  switch (d.kind) {
+    case 'agent':
+    case 'shell':
+    case 'http':
+    case 'workflow':
+      return { ...base, agents: agentId ? [agentId] : [] };
+    case 'approval':
+      return {
+        ...base,
+        stage_type: 'user_input',
+        question: d.question || '是否继续？',
+        options: (d.options || ['是', '否']).map((v, i) => ({ value: String(i), label: v })),
+      };
+    case 'loop':
+      return {
+        ...base,
+        stage_type: 'loop',
+        loop_var: d.loop_var || 'item',
+        max_iterations: d.max_iterations || 10,
+      };
+    default:
+      return null; // condition / quality_gate 融合到其他 stage
+  }
+}
+
+function stageToNodeData(
+  stage: Record<string, unknown>,
+  agentsMap: Map<string, Record<string, unknown>>,
+): NodeData {
+  const stageType = (stage.stage_type as string) || 'agent';
+  const agentIds = (stage.agents as string[]) || [];
+  const firstAgent = agentIds[0] ? agentsMap.get(agentIds[0]) : undefined;
+  const agentRole = (firstAgent?.role as string) || '';
+
+  // 根据 agent role 回推节点 kind
+  let kind: NodeKind = 'agent';
+  if (stageType === 'user_input') kind = 'approval';
+  else if (stageType === 'loop') kind = 'loop';
+  else if (agentRole === '命令执行') kind = 'shell';
+  else if (agentRole === 'HTTP 请求') kind = 'http';
+  else if (agentRole === '子工作流调用') kind = 'workflow';
+
   return {
     kind,
     label: (stage.name as string) || 'Stage',
     ...KIND_DEFAULTS[kind],
-    ...(stage as Partial<NodeData>),
+    ...(firstAgent?.model ? { model: firstAgent.model as string } : {}),
+    ...(firstAgent?.prompt ? { system_prompt: firstAgent.prompt as string } : {}),
   };
 }
 
@@ -210,38 +287,105 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
   toYaml: () => {
     const { nodes, edges, workflowName } = get();
-    const stages = nodes.map((n) => {
-      const stage = nodeToStage(n);
-      const nextEdges = edges.filter((e) => e.source === n.id);
-      if (nextEdges.length > 0) {
-        stage.next = nextEdges.map((e) => {
-          const target = nodes.find((nd) => nd.id === e.target);
-          return target?.data.label || e.target;
-        });
+
+    // 1. 为每个"执行型"节点（agent/shell/http/workflow）生成 agent
+    const agents: Record<string, unknown>[] = [];
+    const nodeToAgentId = new Map<string, string>();
+    nodes.forEach((n, i) => {
+      const agentId = `${n.data.kind}_${i}`;
+      const agent = buildAgentFromNode(n, agentId);
+      if (agent) {
+        agents.push(agent);
+        nodeToAgentId.set(n.id, agentId);
       }
-      return stage;
     });
-    return yaml.dump({ name: workflowName, version: '1.0', stages }, { lineWidth: 120 });
+
+    // 2. 找出 condition / quality_gate 节点（它们会被融合）
+    const conditionNodes = nodes.filter((n) => n.data.kind === 'condition');
+    const qualityGateNodes = nodes.filter((n) => n.data.kind === 'quality_gate');
+
+    // quality_gate 节点的信息融合到它指向的下游 stage
+    const qualityGateByTarget = new Map<string, Record<string, unknown>>();
+    qualityGateNodes.forEach((qg) => {
+      const outgoing = edges.filter((e) => e.source === qg.id);
+      outgoing.forEach((e) => {
+        qualityGateByTarget.set(e.target, {
+          checks: qg.data.checks || [],
+          on_fail: qg.data.on_fail || 'retry',
+          max_retries: qg.data.max_retries || 2,
+        });
+      });
+    });
+
+    // 3. 生成 stages（跳过 condition / quality_gate 节点）
+    const executableNodes = nodes.filter(
+      (n) => n.data.kind !== 'condition' && n.data.kind !== 'quality_gate',
+    );
+
+    const stages = executableNodes
+      .map((n) => {
+        const agentId = nodeToAgentId.get(n.id) ?? null;
+        const qg = qualityGateByTarget.get(n.id) || null;
+        const stage = nodeToStage(n, agentId, qg);
+        if (!stage) return null;
+
+        // 4. 处理 next（包括经过 condition 节点的条件跳转）
+        const directNext = edges.filter(
+          (e) => e.source === n.id && executableNodes.some((en) => en.id === e.target),
+        );
+        const conditionNext = edges
+          .filter((e) => e.source === n.id && conditionNodes.some((c) => c.id === e.target))
+          .flatMap((e) => {
+            const condNode = conditionNodes.find((c) => c.id === e.target);
+            if (!condNode) return [];
+            const condDownstream = edges.filter((ee) => ee.source === condNode.id);
+            return condDownstream.map((ee) => {
+              const target = nodes.find((nd) => nd.id === ee.target);
+              return {
+                condition: condNode.data.condition || '',
+                goto: target?.data.label || ee.target,
+              };
+            });
+          });
+
+        const nextList: unknown[] = [];
+        directNext.forEach((e) => {
+          const target = nodes.find((nd) => nd.id === e.target);
+          nextList.push({ goto: target?.data.label || e.target });
+        });
+        conditionNext.forEach((c) => nextList.push(c));
+        if (nextList.length > 0) stage.next = nextList;
+
+        return stage;
+      })
+      .filter((s): s is Record<string, unknown> => s !== null);
+
+    return yaml.dump({ name: workflowName, version: '1.0', agents, stages }, { lineWidth: 120 });
   },
 
   loadFromYaml: (yamlStr) => {
     try {
       const doc = yaml.load(yamlStr) as Record<string, unknown>;
       const stages = (doc.stages as Record<string, unknown>[]) || [];
+      const agentList = (doc.agents as Record<string, unknown>[]) || [];
+      const agentsMap = new Map(agentList.map((a) => [a.id as string, a]));
+
       const newNodes: Node<NodeData>[] = stages.map((stage, i) => ({
         id: `stage-${i}`,
         type: 'custom',
         position: { x: 100 + (i % 4) * 220, y: 100 + Math.floor(i / 4) * 160 },
-        data: stageToNodeData(stage),
+        data: stageToNodeData(stage, agentsMap),
       }));
       const newEdges: Edge[] = [];
       stages.forEach((stage, i) => {
-        const nexts = (stage.next as string[]) || [];
-        nexts.forEach((nextName) => {
-          const targetIdx = stages.findIndex((s) => s.name === nextName);
+        const nexts = stage.next as unknown[] | undefined;
+        if (!nexts) return;
+        nexts.forEach((nx, ni) => {
+          const targetName = typeof nx === 'string' ? nx : ((nx as { goto?: string }).goto ?? '');
+          const targetIdx = stages.findIndex((s) => s.name === targetName);
           if (targetIdx >= 0) {
             newEdges.push({
-              id: `e-${i}-${targetIdx}`,
+              id: `e-${i}-${targetIdx}-${ni}`,
               source: `stage-${i}`,
               target: `stage-${targetIdx}`,
             });

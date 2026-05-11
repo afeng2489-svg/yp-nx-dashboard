@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api, ArtifactRecord } from '@/api/client';
+import { ErrorState } from '@/components/ui/ErrorState';
 
 const PAGE_SIZE = 50;
 const BINARY_THRESHOLD_BYTES = 1024 * 1024; // 1MB
@@ -235,11 +236,13 @@ function FilePreviewModal({
               <span className="ml-3 text-muted-foreground">加载文件内容...</span>
             </div>
           ) : error ? (
-            <div className="flex flex-col items-center justify-center py-16">
-              <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
-              <p className="text-red-400 font-medium">加载失败</p>
-              <p className="text-sm text-muted-foreground mt-1">{error}</p>
-            </div>
+            <ErrorState
+              variant="error"
+              title="文件预览失败"
+              message={error}
+              hints={['文件可能是二进制格式', '工作区路径未设置或文件已被删除']}
+              compact
+            />
           ) : md ? (
             <div className="p-6 prose prose-sm prose-invert max-w-none">
               <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{content ?? ''}</ReactMarkdown>
@@ -369,11 +372,17 @@ export function ArtifactsPanel({ executionId }: { executionId: string }) {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
-        <p className="text-red-400 font-medium">加载失败</p>
-        <p className="text-sm text-muted-foreground mt-1">{error}</p>
-      </div>
+      <ErrorState
+        variant="error"
+        title="产物变更加载失败"
+        message={error}
+        hints={[
+          '执行可能还未完成或未修改任何文件',
+          '后端 API 可能未正常启动',
+          '工作区路径可能未设置',
+        ]}
+        actions={[{ label: '重试', onClick: () => window.location.reload() }]}
+      />
     );
   }
 

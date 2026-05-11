@@ -13,6 +13,13 @@ import {
   Workflow as WorkflowIcon,
   Zap,
   Send,
+  Bug,
+  FileSearch,
+  FileText,
+  Code2,
+  Lightbulb,
+  Rocket,
+  Play,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -23,6 +30,60 @@ import {
 } from '@/components/charts';
 import { ActiveExecutionsPanel, StageMetricsPanel, TokenCostSummary } from '@/components/dashboard';
 import { API_BASE_URL } from '@/api/constants';
+import { WorkflowLaunchModal } from '@/components/workflow/WorkflowLaunchModal';
+import type { Workflow } from '@/stores/workflowStore';
+
+// 首页快速启动卡片：推荐的高频工作流
+const QUICK_START_ITEMS: {
+  workflowName: string; // 按名字匹配（比 ID 稳健，工作流名不会变）
+  title: string;
+  description: string;
+  icon: typeof Bug;
+  gradient: string;
+}[] = [
+  {
+    workflowName: 'quick-fix',
+    title: '快速修复',
+    description: '定位根因 → 实施修复 → 验证测试',
+    icon: Bug,
+    gradient: 'from-rose-500 to-pink-500',
+  },
+  {
+    workflowName: 'Quick Bug Fix Workflow',
+    title: 'Bug 修复',
+    description: '完整的 Bug 分析与修复流程',
+    icon: Bug,
+    gradient: 'from-red-500 to-orange-500',
+  },
+  {
+    workflowName: 'writing-plans',
+    title: '撰写实施计划',
+    description: '把任务拆成 TDD 可执行步骤',
+    icon: FileText,
+    gradient: 'from-sky-500 to-blue-500',
+  },
+  {
+    workflowName: 'TDD 测试驱动开发',
+    title: 'TDD 开发',
+    description: '测试先行的完整开发流程',
+    icon: Code2,
+    gradient: 'from-emerald-500 to-teal-500',
+  },
+  {
+    workflowName: 'review-cycle',
+    title: '代码审查',
+    description: '多角度 Review + 修改建议',
+    icon: FileSearch,
+    gradient: 'from-violet-500 to-purple-500',
+  },
+  {
+    workflowName: '技术调研',
+    title: '技术调研',
+    description: '深度调研 + 方案对比',
+    icon: Lightbulb,
+    gradient: 'from-amber-500 to-yellow-500',
+  },
+];
 
 // 数字滚动动画组件
 function AnimatedNumber({ value }: { value: number }) {
@@ -189,6 +250,13 @@ export function DashboardPage() {
   const [quickPrompt, setQuickPrompt] = useState('');
   const [quickLoading, setQuickLoading] = useState(false);
   const [quickError, setQuickError] = useState<string | null>(null);
+  const [launchWorkflow, setLaunchWorkflow] = useState<Workflow | null>(null);
+
+  // 把推荐列表映射成实际工作流（按名字匹配，未匹配的跳过）
+  const quickStartCards = QUICK_START_ITEMS.map((item) => ({
+    ...item,
+    workflow: workflows.find((w) => w.name === item.workflowName) ?? null,
+  })).filter((x) => x.workflow !== null);
 
   const handleQuickRun = async () => {
     if (!quickPrompt.trim() || quickLoading) return;
@@ -267,6 +335,68 @@ export function DashboardPage() {
         </div>
         {quickError && <p className="mt-1.5 text-xs text-destructive pl-4">{quickError}</p>}
       </div>
+
+      {/* Quick Start Cards — 高频工作流一键启动 */}
+      {quickStartCards.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Rocket className="w-4 h-4 text-indigo-500" />
+              <h2 className="text-sm font-semibold">快速启动</h2>
+              <span className="text-xs text-muted-foreground">· 常用工作流一键运行</span>
+            </div>
+            <button
+              onClick={() => navigate('/workflows')}
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+            >
+              查看全部 <ChevronRight className="w-3 h-3" />
+            </button>
+          </div>
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
+            {quickStartCards.map((card) => {
+              const Icon = card.icon;
+              return (
+                <button
+                  key={card.workflowName}
+                  onClick={() => card.workflow && setLaunchWorkflow(card.workflow)}
+                  className={cn(
+                    'group text-left p-4 rounded-2xl border border-border/50 bg-card',
+                    'hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/30',
+                    'transition-all duration-200 relative overflow-hidden',
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'absolute -right-8 -top-8 w-24 h-24 rounded-full bg-gradient-to-br opacity-10 group-hover:opacity-20 transition-opacity',
+                      card.gradient,
+                    )}
+                  />
+                  <div className="flex items-center gap-3 mb-2 relative">
+                    <div
+                      className={cn(
+                        'w-9 h-9 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-md',
+                        card.gradient,
+                      )}
+                    >
+                      <Icon className="w-4 h-4 text-white" />
+                    </div>
+                    <h3 className="font-semibold text-sm group-hover:text-primary transition-colors">
+                      {card.title}
+                    </h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-2 relative mb-3">
+                    {card.description}
+                  </p>
+                  <div className="flex items-center gap-1 text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity relative">
+                    <Play className="w-3 h-3" />
+                    <span>点击启动</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Loading State */}
       {isInitialLoading && workflows.length === 0 ? (
@@ -392,6 +522,10 @@ export function DashboardPage() {
             )}
           </div>
         </>
+      )}
+
+      {launchWorkflow && (
+        <WorkflowLaunchModal workflow={launchWorkflow} onClose={() => setLaunchWorkflow(null)} />
       )}
     </div>
   );

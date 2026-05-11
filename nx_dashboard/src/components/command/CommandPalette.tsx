@@ -323,19 +323,8 @@ export function CommandPalette() {
   };
 
   if (!isOpen) {
-    return (
-      <button
-        onClick={() => {
-          setIsOpen(true);
-          setShowRecent(true);
-        }}
-        className="fixed bottom-4 right-4 flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg border border-gray-700 shadow-lg transition-colors"
-      >
-        <Terminal className="w-4 h-4" />
-        <span className="text-sm">Command Palette</span>
-        <kbd className="ml-2 px-1.5 py-0.5 text-xs bg-gray-700 rounded">⌘K</kbd>
-      </button>
-    );
+    // 右下角 FAB 入口暂时隐藏，保留 ⌘K / Ctrl+K 快捷键打开
+    return null;
   }
 
   return (

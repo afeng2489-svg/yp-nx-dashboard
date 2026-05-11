@@ -90,6 +90,9 @@ pub trait TeamRepository: Send + Sync {
         &self,
         role_id: &str,
     ) -> Result<Option<TelegramBotConfig>, TeamRepositoryError>;
+    fn find_all_enabled_telegram_configs(
+        &self,
+    ) -> Result<Vec<TelegramBotConfig>, TeamRepositoryError>;
     fn delete_telegram_config(&self, role_id: &str) -> Result<bool, TeamRepositoryError>;
 }
 
@@ -801,6 +804,34 @@ impl TeamRepository for SqliteTeamRepository {
             params![role_id],
         )?;
         Ok(affected > 0)
+    }
+
+    fn find_all_enabled_telegram_configs(
+        &self,
+    ) -> Result<Vec<TelegramBotConfig>, TeamRepositoryError> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, role_id, bot_token, chat_id, enabled, notifications_enabled, conversation_enabled
+             FROM telegram_bot_configs WHERE enabled = 1",
+        )?;
+
+        let rows = stmt.query_map([], |row| {
+            Ok(TelegramBotConfig {
+                id: row.get::<_, String>(0)?,
+                role_id: row.get::<_, String>(1)?,
+                bot_token: row.get::<_, String>(2)?,
+                chat_id: row.get::<_, Option<String>>(3)?,
+                enabled: row.get::<_, i32>(4)? != 0,
+                notifications_enabled: row.get::<_, i32>(5)? != 0,
+                conversation_enabled: row.get::<_, i32>(6)? != 0,
+            })
+        })?;
+
+        let mut configs = Vec::new();
+        for row in rows {
+            configs.push(row?);
+        }
+        Ok(configs)
     }
 }
 

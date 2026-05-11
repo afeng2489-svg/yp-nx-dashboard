@@ -12,6 +12,7 @@ import { Allotment } from 'allotment';
 import 'allotment/dist/style.css';
 import { GlobalOpsOverlay } from '@/components/global/GlobalOpsOverlay';
 import { ClaudeCliMissingBanner } from '@/components/global/ClaudeCliMissingBanner';
+import { GlobalHelpButton } from '@/components/guide/GlobalHelpButton';
 import { useShrinkBelow } from '@/hooks/useResponsive';
 
 export function Dashboard() {
@@ -85,6 +86,7 @@ export function Dashboard() {
         </div>
       </div>
       <GlobalOpsOverlay />
+      <GlobalHelpButton />
     </div>
   );
 }

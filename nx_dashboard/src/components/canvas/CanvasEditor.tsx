@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -7,9 +7,11 @@ import {
   type NodeTypes,
   type ReactFlowInstance,
 } from '@xyflow/react';
+import yaml from 'js-yaml';
 import '@xyflow/react/dist/style.css';
 import { useCanvasStore } from '@/stores/canvasStore';
 import type { NodeKind } from '@/stores/canvasStore';
+import { useWorkflowStore } from '@/stores/workflowStore';
 import { CanvasNode } from './CanvasNode';
 import { NodePanel } from './NodePanel';
 import { PropertiesPanel } from './PropertiesPanel';
@@ -19,9 +21,34 @@ import { CanvasToolbar } from './CanvasToolbar';
 const nodeTypes = { custom: CanvasNode } as NodeTypes;
 
 export function CanvasEditor() {
-  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, setSelectedNode, addNode } =
-    useCanvasStore();
+  const {
+    nodes,
+    edges,
+    onNodesChange,
+    onEdgesChange,
+    onConnect,
+    setSelectedNode,
+    addNode,
+    loadFromYaml,
+  } = useCanvasStore();
+  const currentWorkflow = useWorkflowStore((s) => s.currentWorkflow);
   const rfRef = useRef<ReactFlowInstance | null>(null);
+  const loadedIdRef = useRef<string | null>(null);
+
+  // 当从工作流列表进入画布时，自动加载当前工作流
+  useEffect(() => {
+    if (!currentWorkflow) return;
+    if (loadedIdRef.current === currentWorkflow.id) return;
+    loadedIdRef.current = currentWorkflow.id;
+    try {
+      const defn = (currentWorkflow as unknown as { definition?: Record<string, unknown> })
+        .definition;
+      const yamlStr = yaml.dump(defn && Object.keys(defn).length > 0 ? defn : currentWorkflow);
+      loadFromYaml(yamlStr);
+    } catch {
+      // ignore invalid workflow data
+    }
+  }, [currentWorkflow, loadFromYaml]);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {

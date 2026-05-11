@@ -581,11 +581,15 @@ impl AppState {
         );
         let provider_service = Arc::new(ProviderService::new(provider_repo));
 
+        // 创建共享的 Telegram 服务实例（AgentTeamService 和 TeamsAppState 必须共享同一个实例，
+        // 否则路由调用 start_polling 时用的广播通道和 handler 订阅的通道会是两个不同的通道）
+        let telegram_service = TelegramService::new();
+
         // 创建 AgentTeamService（带有 provider_service 以便从数据库获取 API keys）
         let mut agent_team_service_raw = AgentTeamService::with_provider_service(
             team_service.clone(),
             skill_service_for_agent,
-            TelegramService::new(),
+            telegram_service.clone(),
             ai_model_manager.clone(),
             provider_service.clone(),
             current_workspace_path.clone(),
@@ -621,10 +625,13 @@ impl AppState {
         // Wrap in Arc after all injections
         let agent_team_service = Arc::new(agent_team_service_raw);
 
+        // 启动后台 worker（订阅 Telegram 广播 + 恢复启用状态的 bot 轮询）
+        agent_team_service.start_workers();
+
         // 创建团队服务状态（将 memory_state 注入到 agent_team_service）
         let teams_state = TeamsAppState::new_with_agent_and_memory(
             team_service.clone(),
-            TelegramService::new(),
+            telegram_service.clone(),
             ai_model_manager.clone(),
             agent_team_service.clone(),
             memory_state.clone(),

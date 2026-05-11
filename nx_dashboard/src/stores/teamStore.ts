@@ -32,6 +32,7 @@ export interface Message {
   message_type: 'User' | 'Assistant' | 'System';
   content: string;
   created_at?: string;
+  metadata?: Record<string, string>;
 }
 
 export interface TelegramConfig {

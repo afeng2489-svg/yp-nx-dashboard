@@ -167,9 +167,9 @@ export function ProcessMonitor() {
 
               {/* Output */}
               {process.output && (
-                <div className="px-3 py-2 border-t border-border/30 bg-black/20">
+                <div className="px-3 py-2 border-t border-border/30 bg-muted/40 dark:bg-black/20">
                   <p className="text-xs text-muted-foreground mb-1">输出:</p>
-                  <pre className="text-xs font-mono text-gray-300 whitespace-pre-wrap max-h-32 overflow-y-auto">
+                  <pre className="text-xs font-mono text-foreground/80 dark:text-gray-300 whitespace-pre-wrap max-h-32 overflow-y-auto">
                     {process.output}
                   </pre>
                 </div>
