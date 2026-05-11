@@ -1,6 +1,6 @@
 [package]
 name = "nx-dashboard"
-version = "0.1.0"
+version = "0.2.0"
 description = "NX Dashboard - AI Development Platform"
 authors = ["NX Team"]
 license = "MIT"
