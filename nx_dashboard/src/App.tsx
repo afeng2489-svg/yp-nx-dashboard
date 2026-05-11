@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Toaster } from 'sonner';
 import { Dashboard } from '@/components/layout';
-import { PageTransition } from '@/components/ui';
+import { PageTransition, ErrorBoundary } from '@/components/ui';
 import { useKeyboardHandler } from '@/lib/keyboard';
 import { CommandPalette } from '@/components/command';
 import { useVersionCheck } from '@/lib/versionCheck';
@@ -233,210 +233,212 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <Suspense fallback={<PageLoadingFallback />}>
-          <Routes>
-            <Route element={<Dashboard />}>
-              <Route
-                path="/"
-                element={
-                  <PageWrapper>
-                    <DashboardPage />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/guide"
-                element={
-                  <PageWrapper>
-                    <GuidePage />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/workflows"
-                element={
-                  <PageWrapper>
-                    <WorkflowsPage />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/templates"
-                element={
-                  <PageWrapper>
-                    <TemplatesPage />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/executions"
-                element={
-                  <PageWrapper>
-                    <ExecutionsPage />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/terminal"
-                element={
-                  <PageWrapper>
-                    <TerminalPage />
-                  </PageWrapper>
-                }
-              />
-              <Route path="/editor" element={<EditorPage />} />
-              <Route
-                path="/sessions"
-                element={
-                  <PageWrapper>
-                    <WipPage
-                      title="会话"
-                      description="会话模块尚未接入工作流执行链路，暂不可用。请使用「执行记录」查看工作流运行情况。"
-                    />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/tasks"
-                element={
-                  <PageWrapper>
-                    <TasksPage />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/wisdom"
-                element={
-                  <PageWrapper>
-                    <WipPage
-                      title="知识库"
-                      description="团队经验沉淀的知识库功能正在开发中，尚未接入 Agent 执行链路。敬请期待。"
-                    />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/search"
-                element={
-                  <PageWrapper>
-                    <SearchPage />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/skills"
-                element={
-                  <PageWrapper>
-                    <SkillsPage />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/settings"
-                element={
-                  <PageWrapper>
-                    <SettingsPage />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/ai-settings"
-                element={
-                  <PageWrapper>
-                    <AISettingsPage />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/teams"
-                element={
-                  <PageWrapper>
-                    <TeamsPage />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/teams-v2"
-                element={
-                  <PageWrapper>
-                    <TeamsPageV2 />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/roles"
-                element={
-                  <PageWrapper>
-                    <RolesPage />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/projects"
-                element={
-                  <PageWrapper>
-                    <ProjectsPage />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/group-chat"
-                element={
-                  <PageWrapper>
-                    <GroupChatPage />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/processes"
-                element={
-                  <PageWrapper>
-                    <ProcessMonitorPage />
-                  </PageWrapper>
-                }
-              />
-              <Route path="/browser" element={<BrowserPage />} />
-              <Route
-                path="/cost"
-                element={
-                  <PageWrapper>
-                    <CostPage />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/knowledge-base"
-                element={
-                  <PageWrapper>
-                    <WipPage
-                      title="RAG 知识库"
-                      description="基于文档向量检索的 RAG 知识库正在开发中，仅 workflow stage 的 rag 字段可手动配置。敬请期待完整 UI。"
-                    />
-                  </PageWrapper>
-                }
-              />
-              <Route
-                path="/ui-design"
-                element={
-                  <PageWrapper>
-                    <UIDesignPage />
-                  </PageWrapper>
-                }
-              />
-              <Route path="/canvas" element={<CanvasPage />} />
-              <Route
-                path="/sprint-board"
-                element={
-                  <PageWrapper>
-                    <SprintBoardPage />
-                  </PageWrapper>
-                }
-              />
-              {/* 404 — unknown routes redirect to home */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Route>
-          </Routes>
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<PageLoadingFallback />}>
+            <Routes>
+              <Route element={<Dashboard />}>
+                <Route
+                  path="/"
+                  element={
+                    <PageWrapper>
+                      <DashboardPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/guide"
+                  element={
+                    <PageWrapper>
+                      <GuidePage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/workflows"
+                  element={
+                    <PageWrapper>
+                      <WorkflowsPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/templates"
+                  element={
+                    <PageWrapper>
+                      <TemplatesPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/executions"
+                  element={
+                    <PageWrapper>
+                      <ExecutionsPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/terminal"
+                  element={
+                    <PageWrapper>
+                      <TerminalPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route path="/editor" element={<EditorPage />} />
+                <Route
+                  path="/sessions"
+                  element={
+                    <PageWrapper>
+                      <WipPage
+                        title="会话"
+                        description="会话模块尚未接入工作流执行链路，暂不可用。请使用「执行记录」查看工作流运行情况。"
+                      />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/tasks"
+                  element={
+                    <PageWrapper>
+                      <TasksPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/wisdom"
+                  element={
+                    <PageWrapper>
+                      <WipPage
+                        title="知识库"
+                        description="团队经验沉淀的知识库功能正在开发中，尚未接入 Agent 执行链路。敬请期待。"
+                      />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/search"
+                  element={
+                    <PageWrapper>
+                      <SearchPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/skills"
+                  element={
+                    <PageWrapper>
+                      <SkillsPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <PageWrapper>
+                      <SettingsPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/ai-settings"
+                  element={
+                    <PageWrapper>
+                      <AISettingsPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/teams"
+                  element={
+                    <PageWrapper>
+                      <TeamsPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/teams-v2"
+                  element={
+                    <PageWrapper>
+                      <TeamsPageV2 />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/roles"
+                  element={
+                    <PageWrapper>
+                      <RolesPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/projects"
+                  element={
+                    <PageWrapper>
+                      <ProjectsPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/group-chat"
+                  element={
+                    <PageWrapper>
+                      <GroupChatPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/processes"
+                  element={
+                    <PageWrapper>
+                      <ProcessMonitorPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route path="/browser" element={<BrowserPage />} />
+                <Route
+                  path="/cost"
+                  element={
+                    <PageWrapper>
+                      <CostPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/knowledge-base"
+                  element={
+                    <PageWrapper>
+                      <WipPage
+                        title="RAG 知识库"
+                        description="基于文档向量检索的 RAG 知识库正在开发中，仅 workflow stage 的 rag 字段可手动配置。敬请期待完整 UI。"
+                      />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/ui-design"
+                  element={
+                    <PageWrapper>
+                      <UIDesignPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route path="/canvas" element={<CanvasPage />} />
+                <Route
+                  path="/sprint-board"
+                  element={
+                    <PageWrapper>
+                      <SprintBoardPage />
+                    </PageWrapper>
+                  }
+                />
+                {/* 404 — unknown routes redirect to home */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Route>
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
 
         {/* Command Palette — inside BrowserRouter for useNavigate */}
         <CommandPalette />

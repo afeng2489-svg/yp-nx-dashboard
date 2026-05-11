@@ -32,10 +32,11 @@ export const MarkdownMessage = memo(function MarkdownMessage({
         rehypePlugins={[rehypeHighlight]}
         components={{
           // 链接默认在新标签打开
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
           a: (({ node: _node, ...props }: any) => (
             <a {...props} target="_blank" rel="noopener noreferrer" />
           )) as any,
+          /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
         }}
       >
         {content}

@@ -16,3 +16,6 @@ export { Card, CardHeader, CardTitle, CardContent } from './card';
 export { Input } from './input';
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './tooltip';
 export { m, fadeUp, fadeIn, scaleIn, staggerContainer } from './motion';
+export { ErrorBoundary } from './ErrorBoundary';
+export { Modal } from './Modal';
+export type { ModalProps } from './Modal';

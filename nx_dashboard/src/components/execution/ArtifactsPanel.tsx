@@ -8,7 +8,6 @@ import {
   FolderOpen,
   Package,
   Loader2,
-  AlertCircle,
   ChevronRight,
   Filter,
   Eye,

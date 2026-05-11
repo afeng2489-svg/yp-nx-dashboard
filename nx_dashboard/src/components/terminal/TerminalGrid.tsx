@@ -210,17 +210,17 @@ function TerminalPane({
     });
     resizeObserver.observe(terminalRef.current);
 
+    const wsState = wsRef.current;
     return () => {
       resizeObserver.disconnect();
-      if (wsRef.current.reconnectTimeout) {
-        clearTimeout(wsRef.current.reconnectTimeout);
+      if (wsState.reconnectTimeout) {
+        clearTimeout(wsState.reconnectTimeout);
       }
-      if (wsRef.current.ws) {
-        wsRef.current.ws.close();
+      if (wsState.ws) {
+        wsState.ws.close();
       }
       terminal.dispose();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 外部调整大小时重新 fit
