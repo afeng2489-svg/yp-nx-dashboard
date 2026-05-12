@@ -401,6 +401,38 @@ pub async fn detect_scripts(
     }))
 }
 
+/// 合并 package.json 中的 dependencies + devDependencies
+fn merge_node_deps(pkg: &serde_json::Value) -> Vec<String> {
+    let mut deps = Vec::new();
+    for key in &["dependencies", "devDependencies", "peerDependencies"] {
+        if let Some(obj) = pkg.get(key).and_then(|d| d.as_object()) {
+            deps.extend(obj.keys().cloned());
+        }
+    }
+    deps
+}
+
+/// 判断 Node.js 项目是否为前端项目
+fn is_frontend_node(deps: &[String]) -> bool {
+    let frontend_pkgs = [
+        "react",
+        "react-dom",
+        "vue",
+        "@vue/cli-service",
+        "nuxt",
+        "next",
+        "@angular/core",
+        "svelte",
+        "gatsby",
+        "@remix-run/react",
+        "astro",
+        "solid-js",
+        "preact",
+        "lit",
+    ];
+    deps.iter().any(|d| frontend_pkgs.contains(&d.as_str()))
+}
+
 /// 自动检测工作区中的可运行服务（前端/后端）
 pub async fn detect_services(
     State(state): State<Arc<AppState>>,
@@ -448,17 +480,26 @@ pub async fn detect_services(
         }
     }
 
-    for (dir, _prefix) in &scan_dirs {
-        let dir_path = dir.to_string_lossy().to_string();
+    // 用目录名生成唯一后缀，避免不同目录的同类服务 id 冲突
+    let dir_suffix = |prefix: &str| -> String {
+        if prefix.is_empty() {
+            String::new()
+        } else {
+            format!("-{}", prefix)
+        }
+    };
 
-        // Node.js 前端：有 package.json 且包含 dev 脚本
+    for (dir, prefix) in &scan_dirs {
+        let dir_path = dir.to_string_lossy().to_string();
+        let suffix = dir_suffix(prefix);
+
+        // Node.js：有 package.json 且包含 dev/start 脚本
         let pkg_json = dir.join("package.json");
         if pkg_json.exists() {
             if let Ok(content) = std::fs::read_to_string(&pkg_json) {
                 if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
                     let scripts = pkg.get("scripts").and_then(|s| s.as_object());
                     if let Some(pkg_scripts) = scripts {
-                        // 优先用 dev，其次 start
                         let cmd = if pkg_scripts.contains_key("dev") {
                             Some("npm run dev")
                         } else if pkg_scripts.contains_key("start") {
@@ -467,14 +508,18 @@ pub async fn detect_services(
                             None
                         };
                         if let Some(cmd) = cmd {
-                            // 避免重复添加同路径
-                            if !services
-                                .iter()
-                                .any(|s| s.id == "frontend" && s.cwd == dir_path)
-                            {
+                            let all_deps = merge_node_deps(&pkg);
+                            let is_frontend = is_frontend_node(&all_deps);
+                            let (svc_id, svc_name) = if is_frontend {
+                                (format!("frontend{}", suffix), "前端".to_string())
+                            } else {
+                                (format!("backend-node{}", suffix), "后端".to_string())
+                            };
+
+                            if !services.iter().any(|s| s.cwd == dir_path) {
                                 services.push(DetectedServiceEntry {
-                                    id: "frontend".to_string(),
-                                    name: "前端".to_string(),
+                                    id: svc_id,
+                                    name: svc_name,
                                     command: cmd.to_string(),
                                     cwd: dir_path.clone(),
                                 });
@@ -488,26 +533,19 @@ pub async fn detect_services(
         // Rust 后端：有 Cargo.toml
         let cargo_toml = dir.join("Cargo.toml");
         if cargo_toml.exists() {
-            // 读取 Cargo.toml 确认是否有 workspace 或 package
             let is_workspace = std::fs::read_to_string(&cargo_toml)
                 .map(|c| c.contains("[workspace]"))
                 .unwrap_or(false);
 
-            // 如果是 workspace，尝试找 bin package 名称
             let cmd = if is_workspace {
-                // 检查是否有 nx_api 等常见名称的 package
-                let cmd_guess = "cargo run";
-                cmd_guess
+                "cargo run"
             } else {
                 "cargo run"
             };
 
-            if !services
-                .iter()
-                .any(|s| s.id == "backend" && s.cwd == dir_path)
-            {
+            if !services.iter().any(|s| s.cwd == dir_path) {
                 services.push(DetectedServiceEntry {
-                    id: "backend".to_string(),
+                    id: format!("backend-rust{}", suffix),
                     name: "后端".to_string(),
                     command: cmd.to_string(),
                     cwd: dir_path.clone(),
@@ -522,9 +560,9 @@ pub async fn detect_services(
             } else {
                 "python main.py"
             };
-            if !services.iter().any(|s| s.id == "backend") {
+            if !services.iter().any(|s| s.cwd == dir_path) {
                 services.push(DetectedServiceEntry {
-                    id: "backend".to_string(),
+                    id: format!("backend-python{}", suffix),
                     name: "后端".to_string(),
                     command: cmd.to_string(),
                     cwd: dir_path.clone(),
@@ -532,11 +570,6 @@ pub async fn detect_services(
             }
         }
     }
-
-    // 如果根目录本身没检测到前端/后端，但检测到了，优先使用根目录的
-    // 去重：每个 id 只保留第一个（根目录优先于子目录）
-    let mut seen_ids = std::collections::HashSet::new();
-    services.retain(|s| seen_ids.insert(s.id.clone()));
 
     Ok(Json(DetectServicesResponse { services }))
 }

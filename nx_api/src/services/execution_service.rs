@@ -310,8 +310,14 @@ impl ExecutionService {
     }
 
     /// 启动新执行
-    pub fn start_execution(&self, workflow_id: String, variables: serde_json::Value) -> Execution {
+    pub fn start_execution(
+        &self,
+        workflow_id: String,
+        variables: serde_json::Value,
+        workspace_path: Option<String>,
+    ) -> Execution {
         let mut execution = Execution::new(workflow_id.clone(), variables);
+        execution.workspace_path = workspace_path;
         execution.start(); // 设置为 Running 状态
 
         let exec_clone = execution.clone();
@@ -603,7 +609,7 @@ impl ExecutionService {
 
     /// 模拟执行（用于测试）
     pub fn simulate_execution(&self, workflow_id: String) -> Execution {
-        let execution = self.start_execution(workflow_id, serde_json::json!({}));
+        let execution = self.start_execution(workflow_id, serde_json::json!({}), None);
 
         // 模拟阶段执行
         let exec_id = execution.id.clone();
@@ -694,7 +700,8 @@ impl ExecutionService {
             });
 
         // 3. 先启动执行，拿到 exec_id，再创建事件桥（桥需要 exec_id 来替换引擎内部 UUID）
-        let execution = self.start_execution(workflow_id.clone(), variables);
+        let execution =
+            self.start_execution(workflow_id.clone(), variables, working_directory.clone());
         let exec_id = execution.id.clone();
 
         // 4. 创建事件发射器（桥接到 ExecutionService，绑定 exec_id + 预算限制）
@@ -881,6 +888,9 @@ pub struct Execution {
     /// 累计费用（美元）
     #[serde(default)]
     pub total_cost_usd: f64,
+    /// 执行时的工作区路径（用于产物预览）
+    #[serde(default)]
+    pub workspace_path: Option<String>,
 }
 
 impl Execution {
@@ -901,6 +911,7 @@ impl Execution {
             pending_pause: None,
             total_tokens: 0,
             total_cost_usd: 0.0,
+            workspace_path: None,
         }
     }
 

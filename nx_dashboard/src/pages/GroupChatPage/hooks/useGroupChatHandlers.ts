@@ -10,8 +10,8 @@ import {
   DiscussionTurnInfo,
   GroupMessage,
 } from '@/stores/groupChatStore';
-import { showError, showSuccess } from '@/lib/toast';
-import { UseParallelRoundReturn } from './useParallelRound';
+import { showError, showSuccess, showWarning } from '@/lib/toast';
+import { UseParallelRoundReturn, ParallelBotState } from './useParallelRound';
 import { UseAgentExecutionReturn } from '@/hooks/useAgentExecution';
 
 export interface GroupChatHandlerDeps {
@@ -19,6 +19,7 @@ export interface GroupChatHandlerDeps {
   currentSession: GroupSessionDetail | null;
   createSession: (request: CreateGroupSessionRequest) => Promise<GroupSession>;
   deleteSession: (id: string) => Promise<void>;
+  fetchSessions: (teamId?: string) => Promise<void>;
   startDiscussion: (id: string, request: StartDiscussionRequest) => Promise<DiscussionTurnInfo>;
   sendMessage: (id: string, request: SendMessageRequest) => Promise<GroupMessage>;
   getNextSpeaker: (id: string) => Promise<{ role_id: string; role_name: string } | null>;
@@ -53,6 +54,7 @@ export function useGroupChatHandlers(deps: GroupChatHandlerDeps) {
     currentSession,
     createSession,
     deleteSession,
+    fetchSessions,
     startDiscussion,
     sendMessage,
     getNextSpeaker,
@@ -88,6 +90,7 @@ export function useGroupChatHandlers(deps: GroupChatHandlerDeps) {
         consensus_strategy: 'majority',
         max_turns: 10,
       });
+      fetchSessions();
       showSuccess('会话创建成功');
     } catch (err) {
       showError(`创建会话失败: ${(err as Error).message}`);
@@ -111,8 +114,11 @@ export function useGroupChatHandlers(deps: GroupChatHandlerDeps) {
     async (content: string) => {
       if (!selectedSessionId) return;
       try {
+        // Use moderator role_id, or fall back to first participant
+        const fallbackRoleId =
+          currentSession?.participants?.[0]?.role_id || currentSession?.moderator_role_id || '';
         const request: SendMessageRequest = {
-          role_id: currentSession?.moderator_role_id || '',
+          role_id: currentSession?.moderator_role_id || fallbackRoleId,
           content,
         };
         await sendMessage(selectedSessionId, request);
@@ -122,7 +128,14 @@ export function useGroupChatHandlers(deps: GroupChatHandlerDeps) {
         showError(`发送消息失败: ${(err as Error).message}`);
       }
     },
-    [selectedSessionId, currentSession?.moderator_role_id, sendMessage, fetchMessages, browseFiles],
+    [
+      selectedSessionId,
+      currentSession?.moderator_role_id,
+      currentSession?.participants,
+      sendMessage,
+      fetchMessages,
+      browseFiles,
+    ],
   );
 
   const handleExecuteRoleTurn = async (roleId: string) => {
@@ -130,8 +143,9 @@ export function useGroupChatHandlers(deps: GroupChatHandlerDeps) {
     setExecutingRole(roleId);
     try {
       await agentExec.executeRoleTurn(selectedSessionId, roleId);
-    } catch {
+    } catch (err) {
       setExecutingRole(null);
+      showError(`角色执行失败: ${(err as Error).message}`);
     }
   };
 
@@ -144,16 +158,29 @@ export function useGroupChatHandlers(deps: GroupChatHandlerDeps) {
       currentSession.participants?.find((p) => p.role_id === id)?.role_name ?? id;
 
     try {
-      await parallelRound.executeRound(selectedSessionId, roleIds, getRoleName, () => {
+      await parallelRound.executeRound(selectedSessionId, roleIds, getRoleName, (finalBots) => {
         fetchMessages(selectedSessionId);
-        advanceSpeaker(selectedSessionId).then(() =>
-          getNextSpeaker(selectedSessionId).then(setNextSpeaker),
-        );
+        // For parallel rounds, all roles spoke at once — just refresh the next speaker without advancing
+        getNextSpeaker(selectedSessionId).then(setNextSpeaker);
         browseFiles();
+
+        const failedBots = finalBots.filter((b) => b.status === 'failed');
+        if (failedBots.length > 0) {
+          const names = failedBots.map((b) => b.role_name || b.role_id).join('、');
+          const reasons = failedBots
+            .filter((b) => b.error_message)
+            .map((b) => `${b.role_name || b.role_id}: ${b.error_message}`)
+            .join('\n');
+          showWarning(
+            `${failedBots.length} 个角色执行失败`,
+            `失败角色: ${names}${reasons ? `\n${reasons}` : ''}`,
+          );
+        }
+
         setTimeout(() => parallelRound.reset(), 2000);
       });
-    } catch {
-      // Round execution failed
+    } catch (err) {
+      showError(`并行轮次执行失败: ${(err as Error).message}`);
     }
   };
 
@@ -164,8 +191,8 @@ export function useGroupChatHandlers(deps: GroupChatHandlerDeps) {
       setShowConclusionModal(false);
       setConclusionResult(conclusion.content);
       fetchSession(selectedSessionId);
-    } catch {
-      // Failed to conclude discussion
+    } catch (err) {
+      showError(`结束讨论失败: ${(err as Error).message}`);
     }
   };
 
@@ -173,7 +200,10 @@ export function useGroupChatHandlers(deps: GroupChatHandlerDeps) {
     showConfirm(
       '删除讨论会话',
       `确定删除会话 "${session.name}"？`,
-      () => deleteSession(session.id),
+      async () => {
+        await deleteSession(session.id);
+        fetchSessions();
+      },
       'danger',
     );
   };

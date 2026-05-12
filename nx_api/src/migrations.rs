@@ -621,6 +621,8 @@ const COLUMN_MIGRATIONS: &[&str] = &[
     "ALTER TABLE executions ADD COLUMN total_cost_usd REAL NOT NULL DEFAULT 0.0",
     // v2.5: 群组消息 token 统计
     "ALTER TABLE group_messages ADD COLUMN tokens_used INTEGER NOT NULL DEFAULT 0",
+    // v2.6: 执行时的工作区路径
+    "ALTER TABLE executions ADD COLUMN workspace_path TEXT",
 ];
 
 /// Run all schema migrations against the given database path.

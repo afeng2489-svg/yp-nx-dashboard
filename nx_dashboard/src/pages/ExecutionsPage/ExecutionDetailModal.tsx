@@ -20,7 +20,8 @@ export function ExecutionDetailModal({ execution, onClose, onCancel }: Execution
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
   const workflowName = useWorkflowName();
 
-  const config = STATUS_CONFIG[execution.status];
+  const config =
+    STATUS_CONFIG[execution.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.pending;
   const Icon = config.icon;
 
   const toggleStage = (stageName: string) => {

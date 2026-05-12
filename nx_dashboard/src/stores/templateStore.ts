@@ -90,6 +90,8 @@ interface TemplateStore {
     id: string,
     variables?: Record<string, unknown>,
   ) => Promise<InstantiateResponse>;
+  deleteTemplate: (id: string) => Promise<void>;
+  deleteTemplates: (ids: string[]) => Promise<void>;
   setCurrentTemplate: (template: Template | null) => void;
   setSelectedCategory: (category: TemplateCategory | null) => void;
   clearError: () => void;
@@ -238,6 +240,46 @@ export const useTemplateStore = create<TemplateStore>((set) => ({
       set({ error: `Failed to instantiate template: ${message}` });
       throw error;
     }
+  },
+
+  deleteTemplate: async (id: string) => {
+    set({ error: null });
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/templates/${id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        throw new ApiError(`Failed to delete template: ${response.status}`, response.status);
+      }
+      set((state) => ({
+        templates: state.templates.filter((t) => t.id !== id),
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      set({ error: `Failed to delete template: ${message}` });
+      throw error;
+    }
+  },
+
+  deleteTemplates: async (ids: string[]) => {
+    set({ error: null });
+    const errors: string[] = [];
+    for (const id of ids) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/v1/templates/${id}`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) errors.push(id);
+      } catch {
+        errors.push(id);
+      }
+    }
+    if (errors.length > 0) {
+      set({ error: `${errors.length} 个模板删除失败` });
+    }
+    set((state) => ({
+      templates: state.templates.filter((t) => !ids.includes(t.id)),
+    }));
   },
 
   setCurrentTemplate: (template) => set({ currentTemplate: template }),

@@ -42,7 +42,7 @@ export function CreateSessionModal({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">选择团队</SelectItem>
+                <SelectItem value="__select__">选择团队</SelectItem>
                 {teams.map((team) => (
                   <SelectItem key={team.id} value={team.id}>
                     {team.name}
@@ -112,7 +112,12 @@ export function CreateSessionModal({
           </button>
           <button
             onClick={onSubmit}
-            disabled={!createForm.team_id || !createForm.name || !createForm.topic}
+            disabled={
+              !createForm.team_id ||
+              createForm.team_id === '__select__' ||
+              !createForm.name ||
+              !createForm.topic
+            }
             className="btn btn-primary"
           >
             创建

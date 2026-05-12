@@ -204,6 +204,11 @@ impl PtyManager {
         session.state = PtySessionState::Running;
         session.pid = child.process_id();
 
+        // 从 master 取出 reader，用于后台读取输出
+        let reader = pair.master.try_clone_reader().map_err(|e| {
+            PtyError::CreateFailed(format!("无法获取 PTY reader: {}", e))
+        })?;
+
         // 保存会话
         {
             let mut sessions = self.sessions.write();
@@ -227,6 +232,35 @@ impl PtyManager {
             let mut outputs = self.outputs.write();
             outputs.insert(session_id.clone(), Vec::new());
         }
+
+        // 启动后台线程从 PTY master 读取输出
+        let outputs_clone = self.outputs.clone();
+        let sid = session_id.clone();
+        std::thread::spawn(move || {
+            use std::io::Read;
+            let mut reader = reader;
+            let mut buf = [0u8; 4096];
+            loop {
+                match reader.read(&mut buf) {
+                    Ok(0) => break, // EOF
+                    Ok(n) => {
+                        let output = PtyOutput {
+                            session_id: sid.clone(),
+                            data: buf[..n].to_vec(),
+                            is_stdout: true,
+                            timestamp: std::time::Instant::now(),
+                        };
+                        let mut outputs = outputs_clone.write();
+                        if let Some(buffer) = outputs.get_mut(&sid) {
+                            buffer.push(output);
+                        } else {
+                            break; // 会话已清理
+                        }
+                    }
+                    Err(_) => break, // 读取错误（进程退出等）
+                }
+            }
+        });
 
         Ok(session_id)
     }
@@ -280,6 +314,11 @@ impl PtyManager {
         session.state = PtySessionState::Running;
         session.pid = child.process_id();
 
+        // 从 master 取出 reader，用于后台读取输出
+        let reader = pair.master.try_clone_reader().map_err(|e| {
+            PtyError::CreateFailed(format!("无法获取 PTY reader: {}", e))
+        })?;
+
         {
             let mut sessions = self.sessions.write();
             sessions.insert(session_id.clone(), session);
@@ -299,6 +338,35 @@ impl PtyManager {
             let mut outputs = self.outputs.write();
             outputs.insert(session_id.clone(), Vec::new());
         }
+
+        // 启动后台线程从 PTY master 读取输出
+        let outputs_clone = self.outputs.clone();
+        let sid = session_id.clone();
+        std::thread::spawn(move || {
+            use std::io::Read;
+            let mut reader = reader;
+            let mut buf = [0u8; 4096];
+            loop {
+                match reader.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        let output = PtyOutput {
+                            session_id: sid.clone(),
+                            data: buf[..n].to_vec(),
+                            is_stdout: true,
+                            timestamp: std::time::Instant::now(),
+                        };
+                        let mut outputs = outputs_clone.write();
+                        if let Some(buffer) = outputs.get_mut(&sid) {
+                            buffer.push(output);
+                        } else {
+                            break;
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
 
         Ok(session_id)
     }

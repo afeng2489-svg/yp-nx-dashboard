@@ -114,7 +114,7 @@ export function WorkflowTutorialModal({ workflow, onClose }: WorkflowTutorialMod
       ?.flatMap((t) => Object.entries(t.inputs ?? {}))
       .filter(([, v]) => !v.required) ?? [];
 
-  const hasUserInputStage = workflow.stages.some((s) => s.stage_type === 'user_input');
+  const hasUserInputStage = workflow.stages?.some((s) => s.stage_type === 'user_input') ?? false;
 
   const steps: string[] = [];
   if (requiredInputs.length > 0) {

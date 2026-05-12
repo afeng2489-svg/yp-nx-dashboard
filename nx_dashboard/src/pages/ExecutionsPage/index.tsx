@@ -11,9 +11,9 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { ExecutionDetailModal } from './ExecutionDetailModal';
 import { ExecutionCard } from './ExecutionCard';
 import { WorkflowOperationsGuide } from './WorkflowOperationsGuide';
-import { Pagination } from './Pagination';
+import { Pagination } from '@/components/ui/Pagination';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 6;
 const EMPTY_ACTIONS = [
   { label: '前往工作流', onClick: () => (window.location.href = '/workflows') },
   { label: '返回首页', onClick: () => (window.location.href = '/'), variant: 'secondary' as const },

@@ -19,3 +19,5 @@ export { m, fadeUp, fadeIn, scaleIn, staggerContainer } from './motion';
 export { ErrorBoundary } from './ErrorBoundary';
 export { Modal } from './Modal';
 export type { ModalProps } from './Modal';
+export { Pagination } from './Pagination';
+export type { PaginationProps } from './Pagination';

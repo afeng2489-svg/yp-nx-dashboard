@@ -111,9 +111,17 @@ pub async fn get_artifact_by_path(
         Err(e) => return Json(serde_json::json!({ "ok": false, "error": e.to_string() })),
     };
 
-    // 从 workspace 读取实际文件内容
-    let workspace = state.current_workspace_path.read().clone();
-    let Some(workspace_dir) = workspace else {
+    // 优先使用执行时的工作区路径，fallback 到当前工作区
+    let workspace_dir = if let Some(ref repo) = state.execution_repo {
+        repo.find_by_id(&execution_id)
+            .ok()
+            .flatten()
+            .and_then(|e| e.workspace_path)
+            .or_else(|| state.current_workspace_path.read().clone())
+    } else {
+        state.current_workspace_path.read().clone()
+    };
+    let Some(workspace_dir) = workspace_dir else {
         return Json(serde_json::json!({ "ok": false, "error": "未设置工作区" }));
     };
 

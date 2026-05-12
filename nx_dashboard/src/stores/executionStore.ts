@@ -258,6 +258,9 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
   },
 
   cancelExecution: async (id) => {
+    // 保存原始状态用于回滚
+    const prev = get().executions;
+
     // Optimistic update
     set((state) => ({
       executions: state.executions.map((e) =>
@@ -273,10 +276,20 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       if (!response.ok) {
         throw new ApiError(`Failed to cancel execution: ${response.status}`, response.status);
       }
+
+      const result = await response.json();
+      if (!result.success) {
+        // 后端返回失败（如执行不存在），回滚并刷新列表
+        set({ executions: prev });
+        set({ error: result.message || '取消失败，执行可能已结束' });
+        // 刷新列表获取最新状态
+        get().fetchExecutions();
+      }
     } catch (error) {
+      // 回滚乐观更新
+      set({ executions: prev });
       const message = error instanceof Error ? error.message : 'Unknown error';
-      set({ error: `Failed to sync with backend: ${message}` });
-      throw error;
+      set({ error: `取消失败: ${message}` });
     }
   },
 
@@ -501,8 +514,15 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         set((state) => {
           const executions = [...state.executions];
           const idx = executions.findIndex((e) => e.id === event.execution_id);
-          if (idx >= 0 && event.stage_results) {
-            executions[idx] = { ...executions[idx], stage_results: event.stage_results };
+          if (idx >= 0) {
+            const updated = { ...executions[idx] };
+            if (event.status) {
+              updated.status = event.status as Execution['status'];
+            }
+            if (event.stage_results) {
+              updated.stage_results = event.stage_results;
+            }
+            executions[idx] = updated;
           }
           return { executions };
         });

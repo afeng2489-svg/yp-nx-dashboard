@@ -1,15 +1,22 @@
+import { useState } from 'react';
 import { Plus, Download, CheckSquare, Search, Lightbulb } from 'lucide-react';
 import { ConfirmModal } from '@/lib/ConfirmModal';
 import { useSkillsPage } from './hooks';
 import { SkillCard } from './SkillCard';
+import { Pagination } from '@/components/ui/Pagination';
 import { SkillDetailPanel } from './SkillDetailPanel';
 import { SkillEditDialog } from './SkillEditDialog';
 import { SkillExecuteDialog } from './SkillExecuteDialog';
 import { SkillImportDialog } from './SkillImportDialog';
 import { INPUT_CLS } from './types';
 
+const PAGE_SIZE = 6;
+
 export function SkillsPage() {
   const p = useSkillsPage();
+  const [page, setPage] = useState(1);
+  const totalPages = Math.ceil(p.displaySkills.length / PAGE_SIZE);
+  const pagedSkills = p.displaySkills.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <>
@@ -20,7 +27,10 @@ export function SkillsPage() {
               <input
                 type="text"
                 value={p.searchQuery}
-                onChange={(e) => p.setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  p.setSearchQuery(e.target.value);
+                  setPage(1);
+                }}
                 placeholder="搜索技能..."
                 className={INPUT_CLS + ' pl-10'}
               />
@@ -94,7 +104,10 @@ export function SkillsPage() {
                 {p.categories.map((cat) => (
                   <button
                     key={cat}
-                    onClick={() => p.handleCategoryClick(cat)}
+                    onClick={() => {
+                      p.handleCategoryClick(cat);
+                      setPage(1);
+                    }}
                     className={`px-2 py-1 text-xs rounded-full transition-colors ${
                       p.selectedCategory === cat
                         ? 'bg-primary text-primary-foreground'
@@ -116,19 +129,24 @@ export function SkillsPage() {
             ) : p.displaySkills.length === 0 ? (
               <div className="p-4 text-center text-muted-foreground">没有找到技能</div>
             ) : (
-              <div className="divide-y divide-border">
-                {p.displaySkills.map((skill) => (
-                  <SkillCard
-                    key={skill.id}
-                    skill={skill}
-                    multiSelectMode={p.multiSelectMode}
-                    isSelected={p.selectedIds.has(skill.id)}
-                    selectedSkillId={p.selectedSkill?.id}
-                    onSkillClick={p.handleSkillClick}
-                    onToggleSelect={p.toggleSelectOne}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="divide-y divide-border">
+                  {pagedSkills.map((skill) => (
+                    <SkillCard
+                      key={skill.id}
+                      skill={skill}
+                      multiSelectMode={p.multiSelectMode}
+                      isSelected={p.selectedIds.has(skill.id)}
+                      selectedSkillId={p.selectedSkill?.id}
+                      onSkillClick={p.handleSkillClick}
+                      onToggleSelect={p.toggleSelectOne}
+                    />
+                  ))}
+                </div>
+                <div className="p-2 border-t border-border">
+                  <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+                </div>
+              </>
             )}
           </div>
         </div>

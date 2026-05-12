@@ -464,6 +464,8 @@ export function useAgentExecution(): UseAgentExecutionReturn {
   /** Execute a group chat role turn */
   const executeRoleTurn = useCallback(
     async (sessionId: string, roleId: string): Promise<string | null> => {
+      isRunningRef.current = true;
+      reconnectCountRef.current = 0;
       setStatus('started');
       setElapsedSecs(0);
       setPartialOutput('');
@@ -493,12 +495,14 @@ export function useAgentExecution(): UseAgentExecutionReturn {
           connectWs(execId);
           return execId;
         } else {
+          isRunningRef.current = false;
           setStatus('completed');
           setResult(JSON.stringify(data));
           stopLocalTimer();
           return null;
         }
       } catch (err) {
+        isRunningRef.current = false;
         setStatus('failed');
         setError(err instanceof Error ? err.message : 'Unknown error');
         stopLocalTimer();
@@ -510,6 +514,11 @@ export function useAgentExecution(): UseAgentExecutionReturn {
 
   /** Cancel the current execution */
   const cancel = useCallback(() => {
+    isRunningRef.current = false;
+    if (reconnectTimerRef.current !== null) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'cancel' }));
     }
@@ -530,6 +539,11 @@ export function useAgentExecution(): UseAgentExecutionReturn {
 
   /** Reset to idle */
   const reset = useCallback(() => {
+    isRunningRef.current = false;
+    if (reconnectTimerRef.current !== null) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     wsRef.current?.close();
     stopLocalTimer();
     setExecutionId(null);

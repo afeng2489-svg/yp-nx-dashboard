@@ -28,6 +28,9 @@ import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 import { showSuccess, showError } from '@/lib/toast';
 import { API_BASE_URL } from '@/api/constants';
+import { Pagination } from '@/components/ui/Pagination';
+
+const PAGE_SIZE = 6;
 
 // ── 工作流分类 ──────────────────────────────────────────
 type WorkflowCategory = 'all' | 'dev' | 'issue' | 'ui-design';
@@ -382,7 +385,7 @@ function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelP
             <div className="space-y-3">
               {workflow.stages?.map((stage, index) => (
                 <div
-                  key={index}
+                  key={stage.name ?? index}
                   className="bg-gradient-to-r from-indigo-500/5 to-purple-500/5 rounded-xl p-4 border border-indigo-500/10"
                 >
                   <div className="flex items-center gap-2">
@@ -438,7 +441,7 @@ function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelP
                         <span className="text-muted-foreground">依赖:</span>
                         {dependsOnAgents.map((role, i) => (
                           <span
-                            key={i}
+                            key={role ?? i}
                             className="px-2 py-0.5 bg-card rounded border border-border"
                           >
                             {role}
@@ -580,6 +583,7 @@ export function WorkflowsPage() {
   const [tutorialLoading, setTutorialLoading] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<WorkflowCategory>('all');
   const [launchWorkflow, setLaunchWorkflow] = useState<Workflow | null>(null);
+  const [page, setPage] = useState(1);
   const { confirmState, showConfirm, hideConfirm } = useConfirmModal();
 
   // Use React Query for fetching
@@ -666,7 +670,7 @@ export function WorkflowsPage() {
   const handleShowTutorial = async (workflow: Workflow, e: React.MouseEvent) => {
     e.stopPropagation();
     // 如果已有完整数据（stages 不为空），直接展示
-    if (workflow.stages.length > 0) {
+    if ((workflow.stages?.length ?? 0) > 0) {
       setTutorialWorkflow(workflow);
       return;
     }
@@ -734,7 +738,10 @@ export function WorkflowsPage() {
           return (
             <button
               key={cat}
-              onClick={() => setActiveCategory(cat)}
+              onClick={() => {
+                setActiveCategory(cat);
+                setPage(1);
+              }}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all border',
                 activeCategory === cat
@@ -788,138 +795,149 @@ export function WorkflowsPage() {
           </button>
         </div>
       ) : (
-        <div className="grid gap-4 stagger-children">
-          {displayWorkflows
-            .filter(
-              (w) => activeCategory === 'all' || getWorkflowCategory(w.name) === activeCategory,
-            )
-            .map((workflow) => (
-              <div
-                key={workflow.id}
-                className={cn(
-                  'bg-card rounded-2xl border border-border/50 p-5',
-                  'hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20',
-                  'transition-all duration-200 cursor-pointer group',
-                  'hover:-translate-y-0.5',
-                )}
-                onClick={(e) => handleCardClick(workflow, e)}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2 flex-wrap">
-                      <h3 className="font-semibold text-lg group-hover:text-indigo-600 transition-colors">
-                        {workflow.name}
-                      </h3>
-                      <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 text-xs font-medium">
-                        v{workflow.version}
-                      </span>
-                      {workflow.id.startsWith('sample-') && (
-                        <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 text-xs font-medium border border-amber-500/30">
-                          示例
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      {workflow.description || '无描述'}
-                    </p>
-
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gradient-to-r from-indigo-500/10 to-purple-500/10 text-xs font-medium text-indigo-600 border border-indigo-500/20">
-                        <GitBranch className="w-3 h-3" />
-                        {workflow.stage_count ?? workflow.stages?.length ?? 0} 阶段
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10 text-xs font-medium text-purple-600 border border-purple-500/20">
-                        <Users className="w-3 h-3" />
-                        {workflow.agent_count ?? workflow.agents?.length ?? 0} 智能体
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Clock className="w-3 h-3" />
-                        {workflow.updated_at
-                          ? new Date(workflow.updated_at).toLocaleString('zh-CN', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : '未知'}
-                      </span>
-                    </div>
-                  </div>
-
+        (() => {
+          const filteredWorkflows = displayWorkflows.filter(
+            (w) => activeCategory === 'all' || getWorkflowCategory(w.name) === activeCategory,
+          );
+          const totalPages = Math.ceil(filteredWorkflows.length / PAGE_SIZE);
+          const pagedWorkflows = filteredWorkflows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+          return (
+            <>
+              <div className="grid gap-4 stagger-children">
+                {pagedWorkflows.map((workflow) => (
                   <div
-                    className="flex items-center gap-2 ml-4"
-                    onClick={(e) => e.stopPropagation()}
+                    key={workflow.id}
+                    className={cn(
+                      'bg-card rounded-2xl border border-border/50 p-5',
+                      'hover:shadow-lg hover:shadow-primary/5 hover:border-primary/20',
+                      'transition-all duration-200 cursor-pointer group',
+                      'hover:-translate-y-0.5',
+                    )}
+                    onClick={(e) => handleCardClick(workflow, e)}
                   >
-                    <button
-                      onClick={(e) => handleShowTutorial(workflow, e)}
-                      disabled={tutorialLoading === workflow.id}
-                      className={cn(
-                        'p-2.5 rounded-xl transition-all duration-200',
-                        'bg-gradient-to-r from-sky-500 to-blue-500',
-                        'text-white shadow-lg shadow-sky-500/25',
-                        'hover:shadow-sky-500/40 hover:-translate-y-0.5 active:translate-y-0',
-                      )}
-                      title="查看使用教程"
-                    >
-                      {tutorialLoading === workflow.id ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
-                    <button
-                      onClick={(e) => handleExecute(workflow, e)}
-                      disabled={executingIds.has(workflow.id)}
-                      className={cn(
-                        'p-2.5 rounded-xl transition-all duration-200',
-                        executingIds.has(workflow.id)
-                          ? 'bg-gray-400 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-emerald-500 to-green-500 hover:shadow-emerald-500/40 hover:-translate-y-0.5 active:translate-y-0',
-                        'text-white shadow-lg shadow-emerald-500/25',
-                      )}
-                      title="执行"
-                    >
-                      {executingIds.has(workflow.id) ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <Play className="w-4 h-4" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => handleEdit(workflow)}
-                      className={cn(
-                        'p-2.5 rounded-xl transition-all duration-200',
-                        'bg-gradient-to-r from-indigo-500 to-purple-500',
-                        'text-white shadow-lg shadow-indigo-500/25',
-                        'hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0',
-                      )}
-                      title="编辑"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      className={cn(
-                        'p-2.5 rounded-xl transition-all duration-200',
-                        'hover:bg-red-500/10 text-muted-foreground hover:text-red-500',
-                        'hover:-translate-y-0.5',
-                      )}
-                      title="删除"
-                      onClick={() => {
-                        showConfirm(
-                          '删除工作流',
-                          `确定删除工作流 "${workflow.name}"？`,
-                          () => deleteWorkflow(workflow.id),
-                          'danger',
-                        );
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-2 flex-wrap">
+                          <h3 className="font-semibold text-lg group-hover:text-indigo-600 transition-colors">
+                            {workflow.name}
+                          </h3>
+                          <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 text-xs font-medium">
+                            v{workflow.version}
+                          </span>
+                          {workflow.id.startsWith('sample-') && (
+                            <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 text-xs font-medium border border-amber-500/30">
+                              示例
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          {workflow.description || '无描述'}
+                        </p>
+
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gradient-to-r from-indigo-500/10 to-purple-500/10 text-xs font-medium text-indigo-600 border border-indigo-500/20">
+                            <GitBranch className="w-3 h-3" />
+                            {workflow.stage_count ?? workflow.stages?.length ?? 0} 阶段
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10 text-xs font-medium text-purple-600 border border-purple-500/20">
+                            <Users className="w-3 h-3" />
+                            {workflow.agent_count ?? workflow.agents?.length ?? 0} 智能体
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Clock className="w-3 h-3" />
+                            {workflow.updated_at
+                              ? new Date(workflow.updated_at).toLocaleString('zh-CN', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : '未知'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div
+                        className="flex items-center gap-2 ml-4"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          onClick={(e) => handleShowTutorial(workflow, e)}
+                          disabled={tutorialLoading === workflow.id}
+                          className={cn(
+                            'p-2.5 rounded-xl transition-all duration-200',
+                            'bg-gradient-to-r from-sky-500 to-blue-500',
+                            'text-white shadow-lg shadow-sky-500/25',
+                            'hover:shadow-sky-500/40 hover:-translate-y-0.5 active:translate-y-0',
+                          )}
+                          title="查看使用教程"
+                        >
+                          {tutorialLoading === workflow.id ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={(e) => handleExecute(workflow, e)}
+                          disabled={executingIds.has(workflow.id)}
+                          className={cn(
+                            'p-2.5 rounded-xl transition-all duration-200',
+                            executingIds.has(workflow.id)
+                              ? 'bg-gray-400 cursor-not-allowed'
+                              : 'bg-gradient-to-r from-emerald-500 to-green-500 hover:shadow-emerald-500/40 hover:-translate-y-0.5 active:translate-y-0',
+                            'text-white shadow-lg shadow-emerald-500/25',
+                          )}
+                          title="执行"
+                        >
+                          {executingIds.has(workflow.id) ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Play className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleEdit(workflow)}
+                          className={cn(
+                            'p-2.5 rounded-xl transition-all duration-200',
+                            'bg-gradient-to-r from-indigo-500 to-purple-500',
+                            'text-white shadow-lg shadow-indigo-500/25',
+                            'hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0',
+                          )}
+                          title="编辑"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          className={cn(
+                            'p-2.5 rounded-xl transition-all duration-200',
+                            'hover:bg-red-500/10 text-muted-foreground hover:text-red-500',
+                            'hover:-translate-y-0.5',
+                          )}
+                          title="删除"
+                          onClick={() => {
+                            showConfirm(
+                              '删除工作流',
+                              `确定删除工作流 "${workflow.name}"？`,
+                              async () => {
+                                await deleteWorkflow(workflow.id);
+                                refetch();
+                              },
+                              'danger',
+                            );
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
-            ))}
-        </div>
+              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+            </>
+          );
+        })()
       )}
 
       {detailLoading && (

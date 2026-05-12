@@ -225,16 +225,6 @@ pub async fn execute_round(
             .agent_execution_manager
             .register_cancel_token(&execution_id, cancel_token.clone());
 
-        let _ = state.agent_execution_manager.event_sender().send(
-            crate::ws::agent_execution::AgentExecutionEvent::Started {
-                execution_id: execution_id.clone(),
-                agent_role: role_id.clone(),
-                task_summary: format!("Parallel round: {}", role_id),
-                role_id: Some(role_id.clone()),
-                session_id: None,
-            },
-        );
-
         let service = state.group_chat_service.clone();
         let exec_id = execution_id.clone();
         let role = role_id.clone();
@@ -244,9 +234,19 @@ pub async fn execute_round(
 
         // Spawn each bot concurrently — all run at the same time
         tokio::spawn(async move {
+            // Send Started event INSIDE the spawned task so WS clients have time to connect
+            let started = crate::ws::agent_execution::AgentExecutionEvent::Started {
+                execution_id: exec_id.clone(),
+                agent_role: role.clone(),
+                task_summary: format!("Parallel round: {}", role),
+                role_id: Some(role.clone()),
+                session_id: Some(session_id.clone()),
+            };
+            let _ = tx.send(started);
+
             let start = std::time::Instant::now();
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
-            interval.tick().await;
+            interval.tick().await; // skip immediate first tick
 
             let task_future = service.execute_role_turn(&session_id, &role);
             tokio::pin!(task_future);
@@ -261,9 +261,11 @@ pub async fn execute_round(
                         });
                     }
                     _ = cancel_token.cancelled() => {
-                        let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Cancelled {
+                        let event = crate::ws::agent_execution::AgentExecutionEvent::Cancelled {
                             execution_id: exec_id.clone(),
-                        });
+                        };
+                        manager.cache_terminal_event(event.clone());
+                        let _ = tx.send(event);
                         manager.remove_execution(&exec_id);
                         return;
                     }
@@ -273,17 +275,21 @@ pub async fn execute_round(
             match result {
                 Ok(message) => {
                     let result_str = serde_json::to_string(&message).unwrap_or_default();
-                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Completed {
+                    let event = crate::ws::agent_execution::AgentExecutionEvent::Completed {
                         execution_id: exec_id.clone(),
                         result: result_str,
                         duration_ms: start.elapsed().as_millis() as u64,
-                    });
+                    };
+                    manager.cache_terminal_event(event.clone());
+                    let _ = tx.send(event);
                 }
                 Err(e) => {
-                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Failed {
+                    let event = crate::ws::agent_execution::AgentExecutionEvent::Failed {
                         execution_id: exec_id.clone(),
                         error: e.to_string(),
-                    });
+                    };
+                    manager.cache_terminal_event(event.clone());
+                    let _ = tx.send(event);
                 }
             }
             manager.remove_execution(&exec_id);
@@ -336,6 +342,16 @@ pub async fn execute_role_turn(
     let manager = state.agent_execution_manager.clone();
 
     tokio::spawn(async move {
+        // Send Started event INSIDE the spawned task so WS clients have time to connect
+        let started = crate::ws::agent_execution::AgentExecutionEvent::Started {
+            execution_id: exec_id.clone(),
+            agent_role: role_id.clone(),
+            task_summary: format!("Role turn: {}", role_id),
+            role_id: Some(role_id.clone()),
+            session_id: Some(id.clone()),
+        };
+        let _ = tx.send(started);
+
         let start = std::time::Instant::now();
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
         interval.tick().await;
@@ -353,9 +369,11 @@ pub async fn execute_role_turn(
                     });
                 }
                 _ = cancel_token.cancelled() => {
-                    let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Cancelled {
+                    let event = crate::ws::agent_execution::AgentExecutionEvent::Cancelled {
                         execution_id: exec_id.clone(),
-                    });
+                    };
+                    manager.cache_terminal_event(event.clone());
+                    let _ = tx.send(event);
                     manager.remove_execution(&exec_id);
                     return;
                 }
@@ -365,17 +383,21 @@ pub async fn execute_role_turn(
         match result {
             Ok(message) => {
                 let result_str = serde_json::to_string(&message).unwrap_or_default();
-                let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Completed {
+                let event = crate::ws::agent_execution::AgentExecutionEvent::Completed {
                     execution_id: exec_id.clone(),
                     result: result_str,
                     duration_ms: start.elapsed().as_millis() as u64,
-                });
+                };
+                manager.cache_terminal_event(event.clone());
+                let _ = tx.send(event);
             }
             Err(e) => {
-                let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Failed {
+                let event = crate::ws::agent_execution::AgentExecutionEvent::Failed {
                     execution_id: exec_id.clone(),
                     error: e.to_string(),
-                });
+                };
+                manager.cache_terminal_event(event.clone());
+                let _ = tx.send(event);
             }
         }
         manager.remove_execution(&exec_id);

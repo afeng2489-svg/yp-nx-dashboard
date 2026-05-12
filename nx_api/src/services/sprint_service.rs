@@ -108,6 +108,13 @@ impl SprintService {
             .context("list sprint_events")
     }
 
+    pub fn delete(&self, id: &str) -> anyhow::Result<()> {
+        let conn = self.conn.lock();
+        conn.execute("DELETE FROM sprint_events WHERE sprint_id=?1", params![id])?;
+        conn.execute("DELETE FROM sprint_cards WHERE id=?1", params![id])?;
+        Ok(())
+    }
+
     pub fn seed_from_progress_json(&self, json_path: &str) -> anyhow::Result<()> {
         let content =
             std::fs::read_to_string(json_path).with_context(|| format!("read {json_path}"))?;

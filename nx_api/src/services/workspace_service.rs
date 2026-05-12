@@ -681,11 +681,23 @@ impl WorkspaceService {
             })
             .unwrap_or((0, 0));
 
+        // Check if working tree has any changes
+        let dirty_output = std::process::Command::new("git")
+            .args(["status", "--porcelain"])
+            .current_dir(&root)
+            .output();
+
+        let is_dirty = dirty_output
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| !String::from_utf8_lossy(&o.stdout).trim().is_empty())
+            .unwrap_or(false);
+
         Ok(GitStatus {
             branch,
             ahead,
             behind,
-            is_dirty: true, // Simplified - just check if there are changes
+            is_dirty,
         })
     }
 }

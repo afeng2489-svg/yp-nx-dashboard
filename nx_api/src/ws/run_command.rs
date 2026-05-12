@@ -47,7 +47,7 @@ impl RunCommandWsHandler {
     pub async fn handle(&self, socket: WebSocket) {
         let (mut sender, mut receiver) = socket.split();
         let (output_tx, mut output_rx) = mpsc::channel::<String>(256);
-        let (cancel_tx, _) = mpsc::channel::<()>(1);
+        let (cancel_tx, _cancel_rx) = mpsc::channel::<()>(1);
 
         loop {
             tokio::select! {

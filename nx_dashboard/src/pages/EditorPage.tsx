@@ -43,32 +43,40 @@ export function EditorPage() {
 
     nodes.forEach((node) => {
       if (node.data.type === 'agent') {
-        const config = node.data.config as { role: string; model: string; prompt: string };
+        const config = (node.data.config ?? {}) as {
+          role?: string;
+          model?: string;
+          prompt?: string;
+        };
         const agentId = node.id;
-        nodeIdToRole[node.id] = config.role;
+        nodeIdToRole[node.id] = config.role ?? '';
         agents.push({
           id: agentId,
-          role: config.role,
-          model: config.model,
-          prompt: config.prompt,
+          role: config.role ?? '',
+          model: config.model ?? '',
+          prompt: config.prompt ?? '',
           depends_on: edges
             .filter((e) => e.target === node.id)
             .map((e) => nodeIdToRole[e.source])
             .filter(Boolean),
         });
       } else if (node.data.type === 'stage') {
-        const config = node.data.config as { name: string; parallel: boolean; agents: string[] };
+        const config = (node.data.config ?? {}) as {
+          name?: string;
+          parallel?: boolean;
+          agents?: string[];
+        };
         const stageAgents = nodes
           .filter(
             (n) =>
               n.data.type === 'agent' &&
               edges.some((e) => e.source === node.id && e.target === n.id),
           )
-          .map((n) => (n.data.config as { role: string }).role);
+          .map((n) => ((n.data.config ?? {}) as { role?: string }).role ?? '');
         stages.push({
-          name: config.name,
+          name: config.name ?? '',
           agents: stageAgents,
-          parallel: config.parallel,
+          parallel: config.parallel ?? false,
         });
       }
     });

@@ -255,6 +255,10 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
   },
 
   deleteSession: async (id: string) => {
+    // Save previous state for rollback
+    const prev = get();
+    const deletedSession = prev.sessions.find((s) => s.id === id);
+
     // Optimistic update
     set((state) => ({
       sessions: state.sessions.filter((s) => s.id !== id),
@@ -270,6 +274,12 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
         throw new ApiError(`Failed to delete session: ${response.status}`, response.status);
       }
     } catch (error) {
+      // Rollback optimistic update (only sessions list, not currentSession which needs Detail type)
+      if (deletedSession) {
+        set((state) => ({
+          sessions: [...state.sessions, deletedSession],
+        }));
+      }
       const message = error instanceof Error ? error.message : 'Unknown error';
       set({ error: `Failed to delete session: ${message}` });
       throw error;
@@ -372,9 +382,10 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
         throw new ApiError(`Failed to execute role turn: ${response.status}`, response.status);
       }
 
-      const message: GroupMessage = unwrapEnvelope(await response.json());
-      set((state) => ({ messages: [...state.messages, message] }));
-      return message;
+      // Backend returns { execution_id, status } — not a GroupMessage.
+      // Actual message arrives via WebSocket. Return the execution metadata.
+      const data: { execution_id: string; status: string } = unwrapEnvelope(await response.json());
+      return data as unknown as GroupMessage;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       set({ error: `Failed to execute role turn: ${message}` });
@@ -400,7 +411,7 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
 
       const conclusion: GroupConclusion = unwrapEnvelope(await response.json());
       // Refresh the session to get updated status
-      get().fetchSession(id);
+      await get().fetchSession(id);
       return conclusion;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';

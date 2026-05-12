@@ -954,6 +954,24 @@ fn get_embedded_template_summaries() -> Vec<TemplateSummary> {
         .collect()
 }
 
+/// 删除模板（仅支持文件系统模板）
+pub async fn delete_template(
+    State(_state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let templates_path = get_templates_path();
+    let template_path = templates_path.join(format!("{}.yaml", id));
+
+    if !template_path.exists() {
+        return Err(AppError::NotFound(format!("Template '{}' not found", id)));
+    }
+
+    fs::remove_file(&template_path).map_err(|e| AppError::Internal(e.to_string()))?;
+    tracing::info!("Deleted template '{}' at {:?}", id, template_path);
+
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 /// 按类别列出模板
 pub async fn list_templates_by_category(
     State(_state): State<Arc<AppState>>,

@@ -4,6 +4,7 @@ import { Plus, Trash2, Edit, Search, Bot, Loader2, X, Sparkles } from 'lucide-re
 import { ConfirmModal } from '@/lib/ConfirmModal';
 import { showError } from '@/lib/toast';
 import { SkillAssigner } from '@/components/team/SkillAssigner';
+import { Pagination } from '@/components/ui/Pagination';
 import { API_BASE_URL } from '@/api/constants';
 import {
   Select,
@@ -14,6 +15,7 @@ import {
 } from '@/components/ui/select';
 
 const API_BASE = API_BASE_URL;
+const PAGE_SIZE = 6;
 
 interface RoleWithTeam extends Role {
   teamName?: string;
@@ -33,6 +35,7 @@ export function RolesPage() {
   const [newRoleTeamId, setNewRoleTeamId] = useState('');
   const [newRoleInstructions, setNewRoleInstructions] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<RoleWithTeam | null>(null);
+  const [page, setPage] = useState(1);
   const [skillManageRole, setSkillManageRole] = useState<RoleWithTeam | null>(null);
   const [roleSkills, setRoleSkills] = useState<Record<string, string[]>>({});
 
@@ -153,7 +156,7 @@ export function RolesPage() {
     if (!newRoleName) return;
     try {
       // Use first team as default if none selected, or allow global creation
-      const teamId = newRoleTeamId || teams[0]?.id;
+      const teamId = newRoleTeamId && newRoleTeamId !== '__global__' ? newRoleTeamId : teams[0]?.id;
       if (!teamId) {
         alert('请先创建一个团队');
         return;
@@ -224,7 +227,10 @@ export function RolesPage() {
             type="text"
             placeholder="搜索角色名称或描述..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setPage(1);
+            }}
             className="w-full pl-10 pr-4 py-2 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
@@ -241,89 +247,96 @@ export function RolesPage() {
       </div>
 
       {/* Roles Grid */}
-      {filteredRoles.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <Bot className="w-12 h-12 mx-auto mb-4 opacity-50" />
-          <p>暂无角色</p>
-          <p className="text-sm mt-1">点击上方按钮创建第一个角色</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredRoles.map((role) => (
-            <div
-              key={role.id}
-              className="border rounded-lg p-4 bg-card hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Bot className="w-5 h-5 text-primary" />
+      {(() => {
+        const totalPages = Math.ceil(filteredRoles.length / PAGE_SIZE);
+        const pagedRoles = filteredRoles.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+        return filteredRoles.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <Bot className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p>暂无角色</p>
+            <p className="text-sm mt-1">点击上方按钮创建第一个角色</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {pagedRoles.map((role) => (
+                <div
+                  key={role.id}
+                  className="border rounded-lg p-4 bg-card hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Bot className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">{role.name}</h3>
+                        <p className="text-sm text-muted-foreground">全局角色</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleOpenSkillManager(role)}
+                        className="p-1.5 hover:bg-accent rounded-md transition-colors"
+                        title="分配技能"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleEditRole(role)}
+                        className="p-1.5 hover:bg-accent rounded-md transition-colors"
+                        title="编辑"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setConfirmDelete(role)}
+                        className="p-1.5 hover:bg-destructive/10 text-destructive rounded-md transition-colors"
+                        title="删除"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold">{role.name}</h3>
-                    <p className="text-sm text-muted-foreground">全局角色</p>
-                  </div>
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => handleOpenSkillManager(role)}
-                    className="p-1.5 hover:bg-accent rounded-md transition-colors"
-                    title="分配技能"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleEditRole(role)}
-                    className="p-1.5 hover:bg-accent rounded-md transition-colors"
-                    title="编辑"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setConfirmDelete(role)}
-                    className="p-1.5 hover:bg-destructive/10 text-destructive rounded-md transition-colors"
-                    title="删除"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
 
-              {role.description && (
-                <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                  {role.description}
-                </p>
-              )}
-
-              {role.instructions && (
-                <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
-                  指令: {role.instructions}
-                </p>
-              )}
-
-              {role.skills && role.skills.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-3">
-                  {role.skills.slice(0, 3).map((skill, idx) => (
-                    <span key={idx} className="px-2 py-0.5 text-xs bg-secondary rounded-md">
-                      {skill}
-                    </span>
-                  ))}
-                  {role.skills.length > 3 && (
-                    <span className="px-2 py-0.5 text-xs text-muted-foreground">
-                      +{role.skills.length - 3}
-                    </span>
+                  {role.description && (
+                    <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                      {role.description}
+                    </p>
                   )}
-                </div>
-              )}
 
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>模型: {role.model || '默认'}</span>
-                {role.temperature && <span>温度: {role.temperature}</span>}
-              </div>
+                  {role.instructions && (
+                    <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
+                      指令: {role.instructions}
+                    </p>
+                  )}
+
+                  {role.skills && role.skills.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {role.skills.slice(0, 3).map((skill, idx) => (
+                        <span key={idx} className="px-2 py-0.5 text-xs bg-secondary rounded-md">
+                          {skill}
+                        </span>
+                      ))}
+                      {role.skills.length > 3 && (
+                        <span className="px-2 py-0.5 text-xs text-muted-foreground">
+                          +{role.skills.length - 3}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>模型: {role.model || '默认'}</span>
+                    {role.temperature && <span>温度: {role.temperature}</span>}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+          </>
+        );
+      })()}
 
       {/* Create Role Modal */}
       {showCreateModal && (
@@ -347,7 +360,7 @@ export function RolesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">全局角色 (不关联团队)</SelectItem>
+                    <SelectItem value="__global__">全局角色 (不关联团队)</SelectItem>
                     {teams.map((team) => (
                       <SelectItem key={team.id} value={team.id}>
                         {team.name}

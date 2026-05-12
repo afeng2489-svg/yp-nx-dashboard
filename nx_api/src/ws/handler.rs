@@ -349,6 +349,7 @@ impl WebSocketHandler {
                 let execution = execution_service.start_execution(
                     workflow_id.clone(),
                     variables.unwrap_or_else(|| serde_json::json!({})),
+                    None,
                 );
 
                 session.subscriptions.insert(execution.id.clone());

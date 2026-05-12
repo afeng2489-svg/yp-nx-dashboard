@@ -274,6 +274,7 @@ export function FileSidebar() {
     gitDiffs,
     gitStatus,
     diffsLoading,
+    diffsError,
     getFileDiff,
   } = useWorkspaceStore();
 
@@ -482,9 +483,28 @@ export function FileSidebar() {
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
+            ) : diffsError ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <AlertCircle className="w-8 h-8 text-red-400/50 mb-2" />
+                <p className="text-sm text-red-400">{diffsError}</p>
+                <button
+                  onClick={() => {
+                    const store = useWorkspaceStore.getState();
+                    store.fetchGitDiffs();
+                    store.fetchGitStatus();
+                  }}
+                  className="mt-2 text-xs text-primary hover:underline"
+                >
+                  重试
+                </button>
+              </div>
             ) : gitDiffs.length === 0 ? (
               <div className="text-center py-8 text-sm text-muted-foreground">
-                {searchQuery ? '未找到匹配的变更' : '暂无变更'}
+                {searchQuery
+                  ? '未找到匹配的变更'
+                  : gitStatus
+                    ? '暂无变更'
+                    : '当前目录不是 Git 仓库或暂无变更'}
               </div>
             ) : (
               gitDiffs

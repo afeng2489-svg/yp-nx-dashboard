@@ -89,11 +89,11 @@ const navGroups: NavGroup[] = [
   {
     label: 'AI 团队',
     items: [
-      { id: 'teams', label: '团队', icon: Users, path: '/teams' },
+      // { id: 'teams', label: '团队', icon: Users, path: '/teams' },
+      { id: 'teams-v2', label: '团队 CLI', icon: Users, path: '/teams-v2' },
       { id: 'roles', label: '角色', icon: Bot, path: '/roles' },
       { id: 'group-chat', label: '群组讨论', icon: MessageSquare, path: '/group-chat' },
       { id: 'processes', label: '进程监测', icon: Activity, path: '/processes' },
-      { id: 'teams-v2', label: '团队 CLI', icon: Users, path: '/teams-v2' },
     ],
   },
   {

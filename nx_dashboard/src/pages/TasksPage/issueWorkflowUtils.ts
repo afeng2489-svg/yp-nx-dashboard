@@ -28,6 +28,7 @@ export async function triggerIssueWorkflow(
 
   try {
     const detailRes = await fetch(`${API_BASE_URL}/api/v1/workflows/${wf.id}`);
+    if (!detailRes.ok) throw new Error(`获取工作流详情失败: HTTP ${detailRes.status}`);
     const wfFull = await detailRes.json();
     const variables = action === 'queue' ? { issue_ids: issue.id } : { issue_id: issue.id };
 
@@ -52,6 +53,7 @@ export async function triggerDiscoverWorkflow(workflows: Workflow[]): Promise<vo
   }
   try {
     const detailRes = await fetch(`${API_BASE_URL}/api/v1/workflows/${wf.id}`);
+    if (!detailRes.ok) throw new Error(`获取工作流详情失败: HTTP ${detailRes.status}`);
     const wfFull = await detailRes.json();
     const res = await fetch(`${API_BASE_URL}/api/v1/workflows/${wf.id}/execute`, {
       method: 'POST',

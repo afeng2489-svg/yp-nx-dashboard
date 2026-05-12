@@ -10,6 +10,9 @@ import {
   Server,
   Settings,
   AlertCircle,
+  Maximize2,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -17,6 +20,7 @@ import { useCommandRunner, OutputLine } from '@/hooks/useCommandRunner';
 import { useServiceRunner } from '@/hooks/useServiceRunner';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { API_BASE_URL } from '@/api/constants';
+import { Modal } from '@/components/ui/Modal';
 
 interface ScriptEntry {
   name: string;
@@ -50,7 +54,7 @@ const COMMON_COMMANDS: ScriptEntry[] = [
 export function ProjectRunner() {
   const { currentWorkspace } = useWorkspaceStore();
   const runner = useCommandRunner();
-  const { services, updateService } = useSettingsStore();
+  const { services, updateService, setServices } = useSettingsStore();
 
   // One service runner per configured service (max 4 for simplicity — hooks must be called unconditionally)
   const svc0 = useServiceRunner();
@@ -62,6 +66,7 @@ export function ProjectRunner() {
   const [scripts, setScripts] = useState<ScriptEntry[]>([]);
   const [projectType, setProjectType] = useState('unknown');
   const [scriptsLoading, setScriptsLoading] = useState(false);
+  const [scriptsError, setScriptsError] = useState<string | null>(null);
   const [customCommand, setCustomCommand] = useState('');
   const [showScripts, setShowScripts] = useState(true);
   const [showCommon, setShowCommon] = useState(true);
@@ -71,6 +76,9 @@ export function ProjectRunner() {
     command: '',
     cwd: '',
   });
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [expandedService, setExpandedService] = useState<string | null>(null);
 
   const outputEndRef = useRef<HTMLDivElement>(null);
 
@@ -91,12 +99,10 @@ export function ProjectRunner() {
         if (!res.ok) return;
         const data: { services: { id: string; name: string; command: string; cwd: string }[] } =
           await res.json();
-        data.services.forEach((detected) => {
-          const existing = services.find((s) => s.id === detected.id);
-          if (existing && !existing.cwd) {
-            updateService(detected.id, { command: detected.command, cwd: detected.cwd });
-          }
-        });
+        // 用检测到的服务直接替换，保留最多 4 个槽位
+        if (data.services.length > 0) {
+          setServices(data.services.slice(0, 4));
+        }
       } catch {
         // ignore
       }
@@ -116,15 +122,19 @@ export function ProjectRunner() {
 
     const fetchScripts = async () => {
       setScriptsLoading(true);
+      setScriptsError(null);
       try {
         const res = await fetch(`${API_BASE_URL}/api/v1/workspaces/${currentWorkspace.id}/scripts`);
         if (res.ok) {
           const data: ScriptsResponse = await res.json();
           setScripts(data.scripts);
           setProjectType(data.project_type);
+        } else {
+          const body = await res.text().catch(() => '');
+          setScriptsError(body || `加载脚本失败 (${res.status})`);
         }
-      } catch {
-        // ignore
+      } catch (error) {
+        setScriptsError(error instanceof Error ? error.message : '网络错误');
       } finally {
         setScriptsLoading(false);
       }
@@ -197,6 +207,14 @@ export function ProjectRunner() {
 
       {/* Scripts section */}
       <div className="border-b">
+        {/* Script error */}
+        {scriptsError && (
+          <div className="px-3 py-2 text-xs text-red-400 flex items-center gap-1.5">
+            <AlertCircle className="w-3 h-3 shrink-0" />
+            <span className="truncate">{scriptsError}</span>
+          </div>
+        )}
+
         {/* Detected project scripts */}
         {scripts.length > 0 && (
           <>
@@ -367,11 +385,34 @@ export function ProjectRunner() {
                     </div>
                   </div>
 
-                  {/* Last output line */}
+                  {/* Last output line + expand */}
                   {runner2.lastLine && !isEditing && (
-                    <p className="text-[10px] text-muted-foreground font-mono truncate px-0.5">
-                      {runner2.lastLine}
-                    </p>
+                    <div className="flex items-center gap-1 px-0.5">
+                      <p className="text-[10px] text-muted-foreground font-mono truncate flex-1">
+                        {runner2.lastLine}
+                      </p>
+                      {runner2.exitCode !== null && (
+                        <span
+                          className={cn(
+                            'text-[9px] px-1 py-0.5 rounded font-medium shrink-0',
+                            runner2.exitCode === 0
+                              ? 'bg-green-500/15 text-green-500'
+                              : 'bg-red-500/15 text-red-500',
+                          )}
+                        >
+                          exit {runner2.exitCode}
+                        </span>
+                      )}
+                      {runner2.output.length > 0 && (
+                        <button
+                          onClick={() => setExpandedService(svc.id)}
+                          className="p-0.5 rounded hover:bg-accent transition-colors shrink-0"
+                          title="查看完整日志"
+                        >
+                          <Maximize2 className="w-2.5 h-2.5 text-muted-foreground" />
+                        </button>
+                      )}
+                    </div>
                   )}
 
                   {/* Edit config */}
@@ -458,21 +499,45 @@ export function ProjectRunner() {
 
       {/* Output panel */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        {runner.output.length > 0 && (
-          <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/30">
+        <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/30">
+          <div className="flex items-center gap-2 min-w-0">
             <span className="text-xs text-muted-foreground">
               输出日志
               {runner.pid && <span className="ml-1">(PID: {runner.pid})</span>}
             </span>
-            <button
-              onClick={runner.clear}
-              className="p-0.5 rounded hover:bg-accent transition-colors"
-              title="清除"
-            >
-              <Trash2 className="w-3 h-3 text-muted-foreground" />
-            </button>
+            {runner.exitCode !== null && (
+              <span
+                className={cn(
+                  'text-[10px] px-1.5 py-0.5 rounded font-medium',
+                  runner.exitCode === 0
+                    ? 'bg-green-500/15 text-green-500'
+                    : 'bg-red-500/15 text-red-500',
+                )}
+              >
+                exit {runner.exitCode}
+              </span>
+            )}
           </div>
-        )}
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={() => setIsExpanded(true)}
+              className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded hover:bg-accent transition-colors text-muted-foreground"
+              title="展开详情"
+            >
+              <Maximize2 className="w-3 h-3" />
+              展开
+            </button>
+            {runner.output.length > 0 && (
+              <button
+                onClick={runner.clear}
+                className="p-0.5 rounded hover:bg-accent transition-colors"
+                title="清除"
+              >
+                <Trash2 className="w-3 h-3 text-muted-foreground" />
+              </button>
+            )}
+          </div>
+        </div>
         <div className="flex-1 overflow-y-auto p-2 font-mono text-xs leading-relaxed bg-black/5 dark:bg-black/20">
           {runner.output.length === 0 && !runner.isRunning && (
             <div className="flex flex-col items-center justify-center h-full text-center">
@@ -492,15 +557,167 @@ export function ProjectRunner() {
           <div ref={outputEndRef} />
         </div>
       </div>
+
+      {/* Expanded output modal */}
+      <Modal
+        isOpen={isExpanded}
+        onClose={() => setIsExpanded(false)}
+        title="命令输出详情"
+        size="full"
+        footer={
+          <div className="flex items-center gap-2 w-full">
+            {runner.exitCode !== null && (
+              <span
+                className={cn(
+                  'text-xs px-2 py-1 rounded font-medium',
+                  runner.exitCode === 0
+                    ? 'bg-green-500/15 text-green-500'
+                    : 'bg-red-500/15 text-red-500',
+                )}
+              >
+                进程退出 (code: {runner.exitCode})
+              </span>
+            )}
+            {runner.error && (
+              <span className="text-xs text-red-400 truncate flex-1">{runner.error}</span>
+            )}
+            <div className="flex gap-2 ml-auto">
+              <button
+                onClick={() => {
+                  const text = runner.output.map((l) => l.data).join('\n');
+                  navigator.clipboard.writeText(text);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border hover:bg-accent transition-colors"
+              >
+                {copied ? (
+                  <Check className="w-3 h-3 text-green-500" />
+                ) : (
+                  <Copy className="w-3 h-3" />
+                )}
+                {copied ? '已复制' : '复制全部'}
+              </button>
+              <button
+                onClick={() => setIsExpanded(false)}
+                className="px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        }
+      >
+        <div className="font-mono text-sm leading-relaxed space-y-0.5 bg-black/5 dark:bg-black/20 rounded-lg p-4 max-h-[60vh] overflow-y-auto">
+          {runner.output.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">暂无输出</p>
+          ) : (
+            runner.output.map((line, i) => <OutputLineComponent key={i} line={line} expanded />)
+          )}
+          {runner.isRunning && (
+            <div className="flex items-center gap-1.5 text-muted-foreground mt-2">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>运行中...</span>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Service output modal */}
+      {expandedService &&
+        (() => {
+          const svcIdx = services.findIndex((s) => s.id === expandedService);
+          const svcRunner = svcIdx >= 0 ? svcRunners[svcIdx] : null;
+          const svcName = svcIdx >= 0 ? services[svcIdx].name : '';
+          if (!svcRunner) return null;
+          return (
+            <Modal
+              isOpen
+              onClose={() => setExpandedService(null)}
+              title={`${svcName} — 运行日志`}
+              size="full"
+              footer={
+                <div className="flex items-center gap-2 w-full">
+                  {svcRunner.exitCode !== null && (
+                    <span
+                      className={cn(
+                        'text-xs px-2 py-1 rounded font-medium',
+                        svcRunner.exitCode === 0
+                          ? 'bg-green-500/15 text-green-500'
+                          : 'bg-red-500/15 text-red-500',
+                      )}
+                    >
+                      进程退出 (code: {svcRunner.exitCode})
+                    </span>
+                  )}
+                  {svcRunner.error && (
+                    <span className="text-xs text-red-400 truncate flex-1">{svcRunner.error}</span>
+                  )}
+                  <div className="flex gap-2 ml-auto">
+                    <button
+                      onClick={() => {
+                        const text = svcRunner.output.map((l) => l.data).join('\n');
+                        navigator.clipboard.writeText(text);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border hover:bg-accent transition-colors"
+                    >
+                      {copied ? (
+                        <Check className="w-3 h-3 text-green-500" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                      {copied ? '已复制' : '复制全部'}
+                    </button>
+                    <button
+                      onClick={() => setExpandedService(null)}
+                      className="px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                    >
+                      关闭
+                    </button>
+                  </div>
+                </div>
+              }
+            >
+              <div className="font-mono text-sm leading-relaxed space-y-0.5 bg-black/5 dark:bg-black/20 rounded-lg p-4 max-h-[60vh] overflow-y-auto">
+                {svcRunner.output.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">暂无输出</p>
+                ) : (
+                  svcRunner.output.map((line, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        'whitespace-pre-wrap break-words',
+                        line.type === 'stderr' && 'text-red-400',
+                        line.type === 'system' && 'text-blue-400 font-medium',
+                        line.type === 'stdout' && 'text-foreground',
+                      )}
+                    >
+                      {line.data}
+                    </div>
+                  ))
+                )}
+                {(svcRunner.status === 'running' || svcRunner.status === 'starting') && (
+                  <div className="flex items-center gap-1.5 text-muted-foreground mt-2">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>运行中...</span>
+                  </div>
+                )}
+              </div>
+            </Modal>
+          );
+        })()}
     </div>
   );
 }
 
-function OutputLineComponent({ line }: { line: OutputLine }) {
+function OutputLineComponent({ line, expanded = false }: { line: OutputLine; expanded?: boolean }) {
   return (
     <div
       className={cn(
-        'whitespace-pre-wrap break-all',
+        'whitespace-pre-wrap',
+        expanded ? 'break-words' : 'break-all',
         line.type === 'stderr' && 'text-red-400',
         line.type === 'system' && 'text-blue-400 font-medium',
         line.type === 'stdout' && 'text-foreground',

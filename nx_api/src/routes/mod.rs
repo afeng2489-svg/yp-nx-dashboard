@@ -1226,6 +1226,7 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         .route("/api/v1/templates", get(templates::list_templates))
         .route("/api/v1/templates", post(templates::create_template))
         .route("/api/v1/templates/:id", get(templates::get_template))
+        .route("/api/v1/templates/:id", delete(templates::delete_template))
         .route(
             "/api/v1/templates/:id/instantiate",
             post(templates::instantiate_template),

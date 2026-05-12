@@ -34,6 +34,7 @@ pub trait GroupChatRepository: Send + Sync {
     ) -> Result<Vec<GroupSession>, GroupChatRepositoryError>;
     fn get_all_sessions(&self) -> Result<Vec<GroupSession>, GroupChatRepositoryError>;
     fn update_session(&self, session: &GroupSession) -> Result<(), GroupChatRepositoryError>;
+    fn increment_turn(&self, session_id: &str) -> Result<(), GroupChatRepositoryError>;
     fn delete_session(&self, id: &str) -> Result<(), GroupChatRepositoryError>;
 
     // Message operations
@@ -254,10 +255,29 @@ impl GroupChatRepository for SqliteGroupChatRepository {
         Ok(())
     }
 
+    fn increment_turn(&self, session_id: &str) -> Result<(), GroupChatRepositoryError> {
+        self.conn.lock().execute(
+            "UPDATE group_sessions SET current_turn = current_turn + 1, updated_at = ?2 WHERE id = ?1",
+            params![session_id, Utc::now().to_rfc3339()],
+        )?;
+        Ok(())
+    }
+
     fn delete_session(&self, id: &str) -> Result<(), GroupChatRepositoryError> {
-        self.conn
-            .lock()
-            .execute("DELETE FROM group_sessions WHERE id = ?1", params![id])?;
+        let conn = self.conn.lock();
+        conn.execute(
+            "DELETE FROM group_messages WHERE session_id = ?1",
+            params![id],
+        )?;
+        conn.execute(
+            "DELETE FROM group_participants WHERE session_id = ?1",
+            params![id],
+        )?;
+        conn.execute(
+            "DELETE FROM group_conclusions WHERE session_id = ?1",
+            params![id],
+        )?;
+        conn.execute("DELETE FROM group_sessions WHERE id = ?1", params![id])?;
         Ok(())
     }
 
@@ -294,10 +314,12 @@ impl GroupChatRepository for SqliteGroupChatRepository {
 
         let query = if before.is_some() {
             "SELECT id, session_id, role_id, role_name, content, tool_calls, reply_to, turn_number, created_at, tokens_used
-             FROM group_messages WHERE session_id = ?1 AND id < ?2 ORDER BY id DESC LIMIT ?3"
+             FROM group_messages WHERE session_id = ?1
+             AND created_at < (SELECT created_at FROM group_messages WHERE id = ?2)
+             ORDER BY created_at DESC LIMIT ?3"
         } else {
             "SELECT id, session_id, role_id, role_name, content, tool_calls, reply_to, turn_number, created_at, tokens_used
-             FROM group_messages WHERE session_id = ?1 ORDER BY id DESC LIMIT ?2"
+             FROM group_messages WHERE session_id = ?1 ORDER BY created_at DESC LIMIT ?2"
         };
 
         let conn = self.conn.lock();

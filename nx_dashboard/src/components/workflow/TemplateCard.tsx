@@ -6,6 +6,9 @@ interface TemplateCardProps {
   template: TemplateSummary;
   onLaunch: () => void;
   variant?: 'default' | 'compact';
+  multiSelectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }
 
 const categoryColors: Record<string, string> = {
@@ -18,7 +21,14 @@ const categoryColors: Record<string, string> = {
   writing: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
 };
 
-export function TemplateCard({ template, onLaunch, variant = 'default' }: TemplateCardProps) {
+export function TemplateCard({
+  template,
+  onLaunch,
+  variant = 'default',
+  multiSelectMode,
+  isSelected,
+  onToggleSelect,
+}: TemplateCardProps) {
   const categoryColorClass = categoryColors[template.category] || categoryColors.planning;
 
   if (variant === 'compact') {
@@ -46,9 +56,27 @@ export function TemplateCard({ template, onLaunch, variant = 'default' }: Templa
   }
 
   return (
-    <div className="p-5 rounded-xl border border-border bg-card hover:border-primary/50 hover:shadow-md transition-all">
+    <div
+      className={cn(
+        'p-5 rounded-xl border bg-card hover:border-primary/50 hover:shadow-md transition-all',
+        isSelected ? 'border-primary ring-1 ring-primary/30' : 'border-border',
+      )}
+    >
       {/* Header */}
       <div className="flex items-start gap-3 mb-4">
+        {multiSelectMode && (
+          <label
+            className="flex items-center cursor-pointer mt-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={!!isSelected}
+              onChange={onToggleSelect}
+              className="w-4 h-4 accent-primary rounded"
+            />
+          </label>
+        )}
         <div className={cn('p-2.5 rounded-lg border', categoryColorClass)}>
           <Play className="w-5 h-5" />
         </div>

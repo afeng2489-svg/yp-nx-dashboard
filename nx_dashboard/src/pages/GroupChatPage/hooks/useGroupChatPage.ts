@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   useGroupChatStore,
   CreateGroupSessionRequest,
@@ -73,6 +73,7 @@ export function useGroupChatPage() {
     currentSession,
     createSession: store.createSession,
     deleteSession: store.deleteSession,
+    fetchSessions: store.fetchSessions,
     startDiscussion: store.startDiscussion,
     sendMessage: store.sendMessage,
     getNextSpeaker: store.getNextSpeaker,
@@ -104,13 +105,16 @@ export function useGroupChatPage() {
     if (selectedSessionId) {
       fetchSession(selectedSessionId);
       fetchMessages(selectedSessionId);
-      const interval = setInterval(async () => {
-        const speaker = await getNextSpeaker(selectedSessionId);
-        setNextSpeaker(speaker);
-      }, 5000);
-      return () => clearInterval(interval);
+      // Only poll for active sessions
+      if (currentSession?.status === 'active') {
+        const interval = setInterval(async () => {
+          const speaker = await getNextSpeaker(selectedSessionId);
+          setNextSpeaker(speaker);
+        }, 5000);
+        return () => clearInterval(interval);
+      }
     }
-  }, [selectedSessionId, fetchSession, fetchMessages, getNextSpeaker]);
+  }, [selectedSessionId, currentSession?.status, fetchSession, fetchMessages, getNextSpeaker]);
 
   useEffect(() => {
     if (currentSession?.team_id && !roles[currentSession.team_id]) {
@@ -123,6 +127,15 @@ export function useGroupChatPage() {
     fetchTeams();
   }, [fetchSkills, fetchTeams]);
 
+  const handleExecuteRoleTurnRef = useRef(handlers.handleExecuteRoleTurn);
+  handleExecuteRoleTurnRef.current = handlers.handleExecuteRoleTurn;
+
+  // Refs to avoid stale closures in the completion handler
+  const selectedSessionIdRef = useRef(selectedSessionId);
+  selectedSessionIdRef.current = selectedSessionId;
+  const executingRoleRef = useRef(executingRole);
+  executingRoleRef.current = executingRole;
+
   useEffect(() => {
     if (
       autoMode &&
@@ -131,19 +144,23 @@ export function useGroupChatPage() {
       !executingRole &&
       !isAgentActive
     ) {
-      handlers.handleExecuteRoleTurn(nextSpeaker.role_id);
+      handleExecuteRoleTurnRef.current(nextSpeaker.role_id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoMode, currentSession?.status, nextSpeaker, executingRole, isAgentActive]);
 
   useEffect(() => {
-    if (agentExec.status === 'completed' && selectedSessionId && executingRole) {
+    if (
+      agentExec.status === 'completed' &&
+      selectedSessionIdRef.current &&
+      executingRoleRef.current
+    ) {
       (async () => {
+        const sid = selectedSessionIdRef.current!;
         try {
-          await store.advanceSpeaker(selectedSessionId);
-          const speaker = await getNextSpeaker(selectedSessionId);
+          await store.advanceSpeaker(sid);
+          const speaker = await getNextSpeaker(sid);
           setNextSpeaker(speaker);
-          fetchMessages(selectedSessionId);
+          fetchMessages(sid);
           browseFiles();
         } catch {
           // Post-execution refresh failed
@@ -156,8 +173,7 @@ export function useGroupChatPage() {
       setExecutingRole(null);
       agentExec.reset();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentExec.status]);
+  }, [agentExec.status, store, getNextSpeaker, fetchMessages, browseFiles, agentExec]);
 
   return {
     // State

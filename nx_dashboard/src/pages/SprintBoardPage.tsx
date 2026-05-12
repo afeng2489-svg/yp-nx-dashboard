@@ -1,6 +1,10 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { API_BASE_URL } from '@/api/constants';
 import { cn } from '@/lib/utils';
+import { Trash2, RefreshCw, Clock, AlertCircle, List } from 'lucide-react';
+import { ConfirmModal } from '@/lib/ConfirmModal';
+import { Pagination } from '@/components/ui/Pagination';
 import {
   Select,
   SelectTrigger,
@@ -19,6 +23,15 @@ interface SprintCard {
   updated_at: string;
 }
 
+const STATUS_TABS = [
+  { key: 'all', label: '全部' },
+  { key: 'pending', label: '待开始' },
+  { key: 'in_progress', label: '进行中' },
+  { key: 'completed', label: '已完成' },
+  { key: 'skipped', label: '跳过' },
+  { key: 'blocked', label: '阻塞' },
+] as const;
+
 const STATUS_COLORS: Record<string, string> = {
   completed: 'bg-green-500/20 text-green-400 border-green-500/30',
   in_progress: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
@@ -27,12 +40,22 @@ const STATUS_COLORS: Record<string, string> = {
   blocked: 'bg-red-500/20 text-red-400 border-red-500/30',
 };
 
-const PRIORITY_COLORS: Record<string, string> = {
-  P0: 'bg-red-500/20 text-red-400',
-  P1: 'bg-orange-500/20 text-orange-400',
-  P2: 'bg-blue-500/20 text-blue-400',
-  P3: 'bg-zinc-500/20 text-zinc-400',
+const STATUS_LABELS: Record<string, string> = {
+  pending: '待开始',
+  in_progress: '进行中',
+  completed: '已完成',
+  skipped: '跳过',
+  blocked: '阻塞',
 };
+
+const PRIORITY_COLORS: Record<string, string> = {
+  P0: 'bg-red-500/20 text-red-400 border-red-500/30',
+  P1: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+  P2: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  P3: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
+};
+
+const PAGE_SIZE = 15;
 
 async function fetchSprints(): Promise<SprintCard[]> {
   const res = await fetch(`${API_BASE_URL}/api/v1/sprints`);
@@ -41,11 +64,17 @@ async function fetchSprints(): Promise<SprintCard[]> {
 }
 
 async function patchStatus(id: string, status: string) {
-  await fetch(`${API_BASE_URL}/api/v1/sprints/${id}/status`, {
+  const res = await fetch(`${API_BASE_URL}/api/v1/sprints/${id}/status`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status }),
   });
+  if (!res.ok) throw new Error('patch status failed');
+}
+
+async function deleteSprint(id: string) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/sprints/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('delete failed');
 }
 
 export function SprintBoardPage() {
@@ -56,97 +85,229 @@ export function SprintBoardPage() {
     staleTime: 0,
   });
 
-  const mutation = useMutation({
+  const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => patchStatus(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['sprints'] }),
   });
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">加载中...</div>
-    );
-  }
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteSprint(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sprints'] }),
+  });
 
-  const byStatus = (s: string) => sprints.filter((c) => c.status === s);
-  const columns = [
-    { key: 'pending', label: '待开始' },
-    { key: 'in_progress', label: '进行中' },
-    { key: 'completed', label: '已完成' },
-    { key: 'skipped', label: '跳过' },
-    { key: 'blocked', label: '阻塞' },
-  ];
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const [confirmDelete, setConfirmDelete] = useState<SprintCard | null>(null);
+
+  const statusCounts = STATUS_TABS.reduce(
+    (acc, { key }) => {
+      acc[key] = key === 'all' ? sprints.length : sprints.filter((s) => s.status === key).length;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+  const filtered =
+    statusFilter === 'all' ? sprints : sprints.filter((s) => s.status === statusFilter);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const handleFilterChange = (key: string) => {
+    setStatusFilter(key);
+    setPage(1);
+  };
 
   return (
-    <div className="p-6 space-y-4">
-      <h1 className="text-xl font-bold">Sprint 看板</h1>
-      <p className="text-sm text-muted-foreground">共 {sprints.length} 个 Sprint</p>
+    <div className="page-container space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+              Sprint 看板
+            </span>
+          </h1>
+          <p className="text-muted-foreground mt-1">共 {sprints.length} 个 Sprint</p>
+        </div>
+        <button
+          onClick={() => qc.invalidateQueries({ queryKey: ['sprints'] })}
+          className="btn-secondary flex items-center gap-2"
+        >
+          <RefreshCw className="w-4 h-4" />
+          刷新
+        </button>
+      </div>
 
-      <div className="grid grid-cols-5 gap-3">
-        {columns.map(({ key, label }) => (
-          <div key={key} className="space-y-2">
-            <div
-              className={cn('text-xs font-semibold px-2 py-1 rounded border', STATUS_COLORS[key])}
+      <div className="flex items-center gap-1 bg-accent/50 rounded-xl p-1 w-fit">
+        {STATUS_TABS.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => handleFilterChange(key)}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+              statusFilter === key
+                ? 'bg-card shadow-sm text-foreground'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {label}
+            <span
+              className={cn(
+                'px-1.5 py-0.5 rounded-full text-[11px] font-medium',
+                statusFilter === key
+                  ? 'bg-indigo-500/10 text-indigo-600'
+                  : 'bg-muted text-muted-foreground',
+              )}
             >
-              {label} ({byStatus(key).length})
-            </div>
-            {byStatus(key).map((card) => (
-              <SprintCardItem
-                key={card.id}
-                card={card}
-                onStatusChange={(status) => mutation.mutate({ id: card.id, status })}
-              />
-            ))}
-          </div>
+              {statusCounts[key]}
+            </span>
+          </button>
         ))}
       </div>
-    </div>
-  );
-}
 
-function SprintCardItem({
-  card,
-  onStatusChange,
-}: {
-  card: SprintCard;
-  onStatusChange: (s: string) => void;
-}) {
-  const data = (() => {
-    try {
-      return JSON.parse(card.data_json);
-    } catch {
-      return {};
-    }
-  })();
+      {isLoading && sprints.length === 0 && (
+        <div className="animate-pulse space-y-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="h-14 bg-muted rounded-xl" />
+          ))}
+        </div>
+      )}
 
-  return (
-    <div className="rounded-lg border border-border/50 bg-card p-3 space-y-2 text-sm">
-      <div className="font-medium leading-snug">{card.title}</div>
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <span
-          className={cn(
-            'text-[10px] px-1.5 py-0 rounded border',
-            PRIORITY_COLORS[card.priority] ?? '',
-          )}
-        >
-          {card.priority}
-        </span>
-        {card.estimated_hours > 0 && (
-          <span className="text-[10px] text-muted-foreground">{card.estimated_hours}h</span>
-        )}
-      </div>
-      {data.why && <p className="text-[11px] text-muted-foreground line-clamp-2">{data.why}</p>}
-      <Select value={card.status} onValueChange={(v) => onStatusChange(v)}>
-        <SelectTrigger className="h-7 text-[11px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="pending">待开始</SelectItem>
-          <SelectItem value="in_progress">进行中</SelectItem>
-          <SelectItem value="completed">已完成</SelectItem>
-          <SelectItem value="skipped">跳过</SelectItem>
-          <SelectItem value="blocked">阻塞</SelectItem>
-        </SelectContent>
-      </Select>
+      {filtered.length === 0 && !isLoading ? (
+        <div className="text-center py-16 bg-gradient-to-b from-card to-accent/20 rounded-2xl border border-border/50">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 flex items-center justify-center">
+            <List className="w-10 h-10 text-indigo-500" />
+          </div>
+          <h3 className="text-lg font-semibold mb-2">暂无 Sprint</h3>
+          <p className="text-muted-foreground text-sm">
+            {statusFilter === 'all'
+              ? '还没有创建任何 Sprint'
+              : `没有「${STATUS_LABELS[statusFilter] ?? statusFilter}」状态的 Sprint`}
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/50 bg-accent/30">
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">标题</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground w-24">
+                    优先级
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground w-28">
+                    状态
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground w-24">
+                    预估
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground w-36">
+                    更新时间
+                  </th>
+                  <th className="text-right px-4 py-3 font-medium text-muted-foreground w-20">
+                    操作
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {paged.map((card) => {
+                  const data = (() => {
+                    try {
+                      return JSON.parse(card.data_json);
+                    } catch {
+                      return {};
+                    }
+                  })();
+
+                  return (
+                    <tr
+                      key={card.id}
+                      className="border-b border-border/30 last:border-0 hover:bg-accent/30 transition-colors group"
+                    >
+                      <td className="px-4 py-3">
+                        <p className="font-medium truncate max-w-md">{card.title}</p>
+                        {data.why && (
+                          <p className="text-xs text-muted-foreground truncate max-w-md mt-0.5">
+                            {data.why}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={cn(
+                            'px-2 py-0.5 rounded-full text-xs font-medium border',
+                            PRIORITY_COLORS[card.priority] ?? '',
+                          )}
+                        >
+                          {card.priority}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Select
+                          value={card.status}
+                          onValueChange={(v) => statusMutation.mutate({ id: card.id, status: v })}
+                        >
+                          <SelectTrigger className="h-7 text-xs w-24">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">待开始</SelectItem>
+                            <SelectItem value="in_progress">进行中</SelectItem>
+                            <SelectItem value="completed">已完成</SelectItem>
+                            <SelectItem value="skipped">跳过</SelectItem>
+                            <SelectItem value="blocked">阻塞</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {card.estimated_hours > 0 ? `${card.estimated_hours}h` : '-'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>
+                            {new Date(card.updated_at).toLocaleString('zh-CN', {
+                              month: 'numeric',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => setConfirmDelete(card)}
+                          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all opacity-0 group-hover:opacity-100"
+                          title="删除"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        </>
+      )}
+
+      <ConfirmModal
+        isOpen={!!confirmDelete}
+        title="删除 Sprint"
+        message={`确定删除 "${confirmDelete?.title}"？此操作无法撤销。`}
+        confirmText="删除"
+        cancelText="取消"
+        variant="danger"
+        onConfirm={() => {
+          if (confirmDelete) deleteMutation.mutate(confirmDelete.id);
+          setConfirmDelete(null);
+        }}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   );
 }

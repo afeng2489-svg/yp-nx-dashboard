@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { X, Play, Loader2 } from 'lucide-react';
+import { X, Play, Loader2, CheckSquare, Trash2 } from 'lucide-react';
 import { TemplateCard, TemplateCardSkeleton } from '@/components/workflow/TemplateCard';
 import {
   useTemplateStore,
@@ -12,6 +12,10 @@ import {
 } from '@/stores/templateStore';
 import { useExecutionStore } from '@/stores/executionStore';
 import { cn } from '@/lib/utils';
+import { ConfirmModal } from '@/lib/ConfirmModal';
+import { Pagination } from '@/components/ui/Pagination';
+
+const PAGE_SIZE = 6;
 
 // ── Launch Dialog ─────────────────────────────────────────
 interface LaunchDialogProps {
@@ -132,10 +136,16 @@ export function TemplatesPage() {
     fetchTemplatesByCategory,
     getTemplate,
     instantiateTemplate,
+    deleteTemplates,
   } = useTemplateStore();
   const { startExecution } = useExecutionStore();
 
   const [launchingTemplate, setLaunchingTemplate] = useState<Template | null>(null);
+  const [page, setPage] = useState(1);
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchTemplates();
@@ -143,10 +153,45 @@ export function TemplatesPage() {
   }, []);
 
   const handleCategoryChange = (category: TemplateCategory | 'all') => {
+    setPage(1);
     if (category === 'all') {
       fetchTemplates();
     } else {
       fetchTemplatesByCategory(category);
+    }
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const paged = templates.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    if (paged.every((t) => selectedIds.has(t.id))) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(paged.map((t) => t.id)));
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setDeleting(true);
+    try {
+      await deleteTemplates([...selectedIds]);
+      toast.success(`已删除 ${selectedIds.size} 个模板`);
+      setSelectedIds(new Set());
+      setMultiSelectMode(false);
+    } catch {
+      toast.error('删除失败');
+    } finally {
+      setDeleting(false);
+      setConfirmBatchDelete(false);
     }
   };
 
@@ -187,6 +232,46 @@ export function TemplatesPage() {
         <div>
           <h1 className="text-2xl font-bold">工作流模板</h1>
           <p className="text-sm text-muted-foreground mt-1">选择模板直接启动执行</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {multiSelectMode && (
+            <>
+              <button
+                onClick={toggleSelectAll}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg hover:bg-accent transition-colors"
+              >
+                {templates
+                  .slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+                  .every((t) => selectedIds.has(t.id))
+                  ? '取消全选'
+                  : '全选'}
+                <span className="text-xs text-muted-foreground ml-1">({selectedIds.size})</span>
+              </button>
+              <button
+                onClick={() => setConfirmBatchDelete(true)}
+                disabled={selectedIds.size === 0 || deleting}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm text-destructive border border-destructive/30 rounded-lg hover:bg-destructive/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-4 h-4" />
+                {deleting ? '删除中...' : '删除所选'}
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => {
+              setMultiSelectMode(!multiSelectMode);
+              if (multiSelectMode) setSelectedIds(new Set());
+            }}
+            className={cn(
+              'flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg border transition-colors',
+              multiSelectMode
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-background text-muted-foreground border-border hover:bg-accent',
+            )}
+            title={multiSelectMode ? '退出多选' : '多选'}
+          >
+            <CheckSquare className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -231,17 +316,30 @@ export function TemplatesPage() {
             <p>暂无模板</p>
           </div>
         )}
-        {!loading && !error && templates.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {templates.map((template) => (
-              <TemplateCard
-                key={template.id}
-                template={template}
-                onLaunch={() => handleLaunch(template)}
-              />
-            ))}
-          </div>
-        )}
+        {!loading &&
+          !error &&
+          templates.length > 0 &&
+          (() => {
+            const totalPages = Math.ceil(templates.length / PAGE_SIZE);
+            const pagedTemplates = templates.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+            return (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {pagedTemplates.map((template) => (
+                    <TemplateCard
+                      key={template.id}
+                      template={template}
+                      onLaunch={() => handleLaunch(template)}
+                      multiSelectMode={multiSelectMode}
+                      isSelected={selectedIds.has(template.id)}
+                      onToggleSelect={() => toggleSelectOne(template.id)}
+                    />
+                  ))}
+                </div>
+                <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+              </>
+            );
+          })()}
       </div>
 
       {/* Launch Dialog */}
@@ -252,6 +350,18 @@ export function TemplatesPage() {
           onLaunch={handleExecute}
         />
       )}
+
+      {/* Batch Delete Confirm */}
+      <ConfirmModal
+        isOpen={confirmBatchDelete}
+        title="批量删除模板"
+        message={`确定删除选中的 ${selectedIds.size} 个模板？此操作无法撤销。`}
+        confirmText="删除"
+        cancelText="取消"
+        variant="danger"
+        onConfirm={handleBatchDelete}
+        onCancel={() => setConfirmBatchDelete(false)}
+      />
     </div>
   );
 }

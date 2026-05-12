@@ -32,8 +32,8 @@ impl SqliteExecutionRepository {
     pub fn insert(&self, execution: &Execution) -> Result<(), ExecutionRepositoryError> {
         let conn = self.conn.lock();
         conn.execute(
-            "INSERT INTO executions (id, workflow_id, status, variables, error, started_at, finished_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO executions (id, workflow_id, status, variables, error, started_at, finished_at, workspace_path)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 execution.id,
                 execution.workflow_id,
@@ -42,6 +42,7 @@ impl SqliteExecutionRepository {
                 execution.error,
                 execution.started_at.map(|t| t.to_rfc3339()),
                 execution.finished_at.map(|t| t.to_rfc3339()),
+                execution.workspace_path,
             ],
         )?;
         Ok(())
@@ -326,6 +327,7 @@ fn row_to_execution(row: &rusqlite::Row) -> rusqlite::Result<Execution> {
         pending_pause: None,
         total_tokens: row.get::<_, i64>(7).unwrap_or(0),
         total_cost_usd: row.get::<_, f64>(8).unwrap_or(0.0),
+        workspace_path: row.get(9).unwrap_or(None),
     })
 }
 

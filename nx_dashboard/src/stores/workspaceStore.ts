@@ -116,6 +116,7 @@ interface WorkspaceStore {
   gitDiffs: GitDiff[];
   gitStatus: GitStatus | null;
   diffsLoading: boolean;
+  diffsError: string | null;
   fetchGitDiffs: () => Promise<void>;
   getFileDiff: (filePath: string) => Promise<string>;
   fetchGitStatus: () => Promise<void>;
@@ -174,6 +175,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       gitDiffs: [],
       gitStatus: null,
       diffsLoading: false,
+      diffsError: null,
       openFiles: [],
       activeFilePath: null,
 
@@ -514,11 +516,11 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       fetchGitDiffs: async () => {
         const workspace = get().currentWorkspace;
         if (!workspace?.id) {
-          set({ gitDiffs: [] });
+          set({ gitDiffs: [], diffsError: null });
           return;
         }
 
-        set({ diffsLoading: true });
+        set({ diffsLoading: true, diffsError: null });
         try {
           const response = await fetchWithTimeout(
             `${API_BASE}/api/v1/workspaces/${workspace.id}/diffs`,
@@ -526,12 +528,15 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             10000,
           );
           if (!response.ok) {
-            throw new ApiError(`Failed to fetch git diffs: ${response.status}`, response.status);
+            const body = await response.text().catch(() => '');
+            const msg = body || `请求失败 (${response.status})`;
+            throw new ApiError(msg, response.status);
           }
           const diffs: GitDiff[] = unwrapEnvelope(await response.json());
-          set({ gitDiffs: diffs, diffsLoading: false });
-        } catch {
-          set({ gitDiffs: [], diffsLoading: false });
+          set({ gitDiffs: diffs, diffsLoading: false, diffsError: null });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '获取变更失败';
+          set({ gitDiffs: [], diffsLoading: false, diffsError: message });
         }
       },
 
@@ -571,7 +576,9 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             10000,
           );
           if (!response.ok) {
-            throw new ApiError(`Failed to fetch git status: ${response.status}`, response.status);
+            // Not a git repo or other error — clear status silently
+            set({ gitStatus: null });
+            return;
           }
           const status: GitStatus = unwrapEnvelope(await response.json());
           set({ gitStatus: status });

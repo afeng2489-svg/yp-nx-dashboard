@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, State},
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -17,6 +17,7 @@ pub fn sprint_routes() -> Router<Arc<AppState>> {
         .route("/:id/events", get(list_events))
         .route("/:id/events", post(add_event))
         .route("/:id/report", get(get_report))
+        .route("/:id", delete(delete_sprint))
 }
 
 async fn list_sprints(State(state): State<Arc<AppState>>) -> Result<Json<Vec<SprintCard>>, String> {
@@ -133,6 +134,17 @@ async fn add_event(
     state
         .sprint_service
         .record_event(&event)
+        .map_err(|e| e.to_string())?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+async fn delete_sprint(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, String> {
+    state
+        .sprint_service
+        .delete(&id)
         .map_err(|e| e.to_string())?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }

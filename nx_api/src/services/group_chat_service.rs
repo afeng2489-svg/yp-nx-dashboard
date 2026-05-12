@@ -79,9 +79,10 @@ impl HistoryContext {
                 decisions.push(format!("[{}]: {}", speaker, Self::truncate(content, 100)));
             }
 
-            // 收集主题关键词（简化处理：取每条消息的前50字作为主题）
-            if !topics.iter().any(|t: &String| t.contains(content)) {
-                topics.push(format!("[{}]: {}", speaker, Self::truncate(content, 80)));
+            // 收集主题关键词（取每条消息的前80字作为主题）
+            let topic = Self::truncate(content, 80);
+            if !topics.iter().any(|t: &String| t.contains(&topic)) {
+                topics.push(format!("[{}]: {}", speaker, topic));
             }
         }
 
@@ -110,12 +111,17 @@ impl HistoryContext {
         summary
     }
 
-    /// 截断字符串到指定长度
+    /// 截断字符串到指定长度（UTF-8 安全，不会在多字节字符中间截断）
     fn truncate(s: &str, max_len: usize) -> String {
-        if s.len() <= max_len {
+        if s.chars().count() <= max_len {
             s.to_string()
         } else {
-            format!("{}...", &s[..max_len.saturating_sub(3)])
+            let end = s
+                .char_indices()
+                .nth(max_len.saturating_sub(3))
+                .map(|(i, _)| i)
+                .unwrap_or(s.len());
+            format!("{}...", &s[..end])
         }
     }
 
@@ -294,6 +300,12 @@ impl GroupChatService {
         session_id: &str,
         request: StartDiscussionRequest,
     ) -> Result<DiscussionTurnInfo, GroupChatServiceError> {
+        if request.participant_role_ids.is_empty() {
+            return Err(GroupChatServiceError::SessionNotActive(
+                "参与者列表不能为空".to_string(),
+            ));
+        }
+
         let mut session = self.get_session(session_id).await?;
 
         if session.status != GroupStatus::Pending {
@@ -342,14 +354,21 @@ impl GroupChatService {
                 }
             }
             SpeakingStrategy::Debate => {
-                // Two sides alternate
-                let mid = request.participant_role_ids.len() / 2;
-                let mut order = Vec::new();
-                for i in 0..mid {
-                    if i < request.participant_role_ids.len() - mid {
-                        order.push(request.participant_role_ids[mid + i].clone());
+                // Two sides alternate — side B first, then side A
+                let ids = &request.participant_role_ids;
+                let mid = (ids.len() + 1) / 2;
+                let mut order = Vec::with_capacity(ids.len());
+                let mut i = 0;
+                let mut j = mid;
+                while i < mid || j < ids.len() {
+                    if j < ids.len() {
+                        order.push(ids[j].clone());
+                        j += 1;
                     }
-                    order.push(request.participant_role_ids[i].clone());
+                    if i < mid {
+                        order.push(ids[i].clone());
+                        i += 1;
+                    }
                 }
                 order
             }
@@ -369,12 +388,15 @@ impl GroupChatService {
         }
 
         let next_speaker = speaking_order.first().cloned();
+        let next_speaker_name = next_speaker
+            .as_ref()
+            .and_then(|id| role_name_map.get(id).cloned());
 
         Ok(DiscussionTurnInfo {
             current_turn: 0,
             max_turns: session.max_turns,
-            next_speaker_role_id: next_speaker.clone(),
-            next_speaker_role_name: next_speaker,
+            next_speaker_role_id: next_speaker,
+            next_speaker_role_name: next_speaker_name,
             speaking_order,
         })
     }
@@ -492,10 +514,8 @@ impl GroupChatService {
         // Update participant
         self.update_participant_stats(session_id, role_id).await?;
 
-        // Update session turn
-        let mut updated_session = session.clone();
-        updated_session.current_turn += 1;
-        self.repo.update_session(&updated_session)?;
+        // Atomic turn increment — safe for parallel execution
+        self.repo.increment_turn(session_id)?;
 
         Ok(message)
     }
@@ -538,7 +558,9 @@ impl GroupChatService {
     pub async fn advance_speaker(&self, session_id: &str) -> Result<(), GroupChatServiceError> {
         let mut active = self.active_sessions.write().await;
         if let Some(state) = active.get_mut(session_id) {
-            state.current_speaker_index += 1;
+            if state.current_speaker_index < state.speaking_order.len() {
+                state.current_speaker_index += 1;
+            }
         }
         Ok(())
     }

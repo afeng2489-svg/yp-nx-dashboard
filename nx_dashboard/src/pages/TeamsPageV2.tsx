@@ -97,8 +97,8 @@ export function TeamsPageV2() {
     showConfirm(
       '删除团队',
       `确定删除团队 "${team.name}"？`,
-      () => {
-        deleteTeam(team.id);
+      async () => {
+        await deleteTeam(team.id);
         refetch();
       },
       'danger',
