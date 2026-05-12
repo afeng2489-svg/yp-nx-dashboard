@@ -1040,8 +1040,11 @@ mod tests {
     #[test]
     fn test_start_execution() {
         let service = ExecutionService::new();
-        let execution =
-            service.start_execution("workflow-1".to_string(), serde_json::json!({"var": 123}));
+        let execution = service.start_execution(
+            "workflow-1".to_string(),
+            serde_json::json!({"var": 123}),
+            None,
+        );
 
         assert_eq!(execution.workflow_id, "workflow-1");
         assert_eq!(execution.status, ExecutionStatus::Running);
@@ -1055,8 +1058,8 @@ mod tests {
     #[test]
     fn test_get_all_executions() {
         let service = ExecutionService::new();
-        service.start_execution("workflow-1".to_string(), serde_json::json!({}));
-        service.start_execution("workflow-2".to_string(), serde_json::json!({}));
+        service.start_execution("workflow-1".to_string(), serde_json::json!({}), None);
+        service.start_execution("workflow-2".to_string(), serde_json::json!({}), None);
 
         let executions = service.get_all_executions();
         assert_eq!(executions.len(), 2);
@@ -1065,7 +1068,8 @@ mod tests {
     #[test]
     fn test_cancel_execution() {
         let service = ExecutionService::new();
-        let execution = service.start_execution("workflow-1".to_string(), serde_json::json!({}));
+        let execution =
+            service.start_execution("workflow-1".to_string(), serde_json::json!({}), None);
 
         let cancelled = service.cancel_execution(&execution.id);
         assert!(cancelled);
@@ -1084,7 +1088,8 @@ mod tests {
     #[test]
     fn test_update_status() {
         let service = ExecutionService::new();
-        let execution = service.start_execution("workflow-1".to_string(), serde_json::json!({}));
+        let execution =
+            service.start_execution("workflow-1".to_string(), serde_json::json!({}), None);
 
         service.update_status(&execution.id, ExecutionStatus::Completed);
 
@@ -1096,7 +1101,8 @@ mod tests {
     #[test]
     fn test_add_stage_output() {
         let service = ExecutionService::new();
-        let execution = service.start_execution("workflow-1".to_string(), serde_json::json!({}));
+        let execution =
+            service.start_execution("workflow-1".to_string(), serde_json::json!({}), None);
 
         service.add_stage_output(
             &execution.id,
@@ -1114,7 +1120,7 @@ mod tests {
         let service = ExecutionService::new();
         let mut rx = service.subscribe();
 
-        service.start_execution("workflow-1".to_string(), serde_json::json!({}));
+        service.start_execution("workflow-1".to_string(), serde_json::json!({}), None);
 
         // Should receive events (Started + StatusChanged)
         let result = tokio::time::timeout(std::time::Duration::from_millis(100), rx.recv()).await;

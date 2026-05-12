@@ -205,9 +205,10 @@ impl PtyManager {
         session.pid = child.process_id();
 
         // 从 master 取出 reader，用于后台读取输出
-        let reader = pair.master.try_clone_reader().map_err(|e| {
-            PtyError::CreateFailed(format!("无法获取 PTY reader: {}", e))
-        })?;
+        let reader = pair
+            .master
+            .try_clone_reader()
+            .map_err(|e| PtyError::CreateFailed(format!("无法获取 PTY reader: {}", e)))?;
 
         // 保存会话
         {
@@ -315,9 +316,10 @@ impl PtyManager {
         session.pid = child.process_id();
 
         // 从 master 取出 reader，用于后台读取输出
-        let reader = pair.master.try_clone_reader().map_err(|e| {
-            PtyError::CreateFailed(format!("无法获取 PTY reader: {}", e))
-        })?;
+        let reader = pair
+            .master
+            .try_clone_reader()
+            .map_err(|e| PtyError::CreateFailed(format!("无法获取 PTY reader: {}", e)))?;
 
         {
             let mut sessions = self.sessions.write();

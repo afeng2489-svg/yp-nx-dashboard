@@ -356,7 +356,7 @@ impl GroupChatService {
             SpeakingStrategy::Debate => {
                 // Two sides alternate — side B first, then side A
                 let ids = &request.participant_role_ids;
-                let mid = (ids.len() + 1) / 2;
+                let mid = ids.len().div_ceil(2);
                 let mut order = Vec::with_capacity(ids.len());
                 let mut i = 0;
                 let mut j = mid;
