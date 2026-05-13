@@ -663,6 +663,21 @@ export interface Execution {
   error?: string;
 }
 
+export interface QualityCheckResult {
+  cmd: string;
+  passed: boolean;
+  exit_code: number | null;
+  stdout: string;
+  stderr: string;
+  duration_ms: number;
+}
+
+export interface QualityGateResult {
+  passed: boolean;
+  checks: QualityCheckResult[];
+  retry_count: number;
+}
+
 export interface StageResult {
   stage_name: string;
   outputs: StageOutput[];

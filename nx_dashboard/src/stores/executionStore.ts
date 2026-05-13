@@ -635,7 +635,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
               const stageResults = [...(executions[idx].stage_results || [])];
               stageResults.push({
                 stage_name: event.stage_name,
-                outputs: [event.output],
+                outputs: [event.output as StageOutput],
                 completed_at: new Date().toISOString(),
                 quality_gate_result: (
                   event as unknown as { quality_gate_result?: QualityGateResult }
