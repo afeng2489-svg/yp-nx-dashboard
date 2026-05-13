@@ -1,6 +1,6 @@
-import { ChevronRight, CheckCircle, XCircle } from 'lucide-react';
+import { ChevronRight, CheckCircle, XCircle, FileCode, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { StageResult } from '@/stores/executionStore';
+import type { StageResult, StageOutput } from '@/stores/executionStore';
 import { formatTime } from './utils';
 
 export interface StageResultCardProps {
@@ -120,24 +120,60 @@ export function StageResultCard({ result, isExpanded, onToggle }: StageResultCar
           )}
           {result.outputs &&
             result.outputs.length > 0 &&
-            result.outputs.map((output, idx) => {
-              const text =
-                typeof output === 'string'
-                  ? output
-                  : typeof output === 'object' && output !== null
-                    ? JSON.stringify(output, null, 2)
-                    : String(output);
-              return (
-                <div
-                  key={idx}
-                  className="p-3 bg-[#1e1e1e] rounded-lg text-xs text-gray-300 font-mono overflow-auto border border-white/5 max-h-80 whitespace-pre-wrap"
-                >
-                  {text}
-                </div>
-              );
-            })}
+            result.outputs.map((output, idx) => <StageOutputItem key={idx} output={output} />)}
         </div>
       )}
+    </div>
+  );
+}
+
+function StageOutputItem({ output }: { output: StageOutput }) {
+  const hasStructured = output.summary || (output.files_changed && output.files_changed.length > 0);
+  const rawText =
+    typeof output === 'string'
+      ? output
+      : output.content
+        ? output.content
+        : JSON.stringify(output, null, 2);
+
+  return (
+    <div className="space-y-2">
+      {/* 结构化摘要卡片 */}
+      {hasStructured && (
+        <div className="p-3 rounded-lg bg-gradient-to-r from-indigo-500/5 to-purple-500/5 border border-indigo-500/20 space-y-2">
+          {output.summary && (
+            <div className="flex items-start gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400 mt-0.5 shrink-0" />
+              <p className="text-sm text-gray-200 leading-relaxed">{output.summary}</p>
+            </div>
+          )}
+          {output.files_changed && output.files_changed.length > 0 && (
+            <div className="flex items-start gap-2">
+              <FileCode className="w-3.5 h-3.5 text-purple-400 mt-0.5 shrink-0" />
+              <div className="flex flex-wrap gap-1">
+                {output.files_changed.map((file, i) => (
+                  <span
+                    key={i}
+                    className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 font-mono border border-purple-500/20"
+                  >
+                    {file}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 原始文本输出（可折叠） */}
+      <details className="text-xs">
+        <summary className="text-muted-foreground cursor-pointer hover:text-gray-400 transition-colors">
+          {hasStructured ? '查看原始输出' : '查看输出'}
+        </summary>
+        <pre className="mt-2 p-3 bg-[#1e1e1e] rounded-lg text-gray-400 font-mono whitespace-pre-wrap max-h-80 overflow-auto border border-white/5">
+          {rawText}
+        </pre>
+      </details>
     </div>
   );
 }

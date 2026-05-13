@@ -665,8 +665,17 @@ export interface Execution {
 
 export interface StageResult {
   stage_name: string;
-  outputs: unknown[];
+  outputs: StageOutput[];
   completed_at?: string;
+  quality_gate_result?: QualityGateResult;
+}
+
+export interface StageOutput {
+  path: string;
+  content?: string;
+  agent_id?: string;
+  summary?: string;
+  files_changed?: string[];
 }
 
 export interface Session {

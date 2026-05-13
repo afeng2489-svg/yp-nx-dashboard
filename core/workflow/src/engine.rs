@@ -204,6 +204,8 @@ impl WorkflowEngine {
                         path: format!("user_input://{}", stage.name),
                         content: Some(chosen_value),
                         agent_id: None,
+                        summary: None,
+                        files_changed: vec![],
                     }]
                 }
 
@@ -977,6 +979,33 @@ impl WorkflowEngine {
         Ok(true)
     }
 
+    /// 从 AI 回复中提取结构化 JSON 摘要
+    fn parse_structured_summary(response: &str) -> (Option<String>, Vec<String>) {
+        // 匹配 ```json { ... } ``` 代码块
+        let json_block_re = Regex::new(r"```json\s*(\{[^`]+\})\s*```").unwrap();
+        if let Some(cap) = json_block_re.captures(response) {
+            if let Some(json_str) = cap.get(1) {
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json_str.as_str()) {
+                    let summary = parsed
+                        .get("summary")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    let files = parsed
+                        .get("files_changed")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|v| v.as_str().map(String::from))
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    return (summary, files);
+                }
+            }
+        }
+        (None, vec![])
+    }
+
     /// 执行单个智能体
     async fn execute_agent(
         &self,
@@ -1032,10 +1061,25 @@ impl WorkflowEngine {
         // Auto-yes prefix to skip confirmation prompts
         let auto_yes_prefix = "You are operating in auto-yes mode. If you ask any question requiring confirmation (yes/no, continue?, proceed?, etc.), always assume the answer is YES and proceed automatically. Never ask for confirmation.";
 
+        // 结构化输出要求
+        let structured_output_instruction = "\n\n---\n## 输出格式要求（必须遵守）\n\
+            在完成所有工作后，你必须在回复的最后添加一个 JSON 摘要块，格式如下：\n\
+            ```json\n\
+            {\n\
+              \"summary\": \"用中文简要描述你完成了什么（2-3句话）\",\n\
+              \"files_changed\": [\"变更的文件路径1\", \"变更的文件路径2\"]\n\
+            }\n\
+            ```\n\
+            注意：\n\
+            - summary 必须用中文，简洁描述你实际做了什么\n\
+            - files_changed 列出你创建或修改的所有文件路径\n\
+            - 这个 JSON 块必须放在回复的最后";
+
         // 构建 prompt（Claude CLI 格式）
-        let full_prompt = format!(
-            "{}\n\n<system>\n你扮演 {}. 请仔细遵循你的指示。\n</system>\n\n<user>\n{}{}\n</user>",
-            auto_yes_prefix, agent.role, resolved_prompt, rag_context
+        let full_prompt =
+            format!(
+            "{}\n\n<system>\n你扮演 {}. 请仔细遵循你的指示。\n</system>\n\n<user>\n{}{}{}\n</user>",
+            auto_yes_prefix, agent.role, resolved_prompt, rag_context, structured_output_instruction
         );
 
         // 模型路由：stage 未指定 model 时，用路由器自动选择
@@ -1102,10 +1146,15 @@ impl WorkflowEngine {
                     output: response.clone(),
                 });
 
+                // 解析结构化摘要
+                let (summary, files_changed) = Self::parse_structured_summary(&response);
+
                 Ok(vec![StageOutput {
                     path: format!("agent://{}/output", agent.id),
                     content: Some(response),
                     agent_id: Some(agent.id.clone()),
+                    summary,
+                    files_changed,
                 }])
             }
             Err(e) => {

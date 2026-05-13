@@ -228,10 +228,16 @@ pub struct StageResult {
 pub struct StageOutput {
     /// 输出路径
     pub path: String,
-    /// 输出内容
+    /// 输出内容（原始文本）
     pub content: Option<String>,
     /// 智能体 ID
     pub agent_id: Option<String>,
+    /// 结构化摘要
+    #[serde(default)]
+    pub summary: Option<String>,
+    /// 变更的文件列表
+    #[serde(default)]
+    pub files_changed: Vec<String>,
 }
 
 /// 执行过程中的智能体状态
