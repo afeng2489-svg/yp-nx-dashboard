@@ -347,3 +347,315 @@ impl WorkflowExecutor {
         false
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::team::AgentId;
+
+    // ── ExecutionStatus ─────────────────────────────────────────────
+
+    #[test]
+    fn test_execution_status_variants() {
+        let variants: Vec<ExecutionStatus> = vec![
+            ExecutionStatus::Pending,
+            ExecutionStatus::Running,
+            ExecutionStatus::Completed,
+            ExecutionStatus::Failed,
+            ExecutionStatus::Cancelled,
+        ];
+        assert_eq!(variants.len(), 5);
+    }
+
+    #[test]
+    fn test_execution_status_equality() {
+        assert_eq!(ExecutionStatus::Pending, ExecutionStatus::Pending);
+        assert_eq!(ExecutionStatus::Running, ExecutionStatus::Running);
+        assert_eq!(ExecutionStatus::Completed, ExecutionStatus::Completed);
+        assert_eq!(ExecutionStatus::Failed, ExecutionStatus::Failed);
+        assert_eq!(ExecutionStatus::Cancelled, ExecutionStatus::Cancelled);
+        assert_ne!(ExecutionStatus::Running, ExecutionStatus::Completed);
+    }
+
+    #[test]
+    fn test_execution_status_serde_roundtrip() {
+        let variants = [
+            ExecutionStatus::Pending,
+            ExecutionStatus::Running,
+            ExecutionStatus::Completed,
+            ExecutionStatus::Failed,
+            ExecutionStatus::Cancelled,
+        ];
+        for v in &variants {
+            let json = serde_json::to_string(v).unwrap();
+            let back: ExecutionStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(*v, back);
+        }
+    }
+
+    // ── AgentOutput ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_agent_output_serde_roundtrip() {
+        let output = AgentOutput {
+            agent_id: AgentId::new(),
+            agent_name: "architect".into(),
+            text: "design complete".into(),
+            duration_ms: 5000,
+        };
+
+        let json = serde_json::to_string(&output).unwrap();
+        let back: AgentOutput = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.agent_name, "architect");
+        assert_eq!(back.text, "design complete");
+        assert_eq!(back.duration_ms, 5000);
+    }
+
+    #[test]
+    fn test_agent_output_zero_duration() {
+        let output = AgentOutput {
+            agent_id: AgentId::new(),
+            agent_name: "fast".into(),
+            text: "done".into(),
+            duration_ms: 0,
+        };
+        assert_eq!(output.duration_ms, 0);
+    }
+
+    #[test]
+    fn test_agent_output_empty_text() {
+        let output = AgentOutput {
+            agent_id: AgentId::new(),
+            agent_name: "silent".into(),
+            text: "".into(),
+            duration_ms: 100,
+        };
+        assert!(output.text.is_empty());
+    }
+
+    // ── StageResult ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_stage_result_empty() {
+        let sr = StageResult {
+            stage_name: "test".into(),
+            agent_results: vec![],
+            failures: vec![],
+        };
+        assert_eq!(sr.stage_name, "test");
+        assert!(sr.agent_results.is_empty());
+        assert!(sr.failures.is_empty());
+    }
+
+    #[test]
+    fn test_stage_result_with_failures() {
+        let sr = StageResult {
+            stage_name: "build".into(),
+            agent_results: vec![],
+            failures: vec!["compilation error".into()],
+        };
+        assert_eq!(sr.failures.len(), 1);
+        assert!(sr.agent_results.is_empty());
+    }
+
+    #[test]
+    fn test_stage_result_serde_roundtrip() {
+        let sr = StageResult {
+            stage_name: "analyze".into(),
+            agent_results: vec![AgentOutput {
+                agent_id: AgentId::new(),
+                agent_name: "researcher".into(),
+                text: "analysis".into(),
+                duration_ms: 1000,
+            }],
+            failures: vec![],
+        };
+
+        let json = serde_json::to_string(&sr).unwrap();
+        let back: StageResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.stage_name, "analyze");
+        assert_eq!(back.agent_results.len(), 1);
+    }
+
+    // ── ExecutionResult ─────────────────────────────────────────────
+
+    #[test]
+    fn test_execution_result_serde_roundtrip() {
+        let result = ExecutionResult {
+            execution_id: Uuid::new_v4(),
+            workflow_name: "test-workflow".into(),
+            status: ExecutionStatus::Completed,
+            stage_results: vec![],
+            started_at: Utc::now(),
+            finished_at: Some(Utc::now()),
+            duration_ms: Some(1000),
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        let back: ExecutionResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.workflow_name, "test-workflow");
+        assert_eq!(back.status, ExecutionStatus::Completed);
+        assert!(back.duration_ms.is_some());
+    }
+
+    #[test]
+    fn test_execution_result_not_finished() {
+        let result = ExecutionResult {
+            execution_id: Uuid::new_v4(),
+            workflow_name: "running".into(),
+            status: ExecutionStatus::Running,
+            stage_results: vec![],
+            started_at: Utc::now(),
+            finished_at: None,
+            duration_ms: None,
+        };
+
+        assert!(result.finished_at.is_none());
+        assert!(result.duration_ms.is_none());
+    }
+
+    #[test]
+    fn test_execution_result_with_stages() {
+        let stages = vec![
+            StageResult {
+                stage_name: "init".into(),
+                agent_results: vec![],
+                failures: vec![],
+            },
+            StageResult {
+                stage_name: "build".into(),
+                agent_results: vec![AgentOutput {
+                    agent_id: AgentId::new(),
+                    agent_name: "builder".into(),
+                    text: "built".into(),
+                    duration_ms: 2000,
+                }],
+                failures: vec![],
+            },
+        ];
+
+        let result = ExecutionResult {
+            execution_id: Uuid::new_v4(),
+            workflow_name: "multi-stage".into(),
+            status: ExecutionStatus::Completed,
+            stage_results: stages,
+            started_at: Utc::now(),
+            finished_at: Some(Utc::now()),
+            duration_ms: Some(2000),
+        };
+
+        assert_eq!(result.stage_results.len(), 2);
+        assert_eq!(result.stage_results[0].stage_name, "init");
+        assert_eq!(result.stage_results[1].stage_name, "build");
+    }
+
+    // ── WorkflowDefinition & StageDefinition ────────────────────────
+
+    #[test]
+    fn test_workflow_definition_serde_roundtrip() {
+        let wf = WorkflowDefinition {
+            id: Uuid::new_v4(),
+            name: "test".into(),
+            description: "a test workflow".into(),
+            stages: vec![StageDefinition {
+                name: "stage1".into(),
+                agents: vec!["agent-a".into()],
+                parallel: false,
+                continue_on_error: true,
+                prompt_template: "do the thing".into(),
+            }],
+        };
+
+        let json = serde_json::to_string(&wf).unwrap();
+        let back: WorkflowDefinition = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.name, "test");
+        assert_eq!(back.stages.len(), 1);
+        assert_eq!(back.stages[0].name, "stage1");
+    }
+
+    #[test]
+    fn test_workflow_definition_no_stages() {
+        let wf = WorkflowDefinition {
+            id: Uuid::new_v4(),
+            name: "empty".into(),
+            description: "".into(),
+            stages: vec![],
+        };
+        assert!(wf.stages.is_empty());
+    }
+
+    #[test]
+    fn test_stage_definition_parallel_flag() {
+        let stage = StageDefinition {
+            name: "parallel-stage".into(),
+            agents: vec!["a".into(), "b".into()],
+            parallel: true,
+            continue_on_error: false,
+            prompt_template: "".into(),
+        };
+        assert!(stage.parallel);
+        assert!(!stage.continue_on_error);
+    }
+
+    #[test]
+    fn test_stage_definition_multiple_agents() {
+        let stage = StageDefinition {
+            name: "multi-agent".into(),
+            agents: vec!["architect".into(), "developer".into(), "tester".into()],
+            parallel: true,
+            continue_on_error: false,
+            prompt_template: "collaborate".into(),
+        };
+        assert_eq!(stage.agents.len(), 3);
+    }
+
+    // ── WorkflowExecutor (type-only tests) ──────────────────────────
+
+    #[test]
+    fn test_cancel_execution_nonexistent() {
+        let bus = Arc::new(MessageBus::new());
+        let executor = WorkflowExecutor::new(
+            Arc::new(crate::cli::CliManager::new()),
+            Arc::new(crate::team::TeamManager::new(bus.clone())),
+            bus,
+        );
+        assert!(!executor.cancel_execution(Uuid::new_v4()));
+    }
+
+    #[test]
+    fn test_get_execution_nonexistent() {
+        let bus = Arc::new(MessageBus::new());
+        let executor = WorkflowExecutor::new(
+            Arc::new(crate::cli::CliManager::new()),
+            Arc::new(crate::team::TeamManager::new(bus.clone())),
+            bus,
+        );
+        assert!(executor.get_execution(Uuid::new_v4()).is_none());
+    }
+
+    // ── ExecutionResult serialization with all statuses ─────────────
+
+    #[test]
+    fn test_execution_result_all_statuses_serde() {
+        for status in &[
+            ExecutionStatus::Pending,
+            ExecutionStatus::Running,
+            ExecutionStatus::Completed,
+            ExecutionStatus::Failed,
+            ExecutionStatus::Cancelled,
+        ] {
+            let result = ExecutionResult {
+                execution_id: Uuid::new_v4(),
+                workflow_name: "test".into(),
+                status: *status,
+                stage_results: vec![],
+                started_at: Utc::now(),
+                finished_at: None,
+                duration_ms: None,
+            };
+            let json = serde_json::to_string(&result).unwrap();
+            let back: ExecutionResult = serde_json::from_str(&json).unwrap();
+            assert_eq!(back.status, *status);
+        }
+    }
+}

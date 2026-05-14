@@ -38,6 +38,6 @@ pub use scheduler::{
     CronSchedule, QueueStatus, QueuedTask, RetryConfig, ScheduledJob, SchedulerError,
     SchedulerStats, TaskExecutor, TaskPriority, TaskScheduler,
 };
-pub use session::{AgentResult, ChainEvent, ChainResult, TeamSessionActor};
-pub use session_store::{SessionStore, SessionSummary, StoreError};
+pub use session::{AgentResult, ChainEvent, ChainResult, TeamSessionActor, UserMessage};
+pub use session_store::{resolve_team_db_path, SessionStore, SessionSummary, StoreError};
 pub use team::{AgentId, AgentRole, Capability, Team, TeamId, TeamManager, TeamMember};

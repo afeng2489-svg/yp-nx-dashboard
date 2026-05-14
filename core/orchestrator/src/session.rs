@@ -37,6 +37,95 @@ pub struct ChainResult {
 /// 最大重试次数（超过后升级模型）
 const MAX_RETRIES: u32 = 3;
 
+/// 用户消息 — 从 TUI/CLI 发送到会话主循环
+///
+/// `target_agent` 为 `None` 时表示消息将注入当前正在执行的 Agent 上下文。
+/// `target_agent` 为 `Some(name)` 时表示消息定向到指定 Agent。
+#[derive(Debug, Clone)]
+pub struct UserMessage {
+    /// 目标 Agent 名称（`@agent_name`），None = 当前 Agent
+    pub target_agent: Option<String>,
+    /// 消息内容
+    pub content: String,
+}
+
+impl UserMessage {
+    /// 解析用户输入，提取 @agent_name 前缀
+    ///
+    /// 格式支持：
+    /// - `@architect 请用 Rust 实现` → target: Some("architect"), content: "请用 Rust 实现"
+    /// - `请用 Rust 实现` → target: None, content: "请用 Rust 实现"
+    pub fn parse(input: &str) -> Self {
+        let trimmed = input.trim();
+        if let Some(rest) = trimmed.strip_prefix('@') {
+            if let Some((name, content)) = rest.split_once(char::is_whitespace) {
+                return Self {
+                    target_agent: Some(name.to_string()),
+                    content: content.trim().to_string(),
+                };
+            }
+            // 只有 @agent_name 没有内容
+            return Self {
+                target_agent: Some(trimmed[1..].to_string()),
+                content: String::new(),
+            };
+        }
+        Self {
+            target_agent: None,
+            content: trimmed.to_string(),
+        }
+    }
+
+    /// 检查消息是否定向到指定的 Agent
+    pub fn is_targeting(&self, agent_name: &str) -> bool {
+        self.target_agent
+            .as_ref()
+            .is_none_or(|t| t.eq_ignore_ascii_case(agent_name))
+    }
+}
+
+/// 用户消息队列 — 包装 UnboundedReceiver 并维护未消费消息的缓冲区
+///
+/// 确保定向到其他 Agent 的消息不会被消费掉，
+/// 而是保存在缓冲区中，等目标 Agent 执行时再注入。
+#[derive(Debug)]
+pub struct UserMessageQueue {
+    receiver: mpsc::UnboundedReceiver<UserMessage>,
+    buffer: Vec<UserMessage>,
+}
+
+impl UserMessageQueue {
+    pub fn new(receiver: mpsc::UnboundedReceiver<UserMessage>) -> Self {
+        Self {
+            receiver,
+            buffer: Vec::new(),
+        }
+    }
+
+    /// 将所有待处理消息（包括缓冲区中的和通道中的）中
+    /// 定向到 `agent_name` 的消息取出并返回。
+    ///
+    /// 非定向消息保留在缓冲区中，供后续 Agent 使用。
+    pub fn drain_for(&mut self, agent_name: &str) -> Vec<UserMessage> {
+        // 将通道中所有待处理消息拉入缓冲区
+        while let Ok(msg) = self.receiver.try_recv() {
+            self.buffer.push(msg);
+        }
+
+        let mut result = Vec::new();
+        let mut remaining = Vec::new();
+        for msg in self.buffer.drain(..) {
+            if msg.is_targeting(agent_name) {
+                result.push(msg);
+            } else {
+                remaining.push(msg);
+            }
+        }
+        self.buffer = remaining;
+        result
+    }
+}
+
 /// 链执行进度事件 — 通过 mpsc 发送给 TUI/CLI 层
 #[derive(Debug, Clone)]
 pub enum ChainEvent {
@@ -56,6 +145,18 @@ pub enum ChainEvent {
     },
     ChainFailed {
         error: String,
+    },
+    /// Agent 正在等待用户输入
+    AgentWaitingForInput {
+        agent_id: AgentId,
+        role: AgentRole,
+        name: String,
+        reason: String,
+    },
+    /// Agent 收到了用户输入
+    AgentReceivedInput {
+        agent_id: AgentId,
+        message: String,
     },
 }
 
@@ -80,17 +181,23 @@ impl TeamSessionActor {
     ///
     /// 按 hierarchy 顺序遍历 Agent，每个 Agent 的输出作为下一个的上下文。
     /// 如果提供了 `events` 发送器，会在每个阶段推送 ChainEvent。
+    /// 如果提供了 `user_messages` 接收器，会在每个 Agent 执行前处理用户消息。
     pub async fn run_chain(
         &self,
         team: &Team,
         task: &str,
         events: Option<mpsc::UnboundedSender<ChainEvent>>,
+        user_messages: Option<mpsc::UnboundedReceiver<UserMessage>>,
     ) -> Result<ChainResult, OrchestratorError> {
         let execution_id = Uuid::new_v4();
         let start = Instant::now();
 
         // 输出 session_id 供 Tauri 等外部调用方解析
         println!("session_id:{}", execution_id);
+
+        // 将 user_messages 包装为 UserMessageQueue 再包 Mutex 以支持多次借用
+        let user_messages =
+            user_messages.map(|rx| std::sync::Mutex::new(UserMessageQueue::new(rx)));
 
         tracing::info!(
             execution_id = %execution_id,
@@ -124,8 +231,27 @@ impl TeamSessionActor {
                 });
             }
 
-            // 构建上下文（包含前面 Agent 的输出）
-            let context = Self::build_context(task, &accumulated_context, member.role);
+            // 构建基础上下文（包含前面 Agent 的输出）
+            let mut context = Self::build_context(task, &accumulated_context, member.role);
+
+            // 注入等待的用户消息，如果有
+            let injected = Self::inject_user_messages(
+                &user_messages,
+                &member.name,
+                &mut context,
+                &events,
+                agent_id,
+                member.role,
+            );
+
+            // 如果有定向消息且内容非空，通知 TUI 层
+            if injected > 0 {
+                tracing::info!(
+                    agent = %member.name,
+                    injected = injected,
+                    "注入用户消息到 Agent 上下文"
+                );
+            }
 
             // 执行 Agent（含质量门禁）
             let result = self.execute_with_gate(member, task, &context).await?;
@@ -234,6 +360,50 @@ impl TeamSessionActor {
         order.push(node);
     }
 
+    /// 从 user_messages 队列中消费所有定向到当前 Agent 的消息，
+    /// 将其注入上下文。非定向消息保留在缓冲区中供后续 Agent 使用。
+    ///
+    /// 返回注入的消息数量。
+    fn inject_user_messages(
+        user_queue: &Option<std::sync::Mutex<UserMessageQueue>>,
+        agent_name: &str,
+        context: &mut String,
+        events: &Option<mpsc::UnboundedSender<ChainEvent>>,
+        agent_id: AgentId,
+        role: AgentRole,
+    ) -> usize {
+        let mut guard = match user_queue {
+            Some(ref g) => g.lock().expect("user_message_queue lock poisoned"),
+            None => return 0,
+        };
+
+        let messages = guard.drain_for(agent_name);
+        let count = messages.len();
+
+        if count > 0 {
+            let user_section = format!(
+                "\n\n## 用户反馈/指令\n{}\n",
+                messages
+                    .iter()
+                    .map(|m| m.content.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n---\n")
+            );
+            context.push_str(&user_section);
+
+            if let Some(ref tx) = events {
+                for msg in &messages {
+                    let _ = tx.send(ChainEvent::AgentReceivedInput {
+                        agent_id,
+                        message: msg.content.clone(),
+                    });
+                }
+            }
+        }
+
+        count
+    }
+
     /// 为 Agent 构建上下文提示词
     fn build_context(task: &str, accumulated: &str, role: AgentRole) -> String {
         let role_instruction = match role {
@@ -302,36 +472,42 @@ impl TeamSessionActor {
 
             last_text = self.invoke_claude(&prompt, model, member.provider).await?;
 
-            // 质量检查
+            // 质量检查通过，立即返回
             if TeamSessionActor::quick_quality_check(&last_text, member.role) {
                 break;
             }
 
-            if attempts >= MAX_RETRIES {
-                // 升级模型
+            // 质量未通过 — 优先升级模型再重试，避免同模型无意义重试
+            if attempts < MAX_RETRIES {
                 let upgraded = Self::upgrade_model(member.role, model);
-                if upgraded == model {
-                    // 无法再升级，接受当前结果
-                    tracing::warn!(
+                if upgraded != model {
+                    tracing::info!(
                         agent = %member.name,
-                        attempts = attempts,
-                        "质量检查未通过但已无法升级模型，接受当前结果"
+                        old_model = %model,
+                        new_model = %upgraded,
+                        attempt = attempts,
+                        "质量检查未通过，升级模型重试"
                     );
-                    break;
+                    model = upgraded;
+                    continue;
                 }
-                model = upgraded;
-                tracing::info!(
-                    agent = %member.name,
-                    new_model = %model,
-                    "升级模型"
-                );
-            } else {
+                // 已是最强模型，无需再重试
                 tracing::warn!(
                     agent = %member.name,
+                    model = %model,
                     attempt = attempts,
-                    "质量检查未通过，重试"
+                    "质量检查未通过但已是最强模型，接受当前结果"
                 );
+                break;
             }
+
+            // 已达最大重试次数
+            tracing::warn!(
+                agent = %member.name,
+                attempts = attempts,
+                "质量检查未通过但已达最大重试次数，接受当前结果"
+            );
+            break;
         }
 
         let duration_ms = start.elapsed().as_millis() as u64;
@@ -389,8 +565,8 @@ impl TeamSessionActor {
             return false;
         }
 
-        // 超过 200 字符的输出视为有效，不做模式匹配
-        if trimmed.len() > 200 {
+        // 超过 100 字符的输出视为有效，不做模式匹配
+        if trimmed.len() > 100 {
             return true;
         }
 
@@ -664,7 +840,7 @@ mod tests {
 
     #[test]
     fn quick_quality_check_long_output_always_accepted() {
-        let long_text = "x".repeat(201);
+        let long_text = "x".repeat(101);
         assert!(TeamSessionActor::quick_quality_check(
             &long_text,
             AgentRole::Developer
@@ -1029,5 +1205,1062 @@ mod tests {
         let prefix = TeamSessionActor::auto_yes_prefix();
         assert!(!prefix.is_empty());
         assert!(prefix.contains("auto-yes"));
+    }
+
+    // ── UserMessage::parse ──────────────────────────────────────────
+
+    #[test]
+    fn user_message_parse_with_at_prefix() {
+        let msg = UserMessage::parse("@architect 请用 Rust 实现这个功能");
+        assert_eq!(msg.target_agent, Some("architect".into()));
+        assert_eq!(msg.content, "请用 Rust 实现这个功能");
+    }
+
+    #[test]
+    fn user_message_parse_without_at_prefix() {
+        let msg = UserMessage::parse("请用 Rust 实现这个功能");
+        assert_eq!(msg.target_agent, None);
+        assert_eq!(msg.content, "请用 Rust 实现这个功能");
+    }
+
+    #[test]
+    fn user_message_parse_empty_input() {
+        let msg = UserMessage::parse("");
+        assert_eq!(msg.target_agent, None);
+        assert_eq!(msg.content, "");
+    }
+
+    #[test]
+    fn user_message_parse_at_only_no_content() {
+        let msg = UserMessage::parse("@architect");
+        assert_eq!(msg.target_agent, Some("architect".into()));
+        assert_eq!(msg.content, "");
+    }
+
+    #[test]
+    fn user_message_parse_whitespace_trimmed() {
+        let msg = UserMessage::parse("  @developer   请添加错误处理  ");
+        assert_eq!(msg.target_agent, Some("developer".into()));
+        assert_eq!(msg.content, "请添加错误处理");
+    }
+
+    #[test]
+    fn user_message_parse_multiple_words_no_at() {
+        let msg = UserMessage::parse("hello world this is a test");
+        assert_eq!(msg.target_agent, None);
+        assert_eq!(msg.content, "hello world this is a test");
+    }
+
+    #[test]
+    fn user_message_parse_at_with_trailing_spaces() {
+        let msg = UserMessage::parse("@reviewer   ");
+        assert_eq!(msg.target_agent, Some("reviewer".into()));
+        assert_eq!(msg.content, "");
+    }
+
+    #[test]
+    fn user_message_parse_at_case_preserved() {
+        let msg = UserMessage::parse("@Architect Please review");
+        assert_eq!(msg.target_agent, Some("Architect".into()));
+        assert_eq!(msg.content, "Please review");
+    }
+
+    // ── UserMessage::is_targeting ────────────────────────────────────
+
+    #[test]
+    fn user_message_is_targeting_when_no_target() {
+        let msg = UserMessage {
+            target_agent: None,
+            content: "fix this".into(),
+        };
+        assert!(msg.is_targeting("architect"));
+        assert!(msg.is_targeting("developer"));
+        assert!(msg.is_targeting("anyone"));
+    }
+
+    #[test]
+    fn user_message_is_targeting_specific_agent() {
+        let msg = UserMessage {
+            target_agent: Some("developer".into()),
+            content: "fix this".into(),
+        };
+        assert!(msg.is_targeting("developer"));
+        assert!(!msg.is_targeting("architect"));
+        assert!(!msg.is_targeting("reviewer"));
+    }
+
+    #[test]
+    fn user_message_is_targeting_case_insensitive() {
+        let msg = UserMessage {
+            target_agent: Some("Developer".into()),
+            content: "fix this".into(),
+        };
+        assert!(msg.is_targeting("developer"));
+        assert!(msg.is_targeting("Developer"));
+        assert!(!msg.is_targeting("architect"));
+    }
+
+    #[test]
+    fn user_message_is_targeting_empty_target() {
+        let msg = UserMessage {
+            target_agent: Some(String::new()),
+            content: "hi".into(),
+        };
+        assert!(!msg.is_targeting("developer"));
+        assert!(!msg.is_targeting("architect"));
+    }
+
+    // ── inject_user_messages ────────────────────────────────────────
+
+    #[test]
+    fn inject_user_messages_no_channel_does_nothing() {
+        let mut context = "original context".to_string();
+        let count = TeamSessionActor::inject_user_messages(
+            &None,
+            "developer",
+            &mut context,
+            &None,
+            AgentId::new(),
+            AgentRole::Developer,
+        );
+        assert_eq!(count, 0);
+        assert_eq!(context, "original context");
+    }
+
+    #[test]
+    fn inject_user_messages_empty_channel_does_nothing() {
+        let (tx, rx) = mpsc::unbounded_channel();
+        let queue = std::sync::Mutex::new(UserMessageQueue::new(rx));
+        let mut context = "original context".to_string();
+        let count = TeamSessionActor::inject_user_messages(
+            &Some(queue),
+            "developer",
+            &mut context,
+            &None,
+            AgentId::new(),
+            AgentRole::Developer,
+        );
+        assert_eq!(count, 0);
+        assert_eq!(context, "original context");
+        drop(tx);
+    }
+
+    #[test]
+    fn inject_user_messages_injects_untargeted_messages() {
+        let (tx, rx) = mpsc::unbounded_channel();
+        tx.send(UserMessage {
+            target_agent: None,
+            content: "please add tests".into(),
+        })
+        .unwrap();
+        let queue = std::sync::Mutex::new(UserMessageQueue::new(rx));
+        let mut context = "original".to_string();
+        let count = TeamSessionActor::inject_user_messages(
+            &Some(queue),
+            "developer",
+            &mut context,
+            &None,
+            AgentId::new(),
+            AgentRole::Developer,
+        );
+        assert_eq!(count, 1);
+        assert!(context.contains("original"));
+        assert!(context.contains("用户反馈/指令"));
+        assert!(context.contains("please add tests"));
+    }
+
+    #[test]
+    fn inject_user_messages_skips_other_agent_messages() {
+        let (tx, rx) = mpsc::unbounded_channel();
+        tx.send(UserMessage {
+            target_agent: Some("architect".into()),
+            content: "redesign this".into(),
+        })
+        .unwrap();
+        let queue_opt = Some(std::sync::Mutex::new(UserMessageQueue::new(rx)));
+        let mut context = "original".to_string();
+        let count = TeamSessionActor::inject_user_messages(
+            &queue_opt,
+            "developer",
+            &mut context,
+            &None,
+            AgentId::new(),
+            AgentRole::Developer,
+        );
+        assert_eq!(count, 0);
+        assert_eq!(context, "original");
+        // Verify message preserved in queue for architect
+        let mut guard = queue_opt.as_ref().unwrap().lock().unwrap();
+        let arch_msgs = guard.drain_for("architect");
+        assert_eq!(arch_msgs.len(), 1);
+        assert_eq!(arch_msgs[0].content, "redesign this");
+    }
+
+    #[test]
+    fn inject_user_messages_multiple_messages() {
+        let (tx, rx) = mpsc::unbounded_channel();
+        tx.send(UserMessage {
+            target_agent: Some("developer".into()),
+            content: "fix the bug".into(),
+        })
+        .unwrap();
+        tx.send(UserMessage {
+            target_agent: None,
+            content: "add error handling".into(),
+        })
+        .unwrap();
+        // This one should be skipped (targeted at architect)
+        tx.send(UserMessage {
+            target_agent: Some("architect".into()),
+            content: "redesign".into(),
+        })
+        .unwrap();
+        let queue_opt = Some(std::sync::Mutex::new(UserMessageQueue::new(rx)));
+        let mut context = "".to_string();
+        let count = TeamSessionActor::inject_user_messages(
+            &queue_opt,
+            "developer",
+            &mut context,
+            &None,
+            AgentId::new(),
+            AgentRole::Developer,
+        );
+        assert_eq!(count, 2);
+        assert!(context.contains("fix the bug"));
+        assert!(context.contains("add error handling"));
+        assert!(!context.contains("redesign"));
+        // Verify architect message preserved in queue
+        let mut guard = queue_opt.as_ref().unwrap().lock().unwrap();
+        let arch_msgs = guard.drain_for("architect");
+        assert_eq!(arch_msgs.len(), 1);
+        assert_eq!(arch_msgs[0].content, "redesign");
+    }
+
+    #[test]
+    fn inject_user_messages_mixed_targeting_for_agent() {
+        let (tx, rx) = mpsc::unbounded_channel();
+        tx.send(UserMessage {
+            target_agent: Some("tester".into()),
+            content: "test edge cases".into(),
+        })
+        .unwrap();
+        tx.send(UserMessage {
+            target_agent: None,
+            content: "general feedback".into(),
+        })
+        .unwrap();
+        tx.send(UserMessage {
+            target_agent: Some("tester".into()),
+            content: "cover error paths".into(),
+        })
+        .unwrap();
+        let queue = std::sync::Mutex::new(UserMessageQueue::new(rx));
+        let mut context = "".to_string();
+        let count = TeamSessionActor::inject_user_messages(
+            &Some(queue),
+            "tester",
+            &mut context,
+            &None,
+            AgentId::new(),
+            AgentRole::Tester,
+        );
+        assert_eq!(count, 3);
+        assert!(context.contains("test edge cases"));
+        assert!(context.contains("general feedback"));
+        assert!(context.contains("cover error paths"));
+    }
+
+    // ── UserMessageQueue ─────────────────────────────────────────
+
+    #[test]
+    fn user_message_queue_drain_for_empty() {
+        let (_tx, rx) = mpsc::unbounded_channel();
+        let mut queue = UserMessageQueue::new(rx);
+        let msgs = queue.drain_for("developer");
+        assert!(msgs.is_empty());
+    }
+
+    #[test]
+    fn user_message_queue_drain_for_filters_by_target() {
+        let (tx, rx) = mpsc::unbounded_channel();
+        tx.send(UserMessage {
+            target_agent: Some("architect".into()),
+            content: "design".into(),
+        })
+        .unwrap();
+        tx.send(UserMessage {
+            target_agent: None,
+            content: "general".into(),
+        })
+        .unwrap();
+        tx.send(UserMessage {
+            target_agent: Some("developer".into()),
+            content: "code".into(),
+        })
+        .unwrap();
+        let mut queue = UserMessageQueue::new(rx);
+
+        let dev_msgs = queue.drain_for("developer");
+        assert_eq!(dev_msgs.len(), 2); // targeted + untargeted
+        let names: Vec<Option<String>> = dev_msgs.iter().map(|m| m.target_agent.clone()).collect();
+        assert!(names.contains(&Some("developer".into())));
+        assert!(names.contains(&None));
+    }
+
+    #[test]
+    fn user_message_queue_preserves_non_targeted_across_calls() {
+        let (tx, rx) = mpsc::unbounded_channel();
+        tx.send(UserMessage {
+            target_agent: Some("architect".into()),
+            content: "design".into(),
+        })
+        .unwrap();
+        tx.send(UserMessage {
+            target_agent: Some("developer".into()),
+            content: "code".into(),
+        })
+        .unwrap();
+        let mut queue = UserMessageQueue::new(rx);
+
+        // First call for developer — should pick up "code" + untargeted
+        let dev_msgs = queue.drain_for("developer");
+        assert_eq!(dev_msgs.len(), 1); // only "code" is developer
+        assert_eq!(dev_msgs[0].content, "code");
+
+        // Architect message preserved for next call
+        let arch_msgs = queue.drain_for("architect");
+        assert_eq!(arch_msgs.len(), 1);
+        assert_eq!(arch_msgs[0].content, "design");
+    }
+
+    #[test]
+    fn user_message_queue_no_loss_with_multiple_agents() {
+        let (tx, rx) = mpsc::unbounded_channel();
+        tx.send(UserMessage {
+            target_agent: Some("alpha".into()),
+            content: "a".into(),
+        })
+        .unwrap();
+        tx.send(UserMessage {
+            target_agent: Some("beta".into()),
+            content: "b".into(),
+        })
+        .unwrap();
+        tx.send(UserMessage {
+            target_agent: Some("gamma".into()),
+            content: "c".into(),
+        })
+        .unwrap();
+        let mut queue = UserMessageQueue::new(rx);
+
+        let alpha = queue.drain_for("alpha");
+        let beta = queue.drain_for("beta");
+        let gamma = queue.drain_for("gamma");
+
+        assert_eq!(alpha.len(), 1, "alpha lost");
+        assert_eq!(beta.len(), 1, "beta lost");
+        assert_eq!(gamma.len(), 1, "gamma lost");
+    }
+
+    #[test]
+    fn user_message_queue_untargeted_goes_to_all() {
+        let (tx, rx) = mpsc::unbounded_channel();
+        tx.send(UserMessage {
+            target_agent: None,
+            content: "everyone".into(),
+        })
+        .unwrap();
+        let mut queue = UserMessageQueue::new(rx);
+
+        let first = queue.drain_for("first");
+        assert_eq!(first.len(), 1);
+        // Untargeted message consumed — it was injected into first agent
+        let second = queue.drain_for("second");
+        assert!(
+            second.is_empty(),
+            "untargeted message should not be duplicated"
+        );
+    }
+
+    #[test]
+    fn user_message_queue_messages_arriving_later() {
+        let (tx, rx) = mpsc::unbounded_channel();
+        let mut queue = UserMessageQueue::new(rx);
+
+        // No messages yet
+        assert!(queue.drain_for("dev").is_empty());
+
+        // Messages arrive
+        tx.send(UserMessage {
+            target_agent: None,
+            content: "late".into(),
+        })
+        .unwrap();
+
+        // Now drain_for picks them up
+        let msgs = queue.drain_for("dev");
+        assert_eq!(msgs.len(), 1);
+        assert_eq!(msgs[0].content, "late");
+    }
+
+    // ── inject_user_messages with events channel ─────────────────
+
+    #[test]
+    fn inject_user_messages_sends_events_for_targeted() {
+        let (tx, rx) = mpsc::unbounded_channel();
+        tx.send(UserMessage {
+            target_agent: Some("dev".into()),
+            content: "fix it".into(),
+        })
+        .unwrap();
+        let (event_tx, mut event_rx) = mpsc::unbounded_channel();
+        let queue = std::sync::Mutex::new(UserMessageQueue::new(rx));
+
+        let count = TeamSessionActor::inject_user_messages(
+            &Some(queue),
+            "dev",
+            &mut String::new(),
+            &Some(event_tx),
+            AgentId::new(),
+            AgentRole::Developer,
+        );
+        assert_eq!(count, 1);
+
+        let event = event_rx.try_recv().unwrap();
+        match event {
+            ChainEvent::AgentReceivedInput { message, .. } => {
+                assert_eq!(message, "fix it");
+            }
+            other => panic!("expected AgentReceivedInput, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn inject_user_messages_no_events_for_non_targeted() {
+        let (tx, rx) = mpsc::unbounded_channel();
+        tx.send(UserMessage {
+            target_agent: Some("architect".into()),
+            content: "design".into(),
+        })
+        .unwrap();
+        let (event_tx, mut event_rx) = mpsc::unbounded_channel();
+        let queue = std::sync::Mutex::new(UserMessageQueue::new(rx));
+
+        let count = TeamSessionActor::inject_user_messages(
+            &Some(queue),
+            "dev",
+            &mut String::new(),
+            &Some(event_tx),
+            AgentId::new(),
+            AgentRole::Developer,
+        );
+        assert_eq!(count, 0);
+        assert!(event_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn inject_user_messages_multiple_events_for_multiple_messages() {
+        let (tx, rx) = mpsc::unbounded_channel();
+        tx.send(UserMessage {
+            target_agent: None,
+            content: "first".into(),
+        })
+        .unwrap();
+        tx.send(UserMessage {
+            target_agent: None,
+            content: "second".into(),
+        })
+        .unwrap();
+        let (event_tx, mut event_rx) = mpsc::unbounded_channel();
+        let queue = std::sync::Mutex::new(UserMessageQueue::new(rx));
+
+        TeamSessionActor::inject_user_messages(
+            &Some(queue),
+            "dev",
+            &mut String::new(),
+            &Some(event_tx),
+            AgentId::new(),
+            AgentRole::Developer,
+        );
+        let e1 = event_rx.try_recv().unwrap();
+        let e2 = event_rx.try_recv().unwrap();
+        assert!(event_rx.try_recv().is_err());
+
+        match e1 {
+            ChainEvent::AgentReceivedInput { ref message, .. } => assert_eq!(message, "first"),
+            _ => panic!(),
+        }
+        match e2 {
+            ChainEvent::AgentReceivedInput { ref message, .. } => assert_eq!(message, "second"),
+            _ => panic!(),
+        }
+    }
+
+    // ── UserMessage::parse additional edge cases ─────────────────
+
+    #[test]
+    fn user_message_parse_at_symbol_only() {
+        let msg = UserMessage::parse("@");
+        assert_eq!(msg.target_agent, Some("".into()));
+        assert_eq!(msg.content, "");
+    }
+
+    #[test]
+    fn user_message_parse_at_with_only_whitespace() {
+        let msg = UserMessage::parse("@   ");
+        assert_eq!(msg.target_agent, Some("".into()));
+        assert_eq!(msg.content, "");
+    }
+
+    #[test]
+    fn user_message_parse_unicode_agent_name() {
+        let msg = UserMessage::parse("@ロボット コードを書いて");
+        assert_eq!(msg.target_agent, Some("ロボット".into()));
+        assert_eq!(msg.content, "コードを書いて");
+    }
+
+    #[test]
+    fn user_message_parse_very_long_content() {
+        let content = "x".repeat(10_000);
+        let input = format!("@architect {}", content);
+        let msg = UserMessage::parse(&input);
+        assert_eq!(msg.target_agent, Some("architect".into()));
+        assert_eq!(msg.content.len(), 10_000);
+    }
+
+    #[test]
+    fn user_message_parse_newline_in_content() {
+        let msg = UserMessage::parse("@developer\nfix this bug");
+        assert_eq!(msg.target_agent, Some("developer".into()));
+        assert_eq!(msg.content, "fix this bug");
+    }
+
+    #[test]
+    fn user_message_parse_no_space_after_at() {
+        let msg = UserMessage::parse("@developermessage");
+        assert_eq!(msg.target_agent, Some("developermessage".into()));
+        assert_eq!(msg.content, "");
+    }
+
+    #[test]
+    fn user_message_parse_multiple_at_signs() {
+        let msg = UserMessage::parse("@@architect hello");
+        assert_eq!(msg.target_agent, Some("@architect".into()));
+        assert_eq!(msg.content, "hello");
+    }
+
+    // ── UserMessage::is_targeting additional edge cases ──────────
+
+    #[test]
+    fn user_message_is_targeting_both_empty() {
+        let msg = UserMessage {
+            target_agent: Some("".into()),
+            content: "hi".into(),
+        };
+        assert!(msg.is_targeting(""));
+        assert!(!msg.is_targeting("anything"));
+    }
+
+    #[test]
+    fn user_message_is_targeting_special_chars_in_name() {
+        let msg = UserMessage {
+            target_agent: Some("test-agent_123".into()),
+            content: "hi".into(),
+        };
+        assert!(msg.is_targeting("test-agent_123"));
+        assert!(!msg.is_targeting("test-agent"));
+    }
+
+    #[test]
+    fn user_message_is_targeting_unicode_agent() {
+        let msg = UserMessage {
+            target_agent: Some("ロボット".into()),
+            content: "hi".into(),
+        };
+        assert!(msg.is_targeting("ロボット"));
+        assert!(!msg.is_targeting("robot"));
+    }
+
+    #[test]
+    fn user_message_is_targeting_ascii_case_edge() {
+        let msg = UserMessage {
+            target_agent: Some("DEV".into()),
+            content: "hi".into(),
+        };
+        assert!(msg.is_targeting("dev"));
+        assert!(msg.is_targeting("Dev"));
+        assert!(msg.is_targeting("DEV"));
+    }
+
+    // ── ChainEvent — all variants constructible and debuggable ──
+
+    #[test]
+    fn chain_event_agent_started_debug() {
+        let e = ChainEvent::AgentStarted {
+            agent_id: AgentId::new(),
+            role: AgentRole::Developer,
+            name: "dev-1".into(),
+        };
+        let s = format!("{:?}", e);
+        assert!(s.contains("AgentStarted"));
+        assert!(s.contains("dev-1"));
+    }
+
+    #[test]
+    fn chain_event_agent_completed_debug() {
+        let e = ChainEvent::AgentCompleted {
+            agent_id: AgentId::new(),
+            role: AgentRole::Reviewer,
+            name: "rev".into(),
+            summary: "done".into(),
+        };
+        let s = format!("{:?}", e);
+        assert!(s.contains("AgentCompleted"));
+        assert!(s.contains("done"));
+    }
+
+    #[test]
+    fn chain_event_chain_completed_debug() {
+        let e = ChainEvent::ChainCompleted {
+            total_duration_ms: 1234,
+        };
+        let s = format!("{:?}", e);
+        assert!(s.contains("ChainCompleted"));
+        assert!(s.contains("1234"));
+    }
+
+    #[test]
+    fn chain_event_chain_failed_debug() {
+        let e = ChainEvent::ChainFailed {
+            error: "timeout".into(),
+        };
+        let s = format!("{:?}", e);
+        assert!(s.contains("ChainFailed"));
+        assert!(s.contains("timeout"));
+    }
+
+    #[test]
+    fn chain_event_waiting_for_input_debug() {
+        let e = ChainEvent::AgentWaitingForInput {
+            agent_id: AgentId::new(),
+            role: AgentRole::Tester,
+            name: "tester".into(),
+            reason: "need input".into(),
+        };
+        let s = format!("{:?}", e);
+        assert!(s.contains("AgentWaitingForInput"));
+        assert!(s.contains("need input"));
+    }
+
+    #[test]
+    fn chain_event_received_input_debug() {
+        let e = ChainEvent::AgentReceivedInput {
+            agent_id: AgentId::new(),
+            message: "user said hi".into(),
+        };
+        let s = format!("{:?}", e);
+        assert!(s.contains("AgentReceivedInput"));
+        assert!(s.contains("user said hi"));
+    }
+
+    #[test]
+    fn chain_event_all_variants_clone() {
+        let id = AgentId::new();
+        let events = vec![
+            ChainEvent::AgentStarted {
+                agent_id: id,
+                role: AgentRole::Architect,
+                name: "a".into(),
+            },
+            ChainEvent::AgentCompleted {
+                agent_id: id,
+                role: AgentRole::Developer,
+                name: "d".into(),
+                summary: "s".into(),
+            },
+            ChainEvent::ChainCompleted {
+                total_duration_ms: 0,
+            },
+            ChainEvent::ChainFailed { error: "e".into() },
+            ChainEvent::AgentWaitingForInput {
+                agent_id: id,
+                role: AgentRole::Tester,
+                name: "t".into(),
+                reason: "r".into(),
+            },
+            ChainEvent::AgentReceivedInput {
+                agent_id: id,
+                message: "m".into(),
+            },
+        ];
+        for e in &events {
+            let cloned = e.clone();
+            assert_eq!(format!("{:?}", cloned), format!("{:?}", e));
+        }
+    }
+
+    // ── quick_quality_check — all roles and boundaries ──────────
+
+    #[test]
+    fn quick_quality_check_all_roles_min_length() {
+        for role in &[
+            AgentRole::Leader,
+            AgentRole::Architect,
+            AgentRole::Developer,
+            AgentRole::Reviewer,
+            AgentRole::Tester,
+            AgentRole::Researcher,
+            AgentRole::Executor,
+        ] {
+            // All roles reject empty
+            assert!(
+                !TeamSessionActor::quick_quality_check("", *role),
+                "role {:?} should reject empty",
+                role
+            );
+        }
+    }
+
+    #[test]
+    fn quick_quality_check_exactly_100_chars_needs_keywords() {
+        // 100 chars is medium range (≤ 100 needs keywords, > 100 accepted)
+        // At exactly 100 chars, keyword check still applies
+        let text = "x".repeat(100);
+        assert!(!TeamSessionActor::quick_quality_check(
+            &text,
+            AgentRole::Developer
+        ));
+        assert!(!TeamSessionActor::quick_quality_check(
+            &text,
+            AgentRole::Architect
+        ));
+        // Reviewer bypasses keyword check
+        assert!(TeamSessionActor::quick_quality_check(
+            &text,
+            AgentRole::Reviewer
+        ));
+
+        // 101 chars bypasses keyword check for all roles
+        let text = "x".repeat(101);
+        assert!(TeamSessionActor::quick_quality_check(
+            &text,
+            AgentRole::Developer
+        ));
+        assert!(TeamSessionActor::quick_quality_check(
+            &text,
+            AgentRole::Architect
+        ));
+        assert!(TeamSessionActor::quick_quality_check(
+            &text,
+            AgentRole::Tester
+        ));
+    }
+
+    #[test]
+    fn quick_quality_check_exactly_99_chars_with_keywords() {
+        // 99 chars with code keyword
+        let mut text = "fn ".to_string();
+        text.push_str(&"x".repeat(96));
+        assert!(text.len() == 99);
+        assert!(TeamSessionActor::quick_quality_check(
+            &text,
+            AgentRole::Developer
+        ));
+    }
+
+    #[test]
+    fn quick_quality_check_exactly_99_chars_without_keywords() {
+        let text = "x".repeat(99);
+        // 99 chars, no code keywords — depends on role
+        // Developer needs keywords in medium range
+        assert!(!TeamSessionActor::quick_quality_check(
+            &text,
+            AgentRole::Developer
+        ));
+        // Architect needs keywords
+        assert!(!TeamSessionActor::quick_quality_check(
+            &text,
+            AgentRole::Architect
+        ));
+        // Reviewer bypasses keyword check > 20 chars
+        assert!(TeamSessionActor::quick_quality_check(
+            &text,
+            AgentRole::Reviewer
+        ));
+    }
+
+    #[test]
+    fn quick_quality_check_researcher_role() {
+        // Researcher returns true like Leader (no specific keywords checked)
+        assert!(TeamSessionActor::quick_quality_check(
+            "research output with sufficient length",
+            AgentRole::Researcher
+        ));
+        assert!(TeamSessionActor::quick_quality_check(
+            "short but meaningful text for researcher",
+            AgentRole::Executor
+        ));
+    }
+
+    #[test]
+    fn quick_quality_check_whitespace_only() {
+        assert!(!TeamSessionActor::quick_quality_check(
+            "   ",
+            AgentRole::Developer
+        ));
+        assert!(!TeamSessionActor::quick_quality_check(
+            "\n\t\n",
+            AgentRole::Architect
+        ));
+        assert!(!TeamSessionActor::quick_quality_check(
+            "  \n  \n  ",
+            AgentRole::Reviewer
+        ));
+    }
+
+    // ── build_context — all roles ─────────────────────────────
+
+    #[test]
+    fn build_context_all_roles_non_empty() {
+        for role in &[
+            AgentRole::Leader,
+            AgentRole::Architect,
+            AgentRole::Developer,
+            AgentRole::Reviewer,
+            AgentRole::Tester,
+            AgentRole::Researcher,
+            AgentRole::Executor,
+        ] {
+            let ctx = TeamSessionActor::build_context("task", "", *role);
+            assert!(
+                !ctx.is_empty(),
+                "role {:?} should produce non-empty context",
+                role
+            );
+            assert!(
+                ctx.contains("任务"),
+                "role {:?} context should mention 任务",
+                role
+            );
+            assert!(ctx.contains("task"));
+        }
+    }
+
+    #[test]
+    fn build_context_with_very_long_task() {
+        let task = "x".repeat(10_000);
+        let ctx = TeamSessionActor::build_context(&task, "", AgentRole::Developer);
+        assert!(ctx.contains(&task));
+    }
+
+    #[test]
+    fn build_context_with_very_long_accumulated() {
+        let acc = "y".repeat(10_000);
+        let ctx = TeamSessionActor::build_context("task", &acc, AgentRole::Developer);
+        assert!(ctx.contains("前面的工作成果"));
+        assert!(ctx.contains(&acc));
+    }
+
+    #[test]
+    fn build_context_fallback_role_includes_task() {
+        let ctx = TeamSessionActor::build_context("do something", "", AgentRole::Executor);
+        assert!(ctx.contains("do something"));
+        assert!(ctx.contains("任务"));
+    }
+
+    // ── resolve_execution_order — complex graphs ─────────────
+
+    #[test]
+    fn resolve_order_ten_agent_linear_chain() {
+        let mut team = Team::new("long-chain");
+        let ids: Vec<AgentId> = (0..10)
+            .map(|i| {
+                let m = TeamMember::new(
+                    AgentRole::Developer,
+                    &format!("a{}", i),
+                    CliProvider::Claude,
+                );
+                let id = m.id;
+                team.add_member(m);
+                id
+            })
+            .collect();
+
+        team.set_leader(ids[0]);
+        for i in 0..9 {
+            team.add_dependency(ids[i], ids[i + 1]);
+        }
+
+        let order = TeamSessionActor::resolve_execution_order(&team);
+        assert_eq!(order.len(), 10);
+        for i in 0..10 {
+            let pos = order.iter().position(|id| *id == ids[i]).unwrap();
+            assert_eq!(pos, i, "agent {} should be at position {}", i, i);
+        }
+    }
+
+    #[test]
+    fn resolve_order_disjoint_subgraphs() {
+        // Two independent chains: A→B and C→D, plus E alone
+        let mut team = Team::new("disjoint");
+        let a = TeamMember::new(AgentRole::Architect, "A", CliProvider::Claude);
+        let b = TeamMember::new(AgentRole::Developer, "B", CliProvider::Claude);
+        let c = TeamMember::new(AgentRole::Reviewer, "C", CliProvider::Claude);
+        let d = TeamMember::new(AgentRole::Tester, "D", CliProvider::Claude);
+        let e = TeamMember::new(AgentRole::Leader, "E", CliProvider::Claude);
+
+        let aid = a.id;
+        let bid = b.id;
+        let cid = c.id;
+        let did = d.id;
+        let eid = e.id;
+        team.add_member(a);
+        team.add_member(b);
+        team.add_member(c);
+        team.add_member(d);
+        team.add_member(e);
+
+        team.set_leader(aid);
+        team.add_dependency(aid, bid);
+        team.set_leader(cid);
+        team.add_dependency(cid, did);
+
+        let order = TeamSessionActor::resolve_execution_order(&team);
+        assert_eq!(order.len(), 5);
+
+        // Each chain maintains internal order
+        let a_pos = order.iter().position(|id| *id == aid).unwrap();
+        let b_pos = order.iter().position(|id| *id == bid).unwrap();
+        assert!(a_pos < b_pos, "A before B");
+
+        let c_pos = order.iter().position(|id| *id == cid).unwrap();
+        let d_pos = order.iter().position(|id| *id == did).unwrap();
+        assert!(c_pos < d_pos, "C before D");
+
+        // E (not in hierarchy) at end
+        let e_pos = order.iter().position(|id| *id == eid).unwrap();
+        assert!(
+            e_pos > a_pos && e_pos > b_pos && e_pos > c_pos && e_pos > d_pos,
+            "E (no hierarchy) should be at end"
+        );
+    }
+
+    // ── AgentResult / ChainResult additional ─────────────────
+
+    #[test]
+    fn agent_result_round_trip_with_all_fields() {
+        let result = AgentResult {
+            agent_id: AgentId::new(),
+            role: AgentRole::Reviewer,
+            agent_name: "code-review".into(),
+            text: "looks good".into(),
+            duration_ms: u64::MAX,
+            attempts: u32::MAX,
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        let back: AgentResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.agent_name, "code-review");
+        assert_eq!(back.role, AgentRole::Reviewer);
+        assert_eq!(back.duration_ms, u64::MAX);
+        assert_eq!(back.attempts, u32::MAX);
+    }
+
+    #[test]
+    fn agent_result_long_text_round_trip() {
+        let result = AgentResult {
+            agent_id: AgentId::new(),
+            role: AgentRole::Developer,
+            agent_name: "dev".into(),
+            text: "x".repeat(100_000),
+            duration_ms: 0,
+            attempts: 1,
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        let back: AgentResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.text.len(), 100_000);
+    }
+
+    #[test]
+    fn agent_result_empty_text() {
+        let result = AgentResult {
+            agent_id: AgentId::new(),
+            role: AgentRole::Tester,
+            agent_name: "tester".into(),
+            text: String::new(),
+            duration_ms: 0,
+            attempts: 0,
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        let back: AgentResult = serde_json::from_str(&json).unwrap();
+        assert!(back.text.is_empty());
+        assert_eq!(back.attempts, 0);
+    }
+
+    // ── role_to_model exhaustive ────────────────────────────
+
+    #[test]
+    fn role_to_model_no_empty_or_none() {
+        for role in &[
+            AgentRole::Leader,
+            AgentRole::Architect,
+            AgentRole::Developer,
+            AgentRole::Reviewer,
+            AgentRole::Tester,
+            AgentRole::Researcher,
+            AgentRole::Executor,
+        ] {
+            let model = TeamSessionActor::role_to_model(*role);
+            assert!(
+                !model.is_empty(),
+                "role {:?} should map to non-empty model",
+                role
+            );
+            assert!(
+                model.contains("claude"),
+                "role {:?} map '{}' should contain 'claude'",
+                role,
+                model
+            );
+        }
+    }
+
+    // ── upgrade_model edge cases ────────────────────────────
+
+    #[test]
+    fn upgrade_model_all_steps() {
+        // haiku → sonnet → opus → opus (stays)
+        assert_eq!(
+            TeamSessionActor::upgrade_model(AgentRole::Tester, "claude-haiku-4-5"),
+            "claude-sonnet-4-5"
+        );
+        assert_eq!(
+            TeamSessionActor::upgrade_model(AgentRole::Tester, "claude-sonnet-4-5"),
+            "claude-opus-4-5"
+        );
+        assert_eq!(
+            TeamSessionActor::upgrade_model(AgentRole::Tester, "claude-opus-4-5"),
+            "claude-opus-4-5"
+        );
+    }
+
+    #[test]
+    fn upgrade_model_nonexistent_model_returns_opus() {
+        assert_eq!(
+            TeamSessionActor::upgrade_model(AgentRole::Developer, "nonexistent-model"),
+            "claude-opus-4-5"
+        );
+    }
+
+    // ── auto_yes_prefix ─────────────────────────────────────
+
+    #[test]
+    fn auto_yes_prefix_contains_key_phrases() {
+        let prefix = TeamSessionActor::auto_yes_prefix();
+        assert!(prefix.contains("auto-yes"), "should mention auto-yes");
+        assert!(
+            prefix.contains("proceed automatically"),
+            "should mention automatic proceed"
+        );
+        assert!(prefix.contains("Never ask"), "should forbid asking");
     }
 }

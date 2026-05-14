@@ -1797,9 +1797,11 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
     let a2ui_service = app_state.a2ui_service.clone();
     let a2ui_routes = a2ui::create_a2ui_router(a2ui_service);
 
-    // 团队会话路由（独立 state，读取 nexus.db SessionStore）
-    let team_sessions_routes =
-        Router::new().nest("/api/v1/team-sessions", team_sessions::create_router());
+    // 团队会话路由（使用当前工作区路径，读取对应项目的 .nx/team_sessions.db）
+    let team_sessions_routes = Router::new().nest(
+        "/api/v1/team-sessions",
+        team_sessions::create_router(app_state.current_workspace_path.clone()),
+    );
 
     // 合并公共路由（健康检查无需认证）
     let app = Router::new()

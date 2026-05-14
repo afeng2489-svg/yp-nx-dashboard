@@ -6,9 +6,35 @@ use crate::session::{AgentResult, ChainResult};
 use parking_lot::Mutex;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use thiserror::Error;
+
+/// 解析项目根目录下的 team_sessions.db 绝对路径
+///
+/// 从当前工作目录向上查找 Cargo.toml 中的 `[workspace]`，
+/// 确保 CLI 和 Tauri 桌面端使用同一个数据库文件。
+pub fn resolve_team_db_path() -> PathBuf {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let mut dir = Some(cwd.as_path());
+    while let Some(d) = dir {
+        let manifest = d.join("Cargo.toml");
+        if manifest.exists() {
+            if let Ok(content) = std::fs::read_to_string(&manifest) {
+                if content.contains("[workspace]") {
+                    let path = d.join(".nx").join("team_sessions.db");
+                    let _ = std::fs::create_dir_all(path.parent().unwrap());
+                    return path;
+                }
+            }
+        }
+        dir = d.parent();
+    }
+    // 回退：使用当前目录
+    let path = cwd.join(".nx").join("team_sessions.db");
+    let _ = std::fs::create_dir_all(path.parent().unwrap());
+    path
+}
 
 #[derive(Error, Debug)]
 pub enum StoreError {

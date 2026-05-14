@@ -14,6 +14,7 @@ import {
 import { API_BASE_URL } from '@/api/constants';
 import { Pagination } from '@/components/ui/Pagination';
 import { cn } from '@/lib/utils';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 const PAGE_SIZE = 8;
 
@@ -201,7 +202,12 @@ export function TeamSessionsPage() {
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       const modelArg = newModel.trim() || undefined;
-      await invoke('spawn_team_session', { task: newTask.trim(), model: modelArg });
+      const currentWorkspace = useWorkspaceStore.getState().currentWorkspace;
+      await invoke('spawn_team_session', {
+        task: newTask.trim(),
+        model: modelArg,
+        workingDir: currentWorkspace?.root_path || undefined,
+      });
       setShowNewModal(false);
       setNewTask('');
       setNewModel('');

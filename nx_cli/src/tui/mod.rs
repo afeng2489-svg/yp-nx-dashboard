@@ -10,13 +10,13 @@ use crossterm::{
 };
 use ratatui::{
     layout::{Constraint, Direction, Layout},
-    style::{Color, Style},
-    text::{Line, Span, Text},
-    widgets::{Block, Borders, Paragraph},
     Frame, Terminal,
 };
 use std::io;
 use tokio::sync::mpsc;
+
+mod panels;
+use panels::{render_chat_panel, render_input_panel, render_progress_panel, render_status_panel};
 
 /// 团队会话渲染器 trait — Phase 3 将实现完整渲染逻辑
 pub trait TeamSessionRenderer: Send {
@@ -88,108 +88,27 @@ impl TeamSessionRenderer for SkeletonRenderer {
     fn render(&mut self, frame: &mut Frame, state: &SessionViewState) {
         let area = frame.area();
 
-        // 主布局：左侧对话区 + 右侧进度栏
         let main_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
             .split(area);
 
-        // 对话面板
-        let chat_block = Block::default()
-            .title("对话区")
-            .borders(Borders::ALL)
-            .style(Style::default().fg(Color::Cyan));
-        let chat_text = if state.messages.is_empty() {
-            Text::from("等待团队会话启动...\n\n使用 `nx team \"<任务描述>\"` 启动会话")
-        } else {
-            let last_idx = state.messages.len().saturating_sub(1);
-            let lines: Vec<Line> = state
-                .messages
-                .iter()
-                .enumerate()
-                .map(|(i, (name, _role, chunk))| {
-                    let display_text = if i == last_idx {
-                        let end = state.typewriter_pos.min(chunk.len());
-                        &chunk[..end]
-                    } else {
-                        chunk.as_str()
-                    };
-                    Line::from(vec![
-                        Span::styled(format!("[{}] ", name), Style::default().fg(Color::Yellow)),
-                        Span::raw(display_text),
-                    ])
-                })
-                .collect();
-            Text::from(lines)
-        };
-        let chat = Paragraph::new(chat_text).block(chat_block);
-        frame.render_widget(chat, main_chunks[0]);
+        render_chat_panel(frame, main_chunks[0], state);
 
-        // 右侧面板（进度 + 状态）
         let right_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
             .split(main_chunks[1]);
 
-        // 进度面板
-        let progress_block = Block::default()
-            .title("进度")
-            .borders(Borders::ALL)
-            .style(Style::default().fg(Color::Green));
-        let progress_lines: Vec<Line> = if state.agent_states.is_empty() {
-            vec![
-                Line::from("○ Architect  待机"),
-                Line::from("○ Developer  待机"),
-                Line::from("○ Reviewer   待机"),
-                Line::from("○ Tester     待机"),
-            ]
-        } else {
-            state
-                .agent_states
-                .iter()
-                .map(|(role, status, elapsed)| {
-                    let icon = match status {
-                        AgentProgress::Idle => "○",
-                        AgentProgress::Running => "◉",
-                        AgentProgress::Completed => "✓",
-                        AgentProgress::Failed => "✗",
-                    };
-                    Line::from(format!("{} {:12} {}s", icon, role, elapsed))
-                })
-                .collect()
-        };
-        let progress = Paragraph::new(Text::from(progress_lines)).block(progress_block);
-        frame.render_widget(progress, right_chunks[0]);
+        render_progress_panel(frame, right_chunks[0], state);
+        render_status_panel(frame, right_chunks[1], state);
 
-        // 状态栏
-        let status_block = Block::default()
-            .title("状态")
-            .borders(Borders::ALL)
-            .style(Style::default().fg(Color::Magenta));
-        let status_text = vec![
-            Line::from(format!("状态: {:?}", state.status)),
-            Line::from(""),
-            Line::from("[Ctrl+C] 退出"),
-            Line::from("[Tab] 切换面板"),
-            Line::from("[Enter] 输入消息 / [Esc] 取消"),
-        ];
-        let status = Paragraph::new(Text::from(status_text)).block(status_block);
-        frame.render_widget(status, right_chunks[1]);
-
-        // 输入栏（底部弹出）
         if state.is_input_mode {
             let input_area = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([Constraint::Min(0), Constraint::Length(3)])
                 .split(area)[1];
-            let input_block = Block::default()
-                .title("💬 输入 (Enter 发送, Esc 取消)")
-                .borders(Borders::ALL)
-                .style(Style::default().fg(Color::Yellow));
-            let cursor = "▊";
-            let input_text = format!("> {}{}", state.input_buffer, cursor);
-            let input = Paragraph::new(Text::from(input_text)).block(input_block);
-            frame.render_widget(input, input_area);
+            render_input_panel(frame, input_area, state);
         }
     }
 
@@ -228,7 +147,11 @@ pub enum TuiEvent {
 }
 
 /// 启动 TUI 界面，通过 events_rx 接收后台会话事件
-pub async fn run_tui_skeleton(mut events_rx: mpsc::UnboundedReceiver<TuiEvent>) -> Result<()> {
+/// 如果提供了 user_input_tx，用户输入的消息会转发到该通道
+pub async fn run_tui_skeleton(
+    mut events_rx: mpsc::UnboundedReceiver<TuiEvent>,
+    user_input_tx: Option<mpsc::UnboundedSender<String>>,
+) -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -238,7 +161,13 @@ pub async fn run_tui_skeleton(mut events_rx: mpsc::UnboundedReceiver<TuiEvent>) 
     let mut renderer = SkeletonRenderer;
     let state = SessionViewState::default();
 
-    let result = run_tui_loop(&mut terminal, &mut renderer, state, &mut events_rx);
+    let result = run_tui_loop(
+        &mut terminal,
+        &mut renderer,
+        state,
+        &mut events_rx,
+        user_input_tx,
+    );
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
@@ -247,11 +176,15 @@ pub async fn run_tui_skeleton(mut events_rx: mpsc::UnboundedReceiver<TuiEvent>) 
     result
 }
 
+#[cfg(test)]
+mod tests;
+
 fn run_tui_loop<R: TeamSessionRenderer>(
     terminal: &mut Terminal<ratatui::backend::CrosstermBackend<io::Stdout>>,
     renderer: &mut R,
     mut state: SessionViewState,
     events_rx: &mut mpsc::UnboundedReceiver<TuiEvent>,
+    user_input_tx: Option<mpsc::UnboundedSender<String>>,
 ) -> Result<()> {
     loop {
         // 消费所有待处理事件
@@ -324,6 +257,10 @@ fn run_tui_loop<R: TeamSessionRenderer>(
                             let msg = state.input_buffer.clone();
                             state.is_input_mode = false;
                             state.input_buffer.clear();
+                            // 如果有用户输入转发通道，发送消息
+                            if let Some(ref tx) = user_input_tx {
+                                let _ = tx.send(msg.clone());
+                            }
                             // Push user message into the chat
                             state.messages.push(("user".into(), "@self".into(), msg));
                         } else {

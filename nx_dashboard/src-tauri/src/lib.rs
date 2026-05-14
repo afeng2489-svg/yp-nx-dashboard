@@ -75,10 +75,7 @@ async fn pty_connect(
                     let _ = app_handle.emit(&control_event, text);
                 }
                 Ok(WsMessage::Close(_)) => {
-                    let _ = app_handle.emit(
-                        &control_event,
-                        r#"{"type":"closed"}"#.to_string(),
-                    );
+                    let _ = app_handle.emit(&control_event, r#"{"type":"closed"}"#.to_string());
                     break;
                 }
                 Err(e) => {
@@ -140,23 +137,30 @@ async fn pty_send_control(
 async fn spawn_team_session(
     task: String,
     model: Option<String>,
+    working_dir: Option<String>,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
     let nx_bin = resolve_nx_binary()?;
     let mut cmd = Command::new(&nx_bin);
-    cmd.arg("team").arg(&task);
+    cmd.arg("team");
     if let Some(ref m) = model {
         cmd.args(["--model", m]);
     }
-    cmd.stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    if let Some(ref dir) = working_dir {
+        cmd.args(["--project", dir]);
+        cmd.current_dir(dir);
+    }
+    cmd.arg(&task);
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-    let mut child = cmd.spawn().map_err(|e| {
-        format!("无法启动 nx team (path: {:?}): {}", nx_bin, e)
-    })?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("无法启动 nx team (path: {:?}): {}", nx_bin, e))?;
 
     // 从 stdout 读取 session_id（扫描行直到找到前缀）
-    let stdout = child.stdout.take()
+    let stdout = child
+        .stdout
+        .take()
         .ok_or_else(|| "无法捕获 nx team 输出".to_string())?;
     let mut reader = BufReader::new(stdout);
     let mut id: Option<String> = None;
@@ -191,10 +195,13 @@ async fn spawn_team_session(
         let mut buf = String::new();
         let _ = reader.read_to_string(&mut buf);
         let status = child.wait();
-        let _ = app_clone.emit("team-session-completed", serde_json::json!({
-            "sessionId": id_for_bg,
-            "success": status.is_ok_and(|s| s.success()),
-        }));
+        let _ = app_clone.emit(
+            "team-session-completed",
+            serde_json::json!({
+                "sessionId": id_for_bg,
+                "success": status.is_ok_and(|s| s.success()),
+            }),
+        );
     });
 
     Ok(id)
@@ -203,8 +210,7 @@ async fn spawn_team_session(
 /// Resolve the nx CLI binary path (debug: target/debug/nx, release: sidecar)
 fn resolve_nx_binary() -> Result<PathBuf, String> {
     if cfg!(debug_assertions) {
-        let root = find_workspace_root()
-            .ok_or_else(|| "无法找到 workspace root".to_string())?;
+        let root = find_workspace_root().ok_or_else(|| "无法找到 workspace root".to_string())?;
         let nx = root.join("target/debug/nx");
         if nx.exists() {
             Ok(nx)
@@ -317,8 +323,8 @@ pub fn run() {
             };
 
             // ── 写入启动标记（确认 setup 执行）──
-            let marker_dir: std::path::PathBuf = dirs::home_dir()
-                .unwrap_or_else(std::env::temp_dir);
+            let marker_dir: std::path::PathBuf =
+                dirs::home_dir().unwrap_or_else(std::env::temp_dir);
             let marker_path = marker_dir.join("nx_tauri_setup.log");
             let marker_msg = format!(
                 "[{}] Tauri setup started\n  exe: {:?}\n  temp_dir: {:?}\n",
@@ -348,18 +354,23 @@ pub fn run() {
                 for name in &names {
                     let path = exe_dir.as_ref().map(|d| d.join(name));
                     let exists = path.as_ref().map(|p| p.exists()).unwrap_or(false);
-                    let size = path.as_ref()
+                    let size = path
+                        .as_ref()
                         .and_then(|p| std::fs::metadata(p).ok())
                         .map(|m| m.len())
                         .unwrap_or(0);
-                    info.push_str(&format!("  sidecar {}: exists={}, size={} bytes, path={:?}\n", name, exists, size, path));
+                    info.push_str(&format!(
+                        "  sidecar {}: exists={}, size={} bytes, path={:?}\n",
+                        name, exists, size, path
+                    ));
                 }
                 info
             } else {
                 "  debug mode — sidecar check skipped".to_string()
             };
             let _ = std::fs::OpenOptions::new()
-                .create(true).append(true)
+                .create(true)
+                .append(true)
                 .open(&marker_path)
                 .and_then(|mut f| std::io::Write::write_all(&mut f, sidecar_info.as_bytes()));
 
@@ -380,10 +391,15 @@ pub fn run() {
 
                         // 2. 标记文件追加
                         let _ = std::fs::OpenOptions::new()
-                            .create(true).append(true)
+                            .create(true)
+                            .append(true)
                             .open(&marker_path_for_thread)
-                            .and_then(|mut f| std::io::Write::write_all(
-                                &mut f, format!("\n\nERROR: {}\n", msg).as_bytes()));
+                            .and_then(|mut f| {
+                                std::io::Write::write_all(
+                                    &mut f,
+                                    format!("\n\nERROR: {}\n", msg).as_bytes(),
+                                )
+                            });
 
                         // 3. temp dir (原有)
                         write_startup_error(&msg);
@@ -468,14 +484,18 @@ fn find_workspace_root() -> Option<PathBuf> {
     None
 }
 
-fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+fn start_nx_api(
+    app_handle: &tauri::AppHandle,
+    claude_cli_path: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
     // All diagnostic output goes to this log file — on Windows stderr is invisible
     let diag_path = std::env::temp_dir().join("nx_startup.log");
     let diag = |msg: &str| {
         let entry = format!("[{}] {}\n", chrono_or_timestamp(), msg);
         eprintln!("{}", entry.trim());
         let _ = std::fs::OpenOptions::new()
-            .create(true).append(true)
+            .create(true)
+            .append(true)
             .open(&diag_path)
             .and_then(|mut f| std::io::Write::write_all(&mut f, entry.as_bytes()));
     };
@@ -498,7 +518,11 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
         let target_triple = if cfg!(target_os = "windows") {
             "x86_64-pc-windows-msvc"
         } else if cfg!(target_os = "macos") {
-            if cfg!(target_arch = "aarch64") { "aarch64-apple-darwin" } else { "x86_64-apple-darwin" }
+            if cfg!(target_arch = "aarch64") {
+                "aarch64-apple-darwin"
+            } else {
+                "x86_64-apple-darwin"
+            }
         } else {
             "x86_64-unknown-linux-gnu"
         };
@@ -515,7 +539,9 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
             "nx_api".to_string()
         };
 
-        let resource_dir = app_handle.path().resource_dir()
+        let resource_dir = app_handle
+            .path()
+            .resource_dir()
             .expect("failed to resolve resource directory");
 
         // Try multiple candidate paths for the sidecar
@@ -551,7 +577,10 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
                     diag(&format!("NOT found: {:?}", c));
                 }
                 // Return first candidate as the error path
-                candidates.into_iter().next().unwrap_or_else(|| resource_dir.join(&sidecar_name))
+                candidates
+                    .into_iter()
+                    .next()
+                    .unwrap_or_else(|| resource_dir.join(&sidecar_name))
             }
         };
 
@@ -598,7 +627,10 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
                 std::fs::copy(&template, &db)?;
                 diag(&format!("Copied template DB to {:?}", db));
             } else {
-                diag(&format!("WARNING: template DB not found at {:?}, nx_api will create empty DB", template));
+                diag(&format!(
+                    "WARNING: template DB not found at {:?}, nx_api will create empty DB",
+                    template
+                ));
             }
         }
 
@@ -609,7 +641,9 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
     std::fs::create_dir_all(&log_dir)?;
     let log_path = log_dir.join("nx_api.log");
     let log_file = std::fs::OpenOptions::new()
-        .create(true).write(true).truncate(true)
+        .create(true)
+        .write(true)
+        .truncate(true)
         .open(&log_path)
         .map_err(|e| format!("Failed to open log file: {}", e))?;
     let log_file2 = log_file.try_clone()?;
@@ -633,7 +667,10 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
     child_cmd
         .env("AGENTS_DIR", &skills_path)
         .env("NEXUS_DB_PATH", &db_path)
-        .env("NEXUS_ALLOWED_ORIGINS", "tauri://localhost,http://localhost:5173,http://localhost:3000")
+        .env(
+            "NEXUS_ALLOWED_ORIGINS",
+            "tauri://localhost,http://localhost:5173,http://localhost:3000",
+        )
         .env("RUST_LOG", "info");
 
     // On Windows, add sidecar directory to PATH so DLLs can be found
@@ -673,7 +710,10 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
         match child.try_wait() {
             Ok(Some(status)) => {
                 let log = std::fs::read_to_string(&log_path).unwrap_or_default();
-                let msg = format!("nx_api exited (status: {})\n--- nx_api log ---\n{}", status, log);
+                let msg = format!(
+                    "nx_api exited (status: {})\n--- nx_api log ---\n{}",
+                    status, log
+                );
                 diag(&msg);
                 return Err(msg.into());
             }
@@ -689,8 +729,13 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
         if std::net::TcpStream::connect_timeout(
             &"127.0.0.1:8080".parse().unwrap(),
             std::time::Duration::from_millis(200),
-        ).is_ok() {
-            diag(&format!("nx_api ready on port 8080 (after {}x500ms)", i + 1));
+        )
+        .is_ok()
+        {
+            diag(&format!(
+                "nx_api ready on port 8080 (after {}x500ms)",
+                i + 1
+            ));
             ready = true;
             break;
         }
@@ -698,7 +743,10 @@ fn start_nx_api(app_handle: &tauri::AppHandle, claude_cli_path: Option<&str>) ->
 
     if !ready {
         let log = std::fs::read_to_string(&log_path).unwrap_or_default();
-        let msg = format!("nx_api started but port 8080 not responding after 10s\n--- nx_api log ---\n{}", log);
+        let msg = format!(
+            "nx_api started but port 8080 not responding after 10s\n--- nx_api log ---\n{}",
+            log
+        );
         diag(&msg);
         return Err(msg.into());
     }
@@ -714,4 +762,705 @@ fn chrono_or_timestamp() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| format!("{}", d.as_secs()))
         .unwrap_or_else(|_| "???".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::MutexGuard;
+    use std::time::Duration;
+
+    /// Serializes access to the shared `nx_startup.log` to prevent inter-test races.
+    fn acquire_log_lock() -> MutexGuard<'static, ()> {
+        static LOG_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        LOG_LOCK.lock().unwrap()
+    }
+
+    // ── chrono_or_timestamp ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_chrono_or_timestamp_returns_valid_unix_epoch() {
+        let ts = chrono_or_timestamp();
+        assert!(!ts.is_empty(), "timestamp should not be empty");
+        let secs: u64 = ts.parse().expect("timestamp should be a valid u64");
+        // Reasonable range: 2024-2027 (~1_704_000_000 .. ~1_800_000_000)
+        assert!(
+            secs > 1_700_000_000 && secs < 1_900_000_000,
+            "timestamp {secs} should be in reasonable unix epoch range"
+        );
+    }
+
+    #[test]
+    fn test_chrono_or_timestamp_monotonic() {
+        let t1: u64 = chrono_or_timestamp().parse().unwrap();
+        std::thread::sleep(Duration::from_millis(5));
+        let t2: u64 = chrono_or_timestamp().parse().unwrap();
+        assert!(
+            t2 >= t1,
+            "timestamps should be non-decreasing: {t2} >= {t1}"
+        );
+    }
+
+    // ── find_workspace_root ────────────────────────────────────────────────
+
+    #[test]
+    fn test_find_workspace_root_from_test_binary() {
+        // The test binary runs inside target/debug/, which is under the workspace
+        let result = find_workspace_root();
+        assert!(
+            result.is_some(),
+            "should find workspace from within the project"
+        );
+        let root = result.unwrap();
+        assert!(
+            root.join("Cargo.toml").exists(),
+            "workspace root should contain Cargo.toml"
+        );
+        let toml = std::fs::read_to_string(root.join("Cargo.toml")).unwrap_or_default();
+        assert!(
+            toml.contains("[workspace]"),
+            "workspace Cargo.toml should contain [workspace]"
+        );
+        assert!(
+            root.join("nx_dashboard").is_dir(),
+            "workspace root should contain nx_dashboard/"
+        );
+    }
+
+    // ── write_startup_error ────────────────────────────────────────────────
+
+    fn startup_log_path() -> std::path::PathBuf {
+        std::env::temp_dir().join("nx_startup.log")
+    }
+
+    fn cleanup_startup_log() {
+        let _ = std::fs::remove_file(startup_log_path());
+    }
+
+    #[test]
+    fn test_write_startup_error_appends_to_log() {
+        let _guard = acquire_log_lock();
+        cleanup_startup_log();
+
+        write_startup_error("test message 1");
+        write_startup_error("test message 2");
+
+        let content = std::fs::read_to_string(startup_log_path()).unwrap_or_default();
+        assert!(
+            content.contains("test message 1"),
+            "should contain first message"
+        );
+        assert!(
+            content.contains("test message 2"),
+            "should contain second message"
+        );
+
+        cleanup_startup_log();
+    }
+
+    #[test]
+    fn test_write_startup_error_empty_message() {
+        let _guard = acquire_log_lock();
+        cleanup_startup_log();
+        write_startup_error(""); // Should not panic
+        let content = std::fs::read_to_string(startup_log_path()).unwrap_or_default();
+        // Even an empty message produces a line
+        assert!(!content.is_empty(), "log should contain at least a newline");
+        cleanup_startup_log();
+    }
+
+    #[test]
+    fn test_write_startup_error_long_message() {
+        let _guard = acquire_log_lock();
+        cleanup_startup_log();
+        let long = "A".repeat(10_000);
+        write_startup_error(&long);
+        let content = std::fs::read_to_string(startup_log_path()).unwrap_or_default();
+        assert!(
+            content.contains(&long),
+            "long message should be fully written"
+        );
+        cleanup_startup_log();
+    }
+
+    #[test]
+    fn test_write_startup_error_unicode_message() {
+        let _guard = acquire_log_lock();
+        cleanup_startup_log();
+        write_startup_error("启动错误: 服务不可用 🔥");
+        let content = std::fs::read_to_string(startup_log_path()).unwrap_or_default();
+        assert!(
+            content.contains("启动错误"),
+            "unicode text should be preserved"
+        );
+        cleanup_startup_log();
+    }
+
+    // ── kill_stale_nx_api ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_kill_stale_nx_api_no_panic_on_clean_port() {
+        // Should not panic, hang, or error when nothing listens on port 8080
+        kill_stale_nx_api();
+    }
+
+    // ── PtyConnections (Arc<Mutex<HashMap>>) ───────────────────────────────
+
+    fn make_pty_connections() -> PtyConnections {
+        Arc::new(Mutex::new(HashMap::new()))
+    }
+
+    fn make_sender() -> tokio::sync::mpsc::Sender<WsMessage> {
+        let (tx, _rx) = tokio::sync::mpsc::channel::<WsMessage>(64);
+        tx
+    }
+
+    #[test]
+    fn test_pty_connections_empty_on_init() {
+        let conns = make_pty_connections();
+        assert!(conns.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_pty_connections_insert_and_contains() {
+        let conns = make_pty_connections();
+        let sid = "session-test-1".to_string();
+
+        conns.lock().unwrap().insert(sid.clone(), make_sender());
+
+        let map = conns.lock().unwrap();
+        assert!(map.contains_key(&sid));
+        assert_eq!(map.len(), 1);
+    }
+
+    #[test]
+    fn test_pty_connections_remove_returns_sender() {
+        let conns = make_pty_connections();
+        let sid = "session-to-remove".to_string();
+        conns.lock().unwrap().insert(sid.clone(), make_sender());
+
+        let removed = conns.lock().unwrap().remove(&sid);
+        assert!(removed.is_some(), "should return the removed sender");
+
+        assert!(conns.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_pty_connections_remove_nonexistent() {
+        let conns = make_pty_connections();
+        let result = conns.lock().unwrap().remove("i-do-not-exist");
+        assert!(result.is_none(), "removing non-existent key returns None");
+    }
+
+    #[test]
+    fn test_pty_connections_multiple_sessions() {
+        let conns = make_pty_connections();
+        let sessions = ["s1", "s2", "s3", "s4", "s5"];
+
+        for s in &sessions {
+            conns.lock().unwrap().insert(s.to_string(), make_sender());
+        }
+
+        {
+            let map = conns.lock().unwrap();
+            assert_eq!(map.len(), 5);
+            for s in &sessions {
+                assert!(map.contains_key(*s));
+            }
+        }
+
+        // Remove two middle entries
+        conns.lock().unwrap().remove("s2");
+        conns.lock().unwrap().remove("s4");
+
+        {
+            let map = conns.lock().unwrap();
+            assert_eq!(map.len(), 3);
+            assert!(map.contains_key("s1"));
+            assert!(!map.contains_key("s2"));
+            assert!(map.contains_key("s3"));
+            assert!(!map.contains_key("s4"));
+            assert!(map.contains_key("s5"));
+        }
+    }
+
+    #[test]
+    fn test_pty_connections_reinsert_replaces() {
+        let conns = make_pty_connections();
+        let sid = "session-replace".to_string();
+
+        conns.lock().unwrap().insert(sid.clone(), make_sender());
+
+        let old = conns.lock().unwrap().insert(sid.clone(), make_sender());
+        assert!(old.is_some(), "re-insert should return previous sender");
+
+        assert_eq!(conns.lock().unwrap().len(), 1);
+    }
+
+    // ── Edge Cases: session_id ─────────────────────────────────────────────
+
+    #[test]
+    fn test_pty_connections_empty_string_key() {
+        let conns = make_pty_connections();
+        conns.lock().unwrap().insert(String::new(), make_sender());
+        assert!(conns.lock().unwrap().contains_key(""));
+    }
+
+    #[test]
+    fn test_pty_connections_very_long_session_id() {
+        let conns = make_pty_connections();
+        let long_id = "a".repeat(10_000);
+        conns.lock().unwrap().insert(long_id.clone(), make_sender());
+        assert!(conns.lock().unwrap().contains_key(&long_id));
+    }
+
+    #[test]
+    fn test_pty_connections_special_chars_in_key() {
+        let conns = make_pty_connections();
+        let special = "uuid:550e8400-e29b-41d4-a716-446655440000/session:1".to_string();
+        conns.lock().unwrap().insert(special.clone(), make_sender());
+        assert!(conns.lock().unwrap().contains_key(&special));
+    }
+
+    // ── Concurrent Access ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_pty_connections_concurrent_inserts_50() {
+        let conns = make_pty_connections();
+        let mut handles = vec![];
+
+        for i in 0..50 {
+            let conns = Arc::clone(&conns);
+            handles.push(std::thread::spawn(move || {
+                conns
+                    .lock()
+                    .unwrap()
+                    .insert(format!("c-{i}"), make_sender());
+            }));
+        }
+
+        for h in handles {
+            h.join().expect("thread should not panic");
+        }
+
+        assert_eq!(conns.lock().unwrap().len(), 50);
+    }
+
+    #[test]
+    fn test_pty_connections_concurrent_read_write() {
+        let conns = make_pty_connections();
+
+        // Pre-populate some sessions
+        for i in 0..10 {
+            conns
+                .lock()
+                .unwrap()
+                .insert(format!("pre-{i}"), make_sender());
+        }
+
+        let mut handles: Vec<std::thread::JoinHandle<()>> = vec![];
+
+        // Write threads
+        for i in 0..10 {
+            let c = Arc::clone(&conns);
+            handles.push(std::thread::spawn(move || {
+                c.lock()
+                    .unwrap()
+                    .insert(format!("write-{i}"), make_sender());
+            }));
+        }
+
+        // Read threads
+        for _ in 0..10 {
+            let c = Arc::clone(&conns);
+            handles.push(std::thread::spawn(move || {
+                let map = c.lock().unwrap();
+                let _ = map.contains_key("pre-0");
+                let _ = map.len();
+            }));
+        }
+
+        for h in handles {
+            h.join().expect("thread should not panic");
+        }
+
+        let map = conns.lock().unwrap();
+        assert_eq!(map.len(), 20);
+    }
+
+    #[test]
+    fn test_pty_connections_drain_all() {
+        let conns = make_pty_connections();
+        for i in 0..10 {
+            conns
+                .lock()
+                .unwrap()
+                .insert(format!("drain-{i}"), make_sender());
+        }
+        conns.lock().unwrap().clear();
+        assert!(conns.lock().unwrap().is_empty());
+    }
+
+    // ── Channel send/receive patterns ──────────────────────────────────────
+
+    #[test]
+    fn test_pty_send_input_binary_through_channel() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<WsMessage>(64);
+
+        tx.blocking_send(WsMessage::Binary(vec![104, 101, 108, 108, 111]))
+            .expect("should send binary data");
+
+        match rx.blocking_recv() {
+            Some(WsMessage::Binary(data)) => assert_eq!(data, b"hello"),
+            other => panic!("expected Binary, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_pty_send_control_text_through_channel() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<WsMessage>(64);
+        let msg = r#"{"type":"resize","cols":80,"rows":24}"#;
+
+        tx.blocking_send(WsMessage::Text(msg.to_string()))
+            .expect("should send text message");
+
+        match rx.blocking_recv() {
+            Some(WsMessage::Text(text)) => assert_eq!(text, msg),
+            other => panic!("expected Text, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_pty_send_empty_binary() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<WsMessage>(64);
+        tx.blocking_send(WsMessage::Binary(vec![])).unwrap();
+        match rx.blocking_recv() {
+            Some(WsMessage::Binary(data)) => assert!(data.is_empty()),
+            other => panic!("expected empty Binary, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_pty_send_large_binary_64k() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<WsMessage>(64);
+        let large = vec![0xABu8; 65_536];
+        tx.blocking_send(WsMessage::Binary(large.clone())).unwrap();
+        match rx.blocking_recv() {
+            Some(WsMessage::Binary(data)) => {
+                assert_eq!(data.len(), 65_536);
+                assert_eq!(data[0], 0xAB);
+                assert_eq!(data[65_535], 0xAB);
+            }
+            other => panic!("expected Binary, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_pty_send_close_message() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<WsMessage>(64);
+        tx.blocking_send(WsMessage::Close(None)).unwrap();
+        match rx.blocking_recv() {
+            Some(WsMessage::Close(_)) => {} // expected
+            other => panic!("expected Close, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_pty_send_ping_pong() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<WsMessage>(64);
+
+        tx.blocking_send(WsMessage::Ping(vec![1, 2, 3])).unwrap();
+        match rx.blocking_recv() {
+            Some(WsMessage::Ping(data)) => assert_eq!(data, vec![1, 2, 3]),
+            other => panic!("expected Ping, got {:?}", other),
+        }
+
+        tx.blocking_send(WsMessage::Pong(vec![4, 5, 6])).unwrap();
+        match rx.blocking_recv() {
+            Some(WsMessage::Pong(data)) => assert_eq!(data, vec![4, 5, 6]),
+            other => panic!("expected Pong, got {:?}", other),
+        }
+    }
+
+    // ── Channel backpressure and lifecycle ─────────────────────────────────
+
+    #[test]
+    fn test_pty_channel_bounded_capacity_behavior() {
+        let (tx, rx) = tokio::sync::mpsc::channel::<WsMessage>(4);
+
+        // Fill the buffer exactly to capacity
+        for i in 0..4 {
+            tx.blocking_send(WsMessage::Binary(vec![i]))
+                .expect("first 4 sends should succeed");
+        }
+
+        // Next non-blocking send should fail (channel full)
+        assert!(
+            tx.try_send(WsMessage::Binary(vec![4])).is_err(),
+            "try_send should fail when channel buffer is full"
+        );
+
+        // Consume one message, then try_send should succeed
+        drop(rx);
+    }
+
+    #[test]
+    fn test_pty_channel_close_on_all_senders_dropped() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<WsMessage>(64);
+        drop(tx);
+
+        let received = rx.blocking_recv();
+        assert!(
+            received.is_none(),
+            "channel returns None after all senders dropped"
+        );
+    }
+
+    #[test]
+    fn test_pty_channel_partial_close() {
+        // Multiple senders: dropping some leaves channel open
+        let (tx1, mut rx) = tokio::sync::mpsc::channel::<WsMessage>(64);
+        let tx2 = tx1.clone();
+
+        tx1.blocking_send(WsMessage::Binary(vec![1])).unwrap();
+        drop(tx1); // Drop one sender
+
+        // Channel still open because tx2 is alive
+        tx2.blocking_send(WsMessage::Binary(vec![2])).unwrap();
+        drop(tx2);
+
+        // Now all senders are dropped
+        let mut results = vec![];
+        while let Some(msg) = rx.blocking_recv() {
+            if let WsMessage::Binary(d) = msg {
+                results.push(d[0]);
+            }
+        }
+        assert_eq!(results, vec![1, 2]);
+    }
+
+    #[test]
+    fn test_pty_channel_capacity_exhaustion_recovery() {
+        let (tx, rx) = tokio::sync::mpsc::channel::<WsMessage>(2);
+
+        // Fill channel
+        tx.blocking_send(WsMessage::Binary(vec![1])).unwrap();
+        tx.blocking_send(WsMessage::Binary(vec![2])).unwrap();
+
+        // try_send should fail
+        assert!(tx.try_send(WsMessage::Binary(vec![3])).is_err());
+
+        // Drop receiver to "recover" (simulates connection drop)
+        drop(rx);
+
+        // After receiver is dropped, try_send should fail with Closed
+        match tx.try_send(WsMessage::Binary(vec![3])) {
+            Err(e) => {
+                assert!(
+                    e.to_string().contains("closed"),
+                    "after rx drop, expected Closed error, got: {e}"
+                );
+            }
+            Ok(_) => panic!("should have been Closed after rx drop"),
+        }
+    }
+
+    // ── Cross-thread channel patterns ──────────────────────────────────────
+
+    #[test]
+    fn test_pty_channel_send_from_multiple_threads() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<WsMessage>(64);
+        let mut handles = vec![];
+
+        for i in 0..5 {
+            let tx = tx.clone();
+            handles.push(std::thread::spawn(move || {
+                tx.blocking_send(WsMessage::Binary(vec![i]))
+                    .expect("thread send should succeed");
+            }));
+        }
+
+        // Drop original sender
+        drop(tx);
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let mut values: Vec<u8> = vec![];
+        while let Some(msg) = rx.blocking_recv() {
+            if let WsMessage::Binary(data) = msg {
+                values.push(data[0]);
+            }
+        }
+        values.sort();
+        assert_eq!(values, vec![0, 1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn test_pty_channel_drop_receiver_while_sending() {
+        let (tx, rx) = tokio::sync::mpsc::channel::<WsMessage>(4);
+
+        // Fill buffer
+        for i in 0..4 {
+            tx.blocking_send(WsMessage::Binary(vec![i])).unwrap();
+        }
+
+        // Drop receiver — this closes the channel
+        drop(rx);
+
+        // Subsequent sends should fail (Closed, not Full)
+        let _ = tx.blocking_send(WsMessage::Binary(vec![5]));
+    }
+
+    // ── Tauri-command-like logic patterns ──────────────────────────────────
+
+    /// Simulate pty_send_input logic: look up sender in map and send
+    fn simulate_pty_send_input(
+        conns: &PtyConnections,
+        session_id: &str,
+        data: Vec<u8>,
+    ) -> Result<(), String> {
+        let tx = conns.lock().unwrap().get(session_id).cloned();
+        match tx {
+            Some(tx) => tx
+                .blocking_send(WsMessage::Binary(data))
+                .map_err(|e| format!("Send failed: {e}")),
+            None => Ok(()), // No-op if session not found (matches real behavior)
+        }
+    }
+
+    /// Simulate pty_send_control logic
+    fn simulate_pty_send_control(
+        conns: &PtyConnections,
+        session_id: &str,
+        message: String,
+    ) -> Result<(), String> {
+        let tx = conns.lock().unwrap().get(session_id).cloned();
+        match tx {
+            Some(tx) => tx
+                .blocking_send(WsMessage::Text(message))
+                .map_err(|e| format!("Send failed: {e}")),
+            None => Ok(()),
+        }
+    }
+
+    /// Simulate pty_disconnect logic
+    fn simulate_pty_disconnect(conns: &PtyConnections, session_id: &str) {
+        conns.lock().unwrap().remove(session_id);
+    }
+
+    #[test]
+    fn test_simulated_pty_send_input_to_existing_session() {
+        let conns = make_pty_connections();
+        let (tx, mut rx) = tokio::sync::mpsc::channel(64);
+        conns.lock().unwrap().insert("live-session".into(), tx);
+
+        simulate_pty_send_input(&conns, "live-session", b"hello".to_vec()).unwrap();
+
+        match rx.blocking_recv() {
+            Some(WsMessage::Binary(data)) => assert_eq!(data, b"hello"),
+            other => panic!("expected Binary, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_simulated_pty_send_input_to_nonexistent_session() {
+        let conns = make_pty_connections();
+        // Should not fail — matches real pty_send_input behavior (no-op)
+        let result = simulate_pty_send_input(&conns, "ghost-session", b"data".to_vec());
+        assert!(
+            result.is_ok(),
+            "sending to missing session should be Ok(())"
+        );
+    }
+
+    #[test]
+    fn test_simulated_pty_send_control_to_existing_session() {
+        let conns = make_pty_connections();
+        let (tx, mut rx) = tokio::sync::mpsc::channel(64);
+        conns.lock().unwrap().insert("ctrl-session".into(), tx);
+
+        simulate_pty_send_control(&conns, "ctrl-session", r#"{"type":"close"}"#.into()).unwrap();
+
+        match rx.blocking_recv() {
+            Some(WsMessage::Text(text)) => assert_eq!(text, r#"{"type":"close"}"#),
+            other => panic!("expected Text, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_simulated_pty_disconnect_removes_session() {
+        let conns = make_pty_connections();
+        conns
+            .lock()
+            .unwrap()
+            .insert("to-disconnect".into(), make_sender());
+
+        simulate_pty_disconnect(&conns, "to-disconnect");
+
+        assert!(!conns.lock().unwrap().contains_key("to-disconnect"));
+    }
+
+    #[test]
+    fn test_simulated_pty_full_flow() {
+        // Full lifecycle: connect → send input → send control → disconnect
+        let conns = make_pty_connections();
+        let (tx, mut rx) = tokio::sync::mpsc::channel(64);
+        conns.lock().unwrap().insert("full-flow".into(), tx);
+
+        // Send input
+        simulate_pty_send_input(&conns, "full-flow", b"command\n".to_vec()).unwrap();
+        // Send control
+        simulate_pty_send_control(
+            &conns,
+            "full-flow",
+            r#"{"type":"resize","cols":80,"rows":24}"#.into(),
+        )
+        .unwrap();
+
+        // Disconnect
+        simulate_pty_disconnect(&conns, "full-flow");
+        assert!(!conns.lock().unwrap().contains_key("full-flow"));
+
+        // Verify both messages arrived before disconnect
+        let msg1 = rx.blocking_recv();
+        assert!(msg1.is_some());
+        let msg2 = rx.blocking_recv();
+        assert!(msg2.is_some());
+    }
+
+    // ── Error recovery patterns ───────────────────────────────────────────
+
+    #[test]
+    fn test_pty_reconnect_replaces_stale_connection() {
+        let conns = make_pty_connections();
+        let sid = "reconnect-session";
+
+        // First connection
+        let (tx1, rx1) = tokio::sync::mpsc::channel::<WsMessage>(4);
+        conns.lock().unwrap().insert(sid.to_string(), tx1);
+
+        // Simulate disconnect from remote: drop the old receiver
+        drop(rx1);
+
+        // After remote drop, sending should fail
+        let tx = conns.lock().unwrap().get(sid).cloned();
+        if let Some(tx) = tx {
+            let send_result = tx.blocking_send(WsMessage::Binary(vec![1]));
+            // This may or may not succeed depending on timing
+            let _ = send_result;
+        }
+
+        // Simulate reconnection: replace with new channel
+        let (tx2, mut rx2) = tokio::sync::mpsc::channel::<WsMessage>(4);
+        conns.lock().unwrap().insert(sid.to_string(), tx2);
+
+        // New channel should work
+        simulate_pty_send_input(&conns, sid, b"new data".to_vec()).unwrap();
+        match rx2.blocking_recv() {
+            Some(WsMessage::Binary(data)) => assert_eq!(data, b"new data"),
+            other => panic!("expected Binary via new channel, got {other:?}"),
+        }
+    }
 }

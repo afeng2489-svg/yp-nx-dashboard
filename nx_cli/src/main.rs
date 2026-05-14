@@ -241,6 +241,10 @@ enum Commands {
         /// 默认模型
         #[arg(short, long)]
         model: Option<String>,
+
+        /// 项目根目录路径（用于定位 .nx/team_sessions.db）
+        #[arg(long)]
+        project: Option<String>,
     },
 
     /// 工作流会话管理
@@ -301,7 +305,7 @@ enum Commands {
     #[command(name = "cmd-help")]
     Help {
         /// 命令名称 (例如: "issue:new")
-        #[arg(short, long)]
+        #[arg(long)]
         command: String,
     },
 }
@@ -534,6 +538,7 @@ async fn main() -> anyhow::Result<()> {
             resume,
             list,
             model,
+            project,
         } => {
             run_team(
                 TeamArgs {
@@ -542,6 +547,7 @@ async fn main() -> anyhow::Result<()> {
                     resume: resume.clone(),
                     list: *list,
                     model: model.clone(),
+                    project: project.clone(),
                 },
                 &config,
             )
@@ -697,4 +703,304 @@ fn init_logging(verbose: bool) {
                 .with_writer(std::io::stderr),
         )
         .init();
+}
+
+// ── Tests ──────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    // ── Team subcommand parsing ────────────────────────────────────────
+
+    #[test]
+    fn parse_team_with_task() {
+        let cli = Cli::try_parse_from(&["nx", "team", "write a test"]).unwrap();
+        match cli.command {
+            Commands::Team { task, .. } => {
+                assert_eq!(task.join(" "), "write a test");
+            }
+            _ => panic!("expected Team command"),
+        }
+    }
+
+    #[test]
+    fn parse_team_with_empty_task() {
+        let cli = Cli::try_parse_from(&["nx", "team"]).unwrap();
+        match cli.command {
+            Commands::Team { task, .. } => {
+                assert!(task.is_empty());
+            }
+            _ => panic!("expected Team command"),
+        }
+    }
+
+    #[test]
+    fn parse_team_with_list_flag() {
+        let cli = Cli::try_parse_from(&["nx", "team", "--list"]).unwrap();
+        match cli.command {
+            Commands::Team { list, task, .. } => {
+                assert!(list);
+                assert!(task.is_empty());
+            }
+            _ => panic!("expected Team command"),
+        }
+    }
+
+    #[test]
+    fn parse_team_with_list_short() {
+        let cli = Cli::try_parse_from(&["nx", "team", "-l"]).unwrap();
+        match cli.command {
+            Commands::Team { list, .. } => assert!(list),
+            _ => panic!("expected Team command"),
+        }
+    }
+
+    #[test]
+    fn parse_team_with_roles() {
+        let cli = Cli::try_parse_from(&["nx", "team", "--roles", "architect,developer"]).unwrap();
+        match cli.command {
+            Commands::Team { roles, .. } => {
+                assert_eq!(roles, Some("architect,developer".to_string()));
+            }
+            _ => panic!("expected Team command"),
+        }
+    }
+
+    #[test]
+    fn parse_team_with_roles_short() {
+        let cli = Cli::try_parse_from(&["nx", "team", "-r", "tester"]).unwrap();
+        match cli.command {
+            Commands::Team { roles, .. } => {
+                assert_eq!(roles, Some("tester".to_string()));
+            }
+            _ => panic!("expected Team command"),
+        }
+    }
+
+    #[test]
+    fn parse_team_with_resume() {
+        let cli = Cli::try_parse_from(&["nx", "team", "--resume", "abc-123"]).unwrap();
+        match cli.command {
+            Commands::Team { resume, .. } => {
+                assert_eq!(resume, Some("abc-123".to_string()));
+            }
+            _ => panic!("expected Team command"),
+        }
+    }
+
+    #[test]
+    fn parse_team_with_model() {
+        let cli =
+            Cli::try_parse_from(&["nx", "team", "--model", "claude-sonnet-4-6", "task"]).unwrap();
+        match cli.command {
+            Commands::Team { model, task, .. } => {
+                assert_eq!(model, Some("claude-sonnet-4-6".to_string()));
+                assert_eq!(task.join(" "), "task");
+            }
+            _ => panic!("expected Team command"),
+        }
+    }
+
+    #[test]
+    fn parse_team_with_model_short() {
+        let cli = Cli::try_parse_from(&["nx", "team", "-m", "haiku", "task"]).unwrap();
+        match cli.command {
+            Commands::Team { model, .. } => {
+                assert_eq!(model, Some("haiku".to_string()));
+            }
+            _ => panic!("expected Team command"),
+        }
+    }
+
+    #[test]
+    fn parse_team_all_options() {
+        let cli = Cli::try_parse_from(&[
+            "nx",
+            "team",
+            "--roles",
+            "architect,developer",
+            "--resume",
+            "session-1",
+            "--model",
+            "opus",
+            "--project",
+            "/tmp/my-project",
+            "--list",
+            "task description",
+        ])
+        .unwrap();
+        match cli.command {
+            Commands::Team {
+                roles,
+                resume,
+                model,
+                list,
+                task,
+                project,
+            } => {
+                assert_eq!(roles, Some("architect,developer".to_string()));
+                assert_eq!(resume, Some("session-1".to_string()));
+                assert_eq!(model, Some("opus".to_string()));
+                assert_eq!(project, Some("/tmp/my-project".to_string()));
+                assert!(list);
+                assert_eq!(task.join(" "), "task description");
+            }
+            _ => panic!("expected Team command"),
+        }
+    }
+
+    #[test]
+    fn parse_team_with_project() {
+        let cli = Cli::try_parse_from(&["nx", "team", "--project", "/home/user/project", "task"])
+            .unwrap();
+        match cli.command {
+            Commands::Team { project, task, .. } => {
+                assert_eq!(project, Some("/home/user/project".to_string()));
+                assert_eq!(task.join(" "), "task");
+            }
+            _ => panic!("expected Team command"),
+        }
+    }
+
+    #[test]
+    fn parse_team_without_project_defaults_to_none() {
+        let cli = Cli::try_parse_from(&["nx", "team", "task"]).unwrap();
+        match cli.command {
+            Commands::Team { project, .. } => {
+                assert_eq!(project, None);
+            }
+            _ => panic!("expected Team command"),
+        }
+    }
+
+    #[test]
+    fn parse_team_hyphen_values_allowed() {
+        // -- 后的连字符值应被正常解析为任务的一部分
+        let cli = Cli::try_parse_from(&["nx", "team", "--", "-v", "--flag"]).unwrap();
+        match cli.command {
+            Commands::Team { task, .. } => {
+                assert_eq!(task, vec!["-v", "--flag"]);
+            }
+            _ => panic!("expected Team command"),
+        }
+    }
+
+    #[test]
+    fn parse_team_task_before_flag() {
+        // ⚠️ 已知限制：trailing_var_arg 会把位置参数之后的所有内容（包括 flag）吞进 task
+        // 调用方必须把 --model 等 flag 放在 task 之前，例如: nx team --model 1 "task"
+        let cli = Cli::try_parse_from(&["nx", "team", "1", "--model", "1"]).unwrap();
+        match cli.command {
+            Commands::Team { task, model, .. } => {
+                // BUG: trailing_var_arg 吞掉了 --model 1
+                assert_eq!(task.join(" "), "1 --model 1");
+                assert_eq!(model, None);
+            }
+            _ => panic!("expected Team command"),
+        }
+    }
+
+    #[test]
+    fn parse_team_flag_before_task_works() {
+        // flag 放在 task 之前可以正常解析
+        let cli =
+            Cli::try_parse_from(&["nx", "team", "--model", "sonnet", "write a test"]).unwrap();
+        match cli.command {
+            Commands::Team { task, model, .. } => {
+                assert_eq!(task.join(" "), "write a test");
+                assert_eq!(model, Some("sonnet".to_string()));
+            }
+            _ => panic!("expected Team command"),
+        }
+    }
+
+    // ── Other subcommand parsing ───────────────────────────────────────
+
+    #[test]
+    fn parse_echo_with_text() {
+        let cli = Cli::try_parse_from(&["nx", "echo", "hello world"]).unwrap();
+        match cli.command {
+            Commands::Echo {
+                text, no_newline, ..
+            } => {
+                assert_eq!(text.join(" "), "hello world");
+                assert!(!no_newline);
+            }
+            _ => panic!("expected Echo command"),
+        }
+    }
+
+    #[test]
+    fn parse_echo_no_newline() {
+        let cli = Cli::try_parse_from(&["nx", "echo", "-n", "hello"]).unwrap();
+        match cli.command {
+            Commands::Echo { no_newline, .. } => assert!(no_newline),
+            _ => panic!("expected Echo command"),
+        }
+    }
+
+    #[test]
+    fn parse_hello_with_default_name() {
+        let cli = Cli::try_parse_from(&["nx", "hello"]).unwrap();
+        match cli.command {
+            Commands::Hello { name } => {
+                assert_eq!(name, "World");
+            }
+            _ => panic!("expected Hello command"),
+        }
+    }
+
+    #[test]
+    fn parse_hello_custom_name() {
+        let cli = Cli::try_parse_from(&["nx", "hello", "-n", "Alice"]).unwrap();
+        match cli.command {
+            Commands::Hello { name } => {
+                assert_eq!(name, "Alice");
+            }
+            _ => panic!("expected Hello command"),
+        }
+    }
+
+    #[test]
+    fn parse_providers() {
+        let cli = Cli::try_parse_from(&["nx", "providers"]).unwrap();
+        match cli.command {
+            Commands::Providers { detailed } => assert!(!detailed),
+            _ => panic!("expected Providers command"),
+        }
+    }
+
+    #[test]
+    fn parse_providers_detailed() {
+        let cli = Cli::try_parse_from(&["nx", "providers", "-d"]).unwrap();
+        match cli.command {
+            Commands::Providers { detailed } => assert!(detailed),
+            _ => panic!("expected Providers command"),
+        }
+    }
+
+    #[test]
+    fn parse_unknown_command_fails() {
+        let result = Cli::try_parse_from(&["nx", "nonexistent"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_verbose_global_flag() {
+        let cli = Cli::try_parse_from(&["nx", "--verbose", "hello"]).unwrap();
+        assert!(cli.verbose);
+    }
+
+    #[test]
+    fn parse_cmd_help_with_command() {
+        let cli = Cli::try_parse_from(&["nx", "cmd-help", "--command", "echo"]).unwrap();
+        match cli.command {
+            Commands::Help { command } => {
+                assert_eq!(command, "echo");
+            }
+            _ => panic!("expected Help command"),
+        }
+    }
 }
