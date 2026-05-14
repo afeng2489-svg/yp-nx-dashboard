@@ -2,13 +2,8 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "enables the default permissions",
-  "windows": [
-    "main"
-  ],
-  "webviews": [
-    "main",
-    "browser-panel"
-  ],
+  "windows": ["main"],
+  "webviews": ["main", "browser-panel"],
   "permissions": [
     "core:default",
     "dialog:default",

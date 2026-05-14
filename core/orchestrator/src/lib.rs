@@ -23,6 +23,8 @@ pub mod executor;
 pub mod message_bus;
 pub mod planner;
 pub mod scheduler;
+pub mod session;
+pub mod session_store;
 pub mod team;
 
 pub use cli::{CliManager, CliProvider, CliRequest, CliResponse, CliTokenUsage};
@@ -36,4 +38,6 @@ pub use scheduler::{
     CronSchedule, QueueStatus, QueuedTask, RetryConfig, ScheduledJob, SchedulerError,
     SchedulerStats, TaskExecutor, TaskPriority, TaskScheduler,
 };
+pub use session::{AgentResult, ChainEvent, ChainResult, TeamSessionActor};
+pub use session_store::{SessionStore, SessionSummary, StoreError};
 pub use team::{AgentId, AgentRole, Capability, Team, TeamId, TeamManager, TeamMember};

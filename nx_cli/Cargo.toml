@@ -25,8 +25,13 @@ axum = { workspace = true }
 tokio-stream = { workspace = true }
 futures-util = { workspace = true }
 
+# Terminal UI
+ratatui = "0.30"
+crossterm = "0.29"
+
 # Internal crates
 nexus-ai = { path = "../core/ai" }
+nexus-orchestrator = { path = "../core/orchestrator" }
 nexus-workflow = { path = "../core/workflow" }
 nexus-code-intel = { path = "../core/code-intel" }
 nexus-sandbox = { path = "../core/sandbox" }

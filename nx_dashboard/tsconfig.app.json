@@ -26,5 +26,11 @@
     }
   },
   "include": ["src"],
-  "exclude": ["src/**/__tests__/**", "src/**/*.test.ts", "src/**/*.test.tsx", "src/**/stores/__tests__/**", "src/test/**"]
+  "exclude": [
+    "src/**/__tests__/**",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/stores/__tests__/**",
+    "src/test/**"
+  ]
 }

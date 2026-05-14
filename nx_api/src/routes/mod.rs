@@ -57,6 +57,7 @@ pub mod sessions;
 pub mod skills;
 pub mod snapshots;
 pub mod sprints;
+pub mod team_sessions;
 pub mod teams;
 pub mod teams_state;
 pub mod teams_v2;
@@ -1796,11 +1797,16 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
     let a2ui_service = app_state.a2ui_service.clone();
     let a2ui_routes = a2ui::create_a2ui_router(a2ui_service);
 
+    // 团队会话路由（独立 state，读取 nexus.db SessionStore）
+    let team_sessions_routes =
+        Router::new().nest("/api/v1/team-sessions", team_sessions::create_router());
+
     // 合并公共路由（健康检查无需认证）
     let app = Router::new()
         .route("/health", get(health::health_check))
         .merge(api_routes)
-        .merge(a2ui_routes);
+        .merge(a2ui_routes)
+        .merge(team_sessions_routes);
 
     // 添加 CORS 中间件
     let app = if config.cors_enabled {

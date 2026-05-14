@@ -1,6 +1,6 @@
-import { defineConfig } from 'vitest/config'
-import react from '@vitejs/plugin-react'
-import path from 'path'
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import path from 'path';
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -12,6 +12,19 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // 忽略数据库/构建/状态文件变化，防止运行时写入触发 HMR 无限重载
+    watch: {
+      ignored: [
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/nexus.db*',
+        '**/nexus_memory.db*',
+        '**/.omc/**',
+        '**/target/**',
+        '**/dist/**',
+        '**/binaries/**',
+      ],
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
@@ -30,4 +43,4 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     exclude: ['e2e/**', 'node_modules/**'],
   },
-})
+});

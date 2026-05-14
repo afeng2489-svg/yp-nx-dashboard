@@ -72,6 +72,9 @@ const CanvasPage = lazy(() =>
 const SprintBoardPage = lazy(() =>
   import('@/pages/SprintBoardPage').then((m) => ({ default: m.SprintBoardPage })),
 );
+const TeamSessionsPage = lazy(() =>
+  import('@/pages/TeamSessionsPage').then((m) => ({ default: m.TeamSessionsPage })),
+);
 
 // Loading fallback component
 function PageLoadingFallback() {
@@ -430,6 +433,14 @@ function App() {
                   element={
                     <PageWrapper>
                       <SprintBoardPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/team-sessions"
+                  element={
+                    <PageWrapper>
+                      <TeamSessionsPage />
                     </PageWrapper>
                   }
                 />

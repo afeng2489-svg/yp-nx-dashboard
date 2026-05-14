@@ -26,6 +26,7 @@ import {
   Compass,
   LayoutTemplate,
   ChevronDown,
+  History,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -45,6 +46,7 @@ type TabId =
   | 'teams-v2'
   | 'roles'
   | 'group-chat'
+  | 'team-sessions'
   | 'sessions'
   | 'processes'
   | 'projects'
@@ -93,6 +95,7 @@ const navGroups: NavGroup[] = [
       { id: 'teams-v2', label: '团队 CLI', icon: Users, path: '/teams-v2' },
       { id: 'roles', label: '角色', icon: Bot, path: '/roles' },
       { id: 'group-chat', label: '群组讨论', icon: MessageSquare, path: '/group-chat' },
+      { id: 'team-sessions', label: '团队会话', icon: History, path: '/team-sessions' },
       { id: 'processes', label: '进程监测', icon: Activity, path: '/processes' },
     ],
   },

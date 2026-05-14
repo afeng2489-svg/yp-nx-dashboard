@@ -1,54 +1,60 @@
-import { test, expect } from '@playwright/test'
-import { api } from './helpers'
+import { test, expect } from '@playwright/test';
+import { api } from './helpers';
 
-const API_BASE = process.env.API_URL || 'http://localhost:8080'
+const API_BASE = process.env.API_URL || 'http://localhost:8080';
 
-test.describe.configure({ mode: 'serial' })
+test.describe.configure({ mode: 'serial' });
 
 test.describe('Teams & Roles', () => {
-  let teamId: string
-  let roleId: string
+  let teamId: string;
+  let roleId: string;
 
   test('create team', async () => {
-    const tm = await api('/api/v1/teams', {
+    const tm = (await api('/api/v1/teams', {
       method: 'POST',
       body: JSON.stringify({ name: `e2e-team-${Date.now()}`, description: 'test' }),
-    }) as { id: string }
-    teamId = tm.id
-    expect(teamId).toBeTruthy()
-  })
+    })) as { id: string };
+    teamId = tm.id;
+    expect(teamId).toBeTruthy();
+  });
 
   test('list teams', async () => {
-    const list = await api('/api/v1/teams') as unknown[]
-    expect(Array.isArray(list)).toBeTruthy()
-  })
+    const list = (await api('/api/v1/teams')) as unknown[];
+    expect(Array.isArray(list)).toBeTruthy();
+  });
 
   test('get team roles', async () => {
-    const roles = await api(`/api/v1/teams/${teamId}/roles`) as unknown[]
-    expect(Array.isArray(roles)).toBeTruthy()
-  })
+    const roles = (await api(`/api/v1/teams/${teamId}/roles`)) as unknown[];
+    expect(Array.isArray(roles)).toBeTruthy();
+  });
 
   test('create role', async () => {
-    const rl = await api(`/api/v1/teams/${teamId}/roles`, {
+    const rl = (await api(`/api/v1/teams/${teamId}/roles`, {
       method: 'POST',
-      body: JSON.stringify({ name: 'developer', description: 'code', system_prompt: 'You are a developer' }),
-    }) as { id: string }
-    roleId = rl.id
-    expect(roleId).toBeTruthy()
-  })
+      body: JSON.stringify({
+        name: 'developer',
+        description: 'code',
+        system_prompt: 'You are a developer',
+      }),
+    })) as { id: string };
+    roleId = rl.id;
+    expect(roleId).toBeTruthy();
+  });
 
   test('get role skills', async () => {
-    const res = await fetch(`${API_BASE}/api/v1/roles/${roleId}/skills`)
-    expect([200, 404]).toContain(res.status)
-  })
+    const res = await fetch(`${API_BASE}/api/v1/roles/${roleId}/skills`);
+    expect([200, 404]).toContain(res.status);
+  });
 
   test('get role', async () => {
-    const data = await api(`/api/v1/roles/${roleId}`) as { role: { id: string } }
-    expect(data.role?.id ?? (data as { id: string }).id).toBe(roleId)
-  })
+    const data = (await api(`/api/v1/roles/${roleId}`)) as { role: { id: string } };
+    expect(data.role?.id ?? (data as { id: string }).id).toBe(roleId);
+  });
 
   test.afterAll(async () => {
-    if (roleId) await fetch(`${API_BASE}/api/v1/roles/${roleId}`, { method: 'DELETE' }).catch(() => {})
-    if (teamId) await fetch(`${API_BASE}/api/v1/teams/${teamId}`, { method: 'DELETE' }).catch(() => {})
-  })
-})
+    if (roleId)
+      await fetch(`${API_BASE}/api/v1/roles/${roleId}`, { method: 'DELETE' }).catch(() => {});
+    if (teamId)
+      await fetch(`${API_BASE}/api/v1/teams/${teamId}`, { method: 'DELETE' }).catch(() => {});
+  });
+});

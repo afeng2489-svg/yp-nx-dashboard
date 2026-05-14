@@ -285,6 +285,35 @@ impl TeamManager {
         Ok(())
     }
 
+    /// Update a team via closure (acquires write lock)
+    pub fn update_team(
+        &self,
+        team_id: TeamId,
+        update: impl FnOnce(&mut Team),
+    ) -> Result<(), TeamError> {
+        let mut teams = self.teams.write();
+        let team = teams
+            .get_mut(&team_id)
+            .ok_or(TeamError::TeamNotFound(team_id))?;
+        update(team);
+        Ok(())
+    }
+
+    /// Set a team member as leader
+    pub fn set_leader(&self, team_id: TeamId, agent_id: AgentId) -> Result<(), TeamError> {
+        self.update_team(team_id, |team| team.set_leader(agent_id))
+    }
+
+    /// Add a dependency between agents in a team
+    pub fn add_dependency(
+        &self,
+        team_id: TeamId,
+        leader: AgentId,
+        subordinate: AgentId,
+    ) -> Result<(), TeamError> {
+        self.update_team(team_id, |team| team.add_dependency(leader, subordinate))
+    }
+
     /// Create a standard development team
     pub fn create_dev_team(&self, name: &str) -> TeamId {
         let team_id = self.create_team(name);
@@ -354,5 +383,511 @@ impl TeamManager {
             MessagePayload::TeamDissolved { team_id },
         );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::message_bus::MessageBus;
+
+    // ── AgentId ────────────────────────────────────────────────────
+
+    #[test]
+    fn agent_id_new_creates_unique_ids() {
+        let a = AgentId::new();
+        let b = AgentId::new();
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn agent_id_default_is_unique() {
+        let a: AgentId = Default::default();
+        let b: AgentId = Default::default();
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn agent_id_serde_roundtrip() {
+        let original = AgentId::new();
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: AgentId = serde_json::from_str(&json).unwrap();
+        assert_eq!(original, deserialized);
+    }
+
+    // ── TeamId ─────────────────────────────────────────────────────
+
+    #[test]
+    fn team_id_new_creates_unique_ids() {
+        let a = TeamId::new();
+        let b = TeamId::new();
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn team_id_default_is_unique() {
+        let a: TeamId = Default::default();
+        let b: TeamId = Default::default();
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn team_id_serde_roundtrip() {
+        let original = TeamId::new();
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: TeamId = serde_json::from_str(&json).unwrap();
+        assert_eq!(original, deserialized);
+    }
+
+    // ── AgentRole ──────────────────────────────────────────────────
+
+    #[test]
+    fn agent_role_from_str_maps_correctly() {
+        assert_eq!(AgentRole::from_str("leader"), AgentRole::Leader);
+        assert_eq!(AgentRole::from_str("architect"), AgentRole::Architect);
+        assert_eq!(AgentRole::from_str("developer"), AgentRole::Developer);
+        assert_eq!(AgentRole::from_str("reviewer"), AgentRole::Reviewer);
+        assert_eq!(AgentRole::from_str("tester"), AgentRole::Tester);
+        assert_eq!(AgentRole::from_str("researcher"), AgentRole::Researcher);
+        assert_eq!(AgentRole::from_str("executor"), AgentRole::Executor);
+    }
+
+    #[test]
+    fn agent_role_from_str_case_insensitive() {
+        assert_eq!(AgentRole::from_str("Architect"), AgentRole::Architect);
+        assert_eq!(AgentRole::from_str("DEVELOPER"), AgentRole::Developer);
+        assert_eq!(AgentRole::from_str("Tester"), AgentRole::Tester);
+    }
+
+    #[test]
+    fn agent_role_from_str_unknown_falls_back_to_developer() {
+        assert_eq!(AgentRole::from_str("unknown"), AgentRole::Developer);
+        assert_eq!(AgentRole::from_str(""), AgentRole::Developer);
+        assert_eq!(AgentRole::from_str("manager"), AgentRole::Developer);
+    }
+
+    #[test]
+    fn agent_role_default_prompt_all_variants_non_empty() {
+        for role in &[
+            AgentRole::Leader,
+            AgentRole::Architect,
+            AgentRole::Developer,
+            AgentRole::Reviewer,
+            AgentRole::Tester,
+            AgentRole::Researcher,
+            AgentRole::Executor,
+        ] {
+            let prompt = role.default_prompt();
+            assert!(
+                !prompt.is_empty(),
+                "role {:?} should have a default prompt",
+                role
+            );
+        }
+    }
+
+    #[test]
+    fn agent_role_serde_roundtrip() {
+        for role in &[
+            AgentRole::Leader,
+            AgentRole::Architect,
+            AgentRole::Developer,
+            AgentRole::Reviewer,
+            AgentRole::Tester,
+            AgentRole::Researcher,
+            AgentRole::Executor,
+        ] {
+            let json = serde_json::to_string(role).unwrap();
+            let deserialized: AgentRole = serde_json::from_str(&json).unwrap();
+            assert_eq!(*role, deserialized);
+        }
+    }
+
+    #[test]
+    fn agent_role_variants_distinct() {
+        use std::collections::HashSet;
+        let roles = vec![
+            AgentRole::Leader,
+            AgentRole::Architect,
+            AgentRole::Developer,
+            AgentRole::Reviewer,
+            AgentRole::Tester,
+            AgentRole::Researcher,
+            AgentRole::Executor,
+        ];
+        let unique: HashSet<_> = roles.iter().collect();
+        assert_eq!(unique.len(), 7, "all 7 roles should be distinct");
+    }
+
+    // ── TeamMember ─────────────────────────────────────────────────
+
+    #[test]
+    fn team_member_new_assigns_unique_id() {
+        let m1 = TeamMember::new(AgentRole::Architect, "arch1", CliProvider::Claude);
+        let m2 = TeamMember::new(AgentRole::Architect, "arch2", CliProvider::Claude);
+        assert_ne!(m1.id, m2.id);
+    }
+
+    #[test]
+    fn team_member_new_sets_correct_fields() {
+        let m = TeamMember::new(AgentRole::Developer, "dev1", CliProvider::Claude);
+        assert_eq!(m.name, "dev1");
+        assert_eq!(m.role, AgentRole::Developer);
+        assert_eq!(m.provider, CliProvider::Claude);
+        assert_eq!(m.model, "default");
+        assert_eq!(m.max_iterations, 10);
+        assert_eq!(m.timeout_secs, 300);
+    }
+
+    #[test]
+    fn team_member_capabilities_for_architect() {
+        let m = TeamMember::new(AgentRole::Architect, "arch", CliProvider::Claude);
+        assert!(m.capabilities.contains(&Capability::Planning));
+        assert!(m.capabilities.contains(&Capability::Analysis));
+        assert!(m.capabilities.contains(&Capability::Documentation));
+        assert_eq!(m.capabilities.len(), 3);
+    }
+
+    #[test]
+    fn team_member_capabilities_for_developer() {
+        let m = TeamMember::new(AgentRole::Developer, "dev", CliProvider::Claude);
+        assert!(m.capabilities.contains(&Capability::CodeGeneration));
+        assert!(m.capabilities.contains(&Capability::Refactoring));
+        assert_eq!(m.capabilities.len(), 2);
+    }
+
+    #[test]
+    fn team_member_capabilities_for_reviewer() {
+        let m = TeamMember::new(AgentRole::Reviewer, "rev", CliProvider::Claude);
+        assert!(m.capabilities.contains(&Capability::CodeReview));
+        assert!(m.capabilities.contains(&Capability::Analysis));
+        assert_eq!(m.capabilities.len(), 2);
+    }
+
+    #[test]
+    fn team_member_capabilities_for_tester() {
+        let m = TeamMember::new(AgentRole::Tester, "test", CliProvider::Claude);
+        assert!(m.capabilities.contains(&Capability::TestGeneration));
+        assert!(m.capabilities.contains(&Capability::Documentation));
+        assert_eq!(m.capabilities.len(), 2);
+    }
+
+    #[test]
+    fn team_member_capabilities_for_researcher() {
+        let m = TeamMember::new(AgentRole::Researcher, "res", CliProvider::Claude);
+        assert!(m.capabilities.contains(&Capability::Research));
+        assert!(m.capabilities.contains(&Capability::Analysis));
+        assert_eq!(m.capabilities.len(), 2);
+    }
+
+    #[test]
+    fn team_member_capabilities_for_executor() {
+        let m = TeamMember::new(AgentRole::Executor, "exec", CliProvider::Claude);
+        assert!(m.capabilities.contains(&Capability::Execution));
+        assert_eq!(m.capabilities.len(), 1);
+    }
+
+    #[test]
+    fn team_member_capabilities_for_leader() {
+        let m = TeamMember::new(AgentRole::Leader, "lead", CliProvider::Claude);
+        assert!(m.capabilities.contains(&Capability::Planning));
+        assert!(m.capabilities.contains(&Capability::Analysis));
+        assert_eq!(m.capabilities.len(), 2);
+    }
+
+    // ── Team ───────────────────────────────────────────────────────
+
+    #[test]
+    fn team_new_creates_empty_team() {
+        let team = Team::new("test-team");
+        assert_eq!(team.name, "test-team");
+        assert!(team.members.is_empty());
+        assert!(team.hierarchy.is_empty());
+        assert_eq!(team.communication_mode, CommunicationMode::Hierarchical);
+    }
+
+    #[test]
+    fn team_add_member_increases_count() {
+        let mut team = Team::new("t");
+        let m = TeamMember::new(AgentRole::Developer, "dev", CliProvider::Claude);
+        let id = m.id;
+        team.add_member(m);
+        assert_eq!(team.members.len(), 1);
+        assert!(team.members.contains_key(&id));
+    }
+
+    #[test]
+    fn team_add_member_duplicate_id_replaces() {
+        let mut team = Team::new("t");
+        let m1 = TeamMember::new(AgentRole::Architect, "arch", CliProvider::Claude);
+        let id = m1.id;
+        let m2 = TeamMember {
+            id,
+            name: "replacement".into(),
+            role: AgentRole::Developer,
+            provider: CliProvider::Claude,
+            model: "default".into(),
+            capabilities: vec![],
+            max_iterations: 5,
+            timeout_secs: 100,
+        };
+        team.add_member(m1);
+        team.add_member(m2);
+        assert_eq!(team.members.len(), 1);
+        assert_eq!(team.members[&id].name, "replacement");
+    }
+
+    #[test]
+    fn team_set_leader_creates_empty_hierarchy_entry() {
+        let mut team = Team::new("t");
+        let m = TeamMember::new(AgentRole::Architect, "arch", CliProvider::Claude);
+        let id = m.id;
+        team.add_member(m);
+        team.set_leader(id);
+        assert!(team.hierarchy.contains_key(&id));
+        assert!(team.hierarchy[&id].is_empty());
+    }
+
+    #[test]
+    fn team_set_leader_twice_does_not_duplicate() {
+        let mut team = Team::new("t");
+        let m = TeamMember::new(AgentRole::Architect, "arch", CliProvider::Claude);
+        let id = m.id;
+        team.add_member(m);
+        team.set_leader(id);
+        team.set_leader(id);
+        assert_eq!(team.hierarchy.len(), 1);
+    }
+
+    #[test]
+    fn team_add_dependency_creates_empty_entry_if_leader_missing() {
+        let mut team = Team::new("t");
+        let lid = AgentId::new();
+        let sid = AgentId::new();
+        team.add_dependency(lid, sid);
+        assert!(team.hierarchy.contains_key(&lid));
+        assert_eq!(team.hierarchy[&lid], vec![sid]);
+    }
+
+    #[test]
+    fn team_add_dependency_accumulates_subordinates() {
+        let mut team = Team::new("t");
+        let lid = AgentId::new();
+        let s1 = AgentId::new();
+        let s2 = AgentId::new();
+        team.add_dependency(lid, s1);
+        team.add_dependency(lid, s2);
+        assert_eq!(team.hierarchy[&lid].len(), 2);
+        assert!(team.hierarchy[&lid].contains(&s1));
+        assert!(team.hierarchy[&lid].contains(&s2));
+    }
+
+    // ── Task ───────────────────────────────────────────────────────
+
+    #[test]
+    fn task_new_creates_pending_task() {
+        let task = Task::new("do something", "prompt here");
+        assert_eq!(task.description, "do something");
+        assert_eq!(task.prompt, "prompt here");
+        assert!(task.depends_on.is_empty());
+        assert_eq!(task.status, TaskStatus::Pending);
+        assert!(task.result.is_none());
+    }
+
+    #[test]
+    fn task_new_unique_ids() {
+        let t1 = Task::new("a", "pa");
+        let t2 = Task::new("b", "pb");
+        assert_ne!(t1.id, t2.id);
+    }
+
+    // ── TeamManager ────────────────────────────────────────────────
+
+    fn make_manager() -> TeamManager {
+        TeamManager::new(Arc::new(MessageBus::new()))
+    }
+
+    #[test]
+    fn manager_create_team_returns_valid_id() {
+        let mgr = make_manager();
+        let id = mgr.create_team("test");
+        assert!(mgr.get_team(id).is_some());
+    }
+
+    #[test]
+    fn manager_create_team_increases_count() {
+        let mgr = make_manager();
+        mgr.create_team("a");
+        mgr.create_team("b");
+        assert_eq!(mgr.list_teams().len(), 2);
+    }
+
+    #[test]
+    fn manager_get_team_nonexistent() {
+        let mgr = make_manager();
+        let id = TeamId::new();
+        assert!(mgr.get_team(id).is_none());
+    }
+
+    #[test]
+    fn manager_add_member_to_team() {
+        let mgr = make_manager();
+        let tid = mgr.create_team("t");
+        let member = TeamMember::new(AgentRole::Developer, "dev", CliProvider::Claude);
+        mgr.add_member(tid, member).unwrap();
+
+        let team = mgr.get_team(tid).unwrap();
+        assert_eq!(team.members.len(), 1);
+    }
+
+    #[test]
+    fn manager_add_member_to_nonexistent_team() {
+        let mgr = make_manager();
+        let member = TeamMember::new(AgentRole::Developer, "dev", CliProvider::Claude);
+        let result = mgr.add_member(TeamId::new(), member);
+        assert!(result.is_err());
+        match result {
+            Err(TeamError::TeamNotFound(_)) => {} // expected
+            _ => panic!("expected TeamNotFound"),
+        }
+    }
+
+    #[test]
+    fn manager_set_leader() {
+        let mgr = make_manager();
+        let tid = mgr.create_team("t");
+        let member = TeamMember::new(AgentRole::Architect, "arch", CliProvider::Claude);
+        let mid = member.id;
+        mgr.add_member(tid, member).unwrap();
+        mgr.set_leader(tid, mid).unwrap();
+
+        let team = mgr.get_team(tid).unwrap();
+        assert!(team.hierarchy.contains_key(&mid));
+    }
+
+    #[test]
+    fn manager_set_leader_nonexistent_team() {
+        let mgr = make_manager();
+        let result = mgr.set_leader(TeamId::new(), AgentId::new());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn manager_add_dependency() {
+        let mgr = make_manager();
+        let tid = mgr.create_team("t");
+        let arch = TeamMember::new(AgentRole::Architect, "arch", CliProvider::Claude);
+        let dev = TeamMember::new(AgentRole::Developer, "dev", CliProvider::Claude);
+        let aid = arch.id;
+        let did = dev.id;
+        mgr.add_member(tid, arch).unwrap();
+        mgr.add_member(tid, dev).unwrap();
+        mgr.set_leader(tid, aid).unwrap();
+        mgr.add_dependency(tid, aid, did).unwrap();
+
+        let team = mgr.get_team(tid).unwrap();
+        assert_eq!(team.hierarchy[&aid], vec![did]);
+    }
+
+    #[test]
+    fn manager_create_dev_team_has_four_members() {
+        let mgr = make_manager();
+        let tid = mgr.create_dev_team("dev-team");
+        let team = mgr.get_team(tid).unwrap();
+        assert_eq!(team.members.len(), 4);
+    }
+
+    #[test]
+    fn manager_create_dev_team_has_correct_hierarchy() {
+        let mgr = make_manager();
+        let tid = mgr.create_dev_team("dev-team");
+        let team = mgr.get_team(tid).unwrap();
+        // hierarchy should have 3 entries (architect, developer→reviewer, reviewer→tester)
+        assert_eq!(team.hierarchy.len(), 3);
+        // find architect/developer/reviewer/tester
+        let arch = team
+            .members
+            .values()
+            .find(|m| m.role == AgentRole::Architect)
+            .unwrap();
+        let dev = team
+            .members
+            .values()
+            .find(|m| m.role == AgentRole::Developer)
+            .unwrap();
+        assert_eq!(
+            team.hierarchy[&arch.id],
+            vec![dev.id],
+            "architect should depend on developer"
+        );
+    }
+
+    #[test]
+    fn manager_agent_status_updates() {
+        let mgr = make_manager();
+        let tid = mgr.create_dev_team("t");
+        let team = mgr.get_team(tid).unwrap();
+        let member_id = team.members.values().next().unwrap().id;
+
+        assert_eq!(mgr.get_agent_status(member_id), Some(AgentStatus::Idle));
+        mgr.update_agent_status(member_id, AgentStatus::Running);
+        assert_eq!(mgr.get_agent_status(member_id), Some(AgentStatus::Running));
+        mgr.update_agent_status(member_id, AgentStatus::Completed);
+        assert_eq!(
+            mgr.get_agent_status(member_id),
+            Some(AgentStatus::Completed)
+        );
+    }
+
+    #[test]
+    fn manager_get_agent_status_nonexistent() {
+        let mgr = make_manager();
+        assert!(mgr.get_agent_status(AgentId::new()).is_none());
+    }
+
+    #[test]
+    fn manager_dissolve_team() {
+        let mgr = make_manager();
+        let tid = mgr.create_team("t");
+        assert!(mgr.get_team(tid).is_some());
+
+        mgr.dissolve_team(tid).unwrap();
+        assert!(mgr.get_team(tid).is_none());
+        assert_eq!(mgr.list_teams().len(), 0);
+    }
+
+    #[test]
+    fn manager_dissolve_nonexistent_team() {
+        let mgr = make_manager();
+        let result = mgr.dissolve_team(TeamId::new());
+        assert!(result.is_err());
+        match result {
+            Err(TeamError::TeamNotFound(_)) => {} // expected
+            _ => panic!("expected TeamNotFound"),
+        }
+    }
+
+    #[test]
+    fn manager_list_teams_empty_initially() {
+        let mgr = make_manager();
+        assert!(mgr.list_teams().is_empty());
+    }
+
+    #[test]
+    fn manager_multiple_teams_independent() {
+        let mgr = make_manager();
+        let t1 = mgr.create_team("team1");
+        let t2 = mgr.create_team("team2");
+
+        let m1 = TeamMember::new(AgentRole::Developer, "d1", CliProvider::Claude);
+        let m2 = TeamMember::new(AgentRole::Developer, "d2", CliProvider::Claude);
+        mgr.add_member(t1, m1).unwrap();
+        mgr.add_member(t2, m2).unwrap();
+
+        let team1 = mgr.get_team(t1).unwrap();
+        let team2 = mgr.get_team(t2).unwrap();
+        assert_eq!(team1.members.len(), 1);
+        assert_eq!(team2.members.len(), 1);
+        assert_ne!(team1.members.keys().next(), team2.members.keys().next());
     }
 }

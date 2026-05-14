@@ -1,6 +1,11 @@
 //! CLI 命令实现
 //!
-//! 提供 /ccw, /ccw-coordinator, /workflow:session:*, /issue/* 等命令。
+//! 提供 team, /ccw, /ccw-coordinator, /workflow:session:*, /issue/* 等命令。
+
+pub mod echo;
+pub mod team;
+pub use echo::run_echo;
+pub use team::{run_team, TeamArgs};
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

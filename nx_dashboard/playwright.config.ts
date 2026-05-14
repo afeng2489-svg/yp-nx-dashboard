@@ -1,4 +1,4 @@
-import { defineConfig, devices } from '@playwright/test'
+import { defineConfig, devices } from '@playwright/test';
 
 /**
  * Playwright Configuration for NexusFlow E2E Tests
@@ -56,4 +56,4 @@ export default defineConfig({
         timeout: 120 * 1000,
       }
     : undefined,
-})
+});

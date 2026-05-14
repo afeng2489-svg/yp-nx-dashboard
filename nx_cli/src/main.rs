@@ -37,8 +37,9 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod commands;
 mod config;
 mod slash_commands;
+mod tui;
 
-use commands::{list_providers, run_agent, run_workflow};
+use commands::{list_providers, run_agent, run_echo, run_team, run_workflow, TeamArgs};
 use slash_commands::CommandDispatcher;
 
 /// NexusFlow CLI
@@ -219,6 +220,29 @@ enum Commands {
         subcommand: Option<CcwCoordinatorSubcommand>,
     },
 
+    /// Team — 多智能体团队协作（新功能）
+    Team {
+        /// 任务描述
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        task: Vec<String>,
+
+        /// 自定义角色列表 (逗号分隔)
+        #[arg(short, long)]
+        roles: Option<String>,
+
+        /// 恢复历史会话
+        #[arg(long)]
+        resume: Option<String>,
+
+        /// 列出历史会话
+        #[arg(short, long)]
+        list: bool,
+
+        /// 默认模型
+        #[arg(short, long)]
+        model: Option<String>,
+    },
+
     /// 工作流会话管理
     WorkflowSession {
         /// 会话 ID
@@ -248,10 +272,33 @@ enum Commands {
         command: String,
     },
 
+    /// 打印 Hello World
+    Hello {
+        /// 要问候的名称
+        #[arg(short, long, default_value = "World")]
+        name: String,
+    },
+
+    /// 输出文本到标准输出（echo）
+    Echo {
+        /// 不追加换行符
+        #[arg(short, long)]
+        no_newline: bool,
+
+        /// 解释转义序列（\\n, \\t 等）
+        #[arg(short, long)]
+        interpret_escapes: bool,
+
+        /// 要输出的文本
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        text: Vec<String>,
+    },
+
     /// 列出所有可用命令
     CommandsList,
 
     /// 获取命令帮助
+    #[command(name = "cmd-help")]
     Help {
         /// 命令名称 (例如: "issue:new")
         #[arg(short, long)]
@@ -481,6 +528,25 @@ async fn main() -> anyhow::Result<()> {
                 commands::run_ccw_coordinator(project.clone(), strategy.clone(), &config).await?;
             }
         },
+        Commands::Team {
+            task,
+            roles,
+            resume,
+            list,
+            model,
+        } => {
+            run_team(
+                TeamArgs {
+                    task: task.clone(),
+                    roles: roles.clone(),
+                    resume: resume.clone(),
+                    list: *list,
+                    model: model.clone(),
+                },
+                &config,
+            )
+            .await?;
+        }
         Commands::WorkflowSession {
             session_id: _,
             subcommand,
@@ -546,6 +612,29 @@ async fn main() -> anyhow::Result<()> {
                 commands::issue_commands::search_issues(query, &config).await?;
             }
         },
+        Commands::Hello { name } => {
+            println!(
+                "Hello, {}! 👋 Welcome to NexusFlow CLI v{}",
+                name,
+                env!("CARGO_PKG_VERSION")
+            );
+        }
+        Commands::Echo {
+            no_newline,
+            interpret_escapes,
+            text,
+        } => {
+            // 将 clap 解析的标志注入到参数列表中，让 EchoArgs::parse 做统一处理
+            let mut raw_args: Vec<String> = Vec::new();
+            if *no_newline {
+                raw_args.push("-n".to_string());
+            }
+            if *interpret_escapes {
+                raw_args.push("-e".to_string());
+            }
+            raw_args.extend(text.iter().cloned());
+            run_echo(&raw_args);
+        }
         Commands::Slash { command } => {
             let dispatcher = CommandDispatcher::new();
             match dispatcher.dispatch_raw(command).await {
@@ -602,6 +691,10 @@ fn init_logging(verbose: bool) {
 
     tracing_subscriber::registry()
         .with(env_filter)
-        .with(tracing_subscriber::fmt::layer().with_target(true))
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_target(true)
+                .with_writer(std::io::stderr),
+        )
         .init();
 }

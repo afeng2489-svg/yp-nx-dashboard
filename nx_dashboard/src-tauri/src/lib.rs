@@ -1,7 +1,7 @@
-
 use std::collections::HashMap;
+use std::io::{BufRead, BufReader, Read};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -132,6 +132,103 @@ async fn pty_send_control(
     Ok(())
 }
 
+/// Spawn a team session by running `nx team --task "..."` in the background.
+/// Returns the session_id immediately after parsing it from stdout, while the
+/// session continues running in the background. Emits `team-session-completed`
+/// when the process finishes.
+#[tauri::command]
+async fn spawn_team_session(
+    task: String,
+    model: Option<String>,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    let nx_bin = resolve_nx_binary()?;
+    let mut cmd = Command::new(&nx_bin);
+    cmd.arg("team").arg(&task);
+    if let Some(ref m) = model {
+        cmd.args(["--model", m]);
+    }
+    cmd.stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut child = cmd.spawn().map_err(|e| {
+        format!("无法启动 nx team (path: {:?}): {}", nx_bin, e)
+    })?;
+
+    // 从 stdout 读取 session_id（扫描行直到找到前缀）
+    let stdout = child.stdout.take()
+        .ok_or_else(|| "无法捕获 nx team 输出".to_string())?;
+    let mut reader = BufReader::new(stdout);
+    let mut id: Option<String> = None;
+    let mut scanned_lines = String::new();
+    for _ in 0..20 {
+        let mut line = String::new();
+        if reader.read_line(&mut line).is_err() {
+            break;
+        }
+        if let Some(sid) = line.strip_prefix("session_id:") {
+            id = Some(sid.trim().to_string());
+            break;
+        }
+        scanned_lines.push_str(&line);
+    }
+
+    let id = id.ok_or_else(|| {
+        format!(
+            "未能解析 session_id，已扫描行:\n{}",
+            &scanned_lines[..scanned_lines.len().min(500)]
+        )
+    })?;
+
+    // Emit event to refresh the session list immediately
+    let _ = app_handle.emit("team-session-created", &id);
+    let id_for_bg = id.clone();
+
+    // 后台线程：持续消费 stdout 避免 SIGPIPE，然后等待进程完成
+    let app_clone = app_handle.clone();
+    thread::spawn(move || {
+        // 消费剩余 stdout 防止子进程收到 SIGPIPE
+        let mut buf = String::new();
+        let _ = reader.read_to_string(&mut buf);
+        let status = child.wait();
+        let _ = app_clone.emit("team-session-completed", serde_json::json!({
+            "sessionId": id_for_bg,
+            "success": status.is_ok_and(|s| s.success()),
+        }));
+    });
+
+    Ok(id)
+}
+
+/// Resolve the nx CLI binary path (debug: target/debug/nx, release: sidecar)
+fn resolve_nx_binary() -> Result<PathBuf, String> {
+    if cfg!(debug_assertions) {
+        let root = find_workspace_root()
+            .ok_or_else(|| "无法找到 workspace root".to_string())?;
+        let nx = root.join("target/debug/nx");
+        if nx.exists() {
+            Ok(nx)
+        } else {
+            Err(format!("nx CLI 二进制文件未找到: {:?}", nx))
+        }
+    } else {
+        // Release: look for nx sidecar next to the executable
+        let exe = std::env::current_exe().map_err(|e| format!("{}", e))?;
+        let exe_dir = exe.parent().ok_or("无法获取可执行文件目录")?;
+        let name = if cfg!(target_os = "windows") {
+            "nx.exe"
+        } else {
+            "nx"
+        };
+        let path = exe_dir.join(name);
+        if path.exists() {
+            Ok(path)
+        } else {
+            Err(format!("nx CLI 未找到: {:?}", path))
+        }
+    }
+}
+
 /// Disconnect a PTY session and drop the WS connection.
 #[tauri::command]
 async fn pty_disconnect(
@@ -158,6 +255,7 @@ pub fn run() {
             pty_send_input,
             pty_send_control,
             pty_disconnect,
+            spawn_team_session,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

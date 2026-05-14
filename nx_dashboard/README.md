@@ -7,61 +7,69 @@ TeamFlow 是一个基于 Tauri 构建的跨平台桌面应用，集成了 AI 工
 ## 核心功能
 
 ### 工作流编排
+
 - **可视化工作流设计** - 使用 @xyflow/react 构建的流程图编辑器
 - **工作流执行引擎** - 支持多阶段、多步骤的工作流执行
 - **执行记录与监控** - 实时查看工作流执行状态和结果
 
 ### AI 能力
+
 - **AI 工作流** - 集成 Claude 等 AI 模型的智能工作流
 - **技能系统** - 可复用的 AI 技能库
 - **RAG 知识库** - 基于文档向量检索的知识增强（开发中）
 
 ### 团队协作
+
 - **团队管理** - 创建和管理团队成员
 - **角色权限** - 灵活的角色配置系统
 - **群聊功能** - 团队内部即时通讯
 - **项目管理** - 项目创建、跟踪和管理
 
 ### 开发工具
+
 - **内置终端** - 基于 xterm.js 的完整终端模拟器
 - **代码编辑器** - 集成 Monaco Editor
 - **内置浏览器** - 用于测试和预览
 - **Sprint 看板** - 敏捷开发看板管理
 
 ### 成本管理
+
 - **Token 成本统计** - AI 模型使用成本追踪
 - **用量分析** - 详细的使用情况报表
 
 ## 技术栈
 
 ### 前端
-| 技术 | 用途 |
-|------|------|
-| React 18 | UI 框架 |
-| TypeScript | 类型安全 |
-| Vite | 构建工具 |
-| Tailwind CSS | 样式系统 |
-| Radix UI | 无样式组件库 |
-| Zustand | 状态管理 |
-| TanStack Query | 数据获取 |
-| Recharts | 图表可视化 |
-| Monaco Editor | 代码编辑器 |
-| @xyflow/react | 流程图编辑 |
-| xterm.js | 终端模拟 |
-| Motion | 动画效果 |
+
+| 技术           | 用途         |
+| -------------- | ------------ |
+| React 18       | UI 框架      |
+| TypeScript     | 类型安全     |
+| Vite           | 构建工具     |
+| Tailwind CSS   | 样式系统     |
+| Radix UI       | 无样式组件库 |
+| Zustand        | 状态管理     |
+| TanStack Query | 数据获取     |
+| Recharts       | 图表可视化   |
+| Monaco Editor  | 代码编辑器   |
+| @xyflow/react  | 流程图编辑   |
+| xterm.js       | 终端模拟     |
+| Motion         | 动画效果     |
 
 ### 后端
-| 技术 | 用途 |
-|------|------|
-| Rust | 系统语言 |
-| Axum | Web 框架 |
-| SQLite | 本地数据库 |
-| WebSocket | 实时通信 |
-| Tokio | 异步运行时 |
+
+| 技术      | 用途       |
+| --------- | ---------- |
+| Rust      | 系统语言   |
+| Axum      | Web 框架   |
+| SQLite    | 本地数据库 |
+| WebSocket | 实时通信   |
+| Tokio     | 异步运行时 |
 
 ### 桌面框架
-| 技术 | 用途 |
-|------|------|
+
+| 技术      | 用途           |
+| --------- | -------------- |
 | Tauri 2.0 | 跨平台桌面框架 |
 
 ## 项目结构
@@ -153,41 +161,42 @@ npm run lint
 
 ## 页面路由
 
-| 路径 | 页面 | 说明 |
-|------|------|------|
-| `/` | Dashboard | 仪表盘首页 |
-| `/workflows` | Workflows | 工作流管理 |
-| `/executions` | Executions | 执行记录 |
-| `/terminal` | Terminal | 终端 |
-| `/editor` | Editor | 代码编辑器 |
-| `/tasks` | Tasks | 任务管理 |
-| `/skills` | Skills | 技能库 |
-| `/teams` | Teams | 团队管理 |
-| `/roles` | Roles | 角色管理 |
-| `/projects` | Projects | 项目管理 |
-| `/group-chat` | Group Chat | 群聊 |
-| `/browser` | Browser | 内置浏览器 |
-| `/settings` | Settings | 应用设置 |
-| `/ai-settings` | AI Settings | AI 配置 |
-| `/cost` | Cost | 成本统计 |
-| `/canvas` | Canvas | 画布 |
-| `/sprint-board` | Sprint Board | 看板 |
-| `/search` | Search | 全局搜索 |
-| `/templates` | Templates | 模板库 |
+| 路径            | 页面         | 说明       |
+| --------------- | ------------ | ---------- |
+| `/`             | Dashboard    | 仪表盘首页 |
+| `/workflows`    | Workflows    | 工作流管理 |
+| `/executions`   | Executions   | 执行记录   |
+| `/terminal`     | Terminal     | 终端       |
+| `/editor`       | Editor       | 代码编辑器 |
+| `/tasks`        | Tasks        | 任务管理   |
+| `/skills`       | Skills       | 技能库     |
+| `/teams`        | Teams        | 团队管理   |
+| `/roles`        | Roles        | 角色管理   |
+| `/projects`     | Projects     | 项目管理   |
+| `/group-chat`   | Group Chat   | 群聊       |
+| `/browser`      | Browser      | 内置浏览器 |
+| `/settings`     | Settings     | 应用设置   |
+| `/ai-settings`  | AI Settings  | AI 配置    |
+| `/cost`         | Cost         | 成本统计   |
+| `/canvas`       | Canvas       | 画布       |
+| `/sprint-board` | Sprint Board | 看板       |
+| `/search`       | Search       | 全局搜索   |
+| `/templates`    | Templates    | 模板库     |
 
 ## 配置
 
 ### 环境变量
 
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| `NEXUS_DB_PATH` | 数据库文件路径 | `~/.teamflow/nexus.db` |
-| `NEXUS_API_PORT` | API 服务端口 | `8080` |
-| `RUST_LOG` | 日志级别 | `info` |
+| 变量名           | 说明           | 默认值                 |
+| ---------------- | -------------- | ---------------------- |
+| `NEXUS_DB_PATH`  | 数据库文件路径 | `~/.teamflow/nexus.db` |
+| `NEXUS_API_PORT` | API 服务端口   | `8080`                 |
+| `RUST_LOG`       | 日志级别       | `info`                 |
 
 ### 数据存储
 
 应用数据存储在用户目录下：
+
 - macOS: `~/Library/Application Support/com.nx.dashboard/`
 - Windows: `%APPDATA%\com.nx.dashboard\`
 - Linux: `~/.local/share/com.nx.dashboard/`

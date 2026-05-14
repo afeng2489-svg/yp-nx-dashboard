@@ -6,6 +6,7 @@ members = [
     "core/plugin",
     "core/sandbox",
     "core/workflow",
+    "core/orm",
     "core/orchestrator",
     "core/skills",
     "nx_cli",

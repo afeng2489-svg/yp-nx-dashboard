@@ -2,32 +2,29 @@
 
 // 选择文件夹
 function chooseDirectory(callback) {
-  chrome.fileSystem.chooseEntry(
-    { type: 'openDirectory' },
-    (entry) => {
-      if (chrome.runtime.lastError) {
-        console.error('选择文件夹错误:', chrome.runtime.lastError);
-        callback(null, chrome.runtime.lastError.message);
-        return;
-      }
-
-      if (!entry) {
-        callback(null, '用户取消选择');
-        return;
-      }
-
-      // 保存引用以便后续使用
-      chrome.storage.local.set({
-        retainedEntry: chrome.fileSystem.retainEntry(entry)
-      });
-
-      callback({
-        fullPath: entry.fullPath,
-        name: entry.name,
-        isDirectory: entry.isDirectory
-      });
+  chrome.fileSystem.chooseEntry({ type: 'openDirectory' }, (entry) => {
+    if (chrome.runtime.lastError) {
+      console.error('选择文件夹错误:', chrome.runtime.lastError);
+      callback(null, chrome.runtime.lastError.message);
+      return;
     }
-  );
+
+    if (!entry) {
+      callback(null, '用户取消选择');
+      return;
+    }
+
+    // 保存引用以便后续使用
+    chrome.storage.local.set({
+      retainedEntry: chrome.fileSystem.retainEntry(entry),
+    });
+
+    callback({
+      fullPath: entry.fullPath,
+      name: entry.name,
+      isDirectory: entry.isDirectory,
+    });
+  });
 }
 
 // 读取目录内容
@@ -46,7 +43,7 @@ function readDirectory(entry, callback) {
         name: e.name,
         fullPath: e.fullPath,
         isDirectory: e.isDirectory,
-        isFile: e.isFile
+        isFile: e.isFile,
       });
     });
 
@@ -56,15 +53,21 @@ function readDirectory(entry, callback) {
 
 // 读取文件
 function readFile(entry, callback) {
-  entry.file((file) => {
-    file.arrayBuffer().then((buffer) => {
-      callback(null, buffer);
-    }).catch((err) => {
+  entry.file(
+    (file) => {
+      file
+        .arrayBuffer()
+        .then((buffer) => {
+          callback(null, buffer);
+        })
+        .catch((err) => {
+          callback(err.message);
+        });
+    },
+    (err) => {
       callback(err.message);
-    });
-  }, (err) => {
-    callback(err.message);
-  });
+    },
+  );
 }
 
 // 恢复保留的访问权限
@@ -121,7 +124,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             if (entry) {
               sendResponse({
                 fullPath: entry.fullPath,
-                name: entry.name
+                name: entry.name,
               });
             } else {
               sendResponse(null);
