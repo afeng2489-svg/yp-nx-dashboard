@@ -34,6 +34,14 @@ fn make_result(task: &str, agent_count: usize) -> ChainResult {
     }
 }
 
+/// 创建一个绕过系统代理的 HTTP 客户端（测试用）
+fn no_proxy_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .no_proxy()
+        .build()
+        .unwrap()
+}
+
 /// 启动服务器并等待就绪
 async fn spawn_server(router: axum::Router) -> SocketAddr {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -41,9 +49,9 @@ async fn spawn_server(router: axum::Router) -> SocketAddr {
     tokio::spawn(async move {
         axum::serve(listener, router).await.unwrap();
     });
-    // 等待服务器就绪
+    let client = no_proxy_client();
     for _ in 0..20 {
-        if reqwest::get(format!("http://{}/", addr)).await.is_ok() {
+        if client.get(format!("http://{}/", addr)).send().await.is_ok() {
             return addr;
         }
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -64,7 +72,7 @@ async fn list_returns_seeded_sessions() {
     let router = nx_api::routes::team_sessions::create_router_with_store(store);
     let addr = spawn_server(router).await;
 
-    let resp = reqwest::get(format!("http://{}/", addr)).await.unwrap();
+    let resp = no_proxy_client().get(format!("http://{}/", addr)).send().await.unwrap();
     assert_eq!(resp.status(), 200, "list 端点应返回 200");
 
     let body: serde_json::Value = resp.json().await.unwrap();
@@ -85,7 +93,7 @@ async fn empty_store_returns_empty_list() {
     let router = nx_api::routes::team_sessions::create_router_with_store(store);
     let addr = spawn_server(router).await;
 
-    let resp = reqwest::get(format!("http://{}/", addr)).await.unwrap();
+    let resp = no_proxy_client().get(format!("http://{}/", addr)).send().await.unwrap();
     assert_eq!(resp.status(), 200);
 
     let body: serde_json::Value = resp.json().await.unwrap();
@@ -111,7 +119,7 @@ async fn list_returns_ok_even_when_db_has_corrupted_data() {
     let addr = spawn_server(router).await;
 
     // 损坏的行应被静默跳过
-    let resp = reqwest::get(format!("http://{}/", addr)).await.unwrap();
+    let resp = no_proxy_client().get(format!("http://{}/", addr)).send().await.unwrap();
     assert_eq!(resp.status(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["ok"], true);
@@ -133,7 +141,7 @@ async fn get_existing_session_returns_detail() {
     let addr = spawn_server(router).await;
 
     let detail_url = format!("http://{}/{}", addr, id);
-    let resp = reqwest::get(&detail_url).await.unwrap();
+    let resp = no_proxy_client().get(&detail_url).send().await.unwrap();
     let status = resp.status();
     let body_text = resp.text().await.unwrap();
     let body: serde_json::Value =
@@ -155,7 +163,7 @@ async fn get_nonexistent_returns_404() {
     let addr = spawn_server(router).await;
 
     let url = format!("http://{}/{}", addr, Uuid::new_v4());
-    let resp = reqwest::get(&url).await.unwrap();
+    let resp = no_proxy_client().get(&url).send().await.unwrap();
     let status = resp.status();
     let body_text = resp.text().await.unwrap();
     let body: serde_json::Value =
@@ -175,7 +183,8 @@ async fn get_with_invalid_uuid_returns_404() {
     let router = nx_api::routes::team_sessions::create_router_with_store(store);
     let addr = spawn_server(router).await;
 
-    let resp = reqwest::get(format!("http://{}/{}", addr, "not-a-uuid"))
+    let resp = no_proxy_client().get(format!("http://{}/{}", addr, "not-a-uuid"))
+        .send()
         .await
         .unwrap();
     assert_eq!(resp.status(), 404);
@@ -198,7 +207,8 @@ async fn get_deleted_session_returns_404() {
     let router = nx_api::routes::team_sessions::create_router_with_store(store);
     let addr = spawn_server(router).await;
 
-    let resp = reqwest::get(format!("http://{}/{}", addr, &id))
+    let resp = no_proxy_client().get(format!("http://{}/{}", addr, &id))
+        .send()
         .await
         .unwrap();
     assert_eq!(resp.status(), 404);
@@ -218,7 +228,7 @@ async fn delete_existing_session_returns_ok() {
     let router = nx_api::routes::team_sessions::create_router_with_store(store);
     let addr = spawn_server(router).await;
 
-    let client = reqwest::Client::new();
+    let client = no_proxy_client();
     let resp = client
         .delete(format!("http://{}/{}", addr, id))
         .send()
@@ -237,7 +247,7 @@ async fn delete_nonexistent_session_returns_404() {
     let router = nx_api::routes::team_sessions::create_router_with_store(store);
     let addr = spawn_server(router).await;
 
-    let client = reqwest::Client::new();
+    let client = no_proxy_client();
     let resp = client
         .delete(format!("http://{}/{}", addr, Uuid::new_v4()))
         .send()
@@ -262,7 +272,7 @@ async fn delete_twice_returns_404_second_time() {
 
     let router = nx_api::routes::team_sessions::create_router_with_store(store);
     let addr = spawn_server(router).await;
-    let client = reqwest::Client::new();
+    let client = no_proxy_client();
 
     // 第一次删除成功
     let resp1 = client
@@ -292,7 +302,7 @@ async fn delete_removes_from_list() {
 
     let router = nx_api::routes::team_sessions::create_router_with_store(store);
     let addr = spawn_server(router).await;
-    let client = reqwest::Client::new();
+    let client = no_proxy_client();
 
     // 删除第一个
     client
@@ -302,7 +312,7 @@ async fn delete_removes_from_list() {
         .unwrap();
 
     // 列表应只有一个
-    let resp = reqwest::get(format!("http://{}/", addr)).await.unwrap();
+    let resp = no_proxy_client().get(format!("http://{}/", addr)).send().await.unwrap();
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["data"].as_array().unwrap().len(), 1);
     assert_eq!(body["data"][0]["task"], "task2");
@@ -319,15 +329,16 @@ async fn full_lifecycle_create_list_get_delete() {
 
     let router = nx_api::routes::team_sessions::create_router_with_store(store);
     let addr = spawn_server(router).await;
-    let client = reqwest::Client::new();
+    let client = no_proxy_client();
 
     // 1. List — 包含新建的 session
-    let list_resp = reqwest::get(format!("http://{}/", addr)).await.unwrap();
+    let list_resp = no_proxy_client().get(format!("http://{}/", addr)).send().await.unwrap();
     let list_body: serde_json::Value = list_resp.json().await.unwrap();
     assert_eq!(list_body["data"].as_array().unwrap().len(), 1);
 
     // 2. Get — 获取详情
-    let detail_resp = reqwest::get(format!("http://{}/{}", addr, &id))
+    let detail_resp = no_proxy_client().get(format!("http://{}/{}", addr, &id))
+        .send()
         .await
         .unwrap();
     assert_eq!(detail_resp.status(), 200);
@@ -343,11 +354,12 @@ async fn full_lifecycle_create_list_get_delete() {
     assert_eq!(del_resp.status(), 200);
 
     // 4. Verify — 确认已删除
-    let verify_list = reqwest::get(format!("http://{}/", addr)).await.unwrap();
+    let verify_list = no_proxy_client().get(format!("http://{}/", addr)).send().await.unwrap();
     let verify_body: serde_json::Value = verify_list.json().await.unwrap();
     assert!(verify_body["data"].as_array().unwrap().is_empty());
 
-    let verify_get = reqwest::get(format!("http://{}/{}", addr, &id))
+    let verify_get = no_proxy_client().get(format!("http://{}/{}", addr, &id))
+        .send()
         .await
         .unwrap();
     assert_eq!(verify_get.status(), 404);
