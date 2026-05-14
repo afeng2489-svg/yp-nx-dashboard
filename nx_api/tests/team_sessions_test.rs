@@ -36,10 +36,7 @@ fn make_result(task: &str, agent_count: usize) -> ChainResult {
 
 /// 创建一个绕过系统代理的 HTTP 客户端（测试用）
 fn no_proxy_client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .no_proxy()
-        .build()
-        .unwrap()
+    reqwest::Client::builder().no_proxy().build().unwrap()
 }
 
 /// 启动服务器并等待就绪
@@ -72,7 +69,11 @@ async fn list_returns_seeded_sessions() {
     let router = nx_api::routes::team_sessions::create_router_with_store(store);
     let addr = spawn_server(router).await;
 
-    let resp = no_proxy_client().get(format!("http://{}/", addr)).send().await.unwrap();
+    let resp = no_proxy_client()
+        .get(format!("http://{}/", addr))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status(), 200, "list 端点应返回 200");
 
     let body: serde_json::Value = resp.json().await.unwrap();
@@ -93,7 +94,11 @@ async fn empty_store_returns_empty_list() {
     let router = nx_api::routes::team_sessions::create_router_with_store(store);
     let addr = spawn_server(router).await;
 
-    let resp = no_proxy_client().get(format!("http://{}/", addr)).send().await.unwrap();
+    let resp = no_proxy_client()
+        .get(format!("http://{}/", addr))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status(), 200);
 
     let body: serde_json::Value = resp.json().await.unwrap();
@@ -119,7 +124,11 @@ async fn list_returns_ok_even_when_db_has_corrupted_data() {
     let addr = spawn_server(router).await;
 
     // 损坏的行应被静默跳过
-    let resp = no_proxy_client().get(format!("http://{}/", addr)).send().await.unwrap();
+    let resp = no_proxy_client()
+        .get(format!("http://{}/", addr))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["ok"], true);
@@ -183,7 +192,8 @@ async fn get_with_invalid_uuid_returns_404() {
     let router = nx_api::routes::team_sessions::create_router_with_store(store);
     let addr = spawn_server(router).await;
 
-    let resp = no_proxy_client().get(format!("http://{}/{}", addr, "not-a-uuid"))
+    let resp = no_proxy_client()
+        .get(format!("http://{}/{}", addr, "not-a-uuid"))
         .send()
         .await
         .unwrap();
@@ -207,7 +217,8 @@ async fn get_deleted_session_returns_404() {
     let router = nx_api::routes::team_sessions::create_router_with_store(store);
     let addr = spawn_server(router).await;
 
-    let resp = no_proxy_client().get(format!("http://{}/{}", addr, &id))
+    let resp = no_proxy_client()
+        .get(format!("http://{}/{}", addr, &id))
         .send()
         .await
         .unwrap();
@@ -312,7 +323,11 @@ async fn delete_removes_from_list() {
         .unwrap();
 
     // 列表应只有一个
-    let resp = no_proxy_client().get(format!("http://{}/", addr)).send().await.unwrap();
+    let resp = no_proxy_client()
+        .get(format!("http://{}/", addr))
+        .send()
+        .await
+        .unwrap();
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["data"].as_array().unwrap().len(), 1);
     assert_eq!(body["data"][0]["task"], "task2");
@@ -332,12 +347,17 @@ async fn full_lifecycle_create_list_get_delete() {
     let client = no_proxy_client();
 
     // 1. List — 包含新建的 session
-    let list_resp = no_proxy_client().get(format!("http://{}/", addr)).send().await.unwrap();
+    let list_resp = no_proxy_client()
+        .get(format!("http://{}/", addr))
+        .send()
+        .await
+        .unwrap();
     let list_body: serde_json::Value = list_resp.json().await.unwrap();
     assert_eq!(list_body["data"].as_array().unwrap().len(), 1);
 
     // 2. Get — 获取详情
-    let detail_resp = no_proxy_client().get(format!("http://{}/{}", addr, &id))
+    let detail_resp = no_proxy_client()
+        .get(format!("http://{}/{}", addr, &id))
         .send()
         .await
         .unwrap();
@@ -354,11 +374,16 @@ async fn full_lifecycle_create_list_get_delete() {
     assert_eq!(del_resp.status(), 200);
 
     // 4. Verify — 确认已删除
-    let verify_list = no_proxy_client().get(format!("http://{}/", addr)).send().await.unwrap();
+    let verify_list = no_proxy_client()
+        .get(format!("http://{}/", addr))
+        .send()
+        .await
+        .unwrap();
     let verify_body: serde_json::Value = verify_list.json().await.unwrap();
     assert!(verify_body["data"].as_array().unwrap().is_empty());
 
-    let verify_get = no_proxy_client().get(format!("http://{}/{}", addr, &id))
+    let verify_get = no_proxy_client()
+        .get(format!("http://{}/{}", addr, &id))
         .send()
         .await
         .unwrap();
