@@ -10,9 +10,30 @@ use tauri::Emitter;
 use tauri::Manager;
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
+use uuid::Uuid;
 
 /// Active PTY bridge connections: session_id → sender to WS sink task.
 type PtyConnections = Arc<Mutex<HashMap<String, mpsc::Sender<WsMessage>>>>;
+
+/// Input command for a direct PTY session (spawned locally, not via WS/nx_api).
+enum PtyInput {
+    /// Raw keyboard bytes to write to PTY master
+    Data(Vec<u8>),
+    /// Terminal resize request (rows, cols)
+    Resize(u16, u16),
+    /// Close the PTY session
+    Close,
+}
+
+/// Handle for a direct PTY session.
+struct DirectPtyHandle {
+    tx: std::sync::mpsc::Sender<PtyInput>,
+    /// Barrier: reader thread waits here until frontend calls pty_start.
+    ready: Arc<std::sync::Barrier>,
+}
+
+/// Direct PTY connections: session_id → channel to pump thread.
+type DirectPtyConnections = Arc<Mutex<HashMap<String, DirectPtyHandle>>>;
 
 // ── Tauri IPC Commands ──────────────────────────────────────────────────────
 
@@ -97,7 +118,17 @@ async fn pty_send_input(
     session_id: String,
     data: Vec<u8>,
     connections: tauri::State<'_, PtyConnections>,
+    direct_connections: tauri::State<'_, DirectPtyConnections>,
 ) -> Result<(), String> {
+    // Check direct PTY connections first
+    {
+        let conns = direct_connections.lock().unwrap();
+        if let Some(handle) = conns.get(&session_id) {
+            let _ = handle.tx.send(PtyInput::Data(data));
+            return Ok(());
+        }
+    }
+    // Fall back to WS bridge
     let tx = {
         let conns = connections.lock().unwrap();
         conns.get(&session_id).cloned()
@@ -116,7 +147,18 @@ async fn pty_send_control(
     session_id: String,
     message: String,
     connections: tauri::State<'_, PtyConnections>,
+    direct_connections: tauri::State<'_, DirectPtyConnections>,
 ) -> Result<(), String> {
+    // Check direct PTY connections first — parse known control types
+    {
+        let conns = direct_connections.lock().unwrap();
+        if let Some(handle) = conns.get(&session_id) {
+            let cmd = parse_pty_control(&message);
+            let _ = handle.tx.send(cmd);
+            return Ok(());
+        }
+    }
+    // Fall back to WS bridge
     let tx = {
         let conns = connections.lock().unwrap();
         conns.get(&session_id).cloned()
@@ -127,6 +169,35 @@ async fn pty_send_control(
             .map_err(|e| format!("Send failed: {e}"))?;
     }
     Ok(())
+}
+
+/// Parse a JSON control message into a PtyInput variant.
+fn parse_pty_control(message: &str) -> PtyInput {
+    #[derive(serde::Deserialize)]
+    struct ControlMsg {
+        #[serde(rename = "type")]
+        msg_type: String,
+        #[serde(default)]
+        rows: u16,
+        #[serde(default)]
+        cols: u16,
+        #[serde(default)]
+        text: String,
+    }
+
+    match serde_json::from_str::<ControlMsg>(message) {
+        Ok(msg) => match msg.msg_type.as_str() {
+            "resize" => PtyInput::Resize(msg.rows, msg.cols),
+            "close" => PtyInput::Close,
+            "task" => PtyInput::Data({
+                let mut data = msg.text.into_bytes();
+                data.push(b'\r');
+                data
+            }),
+            _ => PtyInput::Data(message.as_bytes().to_vec()),
+        },
+        Err(_) => PtyInput::Data(message.as_bytes().to_vec()),
+    }
 }
 
 /// Spawn a team session by running `nx team --task "..."` in the background.
@@ -207,6 +278,145 @@ async fn spawn_team_session(
     Ok(id)
 }
 
+/// Spawn a team session inside a local PTY, streaming output to the frontend
+/// via Tauri events. Returns a local session_id immediately.
+#[tauri::command]
+async fn pty_spawn_team(
+    task: String,
+    model: Option<String>,
+    working_dir: Option<String>,
+    app_handle: tauri::AppHandle,
+    direct_connections: tauri::State<'_, DirectPtyConnections>,
+) -> Result<String, String> {
+    use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+
+    let session_id = Uuid::new_v4().to_string();
+    let nx_bin = resolve_nx_binary()?;
+
+    // ── Build the nx team command ──
+    let mut cmd = CommandBuilder::new(nx_bin.to_string_lossy().as_ref());
+    cmd.arg("team");
+    if let Some(ref m) = model {
+        cmd.arg("--model");
+        cmd.arg(m);
+    }
+    if let Some(ref dir) = working_dir {
+        cmd.arg("--project");
+        cmd.arg(dir);
+        cmd.cwd(dir);
+    }
+    cmd.arg(&task);
+
+    // Set TERM so the TUI uses ANSI escape codes
+    cmd.env("TERM", "xterm-256color");
+
+    // ── Create PTY ──
+    let pty_system = native_pty_system();
+    let pair = pty_system
+        .openpty(PtySize {
+            rows: 24,
+            cols: 80,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| format!("无法创建 PTY: {e}"))?;
+
+    let _child = pair
+        .slave
+        .spawn_command(cmd)
+        .map_err(|e| format!("无法启动 nx team: {e}"))?;
+
+    // ── Reader: clone from master to emit Tauri events ──
+    let mut reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|e| format!("无法获取 PTY reader: {e}"))?;
+
+    // ── Writer + master for resize: take writer from master ──
+    let mut writer = pair
+        .master
+        .take_writer()
+        .map_err(|e| format!("无法获取 PTY writer: {e}"))?;
+    let master = pair.master;
+
+    // ── Channel for input/control ──
+    let (tx, rx) = std::sync::mpsc::channel::<PtyInput>();
+    let tx_for_reader = tx.clone();
+
+    // ── Barrier: reader thread waits for frontend to call pty_start ──
+    let ready = Arc::new(std::sync::Barrier::new(2));
+
+    // ── Store handle BEFORE spawning threads ──
+    {
+        let mut conns = direct_connections.lock().unwrap();
+        conns.insert(
+            session_id.clone(),
+            DirectPtyHandle {
+                tx,
+                ready: Arc::clone(&ready),
+            },
+        );
+    }
+    let conns_for_cleanup = direct_connections.inner().clone();
+
+    let output_event = format!("pty-output-{}", session_id);
+    let control_event = format!("pty-control-{}", session_id);
+    let app_for_reader = app_handle.clone();
+
+    // ── Reader thread: PTY → Tauri events (waits for frontend ready signal) ──
+    std::thread::spawn(move || {
+        // Block until frontend calls pty_start and sets up event listeners
+        ready.wait();
+
+        let mut buf = [0u8; 4096];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let data = buf[..n].to_vec();
+                    let _ = app_for_reader.emit(&output_event, data);
+                }
+                Err(_) => break,
+            }
+        }
+        // Signal frontend that PTY has exited
+        let _ = app_for_reader.emit(&control_event, r#"{"type":"closed"}"#.to_string());
+        // Tell pump thread to clean up
+        let _ = tx_for_reader.send(PtyInput::Close);
+    });
+
+    // ── Pump thread: receive input → write to PTY ──
+    let sid_for_pump = session_id.clone();
+    std::thread::spawn(move || {
+        for cmd in rx {
+            match cmd {
+                PtyInput::Data(data) => {
+                    if writer.write_all(&data).is_err() {
+                        break;
+                    }
+                    let _ = writer.flush();
+                }
+                PtyInput::Resize(rows, cols) => {
+                    let _ = master.resize(PtySize {
+                        rows,
+                        cols,
+                        pixel_width: 0,
+                        pixel_height: 0,
+                    });
+                }
+                PtyInput::Close => break,
+            }
+        }
+        // Clean up the connection entry
+        conns_for_cleanup.lock().unwrap().remove(&sid_for_pump);
+    });
+
+    // Emit event so the session list refreshes
+    let _ = app_handle.emit("team-session-created", &session_id);
+
+    Ok(session_id)
+}
+
 /// Resolve the nx CLI binary path (debug: target/debug/nx, release: sidecar)
 fn resolve_nx_binary() -> Result<PathBuf, String> {
     if cfg!(debug_assertions) {
@@ -235,12 +445,39 @@ fn resolve_nx_binary() -> Result<PathBuf, String> {
     }
 }
 
-/// Disconnect a PTY session and drop the WS connection.
+/// Signal that the frontend is ready to receive PTY output (event listeners are set up).
+/// The reader thread in pty_spawn_team waits on a Barrier until this is called.
+#[tauri::command]
+async fn pty_start(
+    session_id: String,
+    direct_connections: tauri::State<'_, DirectPtyConnections>,
+) -> Result<(), String> {
+    let conns = direct_connections.lock().unwrap();
+    if let Some(handle) = conns.get(&session_id) {
+        handle.ready.wait();
+        Ok(())
+    } else {
+        Err(format!("session not found: {session_id}"))
+    }
+}
+
+/// Disconnect a PTY session and drop the connection.
 #[tauri::command]
 async fn pty_disconnect(
     session_id: String,
     connections: tauri::State<'_, PtyConnections>,
+    direct_connections: tauri::State<'_, DirectPtyConnections>,
 ) -> Result<(), String> {
+    // Check direct PTY connections first
+    {
+        let mut conns = direct_connections.lock().unwrap();
+        if let Some(handle) = conns.get(&session_id) {
+            let _ = handle.tx.send(PtyInput::Close);
+            conns.remove(&session_id);
+            return Ok(());
+        }
+    }
+    // Fall back to WS bridge
     let mut conns = connections.lock().unwrap();
     conns.remove(&session_id);
     Ok(())
@@ -251,17 +488,21 @@ async fn pty_disconnect(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let pty_connections: PtyConnections = Arc::new(Mutex::new(HashMap::new()));
+    let direct_pty_connections: DirectPtyConnections = Arc::new(Mutex::new(HashMap::new()));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(pty_connections)
+        .manage(direct_pty_connections)
         .invoke_handler(tauri::generate_handler![
             pty_connect,
             pty_send_input,
             pty_send_control,
             pty_disconnect,
+            pty_start,
             spawn_team_session,
+            pty_spawn_team,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

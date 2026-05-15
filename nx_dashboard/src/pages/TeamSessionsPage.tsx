@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '@/api/constants';
 import { Pagination } from '@/components/ui/Pagination';
+import { TeamSessionTerminal } from '@/components/team/TeamSessionTerminal';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 
@@ -117,6 +118,9 @@ export function TeamSessionsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Active PTY terminal session
+  const [ptySessionId, setPtySessionId] = useState<string | null>(null);
+
   // Delete confirmation
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -203,11 +207,12 @@ export function TeamSessionsPage() {
       const { invoke } = await import('@tauri-apps/api/core');
       const modelArg = newModel.trim() || undefined;
       const currentWorkspace = useWorkspaceStore.getState().currentWorkspace;
-      await invoke('spawn_team_session', {
+      const sessionId: string = await invoke('pty_spawn_team', {
         task: newTask.trim(),
         model: modelArg,
         workingDir: currentWorkspace?.root_path || undefined,
       });
+      setPtySessionId(sessionId);
       setShowNewModal(false);
       setNewTask('');
       setNewModel('');
@@ -321,6 +326,21 @@ export function TeamSessionsPage() {
           </div>
           <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </>
+      )}
+
+      {/* Active PTY terminal */}
+      {ptySessionId && (
+        <div className="mt-4" style={{ height: 'calc(100vh - 24rem)' }}>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-mono text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">
+              终端运行中
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Esc 切换焦点 · 直接输入与 TUI 交互
+            </span>
+          </div>
+          <TeamSessionTerminal sessionId={ptySessionId} onClose={() => setPtySessionId(null)} />
+        </div>
       )}
 
       {/* Detail modal */}

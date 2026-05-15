@@ -16,7 +16,10 @@ use std::io;
 use tokio::sync::mpsc;
 
 mod panels;
-use panels::{render_chat_panel, render_input_panel, render_progress_panel, render_status_panel};
+use panels::{
+    render_chat_panel, render_input_hint, render_input_panel, render_progress_panel,
+    render_status_panel,
+};
 
 /// 团队会话渲染器 trait — Phase 3 将实现完整渲染逻辑
 pub trait TeamSessionRenderer: Send {
@@ -103,24 +106,28 @@ impl TeamSessionRenderer for SkeletonRenderer {
         render_progress_panel(frame, right_chunks[0], state);
         render_status_panel(frame, right_chunks[1], state);
 
+        let bottom_bar = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(0), Constraint::Length(3)])
+            .split(area)[1];
         if state.is_input_mode {
-            let input_area = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Min(0), Constraint::Length(3)])
-                .split(area)[1];
-            render_input_panel(frame, input_area, state);
+            render_input_panel(frame, bottom_bar, state);
+        } else {
+            render_input_hint(frame, bottom_bar, state);
         }
     }
 
     fn handle_input(&mut self, key: KeyCode, modifiers: KeyModifiers) -> InputAction {
-        match key {
-            KeyCode::Char('c') if modifiers == KeyModifiers::CONTROL => InputAction::Quit,
-            KeyCode::Char('q') => InputAction::Quit,
-            KeyCode::Enter => InputAction::EnterInput,
-            KeyCode::Esc => InputAction::CancelInput,
-            KeyCode::Backspace => InputAction::Backspace,
-            KeyCode::Char(c) => InputAction::TypeChar(c),
-            KeyCode::Tab => InputAction::TogglePanel,
+        match (key, modifiers) {
+            (KeyCode::Char('c'), KeyModifiers::CONTROL)
+            | (KeyCode::Char('d'), KeyModifiers::CONTROL)
+            | (KeyCode::F(10), _) => InputAction::Quit,
+            (KeyCode::Char('q'), _) => InputAction::Quit,
+            (KeyCode::Enter, _) => InputAction::EnterInput,
+            (KeyCode::Esc, _) => InputAction::CancelInput,
+            (KeyCode::Backspace, _) => InputAction::Backspace,
+            (KeyCode::Char(c), _) => InputAction::TypeChar(c),
+            (KeyCode::Tab, _) => InputAction::TogglePanel,
             _ => InputAction::None,
         }
     }
@@ -244,7 +251,15 @@ fn run_tui_loop<R: TeamSessionRenderer>(
         if event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 match renderer.handle_input(key.code, key.modifiers) {
-                    InputAction::Quit => return Ok(()),
+                    InputAction::Quit => {
+                        // Ctrl+C in input mode: cancel input instead of quitting
+                        if state.is_input_mode {
+                            state.is_input_mode = false;
+                            state.input_buffer.clear();
+                        } else {
+                            return Ok(());
+                        }
+                    }
                     InputAction::TogglePanel => {
                         state.selected_panel = match state.selected_panel {
                             PanelFocus::Chat => PanelFocus::Progress,

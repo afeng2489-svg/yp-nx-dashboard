@@ -28,6 +28,7 @@ futures-util = { workspace = true }
 # Terminal UI
 ratatui = "0.30"
 crossterm = "0.29"
+unicode-width = "0.2"
 
 # Internal crates
 nexus-ai = { path = "../core/ai" }
