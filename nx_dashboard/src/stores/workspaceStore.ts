@@ -189,19 +189,27 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           const workspaces: Workspace[] = unwrapEnvelope(await response.json());
           set({ workspaces, loading: false });
 
-          // Auto-select first workspace if none selected and we have workspaces
-          if (!get().currentWorkspace && workspaces.length > 0) {
-            set({ currentWorkspace: workspaces[0] });
-            notifyListeners(workspaces[0]);
-            // Auto-browse files of selected workspace
-            if (workspaces[0].root_path) {
+          // Determine effective workspace: persist may have restored a stale ID
+          const current = get().currentWorkspace;
+          const workspaceValid = current && workspaces.some((w) => w.id === current.id);
+          const effective = workspaceValid
+            ? current!
+            : workspaces.length > 0
+              ? workspaces[0]
+              : null;
+
+          if (effective) {
+            if (effective !== current) {
+              set({ currentWorkspace: effective });
+            }
+            notifyListeners(effective);
+            if (effective.root_path) {
               get().browseFiles();
             }
-            // 初始化时也要通知后端当前工作区路径
             fetchWithTimeout(`${API_BASE}/api/v1/ai/current-workspace`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ path: workspaces[0].root_path || null }),
+              body: JSON.stringify({ path: effective.root_path || null }),
             }).catch((err) => {
               console.error('Failed to init current workspace:', err);
             });

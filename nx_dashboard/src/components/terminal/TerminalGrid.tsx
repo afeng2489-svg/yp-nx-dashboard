@@ -105,8 +105,7 @@ function TerminalPane({
 
     // 建立 WebSocket 连接的函数
     const connectWebSocket = () => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${WS_BASE_URL}/ws/terminal`;
+      const wsUrl = `${WS_BASE_URL}/ws/terminal`;
 
       try {
         const ws = new WebSocket(wsUrl);
