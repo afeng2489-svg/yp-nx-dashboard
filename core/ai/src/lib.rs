@@ -11,6 +11,7 @@
 //! - MiniMax (中国大模型)
 
 pub mod anthropic;
+pub mod claude_cli;
 pub mod claude_switch;
 pub mod cli_registry;
 pub mod codex;
@@ -26,6 +27,7 @@ pub mod selector;
 pub mod traits;
 
 pub use anthropic::AnthropicProvider;
+pub use claude_cli::ClaudeCliProvider;
 pub use claude_switch::{BackendConfig, ClaudeSwitchProvider, SwitchBackend};
 pub use cli_registry::*;
 pub use codex::CodexProvider;

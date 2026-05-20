@@ -32,6 +32,7 @@ pub enum ProviderType {
     OpenCode,
     MiniMax,
     ClaudeSwitch, // Claude Switch - 用 Claude 格式调用其他后端
+    ClaudeCli,    // 本地 Claude Code CLI - 无需 API Key
 }
 
 impl std::fmt::Display for ProviderType {
@@ -46,6 +47,7 @@ impl std::fmt::Display for ProviderType {
             ProviderType::OpenCode => write!(f, "opencode"),
             ProviderType::MiniMax => write!(f, "minimax"),
             ProviderType::ClaudeSwitch => write!(f, "claude-switch"),
+            ProviderType::ClaudeCli => write!(f, "claude-cli"),
         }
     }
 }
@@ -147,6 +149,7 @@ impl Default for AIManagerConfig {
                 ProviderType::OpenAI,
                 ProviderType::Google,
                 ProviderType::Ollama,
+                ProviderType::ClaudeCli,
                 ProviderType::Codex,
                 ProviderType::Qwen,
                 ProviderType::OpenCode,
@@ -389,6 +392,20 @@ impl AIModelManager {
                 ProviderType::ClaudeSwitch => {
                     // Claude Switch 通过专门的方法配置，不在这里处理
                 }
+                ProviderType::ClaudeCli => {
+                    let provider = super::ClaudeCliProvider::new();
+                    if provider.is_available() {
+                        tracing::info!(
+                            "[AIManager] Claude CLI provider registered (path: {:?})",
+                            provider.cli_path()
+                        );
+                        self.registry.register(Arc::new(provider));
+                    } else {
+                        tracing::warn!(
+                            "[AIManager] Claude CLI not found, skipping provider registration"
+                        );
+                    }
+                }
             }
         }
 
@@ -403,6 +420,7 @@ impl AIModelManager {
             ProviderType::OpenCode => "opencode",
             ProviderType::MiniMax => "minimax",
             ProviderType::ClaudeSwitch => "claude-switch",
+            ProviderType::ClaudeCli => "claude-cli",
         };
         let _ = self.registry.set_default(default_provider);
 
@@ -590,6 +608,16 @@ impl AIModelManager {
         use super::selector::ModelInfo;
 
         let default_models = vec![
+            // Claude CLI (本地，无需 API Key)
+            ModelInfo {
+                model_id: "claude-local".to_string(),
+                provider: "claude-cli".to_string(),
+                display_name: "Claude CLI (本地)".to_string(),
+                description: "本地 Claude Code CLI，无需 API Key".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Anthropic
             ModelInfo {
                 model_id: "claude-opus-4-5".to_string(),
@@ -1122,6 +1150,16 @@ impl AIModelManager {
         use super::selector::ModelInfo;
 
         let default_models = vec![
+            // Claude CLI (本地，无需 API Key)
+            ModelInfo {
+                model_id: "claude-local".to_string(),
+                provider: "claude-cli".to_string(),
+                display_name: "Claude CLI (本地)".to_string(),
+                description: "本地 Claude Code CLI，无需 API Key".to_string(),
+                supports_chat: true,
+                supports_completion: true,
+                is_default: false,
+            },
             // Anthropic
             ModelInfo {
                 model_id: "claude-opus-4-5".to_string(),
