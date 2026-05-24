@@ -17,8 +17,8 @@ use crate::middleware::auth::ApiKeyAuth;
 use crate::routes::teams_state::TeamsAppState;
 use crate::services::{
     AgentTeamService, ClaudeTerminalManager, ExecutionService, GroupChatService, PluginService,
-    ProjectService, ProviderService, SessionService, SharedWisdomService, SkillService,
-    SqliteApiKeyRepository, SqliteExecutionRepository, SqliteGroupChatRepository,
+    PreviewServerManager, ProjectService, ProviderService, SessionService, SharedWisdomService,
+    SkillService, SqliteApiKeyRepository, SqliteExecutionRepository, SqliteGroupChatRepository,
     SqliteIssueRepository, SqliteProjectRepository, SqliteProviderRepository,
     SqliteSessionRepository, SqliteTeamRepository, SqliteWorkflowRepository,
     SqliteWorkspaceRepository, TelegramService, TestGenerator, WisdomService, WorkflowService,
@@ -31,9 +31,11 @@ use crate::ws::TerminalWsHandler;
 use nexus_ai::{AIManagerConfig, AIModelManager, APIConfig, ModelConfig, ProviderType};
 
 pub mod a2ui;
+pub mod ai;
 pub mod ai_config;
 pub mod artifacts;
 pub mod browser;
+pub mod components;
 pub mod execution_logs;
 pub mod executions;
 pub mod feature_flags;
@@ -46,6 +48,7 @@ pub mod memory;
 pub mod model_routing;
 pub mod pipelines;
 pub mod plugins;
+pub mod preview;
 pub mod process_lifecycle;
 pub mod processes;
 pub mod projects;
@@ -370,6 +373,7 @@ fn load_ai_config_from_env() -> AIManagerConfig {
             ProviderType::OpenCode,
             ProviderType::MiniMax,
         ],
+        default_escalate_model: None,
     }
 }
 
@@ -402,6 +406,8 @@ pub struct AppState {
     pub agent_execution_manager: AgentExecutionManager,
     /// Claude 终端管理器（PTY 会话，每个团队角色一个终端）
     pub claude_terminal_manager: ClaudeTerminalManager,
+    /// 预览服务器管理器
+    pub preview_manager: Arc<PreviewServerManager>,
     /// 当前工作区路径，用于 Claude CLI --project 参数
     pub current_workspace_path: Arc<RwLock<Option<String>>>,
     /// 产物仓储（每次工作流执行的文件 diff，可选）
@@ -443,6 +449,8 @@ pub struct AppState {
     /// 告警通知服务
     pub alert_service: Arc<crate::services::alert_service::AlertService>,
     pub sprint_service: Arc<crate::services::sprint_service::SprintService>,
+    /// 数据库路径（供路由层直接 rusqlite 访问）
+    pub db_path: String,
 }
 
 impl AppState {
@@ -677,6 +685,9 @@ impl AppState {
         // 创建 Claude 终端管理器
         let claude_terminal_manager = ClaudeTerminalManager::new();
 
+        // 创建预览服务器管理器
+        let preview_manager = Arc::new(PreviewServerManager::new());
+
         // 创建 Issue 仓储
         let issue_repository = Arc::new(
             SqliteIssueRepository::new(config.db_path.as_ref())
@@ -880,6 +891,7 @@ impl AppState {
             memory_state,
             agent_execution_manager,
             claude_terminal_manager,
+            preview_manager,
             current_workspace_path,
             artifact_repo: artifact_repo_arc,
             execution_repo: execution_repo_opt,
@@ -900,6 +912,7 @@ impl AppState {
             execution_log_service,
             alert_service,
             sprint_service,
+            db_path: config.db_path.clone(),
         })
     }
 }
@@ -1278,6 +1291,7 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         .route("/api/v1/ai/providers", get(ai_config::list_providers))
         .route("/api/v1/ai/clis", get(ai_config::list_clis))
         .route("/api/v1/ai/execute", post(ai_config::execute_cli))
+        .route("/api/v1/ai/parse-intent", post(ai::parse_intent))
         // Webhook 触发路由
         .route(
             "/api/v1/triggers/webhook/:workflow_id",
@@ -1555,6 +1569,19 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
             "/api/v1/projects/:id/execute",
             post(projects::execute_project),
         )
+        // 项目组件目录路由
+        .route(
+            "/api/v1/projects/:project_id/components/search",
+            get(components::search_components),
+        )
+        .route(
+            "/api/v1/projects/:project_id/components",
+            get(components::list_components).post(components::create_component),
+        )
+        .route(
+            "/api/v1/projects/:project_id/components/:id",
+            get(components::get_component).delete(components::delete_component),
+        )
         // 群组讨论路由
         .route("/api/v1/group-sessions", post(group_chat::create_session))
         .route("/api/v1/group-sessions", get(group_chat::list_sessions))
@@ -1786,6 +1813,7 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         .merge(execution_logs::router())
         .merge(quick_run::router())
         .nest("/api/v1/browser", browser::router())
+        .merge(preview::preview_routes())
         // 应用认证中间件到所有 API 和 WebSocket 路由
         .route_layer(axum::middleware::from_fn_with_state(
             app_state_for_router.clone(),

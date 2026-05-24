@@ -26,6 +26,11 @@ const PATH_TO_MODULE: Record<string, string> = {
   '/settings': 'settings',
   '/ai-settings': 'ai-settings',
   '/editor': 'editor',
+  '/quick-launch': 'quick-launch',
+  '/team-sessions': 'team-sessions',
+  '/sessions': 'sessions',
+  '/wisdom': 'wisdom',
+  '/knowledge-base': 'knowledge-base',
 };
 
 const HIDE_ON: string[] = ['/guide', '/editor'];

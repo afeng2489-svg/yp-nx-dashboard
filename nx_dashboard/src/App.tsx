@@ -75,6 +75,21 @@ const SprintBoardPage = lazy(() =>
 const TeamSessionsPage = lazy(() =>
   import('@/pages/TeamSessionsPage').then((m) => ({ default: m.TeamSessionsPage })),
 );
+const PreviewPage = lazy(() =>
+  import('@/pages/PreviewPage').then((m) => ({ default: m.PreviewPage })),
+);
+const QuickLaunchPage = lazy(() =>
+  import('@/pages/QuickLaunchPage').then((m) => ({ default: m.QuickLaunchPage })),
+);
+const SessionsPage = lazy(() =>
+  import('@/pages/SessionsPage').then((m) => ({ default: m.SessionsPage })),
+);
+const WisdomPage = lazy(() =>
+  import('@/pages/WisdomPage').then((m) => ({ default: m.WisdomPage })),
+);
+const KnowledgeBasePage = lazy(() =>
+  import('@/pages/KnowledgeBasePage').then((m) => ({ default: m.KnowledgeBasePage })),
+);
 
 // Loading fallback component
 function PageLoadingFallback() {
@@ -298,10 +313,7 @@ function App() {
                   path="/sessions"
                   element={
                     <PageWrapper>
-                      <WipPage
-                        title="会话"
-                        description="会话模块尚未接入工作流执行链路，暂不可用。请使用「执行记录」查看工作流运行情况。"
-                      />
+                      <SessionsPage />
                     </PageWrapper>
                   }
                 />
@@ -317,10 +329,7 @@ function App() {
                   path="/wisdom"
                   element={
                     <PageWrapper>
-                      <WipPage
-                        title="知识库"
-                        description="团队经验沉淀的知识库功能正在开发中，尚未接入 Agent 执行链路。敬请期待。"
-                      />
+                      <WisdomPage />
                     </PageWrapper>
                   }
                 />
@@ -417,10 +426,7 @@ function App() {
                   path="/knowledge-base"
                   element={
                     <PageWrapper>
-                      <WipPage
-                        title="RAG 知识库"
-                        description="基于文档向量检索的 RAG 知识库正在开发中，仅 workflow stage 的 rag 字段可手动配置。敬请期待完整 UI。"
-                      />
+                      <KnowledgeBasePage />
                     </PageWrapper>
                   }
                 />
@@ -433,6 +439,7 @@ function App() {
                   }
                 />
                 <Route path="/canvas" element={<CanvasPage />} />
+                <Route path="/preview/:sessionId" element={<PreviewPage />} />
                 <Route
                   path="/sprint-board"
                   element={
@@ -446,6 +453,14 @@ function App() {
                   element={
                     <PageWrapper>
                       <TeamSessionsPage />
+                    </PageWrapper>
+                  }
+                />
+                                <Route
+                  path="/quick-launch"
+                  element={
+                    <PageWrapper>
+                      <QuickLaunchPage />
                     </PageWrapper>
                   }
                 />

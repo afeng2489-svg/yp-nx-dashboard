@@ -137,6 +137,9 @@ pub struct AIManagerConfig {
     /// 是否启用提供商
     #[serde(default)]
     pub enabled_providers: Vec<ProviderType>,
+    /// 失败升级时的默认模型（用于 {{escalate_model}} 模板变量）
+    #[serde(default)]
+    pub default_escalate_model: Option<String>,
 }
 
 impl Default for AIManagerConfig {
@@ -155,6 +158,7 @@ impl Default for AIManagerConfig {
                 ProviderType::OpenCode,
                 ProviderType::MiniMax,
             ],
+            default_escalate_model: None,
         }
     }
 }

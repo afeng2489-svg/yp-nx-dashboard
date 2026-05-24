@@ -128,6 +128,9 @@ pub struct AgentDefinition {
     /// 从输出中提取变量（为空则不提取，完全向后兼容）
     #[serde(default)]
     pub extract_vars: Vec<VarExtraction>,
+    /// 自定义输出格式（None = 使用默认结构化输出指令）
+    #[serde(default)]
+    pub output_format: Option<String>,
 }
 
 /// 智能体配置
@@ -179,6 +182,9 @@ pub enum StageType {
     UserInput,
     /// 新增：循环执行 body_stages 直到 break_condition 为 true
     Loop,
+    /// 新增：页面生成阶段
+    #[serde(rename = "page_generate")]
+    PageGenerate { manifest_template: String, output_dir: String },
 }
 
 /// 阶段跳转规则
@@ -264,7 +270,7 @@ fn default_threshold() -> f32 {
 }
 
 /// 阶段定义
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StageDefinition {
     /// 阶段名称（在 next.goto 中通过此名称引用）
     pub name: String,

@@ -27,111 +27,67 @@ import {
   LayoutTemplate,
   ChevronDown,
   History,
+  Zap,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/uiStore';
 import { useState, useEffect } from 'react';
 import { api, type ClaudeCliModelResponse } from '@/api/client';
-import { showInfo } from '@/lib/toast';
+import { NAV_GROUPS, resolveActiveNavId } from '@/data/navConfig';
 
-type TabId =
-  | 'dashboard'
-  | 'guide'
-  | 'workflows'
-  | 'canvas'
-  | 'executions'
-  | 'sprint-board'
-  | 'teams'
-  | 'teams-v2'
-  | 'roles'
-  | 'group-chat'
-  | 'team-sessions'
-  | 'sessions'
-  | 'processes'
-  | 'projects'
-  | 'templates'
-  | 'skills'
-  | 'wisdom'
-  | 'knowledge-base'
-  | 'terminal'
-  | 'browser'
-  | 'search'
-  | 'ui-design'
-  | 'tasks'
-  | 'cost'
-  | 'settings';
+const NAV_ICONS: Record<string, React.ElementType> = {
+  dashboard: LayoutDashboard,
+  guide: Compass,
+  workflows: GitBranch,
+  executions: Play,
+  sessions: MessageSquare,
+  canvas: LayoutTemplate,
+  'sprint-board': ListTodo,
+  'teams-v2': Users,
+  roles: Bot,
+  'group-chat': MessageSquare,
+  'team-sessions': History,
+  processes: Activity,
+  'quick-launch': Zap,
+  projects: FolderPlus,
+  templates: FolderOpen,
+  skills: Wrench,
+  wisdom: Brain,
+  'knowledge-base': BookOpen,
+  terminal: Monitor,
+  browser: Globe,
+  search: Search,
+  'ui-design': Palette,
+  tasks: ListTodo,
+  cost: DollarSign,
+  'ai-settings': Cpu,
+  settings: Settings,
+};
 
 interface Tab {
-  id: TabId;
+  id: string;
   label: string;
   icon: React.ElementType;
   path: string;
-  wip?: boolean;
 }
 
-interface NavGroup {
+interface SidebarNavGroup {
   label: string;
   collapsible?: boolean;
   items: Tab[];
 }
 
-const navGroups: NavGroup[] = [
-  {
-    label: '主流程',
-    items: [
-      { id: 'dashboard', label: '仪表盘', icon: LayoutDashboard, path: '/' },
-      { id: 'guide', label: '使用指南', icon: Compass, path: '/guide' },
-      { id: 'workflows', label: '工作流', icon: GitBranch, path: '/workflows' },
-      { id: 'executions', label: '执行记录', icon: Play, path: '/executions' },
-      { id: 'canvas', label: '可视化画布', icon: LayoutTemplate, path: '/canvas' },
-      { id: 'sprint-board', label: 'Sprint 看板', icon: ListTodo, path: '/sprint-board' },
-    ],
-  },
-  {
-    label: 'AI 团队',
-    items: [
-      // { id: 'teams', label: '团队', icon: Users, path: '/teams' },
-      { id: 'teams-v2', label: '团队 CLI', icon: Users, path: '/teams-v2' },
-      { id: 'roles', label: '角色', icon: Bot, path: '/roles' },
-      { id: 'group-chat', label: '群组讨论', icon: MessageSquare, path: '/group-chat' },
-      { id: 'team-sessions', label: '团队会话', icon: History, path: '/team-sessions' },
-      { id: 'processes', label: '进程监测', icon: Activity, path: '/processes' },
-    ],
-  },
-  {
-    label: '资源',
-    items: [
-      { id: 'projects', label: '项目', icon: FolderPlus, path: '/projects' },
-      { id: 'templates', label: '模板', icon: FolderOpen, path: '/templates' },
-      { id: 'skills', label: '技能', icon: Wrench, path: '/skills' },
-      { id: 'wisdom', label: '知识库', icon: Brain, path: '/wisdom', wip: true },
-      {
-        id: 'knowledge-base',
-        label: 'RAG 知识库',
-        icon: BookOpen,
-        path: '/knowledge-base',
-        wip: true,
-      },
-    ],
-  },
-  {
-    label: '工具',
-    collapsible: true,
-    items: [
-      { id: 'terminal', label: '终端', icon: Monitor, path: '/terminal' },
-      { id: 'browser', label: '浏览器', icon: Globe, path: '/browser' },
-      { id: 'search', label: '搜索', icon: Search, path: '/search' },
-      { id: 'ui-design', label: 'UI 设计', icon: Palette, path: '/ui-design' },
-      { id: 'tasks', label: '任务', icon: ListTodo, path: '/tasks' },
-      { id: 'cost', label: '成本', icon: DollarSign, path: '/cost' },
-    ],
-  },
-  {
-    label: '系统',
-    items: [{ id: 'settings', label: '设置', icon: Settings, path: '/settings' }],
-  },
-];
+const navGroups: SidebarNavGroup[] = NAV_GROUPS.map((group) => ({
+  label: group.label,
+  collapsible: group.label === '工具',
+  items: group.items.map((item) => ({
+    id: item.id,
+    label: item.label,
+    path: item.path,
+    icon: NAV_ICONS[item.id] ?? LayoutDashboard,
+  })),
+}));
 
 function CliModelDisplay() {
   const [cliModel, setCliModel] = useState<ClaudeCliModelResponse | null>(null);
@@ -205,21 +161,15 @@ function NavItem({
   onClick: () => void;
 }) {
   const Icon = tab.icon;
-  const isWip = tab.wip === true;
   return (
     <button
       onClick={onClick}
-      title={isWip ? '开发中，暂未开放' : undefined}
       className={cn(
         'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200',
-        isWip
-          ? 'opacity-50 cursor-not-allowed hover:bg-transparent'
-          : 'hover:scale-[1.02] active:scale-[0.98]',
+        'hover:scale-[1.02] active:scale-[0.98]',
         isActive
           ? 'bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 text-primary border border-primary/20 shadow-sm'
-          : isWip
-            ? 'text-muted-foreground'
-            : 'hover:bg-accent text-muted-foreground hover:text-foreground',
+          : 'hover:bg-accent text-muted-foreground hover:text-foreground',
       )}
     >
       <Icon
@@ -238,12 +188,7 @@ function NavItem({
           {tab.label}
         </span>
       )}
-      {sidebarOpen && isWip && (
-        <span className="ml-auto px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-          开发中
-        </span>
-      )}
-      {isActive && sidebarOpen && !isWip && (
+      {isActive && sidebarOpen && (
         <div className="ml-auto w-1.5 h-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500" />
       )}
     </button>
@@ -256,8 +201,7 @@ export function Sidebar() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ 工具: true });
 
-  const activeTab =
-    navGroups.flatMap((g) => g.items).find((t) => t.path === location.pathname)?.id || 'dashboard';
+  const activeTab = resolveActiveNavId(location.pathname);
 
   return (
     <aside
@@ -345,13 +289,7 @@ export function Sidebar() {
                       tab={tab}
                       isActive={activeTab === tab.id}
                       sidebarOpen={sidebarOpen}
-                      onClick={() => {
-                        if (tab.wip) {
-                          showInfo('开发中', `${tab.label} 功能正在开发中，敬请期待`);
-                          return;
-                        }
-                        navigate(tab.path);
-                      }}
+                      onClick={() => navigate(tab.path)}
                     />
                   ))}
                 </div>

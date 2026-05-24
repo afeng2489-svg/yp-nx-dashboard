@@ -1036,6 +1036,7 @@ async fn reload_ai_config(state: &AppState) {
         default_model,
         api_config,
         enabled_providers,
+        default_escalate_model: None,
     };
 
     // 更新 AIModelManager

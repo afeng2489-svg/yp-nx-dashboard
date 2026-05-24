@@ -91,6 +91,7 @@ fn load_ai_config_from_env() -> NexusAIManagerConfig {
             ProviderType::Qwen,
             ProviderType::OpenCode,
         ],
+        default_escalate_model: None,
     }
 }
 use crate::services::execution_bridge::WorkflowEventBridge;
@@ -689,6 +690,27 @@ impl ExecutionService {
                     definition.variables.insert(key.clone(), value.clone());
                 }
             }
+        }
+
+        // 注入项目级模板变量（供页面生成等阶段使用）
+        {
+            // project_path: 从 working_directory 获取
+            if let Some(ref wd) = working_directory {
+                definition
+                    .variables
+                    .entry("project_path".to_string())
+                    .or_insert_with(|| serde_json::Value::String(wd.clone()));
+            }
+
+            // escalate_model: 从 AI 配置获取
+            let escalate_model = ai_config
+                .as_ref()
+                .and_then(|c| c.default_escalate_model.clone())
+                .unwrap_or_else(|| "opus".to_string());
+            definition
+                .variables
+                .entry("escalate_model".to_string())
+                .or_insert_with(|| serde_json::Value::String(escalate_model));
         }
 
         // 2. 创建 AI 管理器（保留用于其他可能的需求）

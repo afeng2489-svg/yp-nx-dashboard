@@ -1,29 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, Terminal, Plus, Play, Pause, ChevronRight, Clock, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { ALL_NAV_ITEMS, NAV_BY_COMMAND } from '@/data/navConfig';
 
-// Navigation commands
-const NAV_COMMANDS = [
-  { command: 'go:dashboard', description: '仪表盘', path: '/' },
-  { command: 'go:workflows', description: '工作流', path: '/workflows' },
-  { command: 'go:templates', description: '模板', path: '/templates' },
-  { command: 'go:executions', description: '执行', path: '/executions' },
-  { command: 'go:terminal', description: '终端', path: '/terminal' },
-  { command: 'go:sessions', description: '会话', path: '/sessions' },
-  { command: 'go:tasks', description: '任务', path: '/tasks' },
-  { command: 'go:ui-design', description: 'UI 设计', path: '/ui-design' },
-  { command: 'go:wisdom', description: '知识库', path: '/wisdom' },
-  { command: 'go:search', description: '搜索', path: '/search' },
-  { command: 'go:skills', description: '技能', path: '/skills' },
-  { command: 'go:teams', description: '团队', path: '/teams' },
-  { command: 'go:roles', description: '角色', path: '/roles' },
-  { command: 'go:projects', description: '项目', path: '/projects' },
-  { command: 'go:group-chat', description: '群组讨论', path: '/group-chat' },
-  { command: 'go:processes', description: '进程监测', path: '/processes' },
-  { command: 'go:browser', description: '浏览器', path: '/browser' },
-  { command: 'go:ai-settings', description: 'AI 设置', path: '/ai-settings' },
-  { command: 'go:settings', description: '设置', path: '/settings' },
-];
+const NAV_COMMANDS = ALL_NAV_ITEMS.map((item) => ({
+  command: item.command,
+  description: item.label,
+  path: item.path,
+}));
 
 // Command types matching the Rust backend
 export interface CommandArgument {
@@ -284,7 +268,7 @@ export function CommandPalette() {
 
     // Navigation commands
     if (command.startsWith('go:')) {
-      const navCmd = NAV_COMMANDS.find((n) => n.command === command);
+      const navCmd = NAV_BY_COMMAND[command];
       if (navCmd) {
         navigate(navCmd.path);
         return;

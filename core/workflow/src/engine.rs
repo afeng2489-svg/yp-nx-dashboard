@@ -9,13 +9,17 @@ use tokio::process::Command;
 
 type ModelRouterFn = Arc<dyn Fn(&str, &str) -> Option<String> + Send + Sync>;
 
+use crate::artifacts::PageManifest;
 use crate::events::{EventEmitter, WorkflowEvent};
 use crate::parser::{OnFail, QualityGate, StageType, WorkflowError as ParserWorkflowError};
+use crate::watchers::page_generate::PageGenerateWatcher;
 use crate::{
     AgentState, AgentStatus, QualityCheckResult, QualityGateResult, StageOutput,
     WorkflowDefinition, WorkflowState, WorkflowStatus,
 };
 use regex::Regex;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Claude CLI 调用结果
 struct ClaudeCliResult {
@@ -251,6 +255,116 @@ impl WorkflowEngine {
                         }
                     }
                     loop_outputs
+                }
+
+                StageType::PageGenerate { manifest_template: _, ref output_dir } => {
+                    let project_dir = PathBuf::from(output_dir)
+                        .parent()
+                        .map(|p| p.to_path_buf())
+                        .unwrap_or_else(|| PathBuf::from("."));
+                    let staging_dir = project_dir
+                        .join(".nexus-staging")
+                        .join(state.read().execution_id.to_string());
+                    fs::create_dir_all(&staging_dir)?;
+
+                    // 复制 package.json/tsconfig.json 到暂存目录
+                    for config_file in &["package.json", "tsconfig.json"] {
+                        let src = project_dir.join(config_file);
+                        if src.exists() {
+                            fs::copy(&src, staging_dir.join(config_file))?;
+                        }
+                    }
+
+                    // 1. 运行 requirement-analyst → manifest.json
+                    let analyst_stage = crate::parser::StageDefinition {
+                        name: format!("{}_analyst", stage.name),
+                        agents: vec!["requirement-analyst".into()],
+                        stage_type: StageType::Agent,
+                        ..Default::default()
+                    };
+                    let _analyst_outputs = self
+                        .execute_stage(&state, &analyst_stage, &workflow.agents)
+                        .await?;
+
+                    // 2. 提取 manifest JSON (从 agent output state variable)
+                    let manifest_json = {
+                        let s = state.read();
+                        s.get_var("requirement-analyst_output")
+                            .cloned()
+                            .unwrap_or_default()
+                    };
+                    let manifest_str = match &manifest_json {
+                        serde_json::Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    let manifest: PageManifest = serde_json::from_str(&manifest_str)
+                        .map_err(|e| {
+                            WorkflowError::Execution(format!(
+                                "Invalid PageManifest JSON: {}",
+                                e
+                            ))
+                        })?;
+                    fs::write(staging_dir.join("manifest.json"), &manifest_str)?;
+
+                    // 3. 并行运行 route/component/data agents
+                    let parallel_stage = crate::parser::StageDefinition {
+                        name: format!("{}_parallel", stage.name),
+                        agents: vec![
+                            "route-generator".into(),
+                            "component-generator".into(),
+                            "data-generator".into(),
+                        ],
+                        stage_type: StageType::Agent,
+                        parallel: true,
+                        ..Default::default()
+                    };
+                    self.execute_stage(&state, &parallel_stage, &workflow.agents)
+                        .await?;
+
+                    // 4. 本机 StageWatcher 执行 R1-R9 验证
+                    let mut review =
+                        PageGenerateWatcher::validate(&staging_dir, &manifest);
+                    let mut review_attempts = 0usize;
+                    while review.verdict == "MANIFEST_MISMATCH" && review_attempts < 2 {
+                        state.write().set_var(
+                            "page_generate_watcher_failures",
+                            serde_json::to_value(&review.failures).unwrap_or_default(),
+                        );
+                        let review_stage = crate::parser::StageDefinition {
+                            name: format!("{}_review_{}", stage.name, review_attempts),
+                            agents: vec!["code-reviewer".into()],
+                            stage_type: StageType::Agent,
+                            ..Default::default()
+                        };
+                        self.execute_stage(&state, &review_stage, &workflow.agents)
+                            .await?;
+                        review =
+                            PageGenerateWatcher::validate(&staging_dir, &manifest);
+                        review_attempts += 1;
+                    }
+
+                    // 5. 质量门
+                    let outputs = vec![StageOutput {
+                        path: staging_dir.to_string_lossy().to_string(),
+                        content: Some(manifest_str),
+                        agent_id: None,
+                        summary: Some(format!(
+                            "PageGenerate: {} (review attempts: {})",
+                            manifest.page_name, review_attempts
+                        )),
+                        files_changed: vec![],
+                    }];
+                    let (outputs, _quality_gate_result) = self
+                        .run_quality_gate_loop(&state, &stage, &workflow.agents, outputs.clone())
+                        .await?;
+
+                    // 6. 原子性移动 (含回滚)
+                    atomic_move_staging_to_src(&staging_dir, output_dir)?;
+
+                    // 7. 清理
+                    cleanup_old_staging_dirs(&project_dir, 5, 7)?;
+
+                    outputs
                 }
 
                 StageType::Agent => {
@@ -776,20 +890,21 @@ impl WorkflowEngine {
 
             // 2. 换强模型重试
             if let Some(ref escalate_model) = policy.escalate_model {
+                let resolved_model = state.read().resolve_template(escalate_model);
                 let mut escalated_stage = stage.clone();
-                escalated_stage.model = Some(escalate_model.clone());
+                escalated_stage.model = Some(resolved_model.clone());
                 for attempt in 1..=policy.escalate_retries {
                     tracing::warn!(
                         "[FailRecovery] stage='{}' 升级模型 {} 重试 {}/{}",
                         stage.name,
-                        escalate_model,
+                        resolved_model,
                         attempt,
                         policy.escalate_retries
                     );
                     self.emit_model_escalation(
                         state,
                         &stage.name,
-                        Some(escalate_model),
+                        Some(&resolved_model),
                         attempt,
                         policy.escalate_retries,
                     );
@@ -1075,11 +1190,20 @@ impl WorkflowEngine {
             - files_changed 列出你创建或修改的所有文件路径\n\
             - 这个 JSON 块必须放在回复的最后";
 
-        // 构建 prompt（Claude CLI 格式）
-        let full_prompt =
+        // 如果 agent 有自定义 output_format，用它替换默认 JSON 摘要指令
+        let format_instruction = if let Some(ref fmt) = agent.output_format {
             format!(
+                "\n\n输出格式要求: {}\n",
+                state.read().resolve_template(fmt)
+            )
+        } else {
+            structured_output_instruction.to_string()
+        };
+
+        // 构建 prompt（Claude CLI 格式）
+        let full_prompt = format!(
             "{}\n\n<system>\n你扮演 {}. 请仔细遵循你的指示。\n</system>\n\n<user>\n{}{}{}\n</user>",
-            auto_yes_prefix, agent.role, resolved_prompt, rag_context, structured_output_instruction
+            auto_yes_prefix, agent.role, resolved_prompt, rag_context, format_instruction
         );
 
         // 模型路由：stage 未指定 model 时，用路由器自动选择
@@ -1367,4 +1491,151 @@ impl From<nexus_ai::AIError> for WorkflowError {
     fn from(e: nexus_ai::AIError) -> Self {
         WorkflowError::Execution(e.to_string())
     }
+}
+
+impl From<std::io::Error> for WorkflowError {
+    fn from(e: std::io::Error) -> Self {
+        WorkflowError::Io(e.to_string())
+    }
+}
+
+/// 将暂存目录中的文件原子性移动到目标 src 目录
+///
+/// 如有同名文件：先创建 .backup 副本。
+/// 如果任一步骤失败：已移动的文件从目标移回暂存目录，从 .backup 恢复被覆盖的文件。
+fn atomic_move_staging_to_src(staging_dir: &Path, output_dir: &str) -> Result<(), WorkflowError> {
+    let dest_dir = Path::new(output_dir);
+    let mut moved: Vec<(PathBuf, Option<PathBuf>)> = Vec::new(); // (dest, backup)
+
+    let walk_dir = |dir: &Path| -> Result<Vec<PathBuf>, std::io::Error> {
+        let mut files = Vec::new();
+        visit_dir(dir, &mut files)?;
+        Ok(files)
+    };
+
+    let staging_files = walk_dir(staging_dir).map_err(|e| {
+        WorkflowError::Io(format!("遍历暂存目录失败: {}", e))
+    })?;
+
+    for src_path in &staging_files {
+        let rel = src_path.strip_prefix(staging_dir).map_err(|e| {
+            WorkflowError::Io(format!("计算相对路径失败: {}", e))
+        })?;
+        let dest_path = dest_dir.join(rel);
+
+        // 创建目标父目录
+        if let Some(parent) = dest_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| WorkflowError::Io(format!("创建目录失败: {}", e)))?;
+        }
+
+        // 如有同名文件，备份
+        let backup = if dest_path.exists() {
+            let backup_path = dest_path.with_extension(format!(
+                "{}.backup",
+                dest_path
+                    .extension()
+                    .map(|e| format!(".{}", e.to_string_lossy()))
+                    .unwrap_or_default()
+            ));
+            fs::rename(&dest_path, &backup_path).map_err(|e| {
+                // 回滚已移动的文件
+                rollback_moved(&moved);
+                WorkflowError::Io(format!("备份文件失败: {}", e))
+            })?;
+            Some(backup_path)
+        } else {
+            None
+        };
+
+        // 移动文件
+        if let Err(e) = fs::rename(src_path, &dest_path) {
+            rollback_moved(&moved);
+            return Err(WorkflowError::Io(format!("移动文件失败: {}", e)));
+        }
+        moved.push((dest_path, backup));
+    }
+
+    Ok(())
+}
+
+fn visit_dir(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), std::io::Error> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            visit_dir(&path, files)?;
+        } else {
+            files.push(path);
+        }
+    }
+    Ok(())
+}
+
+fn rollback_moved(moved: &[(PathBuf, Option<PathBuf>)]) {
+    for (dest, backup) in moved.iter().rev() {
+        // 将已移动的文件移回暂存（忽略错误，尽最大努力）
+        let _ = fs::remove_file(dest);
+        if let Some(ref backup_path) = backup {
+            let original = backup_path.with_extension(
+                backup_path
+                    .extension()
+                    .map(|e| {
+                        let s = e.to_string_lossy();
+                        if s == "backup" {
+                            String::new()
+                        } else {
+                            format!(".{}", s)
+                        }
+                    })
+                    .unwrap_or_default(),
+            );
+            let _ = fs::rename(backup_path, &original);
+        }
+    }
+}
+
+/// 清理旧的暂存目录
+///
+/// 保留最近 `keep_last` 个暂存目录，删除 `older_than_days` 天前的。
+fn cleanup_old_staging_dirs(
+    project_dir: &Path,
+    keep_last: usize,
+    older_than_days: u64,
+) -> Result<(), WorkflowError> {
+    let staging_root = project_dir.join(".nexus-staging");
+    if !staging_root.exists() {
+        return Ok(());
+    }
+
+    let mut dirs: Vec<_> = fs::read_dir(&staging_root)
+        .map_err(|e| WorkflowError::Io(format!("读取暂存目录失败: {}", e)))?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().is_dir())
+        .collect();
+
+    // 按修改时间降序排列（最新的在前）
+    dirs.sort_by(|a, b| {
+        let ta = a.metadata().ok().and_then(|m| m.modified().ok());
+        let tb = b.metadata().ok().and_then(|m| m.modified().ok());
+        tb.cmp(&ta)
+    });
+
+    let cutoff = std::time::SystemTime::now()
+        - std::time::Duration::from_secs(older_than_days * 86400);
+
+    for (i, entry) in dirs.iter().enumerate() {
+        let should_delete = i >= keep_last
+            || entry
+                .metadata()
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .map(|t| t < cutoff)
+                .unwrap_or(false);
+        if should_delete {
+            let _ = fs::remove_dir_all(entry.path());
+        }
+    }
+
+    Ok(())
 }

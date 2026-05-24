@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { PauseCircle, X, Activity, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { PauseCircle, X, Activity, AlertCircle, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Execution } from '@/stores/executionStore';
 import { ArtifactsPanel } from '@/components/execution/ArtifactsPanel';
+import { extractPreviewSessionId } from '@/lib/previewUtils';
 import { STATUS_CONFIG } from './constants';
 import { formatTime, formatDuration, useWorkflowName } from './utils';
 import { StageResultCard } from './StageResultCard';
@@ -16,9 +18,11 @@ export interface ExecutionDetailModalProps {
 }
 
 export function ExecutionDetailModal({ execution, onClose, onCancel }: ExecutionDetailModalProps) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'stages' | 'logs' | 'artifacts' | 'git'>('stages');
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
   const workflowName = useWorkflowName();
+  const previewSessionId = extractPreviewSessionId(execution);
 
   const config =
     STATUS_CONFIG[execution.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.pending;
@@ -53,6 +57,15 @@ export function ExecutionDetailModal({ execution, onClose, onCancel }: Execution
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {previewSessionId && (
+              <button
+                onClick={() => navigate(`/preview/${previewSessionId}`)}
+                className="px-4 py-2 text-sm rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all flex items-center gap-2"
+              >
+                <Globe className="w-4 h-4" />
+                打开预览
+              </button>
+            )}
             {execution.status === 'running' && (
               <button
                 onClick={() => onCancel(execution.id)}

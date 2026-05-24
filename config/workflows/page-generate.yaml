@@ -1,0 +1,191 @@
+name: page-generate
+version: "1.0"
+description: AI 自动生成完整前端页面（含路由、状态管理、数据层）
+
+triggers:
+  - type: manual
+    inputs:
+      goal:
+        type: string
+        required: true
+        description: 页面需求描述
+      context:
+        type: string
+        required: false
+        description: 补充上下文（可选）
+      screenshot:
+        type: file
+        required: false
+        description: UI 截图参考（截图优先于文字描述）
+        accept: "image/*"
+      reference_url:
+        type: string
+        required: false
+        description: 参考 URL
+      api_doc:
+        type: file
+        required: false
+        description: API 文档
+
+agents:
+  - id: requirement-analyst
+    role: 从用户输入中提取结构化需求，生成 PageManifest JSON
+    model: sonnet
+    prompt: |
+      根据用户输入生成 PageManifest JSON。输出必须是有效的 JSON，格式如下：
+      {
+        "page_name": "页面名称",
+        "routes": [{ "path": "/route", "component_name": "ComponentName" }],
+        "components": [{ "name": "ComponentName", "file_path": "components/ComponentName.tsx", "props": [], "children": [], "uses_data_model": null }],
+        "data_models": [{ "name": "ModelName", "fields": [{ "name": "field", "field_type": "string", "required": true }], "methods": [], "mock_data": {} }],
+        "imports": [{ "from_module": "./components/ComponentName", "import_names": ["ComponentName"] }]
+      }
+      规则：
+      1. 截图优先于文字描述（screenshot > reference_url > text）
+      2. 参考 URL 时提取其设计模式和布局风格
+      3. 优先复用项目已有组件（从 RAG 知识库获取）
+      4. 每个组件不超过 500 行
+      5. 数据层默认使用 mock 模式
+    config:
+      temperature: 0.3
+      max_tokens: 8192
+    output_format: JSON
+
+  - id: route-generator
+    role: 根据 PageManifest 生成 React 路由配置文件
+    model: sonnet
+    prompt: |
+      读取以下 PageManifest，生成 React 路由配置文件。
+      PageManifest: {{requirement-analyst_output}}
+
+      生成文件：
+      1. src/routes.tsx — 使用 react-router-dom，根据 RouteDefinition 列表生成路由配置
+      2. 使用 manifest 中定义的 exact path 和 component name
+      3. 如有 auth_required 标记，添加认证守卫
+    depends_on:
+      - requirement-analyst
+    config:
+      temperature: 0.3
+      max_tokens: 4096
+
+  - id: component-generator
+    role: 根据 PageManifest 生成 React 组件文件
+    model: sonnet
+    prompt: |
+      读取以下 PageManifest，生成 React 组件 .tsx 文件。
+      PageManifest: {{requirement-analyst_output}}
+
+      要求：
+      1. 严格使用 manifest 中每个 ComponentSpec 定义的 props 接口和 import 映射
+      2. 每个组件 ≤ 500 行
+      3. 使用 TypeScript、React Hooks
+      4. 如有 uses_data_model，导入对应的数据层
+      5. 组件命名和文件路径与 manifest 完全一致
+    depends_on:
+      - requirement-analyst
+    config:
+      temperature: 0.3
+      max_tokens: 8192
+
+  - id: data-generator
+    role: 根据 PageManifest 生成数据层 TypeScript 文件
+    model: sonnet
+    prompt: |
+      读取以下 PageManifest，生成数据层 .ts 文件。
+      PageManifest: {{requirement-analyst_output}}
+
+      要求：
+      1. 根据 DataModelSpec 列表生成对应的数据层文件
+      2. 包含完整的 mock 数据（至少 5 条记录）
+      3. 导出 CRUD 操作函数（findAll, findById, create, update, delete）
+      4. 文件名和路径：data/{ModelName}.ts
+    depends_on:
+      - requirement-analyst
+    config:
+      temperature: 0.3
+      max_tokens: 4096
+
+  - id: code-reviewer
+    role: 根据验证失败列表修正生成文件中的一致性问题
+    model: sonnet
+    prompt: |
+      以下生成的文件存在与 PageManifest 不一致的问题：
+      {{page_generate_watcher_failures}}
+
+      请直接编辑修正这些文件，确保：
+      1. 所有 ComponentSpec 中声明的文件都存在
+      2. 所有 import 路径可解析
+      3. 所有 DataModelSpec 对应的 data 文件存在
+      4. 路由引用的组件名称在 ComponentSpec 列表中
+    depends_on:
+      - route-generator
+      - component-generator
+      - data-generator
+    config:
+      temperature: 0.1
+      max_tokens: 4096
+
+  - id: file-writer
+    role: 原子性移动生成文件到目标项目
+    model: haiku
+    prompt: |
+      将暂存目录 {{staging_dir}} 中的生成文件移动到目标项目 {{project_path}}/src/。
+
+      步骤：
+      1. 遍历暂存目录中的所有文件
+      2. 对每个文件，检查目标路径是否存在同名文件
+      3. 如有同名文件，先创建 .backup 副本
+      4. 将文件复制到目标路径
+      5. 注册新组件到 POST /api/v1/projects/{{project_id}}/components
+
+      返回 JSON: { "components_created": [...], "files_written": [...] }
+    depends_on:
+      - code-reviewer
+    config:
+      max_tokens: 2048
+
+  - id: preview-launcher
+    role: 启动开发服务器并返回预览 URL
+    model: haiku
+    prompt: |
+      为项目 {{project_path}} 启动开发服务器：
+      1. cd {{project_path}} && npm install（如 node_modules 不存在）
+      2. 调用 POST /api/v1/preview/start 启动预览
+      3. 轮询 GET /api/v1/preview/status?session_id=<start 返回的 session_id> 直到 status=running
+      4. 返回 { session_id, preview_port, preview_url }
+
+      确认服务器成功启动并返回可访问的预览 URL。
+    depends_on:
+      - file-writer
+    config:
+      max_tokens: 2048
+
+stages:
+  - name: 需求分析
+    stage_type: agent
+    agents:
+      - requirement-analyst
+    rag:
+      knowledge_base_id: "{{project_kb_id}}"
+      top_k: 5
+
+  - name: 页面生成
+    stage_type: page_generate
+    manifest_template: "{{requirement-analyst_output}}"
+    output_dir: "{{project_path}}/src"
+    quality_gate:
+      checks:
+        - cmd: "cd {{project_path}} && npm install"
+          timeout: 120
+        - cmd: "cd {{project_path}} && npm run build"
+          timeout: 120
+    on_fail:
+      retry: 2
+      escalate_model: "{{escalate_model}}"
+      escalate_retries: 1
+      then: "fail"
+
+  - name: 预览启动
+    stage_type: agent
+    agents:
+      - preview-launcher

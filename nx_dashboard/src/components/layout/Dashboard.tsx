@@ -14,8 +14,10 @@ import { GlobalOpsOverlay } from '@/components/global/GlobalOpsOverlay';
 import { ClaudeCliMissingBanner } from '@/components/global/ClaudeCliMissingBanner';
 import { GlobalHelpButton } from '@/components/guide/GlobalHelpButton';
 import { useShrinkBelow } from '@/hooks/useResponsive';
+import { useNexusflowCommands } from '@/hooks/useNexusflowCommands';
 
 export function Dashboard() {
+  useNexusflowCommands();
   const [showFileSidebar, setShowFileSidebar] = useState(true);
   const openFiles = useWorkspaceStore((s) => s.openFiles);
   const hasOpenFiles = openFiles.length > 0;

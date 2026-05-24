@@ -583,6 +583,44 @@ pub(crate) const APP_SETTINGS_SCHEMA: &str = "
     );
 ";
 
+// ── Preview Sessions ───────────────────────────────────────────────────────────
+pub(crate) const PREVIEW_SESSION_SCHEMA: &str = "
+    CREATE TABLE IF NOT EXISTS preview_sessions (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        execution_id TEXT,
+        port INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'starting',
+        started_at TEXT NOT NULL DEFAULT (datetime('now')),
+        last_request_at TEXT NOT NULL DEFAULT (datetime('now')),
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_preview_sessions_project ON preview_sessions(project_id);
+    CREATE INDEX IF NOT EXISTS idx_preview_sessions_status ON preview_sessions(status);
+";
+
+// ── Project Components ─────────────────────────────────────────────────────────
+pub(crate) const PROJECT_COMPONENT_SCHEMA: &str = "
+    CREATE TABLE IF NOT EXISTS project_components (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        component_type TEXT NOT NULL CHECK(component_type IN ('component', 'hook', 'type', 'util')),
+        file_path TEXT NOT NULL,
+        description TEXT,
+        props_json TEXT,
+        source_code TEXT,
+        is_platform_component INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        UNIQUE(project_id, name, component_type)
+    );
+    CREATE INDEX IF NOT EXISTS idx_project_components_project ON project_components(project_id);
+    CREATE INDEX IF NOT EXISTS idx_project_components_type ON project_components(project_id, component_type);
+";
+
 /// All schema migrations in dependency order.
 const ALL_SCHEMAS: &[&str] = &[
     SESSION_SCHEMA,
@@ -609,6 +647,8 @@ const ALL_SCHEMAS: &[&str] = &[
     SPRINT_SCHEMA,
     SESSION_MESSAGES_SCHEMA,
     APP_SETTINGS_SCHEMA,
+    PREVIEW_SESSION_SCHEMA,
+    PROJECT_COMPONENT_SCHEMA,
 ];
 
 /// Column additions for existing tables (ALTER TABLE).
@@ -623,6 +663,9 @@ const COLUMN_MIGRATIONS: &[&str] = &[
     "ALTER TABLE group_messages ADD COLUMN tokens_used INTEGER NOT NULL DEFAULT 0",
     // v2.6: 执行时的工作区路径
     "ALTER TABLE executions ADD COLUMN workspace_path TEXT",
+    // frontend-automation: 项目关联知识库与路径
+    "ALTER TABLE projects ADD COLUMN knowledge_base_id TEXT REFERENCES knowledge_bases(id)",
+    "ALTER TABLE projects ADD COLUMN path TEXT",
 ];
 
 /// Run all schema migrations against the given database path.
