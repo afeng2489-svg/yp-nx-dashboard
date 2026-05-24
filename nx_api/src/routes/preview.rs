@@ -42,7 +42,11 @@ async fn start_preview(
     State(state): State<Arc<AppState>>,
     Json(body): Json<StartPreviewRequest>,
 ) -> Json<serde_json::Value> {
-    match state.preview_manager.start(&body.project_id, &body.project_path).await {
+    match state
+        .preview_manager
+        .start(&body.project_id, &body.project_path)
+        .await
+    {
         Ok(info) => Json(serde_json::json!({
             "session_id": info.session_id,
             "port": info.port,

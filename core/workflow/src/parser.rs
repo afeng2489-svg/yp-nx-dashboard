@@ -184,7 +184,10 @@ pub enum StageType {
     Loop,
     /// 新增：页面生成阶段
     #[serde(rename = "page_generate")]
-    PageGenerate { manifest_template: String, output_dir: String },
+    PageGenerate {
+        manifest_template: String,
+        output_dir: String,
+    },
 }
 
 /// 阶段跳转规则

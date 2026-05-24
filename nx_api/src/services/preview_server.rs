@@ -239,9 +239,7 @@ impl PreviewServerManager {
                 for id in to_reap {
                     let child = {
                         let sessions = sessions.read();
-                        sessions
-                            .get(&id)
-                            .and_then(|s| s.write().child.take())
+                        sessions.get(&id).and_then(|s| s.write().child.take())
                     };
                     if let Some(mut child) = child {
                         tracing::info!(session_id = %id, "空闲超时，回收预览服务器");
@@ -287,8 +285,8 @@ fn port_is_available(port: u16) -> bool {
 async fn random_available_port() -> Result<u16, PreviewError> {
     // 在 1024..65535 范围内尝试绑定随机端口
     for _ in 0..100 {
-        let listener =
-            TcpListener::bind(("127.0.0.1", 0)).map_err(|e| PreviewError::PortAlloc(e.to_string()))?;
+        let listener = TcpListener::bind(("127.0.0.1", 0))
+            .map_err(|e| PreviewError::PortAlloc(e.to_string()))?;
         let port = listener
             .local_addr()
             .map_err(|e| PreviewError::PortAlloc(e.to_string()))?

@@ -56,7 +56,6 @@ pub use ai_provider_service::{
 };
 pub use api_key_repository::{ApiKeyRepository, ApiKeyRepositoryError, SqliteApiKeyRepository};
 pub use claude_terminal::{ClaudeTerminalManager, TerminalSessionInfo};
-pub use preview_server::{PreviewError, PreviewServerManager, PreviewSessionInfo, PreviewStatus};
 pub use events::{ExecutionEvent, ExecutionStatus};
 pub use execution_repository::SqliteExecutionRepository;
 pub use execution_service::ExecutionService;
@@ -70,6 +69,7 @@ pub use issue_repository::SqliteIssueRepository;
 pub use knowledge::repository::KnowledgeRepository;
 pub use knowledge::KnowledgeService;
 pub use plugin_service::{PluginInfo, PluginService};
+pub use preview_server::{PreviewError, PreviewServerManager, PreviewSessionInfo, PreviewStatus};
 pub use project_repository::{
     ProjectRepository, RepositoryError as ProjectRepositoryError, SqliteProjectRepository,
 };

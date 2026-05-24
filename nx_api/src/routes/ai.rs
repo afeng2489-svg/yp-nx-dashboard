@@ -85,7 +85,11 @@ pub async fn parse_intent(
             if confidence < 0.5 {
                 let suggestions: Vec<String> = v["suggestions"]
                     .as_array()
-                    .map(|a| a.iter().filter_map(|s| s.as_str().map(String::from)).collect())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|s| s.as_str().map(String::from))
+                            .collect()
+                    })
                     .unwrap_or_default();
 
                 Ok(Json(ParseIntentResponse {
@@ -100,48 +104,38 @@ pub async fn parse_intent(
             } else {
                 let page_name = v["page_name"].as_str().map(String::from);
                 let description = v["description"].as_str().map(String::from);
-                let suggested_components = v["suggested_components"]
-                    .as_array()
-                    .map(|a| {
-                        a.iter()
-                            .filter_map(|c| {
-                                Some(SuggestedComponent {
-                                    name: c["name"].as_str()?.to_string(),
-                                    component_type: c["component_type"]
-                                        .as_str()
-                                        .unwrap_or("component")
-                                        .to_string(),
-                                    description: c["description"]
-                                        .as_str()
-                                        .unwrap_or("")
-                                        .to_string(),
-                                })
+                let suggested_components = v["suggested_components"].as_array().map(|a| {
+                    a.iter()
+                        .filter_map(|c| {
+                            Some(SuggestedComponent {
+                                name: c["name"].as_str()?.to_string(),
+                                component_type: c["component_type"]
+                                    .as_str()
+                                    .unwrap_or("component")
+                                    .to_string(),
+                                description: c["description"].as_str().unwrap_or("").to_string(),
                             })
-                            .collect()
-                    });
-                let suggested_data_models = v["suggested_data_models"]
-                    .as_array()
-                    .map(|a| {
-                        a.iter()
-                            .filter_map(|m| {
-                                Some(SuggestedDataModel {
-                                    name: m["name"].as_str()?.to_string(),
-                                    fields: m["fields"]
-                                        .as_array()
-                                        .map(|fa| {
-                                            fa.iter()
-                                                .filter_map(|f| f.as_str().map(String::from))
-                                                .collect()
-                                        })
-                                        .unwrap_or_default(),
-                                    description: m["description"]
-                                        .as_str()
-                                        .unwrap_or("")
-                                        .to_string(),
-                                })
+                        })
+                        .collect()
+                });
+                let suggested_data_models = v["suggested_data_models"].as_array().map(|a| {
+                    a.iter()
+                        .filter_map(|m| {
+                            Some(SuggestedDataModel {
+                                name: m["name"].as_str()?.to_string(),
+                                fields: m["fields"]
+                                    .as_array()
+                                    .map(|fa| {
+                                        fa.iter()
+                                            .filter_map(|f| f.as_str().map(String::from))
+                                            .collect()
+                                    })
+                                    .unwrap_or_default(),
+                                description: m["description"].as_str().unwrap_or("").to_string(),
                             })
-                            .collect()
-                    });
+                        })
+                        .collect()
+                });
 
                 Ok(Json(ParseIntentResponse {
                     page_name,

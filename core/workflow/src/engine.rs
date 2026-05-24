@@ -257,7 +257,10 @@ impl WorkflowEngine {
                     loop_outputs
                 }
 
-                StageType::PageGenerate { manifest_template: _, ref output_dir } => {
+                StageType::PageGenerate {
+                    manifest_template: _,
+                    ref output_dir,
+                } => {
                     let project_dir = PathBuf::from(output_dir)
                         .parent()
                         .map(|p| p.to_path_buf())
@@ -297,12 +300,9 @@ impl WorkflowEngine {
                         serde_json::Value::String(s) => s.clone(),
                         other => other.to_string(),
                     };
-                    let manifest: PageManifest = serde_json::from_str(&manifest_str)
-                        .map_err(|e| {
-                            WorkflowError::Execution(format!(
-                                "Invalid PageManifest JSON: {}",
-                                e
-                            ))
+                    let manifest: PageManifest =
+                        serde_json::from_str(&manifest_str).map_err(|e| {
+                            WorkflowError::Execution(format!("Invalid PageManifest JSON: {}", e))
                         })?;
                     fs::write(staging_dir.join("manifest.json"), &manifest_str)?;
 
@@ -322,8 +322,7 @@ impl WorkflowEngine {
                         .await?;
 
                     // 4. 本机 StageWatcher 执行 R1-R9 验证
-                    let mut review =
-                        PageGenerateWatcher::validate(&staging_dir, &manifest);
+                    let mut review = PageGenerateWatcher::validate(&staging_dir, &manifest);
                     let mut review_attempts = 0usize;
                     while review.verdict == "MANIFEST_MISMATCH" && review_attempts < 2 {
                         state.write().set_var(
@@ -338,8 +337,7 @@ impl WorkflowEngine {
                         };
                         self.execute_stage(&state, &review_stage, &workflow.agents)
                             .await?;
-                        review =
-                            PageGenerateWatcher::validate(&staging_dir, &manifest);
+                        review = PageGenerateWatcher::validate(&staging_dir, &manifest);
                         review_attempts += 1;
                     }
 
@@ -1192,10 +1190,7 @@ impl WorkflowEngine {
 
         // 如果 agent 有自定义 output_format，用它替换默认 JSON 摘要指令
         let format_instruction = if let Some(ref fmt) = agent.output_format {
-            format!(
-                "\n\n输出格式要求: {}\n",
-                state.read().resolve_template(fmt)
-            )
+            format!("\n\n输出格式要求: {}\n", state.read().resolve_template(fmt))
         } else {
             structured_output_instruction.to_string()
         };
@@ -1513,14 +1508,13 @@ fn atomic_move_staging_to_src(staging_dir: &Path, output_dir: &str) -> Result<()
         Ok(files)
     };
 
-    let staging_files = walk_dir(staging_dir).map_err(|e| {
-        WorkflowError::Io(format!("遍历暂存目录失败: {}", e))
-    })?;
+    let staging_files =
+        walk_dir(staging_dir).map_err(|e| WorkflowError::Io(format!("遍历暂存目录失败: {}", e)))?;
 
     for src_path in &staging_files {
-        let rel = src_path.strip_prefix(staging_dir).map_err(|e| {
-            WorkflowError::Io(format!("计算相对路径失败: {}", e))
-        })?;
+        let rel = src_path
+            .strip_prefix(staging_dir)
+            .map_err(|e| WorkflowError::Io(format!("计算相对路径失败: {}", e)))?;
         let dest_path = dest_dir.join(rel);
 
         // 创建目标父目录
@@ -1621,8 +1615,8 @@ fn cleanup_old_staging_dirs(
         tb.cmp(&ta)
     });
 
-    let cutoff = std::time::SystemTime::now()
-        - std::time::Duration::from_secs(older_than_days * 86400);
+    let cutoff =
+        std::time::SystemTime::now() - std::time::Duration::from_secs(older_than_days * 86400);
 
     for (i, entry) in dirs.iter().enumerate() {
         let should_delete = i >= keep_last

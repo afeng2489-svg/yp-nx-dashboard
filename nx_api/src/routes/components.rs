@@ -76,20 +76,21 @@ pub async fn list_components(
     let conn = rusqlite::Connection::open(&state.db_path)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let (sql, params): (String, Vec<Box<dyn rusqlite::types::ToSql>>) =
-        if let Some(ref ct) = query.component_type {
-            (
+    let (sql, params): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = if let Some(ref ct) =
+        query.component_type
+    {
+        (
                 "SELECT * FROM project_components WHERE project_id = ?1 AND component_type = ?2 ORDER BY created_at DESC"
                     .to_string(),
                 vec![Box::new(project_id), Box::new(ct.clone())],
             )
-        } else {
-            (
-                "SELECT * FROM project_components WHERE project_id = ?1 ORDER BY created_at DESC"
-                    .to_string(),
-                vec![Box::new(project_id)],
-            )
-        };
+    } else {
+        (
+            "SELECT * FROM project_components WHERE project_id = ?1 ORDER BY created_at DESC"
+                .to_string(),
+            vec![Box::new(project_id)],
+        )
+    };
 
     let mut stmt = conn
         .prepare(&sql)
@@ -104,9 +105,7 @@ pub async fn list_components(
 
     let mut components = Vec::new();
     for row in rows {
-        components.push(
-            row.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
-        );
+        components.push(row.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?);
     }
     Ok(Json(components))
 }
@@ -182,9 +181,7 @@ pub async fn search_components(
 
     let mut components = Vec::new();
     for row in rows {
-        components.push(
-            row.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
-        );
+        components.push(row.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?);
     }
     Ok(Json(components))
 }
@@ -241,8 +238,11 @@ pub async fn delete_component(
         ));
     }
 
-    conn.execute("DELETE FROM project_components WHERE id = ?1", rusqlite::params![id])
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    conn.execute(
+        "DELETE FROM project_components WHERE id = ?1",
+        rusqlite::params![id],
+    )
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(StatusCode::NO_CONTENT)
 }
