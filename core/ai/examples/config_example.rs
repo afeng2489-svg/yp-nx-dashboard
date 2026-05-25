@@ -38,6 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         default_model,
         api_config,
         enabled_providers: vec![ProviderType::Anthropic],
+        default_escalate_model: None,
     };
 
     // 创建管理器
