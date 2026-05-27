@@ -28,6 +28,9 @@ import {
   ChevronDown,
   History,
   Zap,
+  Factory,
+  Package,
+  BarChart3,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -37,6 +40,9 @@ import { api, type ClaudeCliModelResponse } from '@/api/client';
 import { NAV_GROUPS, resolveActiveNavId } from '@/data/navConfig';
 
 const NAV_ICONS: Record<string, React.ElementType> = {
+  factory: Factory,
+  assets: Package,
+  ops: BarChart3,
   dashboard: LayoutDashboard,
   guide: Compass,
   workflows: GitBranch,

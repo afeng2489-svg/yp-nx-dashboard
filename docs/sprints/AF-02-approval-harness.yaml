@@ -1,0 +1,55 @@
+sprint_id: AF-02
+status: planned
+priority: P0
+estimated_hours: 24
+depends_on: [AF-01]
+design_ref: "企业级页面结构设计 §4.5"
+
+title: "审批 Harness MVP — resolve 驱动引擎继续"
+objective: |
+  v1.x 有 user_input；缺 approve/reject → retry_node 真闭环。
+  可控感是「比终端好用」的核心。
+
+remaining_tasks:
+  - id: A1
+    name: stage_type approval + resolve API
+    priority: P0
+    estimated_hours: 10
+    description: |
+      parser 扩展 approval stage；POST resolve { approved, comment }。
+      reject + 意见 → 重跑指定 stage 或 on_fail 策略。
+    acceptance:
+      - reject 后引擎重跑指定 stage
+
+  - id: A2
+    name: ApprovalPanel 对接真 API
+    priority: P0
+    estimated_hours: 6
+    description: |
+      /factory?tab=approvals 替换 AF-01 MVP 占位。
+      顶栏 + ContextPanel 快捷审批入口。
+    acceptance:
+      - 审批操作 5s 内反映到 Run 状态
+
+  - id: A3
+    name: solo-dev 或 dev-workflow 加 1 个审批节点
+    priority: P0
+    estimated_hours: 4
+    description: |
+      实现阶段完成后暂停，用户 approve 后继续审查/合入。
+    acceptance:
+      - Golden Path 含至少 1 次人工审批
+
+  - id: A4
+    name: 审批记录写入 execution audit
+    priority: P1
+    estimated_hours: 4
+    description: |
+      审批人、时间、comment 可查（AF-07 ops audit Tab 可消费）。
+    acceptance:
+      - GET execution detail 含 approval_events
+
+quality_gates:
+  - cargo test -p nexus_workflow --lib
+
+acceptance: 用户旅程：Run 暂停 → 审批 → 继续 → 完成

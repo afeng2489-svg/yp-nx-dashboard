@@ -1,0 +1,97 @@
+sprint_id: AF-04b
+status: planned
+priority: P1
+estimated_hours: 16
+depends_on: [AF-04, AF-00]
+blocks: []
+
+title: "Executor 双车道路由 — 复杂任务 Claude CLI，文本任务 API"
+objective: |
+  WorkflowEngine 引入 executor 分流：
+    claude_cli：读写仓库、跑命令、quality_gate
+    api：纯文本，AIModelManager 调用 Qwen/GPT/Ollama
+  默认 claude_cli；仅显式 executor: api 的 stage 走 API。
+  solo-dev 新增「交付摘要」API stage 验证双车道 + 成本埋点。
+
+design_principles:
+  - 按执行器分流，不是只换 Claude CLI 的 --model
+  - 默认 claude_cli，向后兼容
+  - executor auto 保守规则，Phase1 不做 LLM 二次分类
+  - API 路径产出相同 structured JSON（summary + files_changed）
+
+executor_routing_table:
+  must_cli:
+    - solo-dev 规划/实现/自测/审查（Read/Edit/Bash）
+    - any quality_gate 非空
+  first_api:
+    - 交付摘要 stage（新增）
+    - 团队群聊非 coding trigger（deferred 子任务）
+
+remaining_tasks:
+  - id: E1
+    name: YAML 解析 executor 字段
+    priority: P0
+    estimated_hours: 2
+    files: [core/workflow/src/parser.rs]
+    description: |
+      StageDefinition / AgentDefinition: executor: claude_cli | api | auto
+    acceptance:
+      - 缺省 claude_cli；非法值解析报错
+
+  - id: E2
+    name: WorkflowEngine 双车道 dispatch
+    priority: P0
+    estimated_hours: 6
+    files: [core/workflow/src/engine.rs, nx_api/src/services/execution_service.rs]
+    description: |
+      ClaudeCli → call_claude_cli；Api → AIModelManager.complete
+      统一 AgentTokenUsage 事件。
+    acceptance:
+      - executor=api 不 spawn claude 子进程
+
+  - id: E3
+    name: resolve_executor 规则引擎
+    priority: P0
+    estimated_hours: 3
+    description: |
+      quality_gate → cli；工具关键词 → cli；summary/report → api
+    acceptance:
+      - 单元测试 ≥8 条
+
+  - id: E4
+    name: solo-dev 新增交付摘要 API stage
+    priority: P0
+    estimated_hours: 2
+    files: [config/workflows/solo-dev.yaml]
+    description: |
+      审查后追加 executor: api 的交付摘要 stage。
+    acceptance:
+      - Golden Path 5 stage 跑通，日志 executor=api
+
+  - id: E5
+    name: 成本与可观测性埋点
+    priority: P1
+    estimated_hours: 2
+    description: |
+      AgentTokenUsage 增加 executor、provider、estimated_cost_usd。
+    acceptance:
+      - execution detail 可区分 cli vs api
+
+  - id: E6
+    name: 集成测试
+    priority: P0
+    estimated_hours: 1
+    description: |
+      mock AIModelManager；不要求真实 Qwen API key。
+    acceptance:
+      - cargo test -p nexus_workflow --lib 通过
+
+explicit_not_in_scope:
+  - 模型路由 UI（→ AF-07）
+  - solo-dev 规划/审查改 API
+  - 团队 PTY 改路由
+
+quality_gates:
+  - cargo test -p nexus_workflow --lib
+
+acceptance: 交付摘要 stage 走 API；CLI stage 行为不变

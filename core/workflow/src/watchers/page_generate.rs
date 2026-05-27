@@ -1,3 +1,6 @@
+//! **Deprecated (AF-00b)**: Hard-coded React page generation. Not used in Factory MVP / solo-dev.
+//! Kept for backward-compatible YAML and existing tests only.
+
 use std::path::Path;
 use std::process::Command;
 

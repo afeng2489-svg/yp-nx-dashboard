@@ -130,6 +130,7 @@ impl Default for CliToolConfig {
 
 /// Manages CLI tool lifecycle and execution
 pub struct CliManager {
+    #[allow(dead_code)] // registry populated at new(); selection path uses is_tool_available
     tools: RwLock<HashMap<CliProvider, CliToolConfig>>,
     default_provider: RwLock<CliProvider>,
     selection_strategy: RwLock<SelectionStrategy>,

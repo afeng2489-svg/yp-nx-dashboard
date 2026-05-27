@@ -15,6 +15,16 @@ import { listen } from '@tauri-apps/api/event';
 import './index.css';
 
 // Code splitting for heavy pages
+const FactoryPage = lazy(() =>
+  import('@/pages/FactoryPage').then((m) => ({ default: m.FactoryPage })),
+);
+const AssetsPage = lazy(() =>
+  import('@/pages/AssetsPage').then((m) => ({ default: m.AssetsPage })),
+);
+const OpsPage = lazy(() => import('@/pages/OpsPage').then((m) => ({ default: m.OpsPage })));
+const LegacyRedirect = lazy(() =>
+  import('@/components/routing/LegacyRedirect').then((m) => ({ default: m.LegacyRedirect })),
+);
 const DashboardPage = lazy(() =>
   import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })),
 );
@@ -260,11 +270,36 @@ function App() {
           <Suspense fallback={<PageLoadingFallback />}>
             <Routes>
               <Route element={<Dashboard />}>
+                <Route path="/" element={<Navigate to="/factory" replace />} />
                 <Route
-                  path="/"
+                  path="/factory"
                   element={
                     <PageWrapper>
-                      <DashboardPage />
+                      <FactoryPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/assets"
+                  element={
+                    <PageWrapper>
+                      <AssetsPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/ops"
+                  element={
+                    <PageWrapper>
+                      <OpsPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <PageWrapper>
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
@@ -272,7 +307,7 @@ function App() {
                   path="/guide"
                   element={
                     <PageWrapper>
-                      <GuidePage />
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
@@ -280,7 +315,7 @@ function App() {
                   path="/workflows"
                   element={
                     <PageWrapper>
-                      <WorkflowsPage />
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
@@ -288,7 +323,7 @@ function App() {
                   path="/templates"
                   element={
                     <PageWrapper>
-                      <TemplatesPage />
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
@@ -296,7 +331,7 @@ function App() {
                   path="/executions"
                   element={
                     <PageWrapper>
-                      <ExecutionsPage />
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
@@ -329,7 +364,7 @@ function App() {
                   path="/wisdom"
                   element={
                     <PageWrapper>
-                      <WisdomPage />
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
@@ -345,7 +380,7 @@ function App() {
                   path="/skills"
                   element={
                     <PageWrapper>
-                      <SkillsPage />
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
@@ -358,10 +393,26 @@ function App() {
                   }
                 />
                 <Route
-                  path="/ai-settings"
+                  path="/settings/ai"
                   element={
                     <PageWrapper>
                       <AISettingsPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/settings/projects"
+                  element={
+                    <PageWrapper>
+                      <ProjectsPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
+                  path="/ai-settings"
+                  element={
+                    <PageWrapper>
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
@@ -377,7 +428,7 @@ function App() {
                   path="/teams-v2"
                   element={
                     <PageWrapper>
-                      <TeamsPageV2 />
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
@@ -385,7 +436,7 @@ function App() {
                   path="/roles"
                   element={
                     <PageWrapper>
-                      <RolesPage />
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
@@ -393,7 +444,7 @@ function App() {
                   path="/projects"
                   element={
                     <PageWrapper>
-                      <ProjectsPage />
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
@@ -401,7 +452,7 @@ function App() {
                   path="/group-chat"
                   element={
                     <PageWrapper>
-                      <GroupChatPage />
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
@@ -409,7 +460,7 @@ function App() {
                   path="/processes"
                   element={
                     <PageWrapper>
-                      <ProcessMonitorPage />
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
@@ -418,7 +469,7 @@ function App() {
                   path="/cost"
                   element={
                     <PageWrapper>
-                      <CostPage />
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
@@ -426,7 +477,7 @@ function App() {
                   path="/knowledge-base"
                   element={
                     <PageWrapper>
-                      <KnowledgeBasePage />
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
@@ -438,13 +489,13 @@ function App() {
                     </PageWrapper>
                   }
                 />
-                <Route path="/canvas" element={<CanvasPage />} />
+                <Route path="/canvas" element={<LegacyRedirect />} />
                 <Route path="/preview/:sessionId" element={<PreviewPage />} />
                 <Route
                   path="/sprint-board"
                   element={
                     <PageWrapper>
-                      <SprintBoardPage />
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
@@ -452,20 +503,20 @@ function App() {
                   path="/team-sessions"
                   element={
                     <PageWrapper>
-                      <TeamSessionsPage />
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
-                                <Route
+                <Route
                   path="/quick-launch"
                   element={
                     <PageWrapper>
-                      <QuickLaunchPage />
+                      <LegacyRedirect />
                     </PageWrapper>
                   }
                 />
-                {/* 404 — unknown routes redirect to home */}
-                <Route path="*" element={<Navigate to="/" replace />} />
+                {/* 404 — unknown routes redirect to factory */}
+                <Route path="*" element={<Navigate to="/factory" replace />} />
               </Route>
             </Routes>
           </Suspense>

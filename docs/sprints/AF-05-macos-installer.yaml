@@ -1,0 +1,62 @@
+sprint_id: AF-05
+status: planned
+priority: P0
+estimated_hours: 40
+depends_on: [AF-04]
+
+title: "macOS 安装包 + 首次启动向导"
+objective: |
+  非开发者可独立安装 Tauri 应用并完成 Golden Path。
+  Phase1 仅 macOS；Windows/Linux 在 explicit_not_doing。
+
+remaining_tasks:
+  - id: I1
+    name: release build + sidecar 验证
+    priority: P0
+    estimated_hours: 8
+    description: |
+      nx_dashboard Tauri release；nx_api sidecar 打包；签名说明（若有）。
+    acceptance:
+      - .dmg 或 .app 可本地生成
+
+  - id: I2
+    name: 首次启动向导
+    priority: P0
+    estimated_hours: 16
+    description: |
+      步骤：检测 Claude CLI → 选 workspace → 创建 Solo 团队 → 跳转 /factory。
+      可跳过但 Golden Path 前提示。
+    acceptance:
+      - 新用户 10min 内到 Console
+
+  - id: I3
+    name: GitHub Release + TROUBLESHOOTING.md
+    priority: P0
+    estimated_hours: 8
+    description: |
+      发布流程文档；CLI 未安装、权限、网络常见问题。
+    acceptance:
+      - Release 资产可下载
+
+  - id: I4
+    name: versionCheck 内测更新提示
+    priority: P1
+    estimated_hours: 4
+    description: |
+      启动时检查新版本（可选 GitHub API）。
+    acceptance:
+      - 有新版本时非阻塞提示
+
+  - id: I5
+    name: GATE-3 gate-check.sh 完整实现（可选本 sprint）
+    priority: P1
+    estimated_hours: 4
+    description: |
+      读取 sprint yaml acceptance，验证 artifact 路径存在。
+    acceptance:
+      - scripts/gate-check.sh AF-04 可验证 GOLDEN-PATH.md 存在
+
+quality_gates:
+  - 干净 macOS 虚拟机安装测试
+
+acceptance: 非开发者独立安装并完成 Golden Path（含 GATE-2 前置）

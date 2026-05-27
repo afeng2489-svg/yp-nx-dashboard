@@ -1,3 +1,6 @@
+# ARCHIVED — multi-model routing: partial (Claude CLI --model only).
+# Executor split (claude_cli vs api) → AF-04b-executor-routing.yaml
+
 sprint_id: v4.1
 status: completed
 priority: P1

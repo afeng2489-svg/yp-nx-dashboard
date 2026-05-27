@@ -165,6 +165,7 @@ pub enum ChainEvent {
 /// 持有 CliManager 和 MessageBus 的引用，驱动串行链循环。
 /// CLI 只负责启动和渲染，业务逻辑集中于此。
 pub struct TeamSessionActor {
+    #[allow(dead_code)] // reserved for AF-01+ team↔workflow CLI dispatch
     cli_manager: Arc<CliManager>,
     message_bus: Arc<MessageBus>,
 }

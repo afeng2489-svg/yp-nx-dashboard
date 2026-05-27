@@ -1333,6 +1333,10 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
             "/api/v1/ai/claude-cli-config/detect",
             post(ai_config::redetect_claude_cli),
         )
+        .route(
+            "/api/v1/ai/security/permissions-mode",
+            get(ai_config::get_permissions_mode).put(ai_config::set_permissions_mode),
+        )
         .route("/api/v1/ai/default", put(ai_config::set_default_model))
         .route("/api/v1/ai/chat", post(ai_config::chat_with_selected))
         .route(

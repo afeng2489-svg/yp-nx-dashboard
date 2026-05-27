@@ -1,0 +1,54 @@
+sprint_id: AF-03
+status: planned
+priority: P1
+estimated_hours: 24
+depends_on: [AF-01]
+
+title: "WS 可靠性 — execution 事件 push + poll fallback"
+objective: |
+  工厂台 Run 进度依赖 WebSocket。断线后 30s 内须恢复或降级 poll，
+  避免用户以为 Run 卡死。
+
+remaining_tasks:
+  - id: W1
+    name: execution WS 事件全量 push
+    priority: P0
+    estimated_hours: 10
+    description: |
+      StageStarted/Completed、AgentTokenUsage、ApprovalPending 等
+      经 WS 推到前端 factoryStore。
+    acceptance:
+      - Console ActiveRun 卡片实时更新 stage
+
+  - id: W2
+    name: 断线检测 + 自动 poll fallback
+    priority: P0
+    estimated_hours: 8
+    description: |
+      WS 断开 → 每 3s GET /executions/:id 直到重连。
+      StatusBar 显示 WS 状态（connected/reconnecting/polling）。
+    acceptance:
+      - 断线 30s 内 UI 仍显示正确 stage
+
+  - id: W3
+    name: 重连后增量同步
+    priority: P1
+    estimated_hours: 4
+    description: |
+      WS 重连后拉取 missed events 或全量 snapshot。
+    acceptance:
+      - 重连后不丢 stage 进度
+
+  - id: W4
+    name: WS 可靠性文档
+    priority: P2
+    estimated_hours: 2
+    description: |
+      docs/ws-reliability.md：事件类型、fallback 行为。
+    acceptance:
+      - 文档与实现一致
+
+quality_gates:
+  - 模拟断网手动测试通过
+
+acceptance: 断线场景下 Run 进度不永久冻结

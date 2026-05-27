@@ -1,67 +1,59 @@
 # NexusFlow — AI 软件工厂
 
-> **产品定位**：一个普通开发者，用这个软件就能完成一个完整软件产品的设计、开发、测试、监控。
-> 你描述需求，AI 生产线自动分解→并行执行→自动测试→自动修复→交付可运行代码。
+> **产品定位**：300–500 独立开发者 — 工厂台一句话 → 15min diff → 审批 → 合入。
+> **定位**：本地 AI 开发部 — 不取代 Cursor，取代终端里的 claude 编排。
 >
-> **当前阶段**：单机单用户，不考虑多租户。
-> **核心原则**：所有改动都让 AI 自己实现，模型无关（claude / gpt / qwen / glm 都能跑）。
+> **当前阶段**：AF 计划 v3.0（tracker 5.0），单机单用户。
+> **Phase1 执行器**：Claude Code CLI；API 双车道见 AF-04b。
 
 ---
 
-## 📊 实时进度
+## 实时进度
 
-> 详细进度见 [docs/PROGRESS.md](docs/PROGRESS.md) 和 [docs/progress.json](docs/progress.json)。
-> **AI 恢复指令**：找到第一个 ⬜ pending 的 sprint，读对应 `docs/sprints/*.yaml`，开始执行。
+> 总览：[docs/sprints/MASTER-PLAN.yaml](docs/sprints/MASTER-PLAN.yaml)  
+> 验证：[docs/sprints/VALIDATION-3ROUND.md](docs/sprints/VALIDATION-3ROUND.md)（R3 7.2/10）  
+> 详情：[docs/PROGRESS.md](docs/PROGRESS.md) · [docs/progress.json](docs/progress.json)  
+> **当前 Sprint**：`AF-00` — 读 `docs/sprints/AF-00-security-hardening.yaml`
 
-### Phase 0 — 地基（必须先做）
+### AF-P0 — 安全与卫生
+
 | Sprint | 标题 | 状态 | 估时 |
 |--------|------|------|------|
-| v0.0.1 | 修复关键 Bug（16处expect崩溃+Mutex混用+数据静默损坏） | ✅ done | 11h |
-| v0.0.2 | A2UI路由挂载 + 统一API格式 + Docker部署 | ✅ done | 12h |
-| v0.0.3 | 接入 core/orchestrator（接线，不是新建，6h） | ✅ done | 6h |
+| AF-00 | Security — permissions + workspace 边界 | planned | 24h |
+| AF-00b | Hygiene — orchestrator dead_code 清理 | planned | 16h |
 
-### Phase 1 — 生产线核心（这才是"AI工厂"的本质）
+### AF-P1 — 工厂台 MVP
+
 | Sprint | 标题 | 状态 | 估时 |
 |--------|------|------|------|
-| v1.1 | Pipeline真正跑通（dispatch→执行→完成→推进） | ⬜ pending | 16h |
-| v1.2 | 断点续跑（Checkpoint真正写入+恢复） | ⬜ pending | 12h |
-| v1.3 | 质量门自动化（执行→测试→失败重试） | ⬜ pending | 20h |
-| v1.4 | 可观测性看板（进度+成本+产物） | ⬜ pending | 20h |
+| AF-01 | 工厂台 MVP（Shell + Nav + Console + Solo） | planned | 80h |
+| AF-02 | 审批 Harness MVP | planned | 24h |
+| AF-03 | WS 可靠性（push + poll） | planned | 24h |
 
-### Phase 2 — 用户体验
+### AF-P2 — Golden Path + 分发
+
 | Sprint | 标题 | 状态 | 估时 |
 |--------|------|------|------|
-| v2.1 | 团队对话体验重构（CLI优先+流式输出） | ⬜ pending | 16h |
-| v2.2 | 产物管理完整（预览+下载，后端90%完成） | ⬜ pending | 20h |
-| v2.3 | 项目状态感知（AI知道项目做到哪了） | ⬜ pending | 24h |
+| AF-04 | Golden Path + dogfood + 指标 | planned | 40h |
+| AF-04b | Executor 双车道（CLI vs API） | planned | 16h |
+| AF-05 | macOS 安装包 + 首次向导 | planned | 40h |
+| GATE-2 | 10 人朋友测 | planned | — |
 
-### Phase 3 — 功能扩展
+### AF-P3 / AF-P4 — 内测与公测
+
 | Sprint | 标题 | 状态 | 估时 |
 |--------|------|------|------|
-| v3.1 | Git集成（每stage自动commit+失败回滚） | ⬜ pending | 16h |
-| v3.2 | 触发器系统（Cron+Webhook+链式，core已有实现） | ⬜ pending | 8h |
-| v3.3 | Token/Cost监控 | ⬜ pending | 16h |
-| v3.4 | RAG知识库（文档上传+向量检索+注入prompt） | ⬜ pending | 32h |
+| AF-06 | 50 人内测（容器卡） | planned | 2–3w |
+| AF-07 | 资产库 + 运营中心 | planned | 40h |
+| AF-08 | 多团队 + Sprint 集成 | planned | 40h |
+| AF-09 | 300 人公测 + 企业验收 | planned | 6w |
 
-### Phase 4 — 智能化升级
-| Sprint | 标题 | 状态 | 估时 |
-|--------|------|------|------|
-| v4.1 | 多模型路由（按复杂度自动选模型，降成本60%） | ⬜ pending | 24h |
-| v4.2 | 失败自愈（失败→重试→换模型→回滚→通知） | ⬜ pending | 20h |
-| v4.3 | 低代码可视化画布（拖拽搭建AI流水线） | ⬜ pending | 80h |
-| v4.4 | 浏览器自动化验证（AI写完UI自动打开浏览器验证） | ⬜ pending | 24h |
-| v4.5 | 用户需求分解UI（界面拆需求→AI接棒执行） | ⬜ pending | 20h |
-| v4.6 | 多模态工具链（图片/视频/设计稿生成） | ⬜ pending | 32h |
+**图例**：planned | in_progress | completed（仅 GATE 脚本可标 completed）
 
-**图例**：⬜ pending | 🔄 in_progress | ✅ completed | ❌ failed
+### 已归档 v0–v4
 
-### v0.1.S1 剩余任务
+Phase 0–4（v0.0.1–v4.7）已归档至 [docs/sprints/_archive/](docs/sprints/_archive/)。下方历史 Phase 描述仅供参考，**勿再执行**。
 
-| ID | 任务 | 估时 | 优先级 |
-|----|------|------|--------|
-| T1 | 文件预览（Markdown渲染+代码高亮） | 8h | P0 |
-| T2 | 二进制判断+大文件降级展示 | 4h | P0 |
-| T3 | 执行列表产物数量badge | 4h | P1 |
 ---
 
 ## 📑 目录

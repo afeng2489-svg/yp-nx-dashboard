@@ -1,0 +1,69 @@
+sprint_id: AF-00
+status: completed
+priority: P0
+estimated_hours: 24
+depends_on: []
+
+title: "Security — permissions 可配置 + workspace 边界 + 危险命令拦截"
+objective: |
+  Golden Path 前必须完成。消除 --dangerously-skip-permissions 硬编码，
+  引入 permissions_mode: strict|trusted（默认 strict），
+  限制 CLI 只能在 workspace 内操作，拦截危险 shell 命令。
+
+problem: |
+  engine.rs、claude_cli.rs、agent_team_service.rs 等 12+ 处硬编码
+  --dangerously-skip-permissions，存在任意命令执行风险。
+
+remaining_tasks:
+  - id: S1
+    name: permissions_mode 配置项
+    priority: P0
+    estimated_hours: 8
+    status: completed
+    description: |
+      新增配置 permissions_mode: strict | trusted，默认 strict。
+      strict：不传 --dangerously-skip-permissions。
+      trusted：保留现有行为（仅开发/内测显式开启）。
+      涉及：core/workflow/src/engine.rs、nx_api/src/services/claude_cli.rs、
+      nx_api/src/services/agent_team_service.rs、group_chat_service.rs
+    acceptance:
+      - 默认 strict 下 CLI 不带 skip-permissions
+      - settings 或 env 可切换 trusted
+
+  - id: S2
+    name: workspace 边界校验
+    priority: P0
+    estimated_hours: 8
+    status: completed
+    description: |
+      CLI 调用时 --project / cwd 必须在用户选定 workspace 内。
+      拒绝 workspace 外的路径参数。
+    acceptance:
+      - 传入 workspace 外路径时拒绝启动并返回清晰错误
+
+  - id: S3
+    name: 危险命令 blocklist
+    priority: P0
+    estimated_hours: 4
+    status: completed
+    description: |
+      拦截或告警：rm -rf /、curl|bash、chmod 777、mkfs 等。
+      可在 quality_gate 或 CLI wrapper 层实现。
+    acceptance:
+      - blocklist 可配置，默认含 10+ 条模式
+
+  - id: S4
+    name: 安全文档
+    priority: P1
+    estimated_hours: 2
+    status: completed
+    description: |
+      docs/SECURITY.md：permissions_mode 说明、trusted 模式风险、workspace 边界。
+    acceptance:
+      - 文档存在且与实现一致
+
+quality_gates:
+  - cargo build 通过
+  - grep 确认无新增硬编码 dangerously-skip-permissions（trusted 路径除外）
+
+acceptance: Golden Path 可在 strict 模式下跑通（或文档说明需 trusted 的例外）

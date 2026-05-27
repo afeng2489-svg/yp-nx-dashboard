@@ -37,7 +37,7 @@ pub struct ClaudeTerminalSession {
 }
 
 impl ClaudeTerminalSession {
-    /// 创建新的终端会话，启动 `claude --dangerously-skip-permissions` 交互进程
+    /// 创建新的终端会话；trusted 模式下启动带 skip-permissions 的交互进程
     pub fn new(info: TerminalSessionInfo, cols: u16, rows: u16) -> Self {
         let (output_tx, _) = broadcast::channel(2048);
         let (input_tx, input_rx) = mpsc::unbounded_channel::<PtyInput>();
@@ -138,8 +138,16 @@ fn run_pty_session(
     tracing::info!("[PTY] 使用 Claude CLI: {}", cli_path);
 
     let mut cmd = CommandBuilder::new(&cli_path);
-    cmd.args(["--dangerously-skip-permissions"]);
+    if nexus_sandbox::PermissionsMode::from_env().allows_skip_permissions() {
+        cmd.args(["--dangerously-skip-permissions"]);
+    }
     if let Some(ref dir) = working_dir {
+        if let Err(e) = nexus_sandbox::validate_working_directory(dir, Some(dir)) {
+            tracing::error!("[PTY] workspace 校验失败: {}", e);
+            let msg = format!("\r\n[错误] workspace 边界: {}\r\n", e);
+            let _ = output_tx.send(msg.into_bytes());
+            return;
+        }
         cmd.cwd(dir);
     }
 

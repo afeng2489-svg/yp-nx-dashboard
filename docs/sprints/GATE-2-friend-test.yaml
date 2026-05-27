@@ -1,0 +1,38 @@
+sprint_id: GATE-2
+status: planned
+priority: P0
+depends_on: [AF-05, AF-04]
+
+title: "10 人朋友测门禁 — 产品就绪"
+objective: |
+  macOS 包 + Golden Path 就绪后，10 人朋友测。
+  人工问卷仅补充；通过须满足 checklist 证据。
+
+checklist:
+  - id: G2-1
+    item: macOS 包 Golden Path ≥80%（10 人）
+    evidence: docs/dogfood/gate-2-results.md
+
+  - id: G2-2
+    item: time_to_first_diff ≤15min（中位数）
+    evidence: 指标导出 JSON
+
+  - id: G2-3
+    item: 0 致命 bug（崩溃 / Run 永久卡死 / 安装失败）
+    evidence: issue 列表为空或均已 workaround
+
+  - id: G2-4
+    item: /factory 可用（Console + Runs + diff）
+    evidence: 10 人每人至少 1 次成功 Run
+
+  - id: G2-5
+    item: GATE-2 cargo test -p nexus_workflow --lib 通过
+    evidence: CI 或本地日志
+
+machine_gates:
+  - cargo test -p nexus_workflow --lib
+
+go: AF-06 50 人内测招募
+no_go: 回 AF-04/AF-01 改 Golden Path，不扩量
+
+acceptance: checklist 5/5 有 evidence 文件

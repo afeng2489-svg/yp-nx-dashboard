@@ -669,14 +669,21 @@ impl AgentTeamService {
         self.register_process(&proc_exec_id, &team.id, &team.name, &team.id, &request.task);
 
         // Single Claude CLI call — 600s timeout for long-running tasks
-        let args = if auto_confirm {
-            vec![
-                "-p",
-                "--dangerously-skip-permissions",
-                "--no-session-persistence",
-                &full_prompt,
-            ]
+        let mut prompt_arg_storage = crate::services::claude_cli::build_prompt_cli_args(true);
+        prompt_arg_storage.push(full_prompt.clone());
+        let cli_arg_refs: Vec<&str> = prompt_arg_storage.iter().map(String::as_str).collect();
+
+        crate::services::claude_cli::guard_claude_invocation(
+            &full_prompt,
+            working_dir.as_deref(),
+            working_dir.as_deref(),
+        )
+        .map_err(AgentTeamServiceError::AiError)?;
+
+        let args: Vec<&str> = if auto_confirm {
+            cli_arg_refs
         } else {
+            // 非 auto_confirm 时不传 skip-permissions（即使用户为 trusted，此处保留交互确认路径）
             vec!["-p", "--no-session-persistence", &full_prompt]
         };
         let pty_result = run_claude_interactive(
@@ -945,13 +952,20 @@ impl AgentTeamService {
             !memory_context.is_empty()
         );
 
+        crate::services::claude_cli::guard_claude_invocation(
+            &full_prompt,
+            working_dir.as_deref(),
+            working_dir.as_deref(),
+        )
+        .map_err(AgentTeamServiceError::AiError)?;
+
+        let mut prompt_arg_storage =
+            crate::services::claude_cli::build_prompt_cli_args(true);
+        prompt_arg_storage.push(full_prompt.clone());
+        let cli_args: Vec<&str> = prompt_arg_storage.iter().map(String::as_str).collect();
+
         let pty_result = run_claude_interactive(
-            &[
-                "-p",
-                "--dangerously-skip-permissions",
-                "--no-session-persistence",
-                &full_prompt,
-            ],
+            &cli_args,
             working_dir.as_deref(),
             &stream_tx,
             None,  // execute_role_task doesn't support confirmations yet
@@ -1193,13 +1207,24 @@ impl AgentTeamService {
         // (which Claude Switch updates when switching models)
         let working_dir = self.current_workspace_path.read().clone();
 
+        crate::services::claude_cli::guard_claude_invocation(
+            &full_prompt,
+            working_dir.as_deref(),
+            working_dir.as_deref(),
+        )
+        .map_err(|e| AgentTeamServiceError::AiError(e))?;
+
         let (exe_path, prefix_args) = crate::services::claude_cli::get_claude_cli_executable()
             .ok_or_else(|| AgentTeamServiceError::AiError("Claude CLI not found".to_string()))?;
         let mut cmd = tokio::process::Command::new(&exe_path);
         for arg in &prefix_args {
             cmd.arg(arg);
         }
-        cmd.args(["-p", "--dangerously-skip-permissions", &full_prompt]);
+        let mut prompt_args = crate::services::claude_cli::build_prompt_cli_args(false);
+        for arg in &prompt_args {
+            cmd.arg(arg);
+        }
+        cmd.arg(&full_prompt);
         cmd.kill_on_drop(true);
         if let Some(ref dir) = working_dir {
             cmd.current_dir(dir);

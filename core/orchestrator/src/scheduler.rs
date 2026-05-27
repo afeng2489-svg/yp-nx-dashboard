@@ -1218,7 +1218,8 @@ impl TaskScheduler {
         });
     }
 
-    /// 重试失败任务
+    /// 重试失败任务（调度器内部 API，待 nx_api 接线）
+    #[allow(dead_code)]
     fn retry_task(&self, task_id: Uuid) -> bool {
         let (retry_count, retry_config) = {
             let tasks = self.tasks.read();

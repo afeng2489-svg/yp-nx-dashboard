@@ -63,7 +63,7 @@ export function ClaudeCliMissingBanner() {
       <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
       <div className="flex-1 text-sm text-amber-700 dark:text-amber-300">
         {hint ?? '未检测到 Claude Code CLI，工作流和团队对话将无法运行。'}
-        <Link to="/ai-settings" className="ml-2 underline font-medium hover:text-amber-800">
+        <Link to="/settings/ai" className="ml-2 underline font-medium hover:text-amber-800">
           前往设置
         </Link>
       </div>

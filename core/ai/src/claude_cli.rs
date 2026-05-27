@@ -84,13 +84,17 @@ impl ClaudeCliProvider {
         })?;
 
         let result = tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), async {
+            nexus_sandbox::check_blocklist(prompt).map_err(|e| {
+                AIError::Provider(format!("Prompt blocked by security policy: {}", e))
+            })?;
+
             let mut cmd = AsyncCommand::new(cli);
-            cmd.args([
-                "-p",
-                "--dangerously-skip-permissions",
-                "--no-session-persistence",
-                prompt,
-            ]);
+            let mut prompt_args = Vec::new();
+            nexus_sandbox::push_prompt_args(&mut prompt_args, true);
+            for arg in &prompt_args {
+                cmd.arg(arg);
+            }
+            cmd.arg(prompt);
 
             let output = cmd
                 .output()

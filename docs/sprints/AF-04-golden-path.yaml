@@ -1,0 +1,80 @@
+sprint_id: AF-04
+status: planned
+priority: P0
+estimated_hours: 40
+depends_on: [AF-01, AF-02, AF-03]
+
+title: "Golden Path + dogfood + 6 指标埋点"
+objective: |
+  定义并跑通 killer 场景：一句话 → 15min diff → 审批。
+  含真实 dogfood 小功能（非仅改 README）+ 指标埋点 + e2e 占位。
+
+golden_path:
+  task: "给 README.md 增加「快速开始」安装步骤（或等价小功能）"
+  workflow: solo-dev
+  team: solo-fullstack
+  max_minutes: 15
+
+remaining_tasks:
+  - id: G1
+    name: docs/GOLDEN-PATH.md
+    priority: P0
+    estimated_hours: 2
+    description: |
+      步骤、前置条件（Claude CLI、workspace）、成功标准、失败排查。
+    acceptance:
+      - 文档可被非作者独立执行
+
+  - id: G2
+    name: e2e/golden-path.spec.ts
+    priority: P0
+    estimated_hours: 8
+    description: |
+      Playwright：打开 /factory → 输入任务 → 等待 diff → 断言产物存在。
+      无 CLI 时 test.skip 并文档说明。
+    acceptance:
+      - GATE-1 可运行（skip 或 pass）
+
+  - id: G3
+    name: 工厂台「试用演示」一键按钮
+    priority: P0
+    estimated_hours: 3
+    description: |
+      Console QuickLine：预填 Golden Path 任务 + 选 solo-dev。
+    acceptance:
+      - 一键启动 Golden Path Run
+
+  - id: G4
+    name: 6 指标本地埋点
+    priority: P0
+    estimated_hours: 8
+    description: |
+      activation, golden_path_success, time_to_first_diff, run_completion,
+      terminal_fallback, w2_retention（本地 JSON 或 SQLite events 表）。
+    acceptance:
+      - 一次 Run 结束后 6 指标可查询
+
+  - id: G5
+    name: 真实 dogfood 小功能
+    priority: P0
+    estimated_hours: 12
+    description: |
+      团队内部用 Golden Path 在本仓库实现一个小改进（如 factory 文案、
+      onboarding 提示），验证端到端可合入。
+    acceptance:
+      - 有真实 merged diff 记录（或 PR 描述）
+
+  - id: G6
+    name: 10 人手动 dogfood
+    priority: P0
+    estimated_hours: 8
+    description: |
+      招募 10 人（含非作者）跑 Golden Path，记录成功率与 terminal_fallback。
+    acceptance:
+      - golden_path_success ≥80%（AF-04 内）；terminal_fallback ≤30%
+
+quality_gates:
+  - GATE-1: e2e/golden-path.spec.ts（skip 或 pass）
+  - GATE-2: cargo test -p nexus_workflow --lib
+
+acceptance: Golden Path 文档 + 演示按钮 + 指标 + dogfood 小功能完成

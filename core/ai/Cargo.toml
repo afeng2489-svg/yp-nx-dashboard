@@ -15,6 +15,7 @@ tracing = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 parking_lot = { workspace = true }
+nexus-sandbox = { path = "../sandbox" }
 
 [dev-dependencies]
 tokio-test = "0.4"

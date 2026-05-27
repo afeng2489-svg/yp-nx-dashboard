@@ -180,9 +180,16 @@ pub enum StageType {
     Agent,
     /// 新增：暂停等待用户在前端做选择
     UserInput,
-    /// 新增：循环执行 body_stages 直到 break_condition 为 true
+    /// 循环执行 body_stages 直到 break_condition 为 true
     Loop,
-    /// 新增：页面生成阶段
+    /// 页面生成阶段（React 模板 + manifest）
+    ///
+    /// **Deprecated (AF-00b)**：工厂台 MVP / Golden Path 不使用此 stage。
+    /// 请用 `agent` + `solo-dev` 工作流。保留解析与引擎路径仅为向后兼容。
+    #[deprecated(
+        since = "0.2.0",
+        note = "Factory MVP uses Agent stages only; see docs/sprints/AF-00b-code-hygiene.yaml"
+    )]
     #[serde(rename = "page_generate")]
     PageGenerate {
         manifest_template: String,

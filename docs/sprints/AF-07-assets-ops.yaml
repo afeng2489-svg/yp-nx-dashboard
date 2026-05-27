@@ -1,0 +1,54 @@
+sprint_id: AF-07
+status: planned
+priority: P1
+estimated_hours: 40
+depends_on: [AF-06]
+design_ref: "企业级页面结构设计 §六、§七"
+
+title: "资产库 + 运营中心"
+objective: |
+  内测通过后做配置与运营页面。复用 v3.x/v4.x 已有 API。
+
+remaining_tasks:
+  - id: O1
+    name: AssetsPage 4 Tab
+    priority: P0
+    estimated_hours: 16
+    description: |
+      产线模板、技能、角色库、知识库。
+      复用 WorkflowsPage, TemplatesPage, SkillsPage, RolesPage, KnowledgeBasePage。
+    acceptance:
+      - /assets 四 Tab 可 CRUD 或跳转子页
+
+  - id: O2
+    name: OpsPage 5 Tab
+    priority: P0
+    estimated_hours: 16
+    description: |
+      历史、成本、进程、审计、Sprint。
+      复用 ExecutionsPage, CostPage, ProcessMonitorPage, SprintBoardPage。
+    acceptance:
+      - /ops 五 Tab 数据来自现有 API
+
+  - id: O3
+    name: Sprint [▶ AI做] → /factory 预填
+    priority: P1
+    estimated_hours: 4
+    description: |
+      Sprint 卡片点击启动 factory Console 并预填任务描述。
+    acceptance:
+      - 从 Sprint 可一键启动 Run
+
+  - id: O4
+    name: 模型路由 UI（可选，低优先级）
+    priority: P2
+    estimated_hours: 8
+    description: |
+      AISettings 路由规则编辑；AF-04b 后端就绪后可做。
+    acceptance:
+      - 路由规则 CRUD（若时间允许）
+
+quality_gates:
+  - npx tsc --noEmit
+
+acceptance: 配置去 /assets，查历史/成本去 /ops

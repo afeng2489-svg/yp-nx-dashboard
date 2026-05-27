@@ -1,0 +1,60 @@
+sprint_id: AF-06
+status: planned
+priority: P0
+type: container
+depends_on: [GATE-2]
+
+title: "50 人内测 + 迭代（容器卡）"
+objective: |
+  招募 50 人，W1 Golden Path，W2 真实任务，按反馈迭代。
+  子任务不计入 MASTER-PLAN 12 卡上限。
+
+container_rules:
+  - 新增子任务写在 remaining_tasks 内，不新建 AF-XX 顶级卡
+  - go/no-go 未通过则回 AF-04，不进入 AF-07
+
+remaining_tasks:
+  - id: B1
+    name: 招募 50 人 + 分发 macOS 包
+    priority: P0
+    estimated_hours: 8
+    acceptance:
+      - 50 人收到安装包或安装链接
+
+  - id: B2
+    name: W1 — 每人跑 Golden Path + 日报
+    priority: P0
+    estimated_hours: 40
+    acceptance:
+      - golden_path_success ≥70%
+
+  - id: B3
+    name: W2 — 每人 1 个真实小任务
+    priority: P0
+    estimated_hours: 40
+    acceptance:
+      - run_completion ≥60%
+
+  - id: B4
+    name: Top5 问题修复迭代
+    priority: P0
+    estimated_hours: 40
+    acceptance:
+      - Top5 来自反馈排序，每项有关闭标准
+
+  - id: B5
+    name: go/no-go 评审
+    priority: P0
+    estimated_hours: 4
+    acceptance:
+      - pass：比终端省事 ≥60%，致命 bug=0 → AF-07
+      - fail：回 AF-04
+
+go_no_go:
+  pass:
+    - golden_path ≥70%
+    - 比终端省事 ≥60%
+    - 致命 bug = 0
+  fail_action: 回 AF-04/AF-01，不扩量
+
+acceptance: go/no-go pass 后 current_sprint → AF-07

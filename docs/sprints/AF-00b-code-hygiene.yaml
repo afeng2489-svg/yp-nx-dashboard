@@ -1,0 +1,58 @@
+sprint_id: AF-00b
+status: completed
+priority: P0
+estimated_hours: 16
+depends_on: [AF-00]
+
+title: "Hygiene — orchestrator dead_code 清理 + PageGenerate deprecated"
+objective: |
+  2 天 scope 锁定。移除 orchestrator crate 级 allow(dead_code)，
+  PageGenerate 标记 deprecated。不做全库 lint 归零。
+
+scope_lock:
+  files:
+    - core/orchestrator/src/lib.rs
+    - core/workflow/src/engine.rs  # permissions 若 AF-00 未完全覆盖
+  explicit_not_touch:
+    - 全库 clippy 归零
+    - PageGenerate 重构
+    - orchestrator 全库重写
+
+remaining_tasks:
+  - id: H1
+    name: 移除 orchestrator crate-level allow(dead_code)
+    priority: P0
+    estimated_hours: 6
+    status: completed
+    description: |
+      core/orchestrator/src/lib.rs 去掉 #![allow(dead_code)]。
+      未引用模块：删或 #[allow(dead_code)] 精确到 item。
+    acceptance:
+      - orchestrator crate 编译无 dead_code 全局 allow
+
+  - id: H2
+    name: PageGenerate 标记 deprecated
+    priority: P0
+    estimated_hours: 2
+    status: completed
+    description: |
+      工厂台 MVP 不依赖 PageGenerate stage。在 parser/docs 标记 deprecated。
+    acceptance:
+      - deprecated 注释或属性存在，MVP 工作流不含 PageGenerate
+
+  - id: H3
+    name: 2 天 deadline 强制切 AF-01
+    priority: P0
+    estimated_hours: 0
+    status: completed
+    description: |
+      不论 H1/H2 是否 100% 完成，2 天后必须开始 AF-01。
+      剩余项记入 AF-06 容器卡 backlog。
+    acceptance:
+      - progress.json current_sprint 切 AF-01
+
+quality_gates:
+  - cargo build -p nexus_orchestrator
+  - cargo test -p nexus_workflow --lib
+
+acceptance: scope_lock 内文件已处理；无 scope creep 到无关 crate

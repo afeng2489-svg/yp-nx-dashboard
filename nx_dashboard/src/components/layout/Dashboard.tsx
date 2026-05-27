@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { WorkspaceSelector } from '@/components/workspace/WorkspaceSelector';
+import { FactoryGlobalBar } from '@/components/factory/FactoryGlobalBar';
+import { FactoryStatusBar } from '@/components/factory/FactoryStatusBar';
 import { FileSidebar } from '@/components/explorer/FileSidebar';
 import { FileEditor } from '@/components/editor/FileEditor';
 import { Outlet } from 'react-router-dom';
@@ -34,9 +36,11 @@ export function Dashboard() {
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Header with Workspace Selector */}
-        <header className="relative z-50 h-14 px-4 sm:px-6 flex items-center justify-between border-b border-border/50 bg-card/50 backdrop-blur-sm">
-          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+        <header className="relative z-50 min-h-14 px-4 sm:px-6 py-2 flex items-center justify-between gap-2 border-b border-border/50 bg-card/50 backdrop-blur-sm flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
             <WorkspaceSelector />
+            <div className="hidden md:block h-6 w-px bg-border/60" />
+            <FactoryGlobalBar />
             <button
               onClick={() => setShowFileSidebar(!showFileSidebar)}
               className={cn(
@@ -86,6 +90,7 @@ export function Dashboard() {
             )}
           </main>
         </div>
+        <FactoryStatusBar />
       </div>
       <GlobalOpsOverlay />
       <GlobalHelpButton />

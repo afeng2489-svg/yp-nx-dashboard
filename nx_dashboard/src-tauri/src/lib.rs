@@ -513,55 +513,8 @@ pub fn run() {
                 )?;
             }
 
-            // Resolve Claude CLI path and pass to nx_api as env var
-            let claude_cli_env = if cfg!(debug_assertions) {
-                // Debug: let nx_api find it from shell PATH
-                None
-            } else if cfg!(target_os = "windows") {
-                // Windows: use 'where' command to locate claude (finds claude.cmd)
-                let output = Command::new("cmd")
-                    .args(["/c", "where claude 2>nul"])
-                    .output();
-                if let Ok(out) = output {
-                    if out.status.success() {
-                        let path = String::from_utf8_lossy(&out.stdout)
-                            .lines()
-                            .next()
-                            .unwrap_or("")
-                            .trim()
-                            .to_string();
-                        if !path.is_empty() {
-                            Some(path)
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            } else {
-                // macOS / Linux: resolve from login shell PATH
-                let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-                let output = Command::new(&shell)
-                    .args(["-l", "-c", "which claude 2>/dev/null || echo ''"])
-                    .output();
-                if let Ok(out) = output {
-                    if out.status.success() {
-                        let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                        if !path.is_empty() && path != "''" {
-                            Some(path)
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            };
+            // Resolve Claude CLI path and pass to nx_api（dev/release 均绑定本地 CLI）
+            let claude_cli_env = resolve_claude_cli_for_sidecar();
 
             // ── 写入启动标记（确认 setup 执行）──
             let marker_dir: std::path::PathBuf =
@@ -690,6 +643,50 @@ fn kill_stale_nx_api() {
                 }
             }
         }
+    }
+}
+
+/// 从用户 shell 解析本地 Claude Code CLI，供 nx_api sidecar 绑定
+fn resolve_claude_cli_for_sidecar() -> Option<String> {
+    if cfg!(target_os = "windows") {
+        let output = Command::new("cmd")
+            .args(["/c", "where claude 2>nul"])
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let path = String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .next()?
+            .trim()
+            .to_string();
+        if path.is_empty() {
+            None
+        } else {
+            Some(path)
+        }
+    } else {
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+        let shell_cmds: &[&[&str]] = &[
+            &["-i", "-l", "-c", "command -v claude"],
+            &["-l", "-c", "which claude 2>/dev/null"],
+        ];
+        for args in shell_cmds {
+            let output = Command::new(&shell).args(*args).output().ok()?;
+            if output.status.success() {
+                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !path.is_empty() && std::path::Path::new(&path).exists() {
+                    return Some(path);
+                }
+            }
+        }
+        for candidate in ["/opt/homebrew/bin/claude", "/usr/local/bin/claude"] {
+            if std::path::Path::new(candidate).exists() {
+                return Some(candidate.to_string());
+            }
+        }
+        None
     }
 }
 
@@ -923,10 +920,17 @@ fn start_nx_api(
         diag(&format!("Added to PATH: {:?}", sidecar_dir));
     }
 
-    // Pass resolved Claude CLI path to nx_api
+    // Pass resolved Claude CLI path to nx_api（workflow 引擎通过 env 读取）
     if let Some(cli_path) = claude_cli_path {
         diag(&format!("Claude CLI path: {}", cli_path));
         child_cmd.env("CLAUDE_CLI_PATH_OVERRIDE", cli_path);
+        child_cmd.env("CLAUDE_BIN", cli_path);
+    }
+
+    // 本地 dev：trusted 模式，让 Claude Code CLI 能以 agent 模式读写项目（无需开终端点确认）
+    if cfg!(debug_assertions) {
+        child_cmd.env("NEXUS_PERMISSIONS_MODE", "trusted");
+        diag("NEXUS_PERMISSIONS_MODE=trusted (dev)");
     }
 
     diag("Spawning nx_api...");

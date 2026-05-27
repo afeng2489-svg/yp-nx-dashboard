@@ -17,6 +17,7 @@ chrono = { workspace = true }
 parking_lot = { workspace = true }
 
 nexus-ai = { path = "../ai" }
+nexus-sandbox = { path = "../sandbox" }
 regex = "1"
 
 [dev-dependencies]

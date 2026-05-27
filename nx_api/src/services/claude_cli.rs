@@ -7,6 +7,32 @@ use std::process::Command;
 use std::sync::RwLock;
 use tokio::process::Command as AsyncCommand;
 
+pub use nexus_sandbox::{
+    check_blocklist, set_runtime_permissions_mode, validate_prompt, validate_shell_command,
+    validate_working_directory, PermissionsMode,
+};
+
+/// 当前 permissions 模式（env NEXUS_PERMISSIONS_MODE 或运行时覆盖）
+pub fn current_permissions_mode() -> PermissionsMode {
+    PermissionsMode::from_env()
+}
+
+/// 构建 Claude `-p` 参数字符串列表（含可选 skip-permissions）
+pub fn build_prompt_cli_args(no_session_persistence: bool) -> Vec<String> {
+    let mut args = Vec::new();
+    nexus_sandbox::push_prompt_args(&mut args, no_session_persistence);
+    args
+}
+
+/// 启动 Claude CLI 前：blocklist + workspace 边界
+pub fn guard_claude_invocation(
+    prompt: &str,
+    working_directory: Option<&str>,
+    workspace_root: Option<&str>,
+) -> Result<(), String> {
+    validate_prompt(prompt, working_directory, workspace_root).map_err(|e| e.to_string())
+}
+
 /// Claude CLI 调用结果
 pub type ClaudeCliResult = Result<String, String>;
 
@@ -342,18 +368,7 @@ pub fn get_claude_cli_executable() -> Option<(String, Vec<String>)> {
 /// Windows: .js → 用 node.exe 执行；.cmd/.bat/.exe → 直接执行
 /// Unix:   所有文件由 shebang 或直接执行处理
 fn resolve_claude_executable(path: &str) -> (String, Vec<String>) {
-    let p = std::path::Path::new(path);
-    if cfg!(target_os = "windows") {
-        match p.extension().and_then(|e| e.to_str()) {
-            Some("js") => {
-                tracing::info!("[Claude CLI] 检测到 .js 入口文件，使用 node 执行: {}", path);
-                ("node".to_string(), vec![p.to_string_lossy().to_string()])
-            }
-            _ => (path.to_string(), Vec::new()),
-        }
-    } else {
-        (path.to_string(), Vec::new())
-    }
+    nexus_sandbox::resolve_claude_executable(path)
 }
 
 /// 获取当前解析状态（路径 + 来源）
@@ -364,6 +379,17 @@ pub fn get_resolution_status() -> ClaudeCliResolution {
         .unwrap_or_default()
 }
 
+/// 同步 CLI 路径到 workflow 引擎可读的环境变量
+fn sync_claude_bin_env(path: &str) {
+    std::env::set_var("CLAUDE_CLI_PATH_OVERRIDE", path);
+    std::env::set_var("CLAUDE_BIN", path);
+}
+
+fn clear_claude_bin_env() {
+    std::env::remove_var("CLAUDE_CLI_PATH_OVERRIDE");
+    std::env::remove_var("CLAUDE_BIN");
+}
+
 /// 启动时初始化：读取用户配置（最高优先级）→ 否则智能搜索 → 写入 env
 pub fn init_at_startup() {
     // 1. 用户在设置里指定的路径优先
@@ -371,7 +397,7 @@ pub fn init_at_startup() {
         if std::path::Path::new(&user_path).exists() {
             tracing::info!("[Claude CLI] 使用用户配置路径: {}", user_path);
             update_state(Some(user_path.clone()), ClaudeCliSource::User);
-            std::env::set_var("CLAUDE_CLI_PATH_OVERRIDE", &user_path);
+            sync_claude_bin_env(&user_path);
             // 自检：同进程立刻读，确认 engine.rs 等同进程消费方一定拿到
             let readback = std::env::var("CLAUDE_CLI_PATH_OVERRIDE").unwrap_or_default();
             tracing::info!(
@@ -399,7 +425,7 @@ pub fn init_at_startup() {
 
     if let Some(ref p) = detected {
         // 回写到环境变量，让同进程内的 core/workflow/engine.rs 也能读到
-        std::env::set_var("CLAUDE_CLI_PATH_OVERRIDE", p);
+        sync_claude_bin_env(p);
         // 自检：同进程立刻读
         let readback = std::env::var("CLAUDE_CLI_PATH_OVERRIDE").unwrap_or_default();
         tracing::info!(
@@ -466,10 +492,10 @@ pub fn set_user_path(path: Option<String>) -> Result<ClaudeCliResolution, String
     // 立即应用
     if let Some(ref p) = trimmed {
         update_state(Some(p.clone()), ClaudeCliSource::User);
-        std::env::set_var("CLAUDE_CLI_PATH_OVERRIDE", p);
+        sync_claude_bin_env(p);
     } else {
         // 用户清除了配置，重新自动检测（先把 env 清掉，避免命中旧值）
-        std::env::remove_var("CLAUDE_CLI_PATH_OVERRIDE");
+        clear_claude_bin_env();
         let detected = find_claude_cli();
         let source = if detected.is_some() {
             ClaudeCliSource::Auto
@@ -477,7 +503,7 @@ pub fn set_user_path(path: Option<String>) -> Result<ClaudeCliResolution, String
             ClaudeCliSource::None
         };
         if let Some(ref p) = detected {
-            std::env::set_var("CLAUDE_CLI_PATH_OVERRIDE", p);
+            sync_claude_bin_env(p);
         }
         update_state(detected, source);
     }
@@ -490,13 +516,13 @@ pub fn redetect() -> ClaudeCliResolution {
     if let Some(user_path) = load_user_configured_path() {
         if std::path::Path::new(&user_path).exists() {
             update_state(Some(user_path.clone()), ClaudeCliSource::User);
-            std::env::set_var("CLAUDE_CLI_PATH_OVERRIDE", &user_path);
+            sync_claude_bin_env(&user_path);
             return get_resolution_status();
         }
     }
 
     // 重新搜索时清掉旧 env，避免 find_claude_cli 命中已失效的 OVERRIDE
-    std::env::remove_var("CLAUDE_CLI_PATH_OVERRIDE");
+    clear_claude_bin_env();
     let detected = find_claude_cli();
     let source = if detected.is_some() {
         ClaudeCliSource::Auto
@@ -504,7 +530,7 @@ pub fn redetect() -> ClaudeCliResolution {
         ClaudeCliSource::None
     };
     if let Some(ref p) = detected {
-        std::env::set_var("CLAUDE_CLI_PATH_OVERRIDE", p);
+        sync_claude_bin_env(p);
     }
     update_state(detected, source);
     get_resolution_status()
@@ -595,34 +621,42 @@ pub async fn call_claude_cli_with_timeout(
     timeout_secs: u64,
     working_directory: Option<&str>,
 ) -> ClaudeCliResult {
+    guard_claude_invocation(prompt, working_directory, working_directory)?;
     let (exe_path, prefix_args) = get_claude_cli_executable().ok_or("Claude CLI not found")?;
+
+    let mode = current_permissions_mode();
+    let skip_note = if mode.allows_skip_permissions() {
+        "--dangerously-skip-permissions"
+    } else {
+        "(strict: no skip-permissions)"
+    };
 
     let timeout = tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), async {
         let mut cmd = AsyncCommand::new(&exe_path);
         for arg in &prefix_args {
             cmd.arg(arg);
         }
-        cmd.args([
-            "-p",
-            "--dangerously-skip-permissions",
-            "--no-session-persistence",
-            prompt,
-        ]);
+        let mut prompt_args = build_prompt_cli_args(true);
+        for arg in &prompt_args {
+            cmd.arg(arg);
+        }
+        cmd.arg(prompt);
 
-        // 如果提供了 working_directory，设置当前工作目录
         if let Some(dir) = working_directory {
             cmd.current_dir(dir);
             tracing::info!(
-                "[Claude CLI] 执行命令: cd {} && {} {} -p --dangerously-skip-permissions <prompt>",
+                "[Claude CLI] cd {} && {} {} -p {} <prompt>",
                 dir,
                 exe_path,
-                prefix_args.join(" ")
+                prefix_args.join(" "),
+                skip_note
             );
         } else {
             tracing::info!(
-                "[Claude CLI] 执行命令: {} {} -p --dangerously-skip-permissions <prompt>",
+                "[Claude CLI] {} {} -p {} <prompt>",
                 exe_path,
-                prefix_args.join(" ")
+                prefix_args.join(" "),
+                skip_note
             );
         }
 
@@ -649,20 +683,20 @@ pub async fn call_claude_cli_with_timeout(
 /// 调用 Claude CLI，返回带工具调用的完整响应
 /// 适用于需要解析 Claude 的 tool_use 等结构的场景
 pub async fn call_claude_cli_with_tools(prompt: &str) -> ClaudeCliResult {
+    guard_claude_invocation(prompt, None, None)?;
     let (exe_path, prefix_args) = get_claude_cli_executable().ok_or("Claude CLI not found")?;
 
     let mut cmd = AsyncCommand::new(&exe_path);
     for arg in &prefix_args {
         cmd.arg(arg);
     }
+    let mut prompt_args = build_prompt_cli_args(true);
+    prompt_args.push("--verbose".to_string());
+    for arg in &prompt_args {
+        cmd.arg(arg);
+    }
     let output = cmd
-        .args([
-            "-p",
-            "--dangerously-skip-permissions",
-            "--no-session-persistence",
-            "--verbose",
-            prompt,
-        ])
+        .arg(prompt)
         .output()
         .await
         .map_err(|e| format!("Failed to execute Claude CLI: {}", e))?;

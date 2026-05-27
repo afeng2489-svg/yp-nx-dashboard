@@ -169,6 +169,7 @@ impl WorkflowEngine {
             self.stage_watchers.notify_before(&exec_id_str, &stage.name);
 
             // 根据 stage 类型分发执行
+            #[allow(deprecated)] // PageGenerate stage deprecated AF-00b; match kept for compat
             let outputs = match stage.stage_type {
                 StageType::UserInput => {
                     let question = stage.question.clone().unwrap_or_default();
@@ -704,6 +705,20 @@ impl WorkflowEngine {
         let mut all_passed = true;
 
         for check in &gate.checks {
+            if let Err(e) = nexus_sandbox::validate_shell_command(&check.cmd) {
+                tracing::warn!("质量门命令被 blocklist 拒绝: {} — {}", check.cmd, e);
+                all_passed = false;
+                checks.push(QualityCheckResult {
+                    cmd: check.cmd.clone(),
+                    passed: false,
+                    exit_code: None,
+                    stdout: String::new(),
+                    stderr: e.to_string(),
+                    duration_ms: 0,
+                });
+                continue;
+            }
+
             let start = std::time::Instant::now();
 
             let mut cmd = tokio::process::Command::new("sh");
@@ -1303,46 +1318,32 @@ impl WorkflowEngine {
         prompt: &str,
         model: Option<&str>,
     ) -> Result<ClaudeCliResult, WorkflowError> {
-        let claude_bin = std::env::var("CLAUDE_BIN")
-            .or_else(|_| std::env::var("CLAUDE_CLI_PATH_OVERRIDE"))
-            .or_else(|_| {
-                let candidates = if cfg!(target_os = "windows") {
-                    vec![
-                        "claude.cmd".to_string(),
-                        "claude.exe".to_string(),
-                        "claude".to_string(),
-                    ]
-                } else {
-                    vec![
-                        "/opt/homebrew/bin/claude".to_string(),
-                        "/usr/local/bin/claude".to_string(),
-                        "claude".to_string(),
-                    ]
-                };
-                for c in &candidates {
-                    if std::path::Path::new(c).exists() {
-                        return Ok(c.clone());
-                    }
-                }
-                Err(std::env::VarError::NotPresent)
-            })
-            .unwrap_or_else(|_| "claude".to_string());
-        let mut cmd = if cfg!(target_os = "windows") && claude_bin.ends_with(".js") {
-            let mut c = Command::new("node");
-            c.arg(&claude_bin);
-            c
-        } else {
-            Command::new(&claude_bin)
-        };
-        cmd.args([
-            "-p",
-            "--verbose",
-            "--dangerously-skip-permissions",
-            "--output-format",
-            "stream-json",
-        ]);
-        if let Some(m) = model {
-            cmd.args(["--model", m]);
+        if let Err(e) = nexus_sandbox::check_blocklist(prompt) {
+            return Err(WorkflowError::Execution(e.to_string()));
+        }
+        if let Some(ref dir) = self.working_directory {
+            if let Err(e) =
+                nexus_sandbox::validate_working_directory(dir, Some(dir.as_str()))
+            {
+                return Err(WorkflowError::Execution(e.to_string()));
+            }
+        }
+
+        let (claude_bin, prefix_args) = nexus_sandbox::claude_cli_spawn_spec().map_err(|e| {
+            WorkflowError::Execution(format!(
+                "{}\n\
+                提示：在应用内打开「设置 → AI」检测/配置 Claude CLI 路径；\
+                本地开发可设 NEXUS_PERMISSIONS_MODE=trusted 以启用 agent 工具权限。",
+                e
+            ))
+        })?;
+
+        let mut cmd = Command::new(&claude_bin);
+        for arg in &prefix_args {
+            cmd.arg(arg);
+        }
+        for arg in nexus_sandbox::build_workflow_cli_args(model) {
+            cmd.arg(arg);
         }
         cmd.arg(prompt);
 
@@ -1354,16 +1355,21 @@ impl WorkflowEngine {
         cmd.stderr(Stdio::piped());
 
         let child = cmd.spawn().map_err(|e| {
+            let display = if prefix_args.is_empty() {
+                claude_bin.clone()
+            } else {
+                format!("{} {}", claude_bin, prefix_args.join(" "))
+            };
             if e.kind() == std::io::ErrorKind::NotFound {
                 WorkflowError::Execution(format!(
                     "未找到 Claude Code CLI 可执行文件 (路径: {}).\n\
                     请先安装：npm install -g @anthropic-ai/claude-code\n\
-                    或在「AI 设置」页面手动指定 Claude CLI 路径。\n\
+                    或在「设置 → AI」手动指定 Claude CLI 路径。\n\
                     底层错误: {}",
-                    claude_bin, e
+                    display, e
                 ))
             } else {
-                WorkflowError::Execution(format!("启动 Claude CLI 失败 ({}): {}", claude_bin, e))
+                WorkflowError::Execution(format!("启动 Claude CLI 失败 ({}): {}", display, e))
             }
         })?;
 

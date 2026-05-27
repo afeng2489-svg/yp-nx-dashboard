@@ -1889,6 +1889,11 @@ impl AIModelManager {
         *self.active_backend.blocking_read()
     }
 
+    /// 异步获取当前 Claude Switch 后端（供 axum handler 使用，避免 runtime 内 blocking_read panic）
+    pub async fn get_active_backend_async(&self) -> SwitchBackend {
+        *self.active_backend.read().await
+    }
+
     /// 检查 Claude Switch 是否已初始化（异步版本，用于 async 上下文）
     pub async fn is_claude_switch_initialized(&self) -> bool {
         let switch = self.claude_switch.read().await;

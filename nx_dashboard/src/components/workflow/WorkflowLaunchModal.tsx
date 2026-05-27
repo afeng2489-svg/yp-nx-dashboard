@@ -67,7 +67,7 @@ export function WorkflowLaunchModal({ workflow, onClose }: WorkflowLaunchModalPr
       connectWebSocket(execution.id);
       showSuccess(`工作流 "${workflow.name}" 已启动`);
       onClose();
-      navigate('/executions');
+      navigate('/factory?tab=runs');
     } catch (e) {
       showError(`执行失败: ${e}`);
     } finally {

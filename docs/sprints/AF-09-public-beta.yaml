@@ -1,0 +1,98 @@
+sprint_id: AF-09
+status: planned
+priority: P0
+estimated_hours: 240
+depends_on: [AF-08, AF-06]
+
+title: "300 人公测 + 企业验收（7/10 项）"
+objective: |
+  公开 beta：README、实践文、社群。累计试用 300–500，MAU≥100，NPS≥40。
+  企业十项验收过 7 项即可（非 10/10）。
+
+success_metrics:
+  trials: 300-500
+  mau: 100
+  run_completion: 70%
+  nps: 40
+
+enterprise_features:
+  - id: EF1
+    name: 完整审计链
+    verify: /ops?tab=audit
+
+  - id: EF2
+    name: 成本预算
+    verify: /settings 项目预算（v3.3）
+
+  - id: EF3
+    name: 审批门控
+    verify: /factory?tab=approvals
+
+  - id: EF4
+    name: 产物可回溯
+    verify: 历史 Run diff + rollback
+
+  - id: EF5
+    name: 多团队并行
+    verify: AF-08
+
+  - id: EF6
+    name: Checkpoint 续跑
+    verify: v1.2 + 工厂台可点续跑
+
+  - id: EF7
+    name: 团队模板
+    verify: ≥4 模板
+
+  - id: EF8
+    name: Sprint 集成
+    verify: [▶ AI做]
+
+  - id: EF9
+    name: 知识库注入
+    verify: v3.4 RAG 工厂台启动生效
+
+  - id: EF10
+    name: Git 审计
+    verify: v3.1 合入 + commit plan
+
+remaining_tasks:
+  - id: P1
+    name: 公开文档 + README 重写
+    priority: P0
+    estimated_hours: 16
+    acceptance:
+      - README 含 Golden Path 链接与安装
+
+  - id: P2
+    name: 社群/招募 300 人
+    priority: P0
+    estimated_hours: 40
+    acceptance:
+      - 累计试用 ≥300
+
+  - id: P3
+    name: 6 指标周报自动化
+    priority: P0
+    estimated_hours: 16
+    acceptance:
+      - 每周可导出 metrics JSON
+
+  - id: P4
+    name: 企业十项验收测试
+    priority: P0
+    estimated_hours: 24
+    acceptance:
+      - ≥7/10 EF 项有测试记录
+
+  - id: P5
+    name: NPS 调查 + 迭代
+    priority: P0
+    estimated_hours: 80
+    acceptance:
+      - NPS ≥40
+
+quality_gates:
+  - GATE-3: scripts/gate-check.sh AF-09
+
+acceptance: trials≥300, MAU≥100, NPS≥40, EF≥7/10

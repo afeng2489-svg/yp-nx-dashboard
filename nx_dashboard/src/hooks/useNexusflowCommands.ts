@@ -58,11 +58,11 @@ export function useNexusflowCommands() {
           case 'workflow:list': {
             await useWorkflowStore.getState().fetchWorkflows();
             showSuccess('已刷新工作流列表');
-            navigate('/workflows');
+            navigate('/assets?tab=workflows');
             break;
           }
           case 'workflow:status': {
-            navigate('/executions');
+            navigate('/factory?tab=runs');
             break;
           }
           case 'workflow:stop': {
@@ -94,7 +94,7 @@ export function useNexusflowCommands() {
             }
             await useExecutionStore.getState().startExecution(wfName, variables);
             showSuccess(`已启动工作流: ${wfName}`);
-            navigate('/executions');
+            navigate('/factory?tab=runs');
             break;
           }
           case 'session:list': {

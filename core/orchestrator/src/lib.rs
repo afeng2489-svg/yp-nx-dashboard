@@ -6,7 +6,6 @@
 //! - **Message Bus Protocol**: Async pub-sub communication
 
 #![allow(
-    dead_code,
     unused_imports,
     unused_variables,
     unused_mut,

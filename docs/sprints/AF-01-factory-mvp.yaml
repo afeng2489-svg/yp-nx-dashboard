@@ -1,0 +1,95 @@
+sprint_id: AF-01
+status: in_progress
+priority: P0
+estimated_hours: 80
+depends_on: [AF-00b]
+design_ref: "企业级页面结构设计 §二~§五"
+
+title: "工厂台 MVP — Shell + Nav + Console + Solo 模板"
+objective: |
+  合并原 AF-02~AF-06 核心：GlobalBar、5 项导航、/factory Console、
+  Solo 团队模板。80% 用户时间在 /factory。
+
+remaining_tasks:
+  - id: F1
+    name: Factory Shell（GlobalBar + ContextPanel + StatusBar）
+    status: partial
+    note: GlobalBar + StatusBar 已接入 Dashboard；ContextPanel 待选 Run 时展示 diff
+    priority: P0
+    estimated_hours: 16
+    description: |
+      GlobalBar：项目/团队/分支/Run/成本。
+      ContextPanel：选中 Run 的 diff 摘要。
+      StatusBar：CLI/路径/Stage/WS 状态。
+    acceptance:
+      - 5 大空间均在 Shell 内渲染
+
+  - id: F2
+    name: 5 项导航 + 旧路由 redirect
+    status: done
+    priority: P0
+    estimated_hours: 12
+    description: |
+      navConfig: /factory, /teams, /assets, /ops, /settings。
+      App.tsx redirect：/ → /factory；/workflows → /factory；等完整映射表。
+    acceptance:
+      - 旧 URL 不 404，全部 redirect 生效
+
+  - id: F3
+    name: FactoryPage Console 视图
+    status: done
+    priority: P0
+    estimated_hours: 20
+    description: |
+      IntentInput、QuickLines、ActiveRunCards。
+      复用 DashboardPage、QuickLaunchPage 逻辑。
+      输入 → 启动 solo-dev 或 quick-fix workflow。
+    acceptance:
+      - 输入任务可启动 Run 并在 Console 看到进度
+
+  - id: F4
+    name: Runs / Approvals / Deliverables Tab（MVP）
+    status: partial
+    note: 4 Tab 可切换；Deliverables 依赖 stage_results 列表数据
+    priority: P0
+    estimated_hours: 16
+    description: |
+      RunsTab 复用 ExecutionsPage；Approvals 先接 user_input；
+      Deliverables 基础 diff 列表（复用 v1.4 产物 API）。
+    acceptance:
+      - 4 Tab 可切换，Runs 可看 stage 进度
+
+  - id: F5
+    name: Solo 团队模板 + 3 分钟向导
+    status: partial
+    note: SoloTeamWizardBanner 一键 createTeam；POST /teams/from-template 未实现
+    priority: P0
+    estimated_hours: 12
+    description: |
+      POST /teams/from-template solo-fullstack。
+      CreateTeamWizard：选模板 → 绑定 dev-workflow/solo-dev → 跳转 /factory。
+    acceptance:
+      - 3 分钟内完成 Solo 团队创建
+
+  - id: F6
+    name: Team ↔ Workflow 绑定（Console 启动链）
+    status: pending
+    note: execution 尚未记录 team_id / trigger_source=factory
+    priority: P0
+    estimated_hours: 8
+    description: |
+      工厂台启动 Run 时使用团队绑定的 workflow + role overlay。
+      execution 记录 team_id、trigger_source=factory。
+    acceptance:
+      - 改 Role prompt 后下次 Run 生效
+
+non_negotiable_acceptance:
+  - 顶栏可切换项目 + 团队，GlobalRunPanel 可见 Run
+  - /factory 输入任务 → 启动 workflow → 15min 内看到 diff
+  - Solo 模板 3 分钟创建团队，Golden Path 0 次必须开终端
+
+quality_gates:
+  - npx tsc --noEmit（nx_dashboard）
+  - 手动跑通 Console → Run → 产物 diff
+
+acceptance: 三条 non_negotiable_acceptance 全部满足

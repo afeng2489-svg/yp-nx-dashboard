@@ -1817,8 +1817,8 @@ pub async fn get_active_claude_switch_backend(
 ) -> Result<Json<ClaudeSwitchBackendInfo>, (StatusCode, String)> {
     let manager = &state.ai_model_manager;
 
-    let active = manager.get_active_backend();
     let backends = manager.list_claude_switch_backends_async().await;
+    let active = manager.get_active_backend_async().await;
 
     let info = backends
         .into_iter()
@@ -2082,4 +2082,48 @@ pub async fn redetect_claude_cli() -> Json<ClaudeCliConfigResponse> {
     Json(resolution_to_response(
         crate::services::claude_cli::redetect(),
     ))
+}
+
+// ============== CLI Security ==============
+
+#[derive(Debug, serde::Serialize)]
+pub struct PermissionsModeResponse {
+    pub mode: String,
+    pub env_var: &'static str,
+    pub skip_permissions_active: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SetPermissionsModeRequest {
+    pub mode: String,
+}
+
+/// GET /api/v1/ai/security/permissions-mode
+pub async fn get_permissions_mode() -> Json<PermissionsModeResponse> {
+    let mode = crate::services::claude_cli::current_permissions_mode();
+    Json(PermissionsModeResponse {
+        mode: mode.as_str().to_string(),
+        env_var: "NEXUS_PERMISSIONS_MODE",
+        skip_permissions_active: mode.allows_skip_permissions(),
+    })
+}
+
+/// PUT /api/v1/ai/security/permissions-mode
+pub async fn set_permissions_mode(
+    Json(req): Json<SetPermissionsModeRequest>,
+) -> Result<Json<PermissionsModeResponse>, (StatusCode, String)> {
+    let mode = crate::services::claude_cli::PermissionsMode::parse(&req.mode).ok_or((
+        StatusCode::BAD_REQUEST,
+        "mode must be 'strict' or 'trusted'".to_string(),
+    ))?;
+    crate::services::claude_cli::set_runtime_permissions_mode(Some(mode));
+    tracing::warn!(
+        "[Security] permissions_mode 已设为 {}（运行时，重启后 env 优先 unless set again）",
+        mode.as_str()
+    );
+    Ok(Json(PermissionsModeResponse {
+        mode: mode.as_str().to_string(),
+        env_var: "NEXUS_PERMISSIONS_MODE",
+        skip_permissions_active: mode.allows_skip_permissions(),
+    }))
 }

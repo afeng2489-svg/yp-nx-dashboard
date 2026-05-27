@@ -1,0 +1,211 @@
+plan_id: AI-FACTORY-300
+version: "3.0"
+updated: "2026-05-27"
+supersedes: "v0-v4 phase plan (24 sprints archived) + 16-card AF draft"
+
+validation:
+  doc: docs/sprints/VALIDATION-3ROUND.md
+  rounds: 3
+  final_score: 7.2
+  success_probability: 0.62
+  reviewer_note: "Codex CLI unavailable; Claude CLI played GPT reviewer role"
+
+north_star: |
+  300-500 独立开发者觉得好用：
+  工厂台输入一句话 → 15min 内看到 diff → 审批 → 合入
+  一个人 = 一个团队，也可一人管多个团队
+
+positioning: "本地 AI 开发部 — 不取代 Cursor，取代终端里的 claude 编排"
+
+design_doc:
+  name: "AI 工厂 — 企业级页面结构设计 v1.0"
+  navigation: [factory, teams, assets, ops, settings]
+  metaphor:
+    user: 厂长
+    team: 车间
+    workflow: 产线
+    run: 批次
+    artifact: 交付物
+
+metrics:
+  activation: "24h内完成1次Run ≥60%"
+  golden_path_success: "≥80%"
+  time_to_first_diff: "≤15min"
+  run_completion: "≥70%"
+  terminal_fallback: "≤20%"
+  w2_retention: "≥50%"
+  mau_phase3: "≥100"
+  nps_phase4: "≥40"
+
+active_sprint_cap: 12
+active_sprint_cap_notes: |
+  AF-04b 为 post-R3 增补，不计入 12 卡上限冲突（与 explicit_not_doing 中「多模型 UI」区分：AF-04b 为后端 executor，无 UI）。
+  AF-06 为容器卡，内测迭代子任务不计入 12 卡上限。
+
+execution_order:
+  - AF-00
+  - AF-00b
+  - AF-01
+  - AF-02
+  - AF-03
+  - AF-04
+  - AF-04b
+  - AF-05
+  - GATE-2
+  - AF-06
+  - AF-07
+  - AF-08
+  - AF-09
+
+changelog_from_16_card_draft:
+  - "AF-02/03/04/05/06 合并 → AF-01 工厂台 MVP"
+  - "审批 harness 提前 → AF-02"
+  - "资产库延后 → AF-07（内测后）"
+  - "新增前置 → AF-00 security + AF-00b hygiene"
+  - "Golden Path 增加真实 dogfood 小功能（非仅改 README）"
+  - "completed 标记改为 GATE 机器验证，禁止手改 progress.json"
+
+explicit_not_doing:
+  - 画布拖拽编排
+  - 多模态（图/视频）
+  - Figma 集成
+  - PM/设计师/QA 专属 Tab
+  - Windows/Linux 安装包（Phase1）
+  - 多租户 SaaS
+  - 多模型 UI（Phase1；AF-04b 后端 executor 除外）
+  - 替代 Cursor 编辑器
+  - 模板市场
+  - orchestrator 全库重写
+
+gate_rules:
+  GATE-1:
+    command: e2e/golden-path.spec.ts
+    note: "可 skip 若无 Claude CLI；AF-04 实现"
+  GATE-2:
+    command: cargo test -p nexus_workflow --lib
+    note: "工作流引擎单元测试必须通过"
+  GATE-3:
+    command: scripts/gate-check.sh
+    note: "须验证 artifact 存在，不能只看 yaml 里 true；完整实现随 AF-04/AF-05"
+  policy: |
+    progress.json 不再手动标 completed，仅 GATE 脚本可写。
+    人工问卷仅作补充，不能单独通过 GATE。
+
+archived_capabilities:
+  - pipeline_dispatch_callback      # v1.1
+  - checkpoint_resume                 # v1.2
+  - quality_gate                      # v1.3
+  - observability_cost_artifacts      # v1.4
+  - cli_first_team_chat               # v2.1
+  - git_integration                   # v3.1
+  - triggers_chain                    # v3.2
+  - token_cost_dashboard              # v3.3
+  - rag_knowledge_base                # v3.4
+  - visual_canvas                     # v4.3
+  - sprint_board                      # v4.7
+  - failure_recovery                  # v4.2
+
+phases:
+  - id: AF-P0
+    name: 安全与卫生
+    sprints: [AF-00, AF-00b]
+
+  - id: AF-P1
+    name: 工厂台 MVP + 审批 + WS
+    sprints: [AF-01, AF-02, AF-03]
+
+  - id: AF-P2
+    name: Golden Path + 分发
+    sprints: [AF-04, AF-04b, AF-05, GATE-2]
+
+  - id: AF-P3
+    name: 内测
+    sprints: [AF-06]
+
+  - id: AF-P4
+    name: 公测与扩展
+    sprints: [AF-07, AF-08, AF-09]
+
+sprints:
+  - id: AF-00
+    card: AF-00-security-hardening.yaml
+    title: Security — permissions 可配置 + workspace 边界
+    estimated_hours: 24
+
+  - id: AF-00b
+    card: AF-00b-code-hygiene.yaml
+    title: Hygiene — orchestrator allow 清理 + PageGenerate deprecated
+    estimated_hours: 16
+
+  - id: AF-01
+    card: AF-01-factory-mvp.yaml
+    title: 工厂台 MVP（Shell + Nav + Console + Solo 模板）
+    estimated_hours: 80
+
+  - id: AF-02
+    card: AF-02-approval-harness.yaml
+    title: 审批 Harness MVP
+    estimated_hours: 24
+
+  - id: AF-03
+    card: AF-03-ws-reliability.yaml
+    title: WS 可靠性（push + poll fallback）
+    estimated_hours: 24
+
+  - id: AF-04
+    card: AF-04-golden-path.yaml
+    title: Golden Path + dogfood + 指标
+    estimated_hours: 40
+
+  - id: AF-04b
+    card: AF-04b-executor-routing.yaml
+    title: Executor 双车道路由（CLI vs API）
+    estimated_hours: 16
+    note: post-R3 增补
+
+  - id: AF-05
+    card: AF-05-macos-installer.yaml
+    title: macOS 安装包 + 首次向导
+    estimated_hours: 40
+
+  - id: GATE-2
+    card: GATE-2-friend-test.yaml
+    title: 10 人朋友测门禁
+
+  - id: AF-06
+    card: AF-06-beta-50.yaml
+    title: 50 人内测 + 迭代（容器卡）
+
+  - id: AF-07
+    card: AF-07-assets-ops.yaml
+    title: 资产库 + 运营中心
+    estimated_hours: 40
+
+  - id: AF-08
+    card: AF-08-multi-team-sprint.yaml
+    title: 多团队 + Sprint 集成
+    estimated_hours: 40
+
+  - id: AF-09
+    card: AF-09-public-beta.yaml
+    title: 300 人公测 + 企业验收
+    estimated_hours: 240
+
+deferred_after_300:
+  - PM/设计师/QA 专属产线 Tab
+  - Figma 集成
+  - 模板市场
+  - Windows/Linux 安装包
+  - 多租户 SaaS
+  - v4.8 画布原生节点执行（见 docs/v4.8-iteration-plan.md）
+
+top_risks:
+  - id: R1
+    name: AF-00b scope creep
+    mitigation: 锁文件清单，2 天后强制进 AF-01
+  - id: R2
+    name: GATE-3 人因漏洞
+    mitigation: gate-check.sh 须验证 artifact，不能只看 yaml boolean
+  - id: R3
+    name: AF-06 内测反馈爆炸
+    mitigation: 容器卡机制，子任务不计入 12 卡上限

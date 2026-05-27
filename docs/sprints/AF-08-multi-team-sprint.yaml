@@ -1,0 +1,51 @@
+sprint_id: AF-08
+status: planned
+priority: P1
+estimated_hours: 40
+depends_on: [AF-07, AF-01]
+
+title: "多团队 + Sprint 集成"
+objective: |
+  一人管多个团队/项目；GlobalRunPanel 多 Run 并行；Sprint 与 Run 闭环。
+
+remaining_tasks:
+  - id: M1
+    name: 项目-团队绑定 UI
+    priority: P0
+    estimated_hours: 12
+    description: |
+      切项目自动切默认团队；GlobalBar 显示当前绑定。
+    acceptance:
+      - 2 个项目可绑定不同团队
+
+  - id: M2
+    name: GlobalRunPanel 多 Run 并行分组
+    priority: P0
+    estimated_hours: 8
+    description: |
+      按 team/project 分组展示；点击跳转 Run 详情。
+    acceptance:
+      - 2 个并行 Run 不 UI 混乱
+
+  - id: M3
+    name: Sprint Run 完成回写看板
+    priority: P0
+    estimated_hours: 12
+    description: |
+      Run completed → Sprint 卡片状态更新（复用 v4.7）。
+    acceptance:
+      - Sprint 卡片显示 done/in_progress
+
+  - id: M4
+    name: 团队模板扩展
+    priority: P1
+    estimated_hours: 8
+    description: |
+      web-team, backend-team, quick-fix-team（AF-01 已有 solo-fullstack）。
+    acceptance:
+      - ≥4 种模板可选
+
+quality_gates:
+  - 2 项目 2 Run 不串（手动测试）
+
+acceptance: 用户旅程2 多团队切换可用；2 Run 并行不互相污染 workspace
