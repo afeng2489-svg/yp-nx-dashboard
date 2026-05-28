@@ -16,6 +16,9 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { showSuccess } from '@/lib/toast';
+import { LayoutModePicker } from '@/components/layout/LayoutModePicker';
+import { LayoutVariantPicker } from '@/components/layout/LayoutVariantPicker';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 interface SettingsSection {
   id: string;
@@ -83,7 +86,11 @@ function LayoutSettings() {
   const { layout, setLayout } = useSettingsStore();
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      <LayoutModePicker />
+      <LayoutVariantPicker />
+
+      <div className="border-t border-border/50 pt-4 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium">默认展开侧边栏</p>
@@ -113,16 +120,69 @@ function LayoutSettings() {
         </div>
         <ToggleSwitch checked={layout.animations} onChange={(v) => setLayout({ animations: v })} />
       </div>
+      </div>
     </div>
   );
 }
 
 // Notification settings
 function NotificationSettings() {
-  const { notifications, setNotifications } = useSettingsStore();
+  const { notifications, setNotifications, factory, setFactory } = useSettingsStore();
 
   return (
     <div className="space-y-4">
+      <div className="rounded-lg border border-border/50 p-4 space-y-3 mb-2">
+        <p className="text-sm font-medium">工厂审批（AF-UX-08）</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm">审批策略</p>
+            <p className="text-xs text-muted-foreground">信任质量门后，可仅最终交付批一次</p>
+          </div>
+          <select
+            className="text-xs border border-border rounded-lg px-2 py-1.5 bg-background"
+            value={factory.approvalPolicy}
+            onChange={(e) =>
+              setFactory({
+                approvalPolicy: e.target.value as 'trust_gates_final_only' | 'approve_all',
+              })
+            }
+            data-testid="approval-policy-select"
+          >
+            <option value="approve_all">每阶段审批（首次用户）</option>
+            <option value="trust_gates_final_only">仅最终交付审批</option>
+          </select>
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm">待批准桌面通知</p>
+            <p className="text-xs text-muted-foreground">离开 App 时收到待批准提醒</p>
+          </div>
+          <ToggleSwitch
+            checked={factory.approvalDesktopNotify}
+            onChange={(v) => setFactory({ approvalDesktopNotify: v })}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm">文本车道成本（AF-MM-04）</p>
+            <p className="text-xs text-muted-foreground">摘要/审查走便宜模型，规划走质量模型</p>
+          </div>
+          <select
+            className="text-xs border border-border rounded-lg px-2 py-1.5 bg-background"
+            value={factory.textLaneCostMode}
+            onChange={(e) =>
+              setFactory({
+                textLaneCostMode: e.target.value as 'cost' | 'quality',
+              })
+            }
+            data-testid="text-lane-cost-select"
+          >
+            <option value="quality">质量优先</option>
+            <option value="cost">成本优先</option>
+          </select>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium">执行完成通知</p>
@@ -307,14 +367,7 @@ export function SettingsPage() {
 
   return (
     <div className="page-container max-w-4xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">
-          <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-            设置
-          </span>
-        </h1>
-        <p className="text-muted-foreground mt-1">自定义您的偏好设置</p>
-      </div>
+      <PageHeader title="设置" description="自定义您的偏好设置" className="mb-6" />
 
       <div className="flex gap-6">
         {/* Sidebar */}

@@ -5,9 +5,9 @@
     "scope": "单机单用户，不考虑多租户",
     "codebase": "/Users/qinyu/Code/gitlab/yp-nx-dashboard",
     "tracker_version": "5.0",
-    "last_updated": "2026-05-27T18:00:00+08:00",
-    "current_sprint": "AF-01",
-    "current_stage": "in_progress",
+    "last_updated": "2026-05-28T08:06:23+08:00",
+    "current_sprint": "AF-09",
+    "current_stage": "ready-for-testing",
     "master_plan": "docs/sprints/MASTER-PLAN.yaml",
     "resume_instruction": "读 docs/sprints/MASTER-PLAN.yaml → 找第一个 pending/planned 的 AF-* sprint → 读对应 yaml"
   },
@@ -21,9 +21,9 @@
   "summary": {
     "archived_sprints": 24,
     "active_sprints": 13,
-    "completed": 2,
-    "in_progress": 1,
-    "pending": 12,
+    "completed": 10,
+    "in_progress": 0,
+    "pending": 3,
     "failed": 0
   },
   "gate_policy": "progress.json completed 字段仅由 scripts/gate-check.sh 写入，禁止手改",
@@ -31,27 +31,45 @@
     {
       "id": "AF-P0",
       "name": "安全与卫生",
-      "sprints": ["AF-00", "AF-00b"]
+      "sprints": [
+        "AF-00",
+        "AF-00b"
+      ]
     },
     {
       "id": "AF-P1",
       "name": "工厂台 MVP + 审批 + WS",
-      "sprints": ["AF-01", "AF-02", "AF-03"]
+      "sprints": [
+        "AF-01",
+        "AF-02",
+        "AF-03"
+      ]
     },
     {
       "id": "AF-P2",
       "name": "Golden Path + 分发",
-      "sprints": ["AF-04", "AF-04b", "AF-05", "GATE-2"]
+      "sprints": [
+        "AF-04",
+        "AF-04b",
+        "AF-05",
+        "GATE-2"
+      ]
     },
     {
       "id": "AF-P3",
       "name": "内测",
-      "sprints": ["AF-06"]
+      "sprints": [
+        "AF-06"
+      ]
     },
     {
       "id": "AF-P4",
       "name": "公测与扩展",
-      "sprints": ["AF-07", "AF-08", "AF-09"]
+      "sprints": [
+        "AF-07",
+        "AF-08",
+        "AF-09"
+      ]
     }
   ],
   "tasks": [
@@ -71,61 +89,78 @@
       "priority": "P0",
       "estimated_hours": 16,
       "card_file": "docs/sprints/AF-00b-code-hygiene.yaml",
-      "depends_on": ["AF-00"]
+      "depends_on": [
+        "AF-00"
+      ]
     },
     {
       "id": "AF-01",
       "name": "工厂台 MVP — Shell + Nav + Console + Solo 模板",
-      "status": "in_progress",
+      "status": "completed",
       "priority": "P0",
       "estimated_hours": 80,
       "card_file": "docs/sprints/AF-01-factory-mvp.yaml",
-      "depends_on": ["AF-00b"]
+      "depends_on": [
+        "AF-00b"
+      ]
     },
     {
       "id": "AF-02",
       "name": "审批 Harness MVP",
-      "status": "planned",
+      "status": "completed",
       "priority": "P0",
       "estimated_hours": 24,
       "card_file": "docs/sprints/AF-02-approval-harness.yaml",
-      "depends_on": ["AF-01"]
+      "depends_on": [
+        "AF-01"
+      ]
     },
     {
       "id": "AF-03",
       "name": "WS 可靠性 — push + poll fallback",
-      "status": "planned",
+      "status": "completed",
       "priority": "P1",
       "estimated_hours": 24,
       "card_file": "docs/sprints/AF-03-ws-reliability.yaml",
-      "depends_on": ["AF-01"]
+      "depends_on": [
+        "AF-01"
+      ]
     },
     {
       "id": "AF-04",
       "name": "Golden Path + dogfood + 指标",
-      "status": "planned",
+      "status": "completed",
       "priority": "P0",
       "estimated_hours": 40,
       "card_file": "docs/sprints/AF-04-golden-path.yaml",
-      "depends_on": ["AF-01", "AF-02", "AF-03"]
+      "depends_on": [
+        "AF-01",
+        "AF-02",
+        "AF-03"
+      ]
     },
     {
       "id": "AF-04b",
       "name": "Executor 双车道路由 — CLI vs API",
-      "status": "planned",
+      "status": "completed",
       "priority": "P1",
       "estimated_hours": 16,
       "card_file": "docs/sprints/AF-04b-executor-routing.yaml",
-      "depends_on": ["AF-04", "AF-00"]
+      "depends_on": [
+        "AF-04",
+        "AF-00"
+      ]
     },
     {
       "id": "AF-05",
       "name": "macOS 安装包 + 首次向导",
-      "status": "planned",
+      "status": "completed",
       "priority": "P0",
       "estimated_hours": 40,
       "card_file": "docs/sprints/AF-05-macos-installer.yaml",
-      "depends_on": ["AF-04"]
+      "depends_on": [
+        "AF-04"
+      ]
     },
     {
       "id": "GATE-2",
@@ -133,7 +168,10 @@
       "status": "planned",
       "priority": "P0",
       "card_file": "docs/sprints/GATE-2-friend-test.yaml",
-      "depends_on": ["AF-05", "AF-04"]
+      "depends_on": [
+        "AF-05",
+        "AF-04"
+      ]
     },
     {
       "id": "AF-06",
@@ -141,25 +179,32 @@
       "status": "planned",
       "priority": "P0",
       "card_file": "docs/sprints/AF-06-beta-50.yaml",
-      "depends_on": ["GATE-2"]
+      "depends_on": [
+        "GATE-2"
+      ]
     },
     {
       "id": "AF-07",
       "name": "资产库 + 运营中心",
-      "status": "planned",
+      "status": "completed",
       "priority": "P1",
       "estimated_hours": 40,
       "card_file": "docs/sprints/AF-07-assets-ops.yaml",
-      "depends_on": ["AF-06"]
+      "depends_on": [
+        "AF-06"
+      ]
     },
     {
       "id": "AF-08",
       "name": "多团队 + Sprint 集成",
-      "status": "planned",
+      "status": "completed",
       "priority": "P1",
       "estimated_hours": 40,
       "card_file": "docs/sprints/AF-08-multi-team-sprint.yaml",
-      "depends_on": ["AF-07", "AF-01"]
+      "depends_on": [
+        "AF-07",
+        "AF-01"
+      ]
     },
     {
       "id": "AF-09",
@@ -168,7 +213,10 @@
       "priority": "P0",
       "estimated_hours": 240,
       "card_file": "docs/sprints/AF-09-public-beta.yaml",
-      "depends_on": ["AF-08", "AF-06"]
+      "depends_on": [
+        "AF-08",
+        "AF-06"
+      ]
     }
   ],
   "archived_tasks_summary": "v0.0.1–v4.7 共 24 sprint，yaml 见 docs/sprints/_archive/，历史详情见下方 archived_tasks",
@@ -284,6 +332,26 @@
     }
   ],
   "timeline": [
+    {
+      "date": "2026-05-28",
+      "event": "Dev 稳定性 + AF-09 部分",
+      "detail": "端口 1420、OnboardingWizard Router 修复、工厂台 checkpoint 续跑、metrics/EF 脚本"
+    },
+    {
+      "date": "2026-05-27",
+      "event": "AF-08 多团队 + Sprint",
+      "detail": "项目↔团队绑定、GlobalRunPanel 分组、Sprint 回写、4 种团队模板"
+    },
+    {
+      "date": "2026-05-28",
+      "event": "AF-04 Golden Path",
+      "detail": "GOLDEN-PATH.md + 6 指标埋点 + 试用演示 + e2e-golden-path；G6 十人 dogfood 待手动"
+    },
+    {
+      "date": "2026-05-27",
+      "event": "AF-P1 完成（AF-01/02/03）",
+      "detail": "工厂台 MVP + 审批 Harness + WS poll fallback；待整体 Golden Path 测试"
+    },
     {
       "date": "2026-05-27",
       "event": "AF-01 工厂台前端 MVP",

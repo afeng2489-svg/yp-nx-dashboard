@@ -1,17 +1,33 @@
 //! 终端 WebSocket 处理器
 //!
-//! 桥接前端 xterm 和后端 PTY
+//! 桥接前端 xterm 和后端 PTY — 二进制直通（与 team PTY WS 一致）
 
 use axum::extract::ws::{Message as WsMessage, WebSocket};
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use nx_session::pty::PtyManager;
-use tokio::sync::{mpsc, oneshot};
+use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
 
-/// PTY 命令
-enum PtyCommand {
-    Write(String),
+/// 客户端控制消息（Text 帧）
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ClientMessage {
     Resize { rows: u16, cols: u16 },
-    Read { tx: mpsc::Sender<String> },
+}
+
+/// 服务端控制消息（Text 帧）
+#[derive(Debug, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ServerMessage {
+    Ready,
+    SessionEnded { exit_code: i32 },
+    Error { message: String },
+}
+
+enum PtyCommand {
+    Write(Vec<u8>),
+    Resize { rows: u16, cols: u16 },
+    Read { tx: mpsc::Sender<Vec<u8>> },
     Terminate,
 }
 
@@ -24,19 +40,52 @@ impl TerminalWsHandler {
         Self
     }
 
-    /// 处理终端 WebSocket 连接
-    pub async fn handle(&self, socket: WebSocket) {
+    /// 处理终端 WebSocket 连接；`cwd` 为 PTY 启动目录（须为有效目录）
+    pub async fn handle(&self, socket: WebSocket, cwd: Option<String>) {
+        let validated_cwd = cwd.and_then(|p| {
+            let path = std::path::Path::new(&p);
+            if path.is_dir() {
+                Some(p)
+            } else {
+                tracing::warn!("终端 cwd 无效或非目录: {}", p);
+                None
+            }
+        });
+
         let (mut sender, mut receiver) = socket.split();
 
-        // 创建 channel 用于与后台线程通信
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<PtyCommand>(100);
+        let (exit_tx, mut exit_rx) = tokio::sync::mpsc::channel::<i32>(1);
 
-        // 创建后台线程处理 PTY
-        let handle = std::thread::spawn(move || {
+        let pty_cwd = validated_cwd.clone();
+        std::thread::spawn(move || {
             let pty_manager = PtyManager::new();
 
-            // 创建 PTY 会话
-            let pty_session_id = match pty_manager.create_session(Some("bash"), None, None, None) {
+            let shell = std::env::var("SHELL").unwrap_or_else(|_| {
+                #[cfg(target_os = "macos")]
+                {
+                    "/bin/zsh".to_string()
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    "/bin/bash".to_string()
+                }
+            });
+            let shell = if shell.is_empty() {
+                "/bin/bash".to_string()
+            } else {
+                shell
+            };
+
+            let mut env = std::collections::HashMap::new();
+            env.insert("TERM".to_string(), "xterm-256color".to_string());
+
+            let pty_session_id = match pty_manager.create_session(
+                Some(shell.as_str()),
+                None,
+                pty_cwd.as_deref(),
+                Some(&env),
+            ) {
                 Ok(id) => id,
                 Err(e) => {
                     tracing::error!("创建 PTY 会话失败: {}", e);
@@ -44,14 +93,16 @@ impl TerminalWsHandler {
                 }
             };
 
-            tracing::info!("终端 PTY 会话创建: {}", pty_session_id);
+            if let Some(ref dir) = pty_cwd {
+                tracing::info!("终端 PTY 会话创建: {} cwd={}", pty_session_id, dir);
+            } else {
+                tracing::info!("终端 PTY 会话创建: {}", pty_session_id);
+            }
 
-            // 事件循环
             loop {
-                // 阻塞等待命令
                 match cmd_rx.blocking_recv() {
                     Some(PtyCommand::Write(data)) => {
-                        if let Err(e) = pty_manager.write(&pty_session_id, data.as_bytes()) {
+                        if let Err(e) = pty_manager.write(&pty_session_id, &data) {
                             tracing::error!("写入 PTY 失败: {}", e);
                         }
                     }
@@ -60,24 +111,24 @@ impl TerminalWsHandler {
                             tracing::error!("调整 PTY 大小失败: {}", e);
                         }
                     }
-                    Some(PtyCommand::Read { tx }) => match pty_manager.read(&pty_session_id, 50) {
-                        Ok(outputs) => {
-                            for output in outputs {
-                                let data = String::from_utf8_lossy(&output.data).to_string();
-                                if tx.blocking_send(data).is_err() {
-                                    break;
+                    Some(PtyCommand::Read { tx }) => {
+                        match pty_manager.read(&pty_session_id, 50) {
+                            Ok(outputs) => {
+                                for output in outputs {
+                                    if tx.blocking_send(output.data).is_err() {
+                                        break;
+                                    }
                                 }
                             }
+                            Err(e) => tracing::debug!("PTY 读取: {}", e),
                         }
-                        Err(e) => {
-                            tracing::error!("读取 PTY 输出失败: {}", e);
+                        if let Some(code) = pty_manager.poll_process_exit(&pty_session_id) {
+                            let _ = exit_tx.blocking_send(code);
+                            let _ = pty_manager.terminate(&pty_session_id);
+                            break;
                         }
-                    },
-                    Some(PtyCommand::Terminate) => {
-                        let _ = pty_manager.terminate(&pty_session_id);
-                        break;
                     }
-                    None => {
+                    Some(PtyCommand::Terminate) | None => {
                         let _ = pty_manager.terminate(&pty_session_id);
                         break;
                     }
@@ -87,45 +138,39 @@ impl TerminalWsHandler {
             tracing::info!("终端 PTY 会话关闭: {}", pty_session_id);
         });
 
-        // 发送欢迎消息
-        let welcome = "\x1b[36m[NexusFlow]\x1b[0m 终端已连接\r\n\r\n";
-        if sender
-            .send(WsMessage::Text(welcome.to_string()))
-            .await
-            .is_err()
-        {
+        let ready = serde_json::to_string(&ServerMessage::Ready).unwrap_or_default();
+        if sender.send(WsMessage::Text(ready)).await.is_err() {
             let _ = cmd_tx.send(PtyCommand::Terminate).await;
             return;
         }
 
-        // 创建读取结果的 channel
-        let (read_tx, mut read_rx) = mpsc::channel::<String>(100);
+        let (read_tx, mut read_rx) = mpsc::channel::<Vec<u8>>(256);
 
-        // 事件循环
         loop {
             tokio::select! {
-                // 发送 PTY 输出到 WebSocket
                 data = read_rx.recv() => {
                     if let Some(data) = data {
-                        let msg = serde_json::json!({
-                            "type": "output",
-                            "data": data
-                        }).to_string();
-                        if sender.send(WsMessage::Text(msg)).await.is_err() {
+                        if sender.send(WsMessage::Binary(data.into())).await.is_err() {
                             let _ = cmd_tx.send(PtyCommand::Terminate).await;
                             break;
                         }
                     }
                 }
-                // 处理 WebSocket 输入
                 msg = receiver.try_next() => {
                     match msg {
+                        Ok(Some(WsMessage::Binary(data))) => {
+                            let _ = cmd_tx.send(PtyCommand::Write(data.to_vec())).await;
+                        }
                         Ok(Some(WsMessage::Text(text))) => {
-                            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                            if let Ok(ClientMessage::Resize { rows, cols }) =
+                                serde_json::from_str(&text)
+                            {
+                                let _ = cmd_tx.send(PtyCommand::Resize { rows, cols }).await;
+                            } else if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
                                 match json.get("type").and_then(|v| v.as_str()) {
                                     Some("input") => {
                                         if let Some(data) = json.get("data").and_then(|v| v.as_str()) {
-                                            let _ = cmd_tx.send(PtyCommand::Write(data.to_string())).await;
+                                            let _ = cmd_tx.send(PtyCommand::Write(data.as_bytes().to_vec())).await;
                                         }
                                     }
                                     Some("resize") => {
@@ -137,11 +182,7 @@ impl TerminalWsHandler {
                                 }
                             }
                         }
-                        Ok(Some(WsMessage::Binary(data))) => {
-                            let _ = cmd_tx.send(PtyCommand::Write(String::from_utf8_lossy(&data).to_string())).await;
-                        }
                         Ok(Some(WsMessage::Ping(data))) => {
-                            #[allow(clippy::collapsible_match)]
                             if sender.send(WsMessage::Pong(data)).await.is_err() {
                                 let _ = cmd_tx.send(PtyCommand::Terminate).await;
                                 break;
@@ -151,13 +192,11 @@ impl TerminalWsHandler {
                             let _ = cmd_tx.send(PtyCommand::Terminate).await;
                             break;
                         }
-                        Ok(Some(WsMessage::Pong(_))) => {}
                         Err(e) => {
-                            // "Connection reset without closing handshake" 是正常的断连，不算错误
                             let error_str = e.to_string();
-                            if error_str.contains("reset without closing") || error_str.contains("connection closed") {
-                                tracing::warn!("WebSocket 客户端断连: {}", error_str);
-                            } else {
+                            if !error_str.contains("reset without closing")
+                                && !error_str.contains("connection closed")
+                            {
                                 tracing::error!("WebSocket 错误: {}", e);
                             }
                             let _ = cmd_tx.send(PtyCommand::Terminate).await;
@@ -166,16 +205,21 @@ impl TerminalWsHandler {
                         _ => {}
                     }
                 }
-                // 定期读取 PTY 输出
-                _ = tokio::time::sleep(tokio::time::Duration::from_millis(50)) => {
+                exit_code = exit_rx.recv() => {
+                    if let Some(code) = exit_code {
+                        let msg = serde_json::to_string(&ServerMessage::SessionEnded { exit_code: code })
+                            .unwrap_or_default();
+                        let _ = sender.send(WsMessage::Text(msg)).await;
+                    }
+                    let _ = cmd_tx.send(PtyCommand::Terminate).await;
+                    break;
+                }
+                _ = tokio::time::sleep(tokio::time::Duration::from_millis(16)) => {
                     let tx = read_tx.clone();
                     let _ = cmd_tx.send(PtyCommand::Read { tx }).await;
                 }
             }
         }
-
-        // 等待后台线程结束
-        let _ = handle.join();
 
         tracing::info!("终端 WebSocket 会话关闭");
     }

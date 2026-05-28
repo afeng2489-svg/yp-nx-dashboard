@@ -1,0 +1,685 @@
+# AF-P5 — 统一能力规划（产品 & UX v3.0）
+# v3 增量：信任 · 异步 · 失败恢复 · 审批减负（见 AF-P5-DECISIONS.md 2026-05-27）
+# 前置：AF-01~11 已落地
+# updated: 2026-05-27
+
+plan_id: AF-P5
+version: "3.0"
+supersedes: "2.0"
+decisions_log: docs/sprints/AF-P5-DECISIONS.md
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 一、产品原则（比功能列表更重要）
+# ═══════════════════════════════════════════════════════════════════════════
+
+product_principles:
+  - id: P1_intent_not_workflow
+    rule: 用户说「想做什么」，不说 workflow 名
+    implication: 工厂主界面 = 一个输入框 + 智能推荐；workflow 是系统内部路由
+
+  - id: P2_context_first
+    rule: 系统先看上下文，再提问
+    signals:
+      empty_workspace: 推荐「新建项目」向导，不展示 6 张产线卡片
+      has_git_and_tests: 默认「加功能」；粘贴 stack trace → 默认「修 bug」
+      active_run: 输入框变为「追加指令 / 审批」，不重复开 Run
+
+  - id: P3_one_primary_path
+    rule: 首屏最多 3 个明确选项 + 1 个「更多」
+    guided_mode: [新建项目, 改现有代码, 试用 30 秒演示]
+    studio_mode: 同上 + 高级产线折叠
+
+  - id: P4_progress_visible
+    rule: 用户永远知道「谁在干什么、卡在哪、下一步点哪」
+    implication: 产线看板 + 角色名 + 单一主 CTA（批准 / 继续 / 重试）
+
+  - id: P5_no_dead_ends
+    rule: Run 结束、讨论结束、审批结束 — 必有「下一步」按钮
+    implication: 串联 CTA 是 P0，不是 P2 锦上添花
+
+  - id: P6_slack_not_config
+    rule: 团队 = @ 人，不是配 YAML
+    implication: 角色触发词进「高级设置」；默认 @ 选择器 + 场景预设
+
+  - id: P7_factory_home_team_optional
+    rule: 80% 用户 80% 时间在工厂；团队是「需要商量时」才进去
+    implication: 团队对话能力可嵌入工厂 Context Panel，不必先导航到 /teams
+
+  - id: P8_trust_before_launch
+    rule: 点「启动」前 5 秒内用户看见：预计时长、阶段数、可能影响的路径、预估成本
+    implication: LaunchPreviewBar；比加 workflow 更能提高 run_completion
+
+  - id: P9_approval_not_fatigue
+    rule: 信任质量门后，默认「只在最终交付批一次」
+    implication: 设置项 approval_policy；首次用户可强制全批建立心智
+
+  - id: P10_failure_recoverable
+    rule: 失败必须比成功路径设计得更细：阶段重试、终端、跳过门（高级）
+    implication: 门控失败 / CLI 未配 / Run failed 各有固定 CTA，禁止只给日志
+
+  - id: P11_async_owner
+    rule: 用户不必盯着 Run；待批准必须 push 到 App 外（通知/badge/待办条）
+    implication: Alpha-UX-2 必须含 AF-UX-08，不能只做 Context Panel
+
+product_stage:
+  current: pre_launch
+  users: 0
+  next_milestone: GATE-2  # 10 人朋友测，见 docs/sprints/GATE-2-friend-test.yaml
+  not_yet:
+    - w2_retention 优化
+    - 异步通知 / Dock badge（AF-UX-08）
+    - 个性化「第 3 次 Run」（AF-UX-12）
+    - 团队 @ / 讨论（AF-UX-04/06）— 除非创始人自己要用
+
+pre_launch_priority:
+  must_ship:
+    - AF-UX-02   # 一个输入框，能演示
+    - AF-12      # 看板让人看见「团队在干活」
+    - AF-04      # Golden Path 已有 — 保持可跑
+    - AF-UX-03   # Run 结束有下一步（演示连贯）
+  ship_if_time:
+    - AF-UX-01   # 首启向导 — 朋友测时再加也来得及
+    - AF-16      # greenfield — 第二条演示路径
+    - AF-UX-09   # 失败重试 — 创始人 dogfood 时会碰到
+  defer_until_gate2:
+    - AF-UX-07   # 启动预览 — 有 10 人后再看「敢不敢点」
+    - AF-UX-08
+    - AF-UX-04a
+    - AF-UX-05
+    - AF-13
+  defer_until_beta:
+    - AF-UX-04b
+    - AF-UX-06
+    - AF-UX-10
+    - AF-UX-11
+    - AF-UX-12
+    - AF-14
+    - AF-15
+  defer_until_gate2_or_friend_blocker:
+    - AF-MM-01   # 双引擎设置 — 朋友无 Claude CLI 则提前
+    - AF-MM-02   # API 车道与 model 路由
+
+pre_launch_metrics:
+  - founder_golden_success: 创始人连续 3 次 Golden Path 成功
+  - demo_recordable: 5min 内录屏从打开 App → 看到 diff → 点批准
+  - friend_test_ready: GATE-2 脚本 + 安装包可发
+  - friend_test_3_of_10: 10 人中至少 3 人 24h 内完成 1 次 Run
+  - friend_cli_coverage: 10 人中至少几人已装 Claude CLI（决定 AF-MM 是否提前）
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 十、双引擎 — Claude Code + 多模型 API（AF-MM）
+# ═══════════════════════════════════════════════════════════════════════════
+# MASTER-PLAN 原「多模型 UI Phase1 不做」指模型超市；本段为「双车道产品化」，范围见 explicit_not_doing
+
+dual_engine_model:
+  positioning: |
+    不是「模型超市」，是「双引擎工厂」：
+    · 代码车道（Code Lane）— Claude Code CLI：读写仓库、Bash、质量门 — 默认且 Golden Path 必须
+    · 文本车道（Text Lane）— HTTP API：摘要、规划草稿、讨论、审查报告 — 可多 provider
+    用户心智：「改代码用 Claude；省钱的文字活走 API」— 不是选一个模型包打天下
+
+  current_state:
+    backend_done:
+      - AF-04b executor 双车道（claude_cli | api | auto）
+      - solo-dev「交付摘要」已 executor: api
+      - nexus_ai：OpenAI / DeepSeek / Qwen / Ollama / Zhipu 等
+      - AISettingsPage：ProviderGrid + 路由规则 + Claude CLI 路径
+    gap:
+      - 工厂 quick-run / 团队对话 / 群聊 仍 hard-require Claude CLI
+      - 用户感知「只支持 Claude Code」— 设置页与主路径脱节
+      - 无 CLI 时直接 error，无 Text Lane 降级
+      - yaml model 字段未统一路由到 AIModelManager
+
+  gate2_risk: |
+    10 个朋友里若多人无 Claude Code 订阅，GATE-2 会卡死。
+    AF-MM-01 最低交付：配好 API Key 后，至少「交付摘要 / 计划 / 审查」类 Run 可完成；
+    全栈改代码仍要求 Claude CLI（诚实告知，不假装 API 能改 repo）。
+
+execution_order_mm:
+  - AF-MM-01   # 双引擎设置 + 工厂可见（GATE-2 前若朋友无 CLI 则提前）
+  - AF-MM-02   # Workflow/Role model → provider 路由打通
+  - AF-MM-03   # 无 CLI 优雅降级（Text-only 模式）— GATE-2 后
+
+epics_mm:
+  - id: AF-MM-01
+    title: 双引擎设置产品化
+    user_story: 我在设置里配 OpenAI/DeepSeek/Ollama，工厂里能看见「代码走 Claude、摘要走 API」
+    estimated_hours: 24
+    phase: gate2_prep  # pre_launch 末或 GATE-2 并行
+    deliverables:
+      - 设置 ▸ AI：分区「代码引擎（Claude CLI）」「文本引擎（API Provider）」
+      - 默认文本 provider + 默认模型；API Key 检测状态 Chip
+      - 工厂 LaunchPreviewBar（AF-UX-07 可合并）显示：代码车道 Claude · 文本车道 DeepSeek 等
+      - 未配 CLI → 明确 Banner「可跑文本类任务；改代码需配置 Claude CLI」
+    success_metric: api_provider_configured 可演示；friend_without_cli 能完成「仅 API stage」的 Run
+    explicit_not:
+      - 首屏模型选择器
+      - 每个 stage 手动选 provider
+
+  - id: AF-MM-02
+    title: model 字段 → Provider 路由
+    user_story: workflow/角色上的 model 真正走到对应 API，不只 Claude CLI --model
+    estimated_hours: 32
+    depends_on: [AF-MM-01]
+    deliverables:
+      - yaml agent.model + executor:api → AIModelManager.complete(provider)
+      - RoleEditor model 下拉：Claude 系列 + 已配置 API 模型
+      - execution detail 展示 executor + provider + cost（延续 AF-04b 埋点）
+      - 扩展 Text Lane stages：writing-plans 全文、review-cycle 报告（executor:api）
+    gate: cargo test executor_routing; solo-dev 摘要 stage provider 可配置
+
+  - id: AF-MM-03
+    title: 无 CLI 优雅降级（Text-only 工厂）
+    user_story: 没有 Claude Code 的朋友仍能体验「计划 → 摘要 → 审查报告」闭环
+    estimated_hours: 40
+    depends_on: [AF-MM-02, AF-UX-03]
+    phase: post_gate2
+    deliverables:
+      - factoryRun 检测 cliReady → 路由到 text-only workflow 变体 or 跳过 code stages
+      - text-only 产线 UI（3 段：计划/审查/摘要）— 不对用户说 workflow 名
+      - 诚实 CTA：「要自动改代码，请配置 Claude CLI 或 Cursor + 手动合入」
+    explicit_not:
+      - API 模拟 Claude Code 工具链（Edit/Bash）— 不做假全能
+      - OpenAI function calling 完整替代 CLI（Phase 3+ 再评估）
+
+  - id: AF-MM-04
+    title: 成本路由（可选 Beta）
+    user_story: 同一任务自动选「够用的便宜模型」
+    estimated_hours: 24
+    phase: beta
+    depends_on: [AF-MM-02]
+    deliverables:
+      - 文本车道：摘要→Haiku/mini，规划→Sonnet 级 — 规则表非 LLM
+      - 设置：「成本优先 / 质量优先」
+    note: 0 用户阶段不做
+
+dual_engine_principles:
+  - id: MM1_code_lane_default
+    rule: 改代码、质量门、Golden Path 默认 Claude CLI，不妥协
+  - id: MM2_text_lane_multi
+    rule: 无工具纯文本 stage 必须可走 API 多 provider
+  - id: MM3_honest_capability
+    rule: UI 必须标明「API 不能自动改仓库」，禁止误导
+  - id: MM4_settings_not_factory
+    rule: 工厂首屏不变成选模型；引擎在设置里配，工厂只显示当前双车道状态
+
+wedge_promise: |
+  唯一对外承诺：15 分钟内，要么可跑的新项目骨架，要么可 merge 的 diff；
+  否则明确卡在哪、提供一键从失败阶段重试。
+  四人组、讨论、资产库 — 承诺成立后的加分项，不进楔子。
+
+north_star: |
+  打开 App → 30 秒理解「输入想法，AI 团队帮你做出来」→
+  24h 内完成第一次 Run（建厂 or 改代码 or 修 bug）→
+  15min 内看到可运行结果 or diff → 点一次批准 → 完成
+  （楔子见 wedge_promise）
+
+positioning: |
+  本地 AI 开发部。Cursor 写代码，TeamFlow 跑团队。
+  引导模式（3 选 1）+ 工作室模式（全控）并存；UI 默认精炼。
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 二、信息架构（用户看到的 vs 工程师内部的）
+# ═══════════════════════════════════════════════════════════════════════════
+
+user_facing_ia:
+  factory_home:
+    hero: 一句话输入（占屏 40%）
+    sub: 根据上下文推荐的 1 条产线预览（RunPipelineBoard 待命态）
+    actions: [启动, 试用演示]
+    secondary: 更多方式 ▸（修 bug / 大功能 / 写计划 / 审查 — 折叠）
+  context_panel:
+    during_run: [产线进度, 任务时间线, 待审批, 产物预览, 终端]
+    after_run: [交付摘要, 下一步 CTA, 在 Cursor 中打开]
+  launch_preview_bar:
+    below_input: [预计时长, 阶段数, 可能影响路径, 预估 CLI 成本, 高级 override]
+  factory_todo_strip:
+    when_away: [待批准 N 项, 失败 Run 可重试 — 比 Approvals Tab 更显眼]
+  teams:
+    entry: 工厂内「和团队商量」链接 / Context 内嵌轻量 @ 面板
+    detail: 成员 | 团队聊天（合并后）| Pipeline | 设置
+    removed_from_default: 独立的「对话 vs 讨论」双 Tab 心智负担
+
+internal_workflow_tiers:
+  tier_1: [greenfield-mvp, solo-dev, quick-fix, dev-workflow]
+  tier_2: [writing-plans, review-cycle, investigate]
+  tier_3: [ui-ux-design, page-generate, brainstorm, issue-*]
+  note: Tier 不对用户暴露；仅影响路由与运营优先级
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 三、核心用户旅程（按频率排序）
+# ═══════════════════════════════════════════════════════════════════════════
+
+journeys:
+  - id: J1_first_open
+    frequency: 100% 新用户
+    goal: 24h 内第一次 Run
+    ux_flow: |
+      首次打开 → 仅 2 选 1：
+        A) 「我有个想法，从零开始」→ 新建项目向导（AF-UX-01）
+        B) 「我已有代码，打开文件夹」→ 工作区选择 → 默认 solo-dev 试用
+      禁止：首屏 6 张卡片 + 要求理解 workflow 名
+
+  - id: J2_greenfield
+    frequency: 高（独立开发者拉新）
+    ux_flow: |
+      向导 3 步：项目名 + 存放位置 → 一句话描述 → 技术栈(默认 Auto)
+      → 自动 mkdir + 绑定 → 启动 greenfield-mvp
+      → 看板 7 段可见 → 审批 → 摘要含 npm run dev
+      → CTA「加第一个功能」
+
+  - id: J3_daily_feature
+    frequency: 最高
+    ux_flow: |
+      打开已有 workspace → 输入框 placeholder「Describe what to build…」
+      → 系统路由 solo-dev → 看板 6 段 → 审批 → diff
+
+  - id: J4_hotfix
+    frequency: 高
+    ux_flow: |
+      粘贴报错 / 说「修 bug」→ 路由 quick-fix
+      → 或 Context Panel「当前失败 Run → 一键重试修复」
+
+  - id: J5_team_sync
+    frequency: 中（大决策前）
+    ux_flow: |
+      工厂输入框旁「@团队」→ 轻量面板选角色 or 发起 5min 讨论
+      → 结论一键「按此执行」注入输入框 → 启动 Run
+      不必：先去团队页 → 切 Tab → 建会话 → 再回工厂
+
+  - id: J6_power_user
+    frequency: 低
+    ux_flow: |
+      工作室模式 → 展开全部产线 / 自定义 workflow / 角色高级配置
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 四、UX 重构 Epic（按用户价值重排，取代纯工程 Sprint 顺序）
+# ═══════════════════════════════════════════════════════════════════════════
+
+execution_order_v3:
+  # ── Alpha-UX-1：能开跑 ──
+  - AF-UX-01
+  - AF-UX-02
+  - AF-12
+  - AF-16
+  # ── Alpha-UX-2：敢跑、不盯着、挂了能救 ──
+  - AF-UX-03
+  - AF-UX-07   # 启动前预览（信任）
+  - AF-UX-08   # 审批策略 + 异步通知
+  - AF-UX-09   # 失败恢复 + 阶段重试
+  - AF-13
+  - AF-UX-05
+  # ── Alpha-UX-3：团队（Beta 前可选）──
+  - AF-UX-04a  # @ + 角色名（小步）
+  - AF-UX-06
+  - AF-14      # 折叠「更多」
+  # ── Beta：叙事 + 共生 + 收口 ──
+  - AF-UX-04b  # 合并对话/讨论 Tab
+  - AF-UX-10   # 任务时间线
+  - AF-UX-11   # Cmd+K 厂长控制台
+  - AF-UX-12   # Cursor 共生 + 轻量个性化
+  - AF-15
+
+legacy_order_v2: docs/sprints/_archive/AF-P5-v2-order.yaml  # 仅供参考，以 v3 为准
+
+epics:
+  - id: AF-UX-01
+    title: 首启 & 新建项目向导
+    user_story: 作为新用户，我不需要懂 workflow，30 秒内开始第一个 Run
+    estimated_hours: 32
+    replaces_partial: [AF-16a]
+    deliverables:
+      - FirstRunModal：已有代码 vs 从零开始（仅首次或空状态）
+      - NewProjectWizard：名称 + 路径 + 一句话 + 栈(Auto) → mkdir + bind + greenfield
+      - 空 workspace 时工厂 Hero 变为向导 CTA，隐藏产线卡片墙
+      - Golden Path #2 走完整向导
+    success_metric: first_run_within_24h >= 60%
+
+  - id: AF-UX-02
+    title: 工厂意图优先主界面
+    user_story: 我只管打字，系统告诉我它将用什么方式帮我做
+    estimated_hours: 40
+    depends_on: [AF-12]
+    deliverables:
+      - 主输入框上方删除 6 卡默认展示；改为「推荐产线」1 条 + 可切换
+      - 输入时实时显示：将使用 · solo-dev · 预计 6 阶段 · 约 10–20min
+      - 引导模式仅 3 chip：新建 / 改代码 / 试用
+      - 工作室模式「更多方式」折叠 drawer
+      - selectedWorkflowName 由 suggestWorkflowName + 上下文驱动，非手点卡片
+    design_note: |
+      现有 FactoryConsoleTab quickCards 保留数据层，改 presentation 层
+      FACTORY_QUICK_LINES → FACTORY_INTENT_CHIPS（用户语言）
+
+  - id: AF-UX-03
+    title: 无死胡同 — Run 完成态 & 串联
+    user_story: Run 结束后我知道该点哪里继续
+    estimated_hours: 32
+    replaces: [AF-17 核心 UX 部分]
+    depends_on: [AF-16, AF-13]
+    deliverables:
+      - 完成 Banner：摘要 + 主 CTA + 次 CTA（各 1 个，不多）
+      - greenfield 完成 → 「加第一个功能」
+      - plans 完成 → 「开始执行计划」
+      - 讨论 conclusion → 「按结论启动」（AF-UX-04 后）
+      - 失败 Run → 「重试此阶段 / 切换 quick-fix」
+    success_metric: run_completion >= 70%
+
+  - id: AF-UX-04a
+    title: 团队 @ 派活 + 消息显名（Phase 1）
+    user_story: 对话里 @ 谁是谁回复；消息带角色名/色
+    estimated_hours: 32
+    replaces_partial: [AF-18, AF-20 消息层]
+    deliverables:
+      - ChatInput @ 选择器 + ExecuteTeamTaskRequest.role_ids
+      - RoleEditor trigger_keywords 在「高级 ▸」
+      - MessageBubble role_name + 角色色
+      - 多角色并行进度条
+    note: 不合并 Tab；先解决 80% 派活场景
+
+  - id: AF-UX-04b
+    title: 团队聊天合并（Phase 2）
+    user_story: 派活 | 讨论 单页；讨论一步 Setup
+    estimated_hours: 32
+    depends_on: [AF-UX-04a]
+    replaces_partial: [AF-19, AF-21]
+    deliverables:
+      - TeamChat SegmentedControl：[派活 | 讨论]
+      - DiscussionSetupSheet + 场景预设
+      - 辩论/主持 → 讨论模式「高级」折叠
+      - 结论 → 「按此启动 Run」
+    phase: Beta
+
+  - id: AF-UX-07
+    title: 启动前预览 — 信任与成本
+    user_story: 我点启动前知道多久、改哪、大概花多少钱
+    estimated_hours: 24
+    depends_on: [AF-UX-02]
+    deliverables:
+      - LaunchPreviewBar：时长 · 阶段数 · 可能影响路径 · 预估 CLI 成本
+      - 数据：规则估算 + 历史同类 Run 中位数（无历史则静态默认）
+      - 高级：换团队 / 限定 target 目录
+    success_metric: launch_preview_view_rate >= 90%  # 启动前可见
+
+  - id: AF-UX-08
+    title: 审批策略 + 异步厂长
+    user_story: 不必一直盯着；少批几次；离开 App 也能收到「待批准」
+    estimated_hours: 32
+    deliverables:
+      - settings approval_policy：trust_gates_final_only | approve_all（首次默认后者）
+      - Golden / solo 日常：自动过编译+测试门，仅最终交付批
+      - Tauri 系统通知 + Dock/menu badge「N 项待批准」
+      - 工厂首页 FactoryTodoStrip（待批准 + 失败可重试）
+    success_metric: w2_retention 提升；approval_steps_per_run 下降
+
+  - id: AF-UX-09
+    title: 失败可恢复
+    user_story: 卡门 / CLI 挂了 / Run failed — 我知道怎么办
+    estimated_hours: 32
+    deliverables:
+      - 质量门失败 → [AI 再修一轮] [打开终端] [跳过此门·高级]
+      - CLI 未配置 → 内嵌 3 步（检测→路径→再试），非纯 error 文案
+      - Run failed → checkpoint 从失败 stage 重试（非整 Run 重来）
+      - 对齐 MASTER-PLAN terminal_fallback <= 20%
+    success_metric: failed_run_recovery_rate >= 40%
+
+  - id: AF-UX-10
+    title: 本任务时间线
+    user_story: 一个任务一条故事线，不在 Tab 间跳
+    estimated_hours: 24
+    depends_on: [AF-UX-03]
+    phase: Beta
+    deliverables:
+      - Context Panel TaskTimeline：用户输入 / 阶段 / @团队意见 / 审批 / diff
+      - 聚合 factory run + team message + approval 事件
+
+  - id: AF-UX-11
+    title: Cmd+K 厂长控制台
+    user_story: 启动/批准/@/切 workspace 一个入口；主输入框只写任务
+    estimated_hours: 24
+    phase: Beta
+    deliverables:
+      - CommandPalette 扩展：批准待办、重放上轮 Run、@角色、切 workspace
+      - 与 FactoryConsole 输入框职责分离 documented in ui_specs
+
+  - id: AF-UX-12
+    title: Cursor 共生 + 轻量个性化
+    user_story: 和 Cursor 一起用，不是换编辑器；越用越省事
+    estimated_hours: 24
+    phase: Beta
+    deliverables:
+      - 产物 Tab「在 Cursor 中打开」+ 复制「给 Cursor 的上下文」
+      - Run 前可选「自己在 Cursor 改 / 交给工厂」
+      - 规则个性化：第 3 次 Run 后跳过向导；记住常用栈；「像上次一样」
+    explicit_not: 内置完整编辑器
+
+  - id: AF-UX-05
+    title: 上下文智能路由
+    user_story: 我粘贴报错它知道是修 bug；空文件夹它知道是新建
+    estimated_hours: 24
+    deliverables:
+      - suggestWorkflowName 增强 + workspace 信号（file count, package.json, git）
+      - 粘贴多行 stack trace → auto quick-fix + 提示「已识别为错误修复」
+      - 输入含「新 app / 从零」且 workspace 空 → auto greenfield + 触发向导
+      - 输入超 200 字 + 「模块/系统」→ 建议 dev-workflow（可一键切换）
+    note: 规则路由，非 LLM；可预测、可测试
+
+  - id: AF-UX-06
+    title: 工厂内嵌 @团队
+    user_story: 我不离开工厂就能问架构师一句
+    estimated_hours: 24
+    depends_on: [AF-UX-04]
+    deliverables:
+      - FactoryConsole 输入框 @ 唤起团队角色 mini-picker
+      - 单角色 quick ask → 回复插入 Context Panel「团队意见」
+      - 多角色 → 跳转 TeamChat 讨论模式（带 prefill topic）
+
+  # ── 保留的工程 Sprint（UX Epic 内调用，顺序后移）──
+
+  - id: AF-12
+    title: 动态产线看板（信任基础设施）
+    estimated_hours: 24
+    deliverables:
+      - workflowPipelines.ts 全注册表
+      - RunPipelineBoard 随 workflow / 输入预览切换
+      - inferCurrentStageName 优先 stage_results
+
+  - id: AF-16
+    title: greenfield-mvp 产线 yaml
+    estimated_hours: 40
+    depends_on: [AF-UX-01, AF-12]
+    deliverables:
+      - config/workflows/greenfield-mvp.yaml（7 阶段满配）
+      - stack presets: react-vite, next, go-api, tauri
+
+  - id: AF-13
+    title: quick-fix 满配
+    estimated_hours: 32
+    depends_on: [AF-12]
+
+  - id: AF-14
+    title: dev-workflow 满配（高级入口）
+    estimated_hours: 32
+    depends_on: [AF-12]
+    ux_note: 默认折叠在「更多 → 大功能 · 四人协作」
+
+  - id: AF-15
+    title: 内部 Tier 收口
+    estimated_hours: 16
+    depends_on: [AF-UX-02, AF-13, AF-14, AF-16]
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 五、界面规格摘要（给设计 & 开发）
+# ═══════════════════════════════════════════════════════════════════════════
+
+ui_specs:
+  launch_preview_bar:
+    layout: |
+      ⏱ 约 10–20 分钟 · 6 阶段 · 可能影响 src/ package.json
+      💰 预估 CLI ~$0.3（基于历史）    [ 高级 ▸ ]
+
+  factory_console_guided:
+    layout: |
+      ┌─────────────────────────────────────────┐
+      │  ⚠ 1 项待批准 · 2 项可重试  ← TodoStrip │
+      │  今天想做什么？                           │
+      │  ┌─────────────────────────────────────┐ │
+      │  │ 描述你的想法…                        │ │
+      │  └─────────────────────────────────────┘ │
+      │  ⏱ ~15min · 6阶段 · src/  💰 ~$0.3      │
+      │  [新建项目] [改代码] [试用演示]            │
+      │  ▓▓▓░░░ 产线预览                         │
+      │                          [启动 ▸]        │
+      └─────────────────────────────────────────┘
+
+  factory_console_studio:
+    adds: 团队 @ | 附件 | 团队/项目 override | 更多产线 drawer
+
+  team_chat_unified:
+    layout: |
+      [ 派活 | 讨论 ]     参与者 chips…
+      ─────────────────────────────────
+      消息流（角色色 + 名）
+      ─────────────────────────────────
+      @ 角色 …                    [发送]
+
+  run_complete_banner:
+    layout: |
+      ✅ 交付完成 · 改了 12 个文件
+      [ 查看 diff ]  [ 加第一个功能 ▸ ]  [ 关闭 ]
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 六、分阶段发布（用户感知，非 Sprint 编号）
+# ═══════════════════════════════════════════════════════════════════════════
+
+release_phases:
+  - phase: Alpha-UX-1
+    name: 能开跑
+    ships: [AF-UX-01, AF-UX-02, AF-12, AF-16]
+    exit_criteria:
+      - 新用户 30s 内启动 Run
+      - 首屏 ≤3 intent chip
+    user_gets: 向导 + 意图输入框 + 建厂/改代码 + 看板
+
+  - phase: Alpha-UX-2
+    name: 敢跑、不盯着、挂了能救
+    ships: [AF-UX-03, AF-UX-07, AF-UX-08, AF-UX-09, AF-13, AF-UX-05]
+    exit_criteria:
+      - 启动前预览可见率 >= 90%
+      - Run 完成 next_step_click >= 50%
+      - failed_run_recovery 有明确 CTA
+    user_gets: 预览 + 少审批 + 通知 + 失败重试 + 修 bug 路由
+
+  - phase: Alpha-UX-3
+    name: 团队可选
+    ships: [AF-UX-04a, AF-UX-06, AF-14]
+    exit_criteria:
+      - J1–J4 不依赖团队仍可完成
+    user_gets: @ 派活 + 工厂内嵌 @；四人组在「更多」
+
+  - phase: Beta
+    name: 叙事与共生
+    ships: [AF-UX-04b, AF-UX-10, AF-UX-11, AF-UX-12, AF-15]
+    user_gets: 合并聊天、时间线、Cmd+K、Cursor 共生、界面收口
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 七、指标（UX 导向）
+# ═══════════════════════════════════════════════════════════════════════════
+
+metrics:
+  activation:
+    - first_run_within_24h >= 60%
+    - wizard_completion >= 75%
+  trust_v3:
+    - launch_preview_view_rate >= 90%
+    - run_start_after_preview >= 70%   # 看完预览仍启动
+  engagement:
+    - intent_box_starts >= 80%
+    - next_step_click >= 50%
+    - approval_steps_per_run <= 1.5    # 审批减负后
+  outcome:
+    - time_to_first_value <= 15min
+    - golden_path_success >= 80%
+    - run_completion >= 70%
+    - failed_run_recovery_rate >= 40%
+  async_v3:
+    - approval_via_notification >= 25% # 通过通知回到 App 批准
+  team_optional:
+    - factory_only_users_ok
+    - discuss_to_run >= 30%
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 八、明确不做 & 风险
+# ═══════════════════════════════════════════════════════════════════════════
+
+explicit_not_doing:
+  - 首屏 6+ 产线卡片墙
+  - 要求用户理解 workflow / yaml / tier
+  - 对话+讨论双 Tab 长期并存（04b 前保持两 Tab + flag）
+  - LLM 黑盒路由
+  - 替代 Cursor / 画布 / 模板市场
+  - dev-workflow / investigate / review 上首屏
+  - brainstorm 串联进工厂主路径（Tier 3）
+  - 讨论高级策略（辩论/主持）默认暴露
+  - AF-UX-04b 与 04a 同 Sprint 合并交付
+
+deferred_not_cut:
+  - dev-workflow → 「更多」+ AF-14
+  - investigate/review → Cmd+K 或粘贴报错路由
+  - TeamChat 合并 → 04b Beta，04a 先 @
+
+top_ux_risks:
+  - id: R-UX-1
+    risk: 意图路由猜错 → 用户不信
+    mitigation: 显示「将使用 xxx」+ 一键切换；永远可 override
+  - id: R-UX-2
+    risk: 向导步骤多 → 流失
+    mitigation: 3 步封顶；栈默认 Auto；路径可记忆
+  - id: R-UX-3
+    risk: 合并 TeamChat  regression
+    mitigation: 派活/讨论底层 API 不动，只改 UI 壳 + feature flag
+
+resource_priority_v3:
+  ship_first: [AF-UX-01, AF-UX-02, AF-12, AF-16]
+  ship_second: [AF-UX-03, AF-UX-07, AF-UX-08, AF-UX-09, AF-13, AF-UX-05]
+  ship_third: [AF-UX-04a, AF-UX-06, AF-14]
+  ship_beta: [AF-UX-04b, AF-UX-10, AF-UX-11, AF-UX-12, AF-15]
+  one_liner: 开跑 → 敢跑不盯着能救 → 团队可选 → Beta 叙事共生
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 九、防跑偏治理
+# ═══════════════════════════════════════════════════════════════════════════
+
+governance:
+  implementation: docs/sprints/AF-P5-GOVERNANCE.md  # §B 实现
+  plan_iteration: docs/sprints/AF-P5-GOVERNANCE.md  # §A 规划
+  decisions_log: docs/sprints/AF-P5-DECISIONS.md
+  pr_checklist: docs/sprints/PR-CHECKLIST-AF-P5.md
+  journey_e2e: nx_dashboard/e2e/journey-af-p5.spec.ts
+  meta_gate: ./scripts/gate-check.sh AF-P5
+
+  wip_limit: 1
+
+  feature_flags:
+    p5_first_run_wizard: AF-UX-01
+    p5_intent_console: AF-UX-02
+    p5_run_next_step: AF-UX-03
+    p5_launch_preview: AF-UX-07
+    p5_approval_policy: AF-UX-08
+    p5_failure_recovery: AF-UX-09
+    p5_team_chat_at: AF-UX-04a
+    p5_team_chat_unified: AF-UX-04b
+
+  plan_change_protocol:
+    - 提案写入 AF-P5-DECISIONS.md「待决提案」
+    - @qinyu 批准
+    - 改 yaml version + 决策条目
+    - 再动实现
+
+  deviation_red_flags:
+    - 首屏 6+ 产线卡片
+    - 用户必选 workflow 名
+    - Run 结束无 CTA
+    - v3 后启动无 LaunchPreviewBar
+    - 失败仅日志无重试 CTA
+    - 未 DECISIONS 批准改 Epic 顺序
+    - AI 另起规划不合并 yaml

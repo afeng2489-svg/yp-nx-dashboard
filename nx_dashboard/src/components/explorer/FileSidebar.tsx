@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProjectRunner } from './ProjectRunner';
+import { useIsStudioLayout } from '@/components/layout/ShellThemeContext';
 
 // 文件变更类型 - 使用 workspaceStore 中的类型
 // type DiffType = 'added' | 'modified' | 'deleted';
@@ -78,8 +79,9 @@ function RealFileNode({
     <button
       onClick={handleClick}
       className={cn(
-        'w-full flex items-center gap-1.5 px-2 py-1 hover:bg-accent rounded text-sm transition-colors',
-        selectedPath === file.path && 'bg-accent',
+        'w-full flex items-center gap-1.5 px-2 py-1 rounded text-sm transition-colors',
+        'hover:bg-accent text-foreground/80',
+        selectedPath === file.path && 'bg-accent text-foreground',
       )}
       style={{ paddingLeft: `${depth * 16 + 8}px` }}
     >
@@ -257,6 +259,7 @@ function SessionGroup() {
 
 // 主文件侧边栏组件
 export function FileSidebar() {
+  const isStudioLayout = useIsStudioLayout();
   const [activeTab, setActiveTab] = useState<'files' | 'diffs' | 'sessions' | 'runner'>('files');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -323,10 +326,21 @@ export function FileSidebar() {
     ? files.filter((f) => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : files;
 
+  const sidebarTabs = [
+    { id: 'files' as const, label: '文件', icon: Folder },
+    { id: 'diffs' as const, label: '变更', icon: GitBranch },
+    { id: 'sessions' as const, label: '会话', icon: Tag },
+    { id: 'runner' as const, label: '运行', icon: Play },
+  ];
+
+  const shellClass = isStudioLayout
+    ? 'h-full flex flex-col bg-background overflow-hidden'
+    : 'h-full flex flex-col bg-card border rounded-lg overflow-hidden';
+
   // 无工作区状态
   if (!currentWorkspace) {
     return (
-      <div className="h-full flex flex-col bg-card border rounded-lg overflow-hidden">
+      <div className={shellClass}>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center p-4">
             <FolderOpen className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
@@ -340,7 +354,7 @@ export function FileSidebar() {
   // 无根目录配置状态
   if (!currentWorkspace.root_path) {
     return (
-      <div className="h-full flex flex-col bg-card border rounded-lg overflow-hidden">
+      <div className={shellClass}>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center p-4">
             <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-3" />
@@ -353,34 +367,29 @@ export function FileSidebar() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-card border rounded-lg overflow-hidden">
+    <div className={shellClass}>
       {/* 标签切换 */}
-      <div className="flex border-b">
-        {[
-          { id: 'files' as const, label: '文件', icon: Folder },
-          { id: 'diffs' as const, label: '变更', icon: GitBranch },
-          { id: 'sessions' as const, label: '会话', icon: Tag },
-          { id: 'runner' as const, label: '运行', icon: Play },
-        ].map(({ id, label, icon: Icon }) => (
+      <div className={cn('flex border-b', isStudioLayout ? 'border-border' : '')}>
+        {sidebarTabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
             className={cn(
-              'flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors',
+              'flex-1 flex items-center justify-center gap-1 px-2 py-2 text-xs font-medium transition-colors min-w-0',
               activeTab === id
                 ? 'border-b-2 border-primary text-primary'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            <Icon className="w-4 h-4" />
-            {label}
+            <Icon className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{label}</span>
           </button>
         ))}
       </div>
 
       {/* 搜索框 */}
       {(activeTab === 'files' || activeTab === 'diffs') && (
-        <div className="px-3 py-2 border-b">
+        <div className={cn('px-3 py-2 border-b border-border')}>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
@@ -388,7 +397,9 @@ export function FileSidebar() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={activeTab === 'files' ? '搜索文件...' : '搜索变更...'}
-              className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border bg-background"
+              className={cn(
+                'w-full pl-8 pr-3 py-1.5 text-sm rounded-md border bg-muted border-border text-foreground placeholder:text-muted-foreground',
+              )}
             />
           </div>
         </div>

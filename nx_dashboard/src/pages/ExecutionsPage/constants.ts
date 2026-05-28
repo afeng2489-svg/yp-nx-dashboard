@@ -39,7 +39,25 @@ export const STATUS_CONFIG = {
   },
 } as const;
 
-// 工作流操作说明
+export const STATUS_ACCENT_BORDER = {
+  pending: 'border-l-slate-400',
+  running: 'border-l-blue-500',
+  paused: 'border-l-amber-500',
+  completed: 'border-l-emerald-500',
+  failed: 'border-l-red-500',
+  cancelled: 'border-l-slate-500',
+  interrupted: 'border-l-orange-500',
+} as const;
+
+export const STATUS_TEXT = {
+  pending: 'text-slate-400',
+  running: 'text-blue-400',
+  paused: 'text-amber-400',
+  completed: 'text-emerald-400',
+  failed: 'text-red-400',
+  cancelled: 'text-slate-400',
+  interrupted: 'text-orange-400',
+} as const;
 export const WORKFLOW_OPERATIONS = [
   { key: '1', action: '创建', desc: '点击"新建工作流"进入编辑器' },
   { key: '2', action: '编辑', desc: '从列表点击编辑图标，或在画布上拖拽节点' },

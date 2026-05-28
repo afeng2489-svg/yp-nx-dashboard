@@ -14,6 +14,14 @@ import {
 import { DollarSign, Coins, Activity, Zap, Route } from 'lucide-react';
 import { API_BASE_URL } from '@/api/constants';
 import { api, type RoutingRule } from '@/api/client';
+import {
+  chartGridStroke,
+  chartPrimaryFill,
+  chartTick,
+  chartTickSm,
+  chartTickXs,
+  chartTooltipStyle,
+} from '@/lib/chartTheme';
 
 interface CostSummary {
   total_tokens: number;
@@ -122,18 +130,11 @@ function ModelRoutingCostSection() {
       </div>
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={chartData} layout="vertical">
-          <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-          <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: number) => `$${v}`} />
-          <YAxis type="category" dataKey="model" tick={{ fontSize: 10 }} width={120} />
-          <Tooltip
-            contentStyle={{
-              background: 'hsl(var(--card))',
-              border: '1px solid hsl(var(--border))',
-              borderRadius: '8px',
-            }}
-            formatter={(v: number) => [`$${v}/MT`, '参考价格']}
-          />
-          <Bar dataKey="cost_per_mt" fill="#6366f1" radius={[0, 4, 4, 0]} name="参考价格 ($/MT)" />
+          <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} className="opacity-50" />
+          <XAxis type="number" tick={chartTickSm} tickFormatter={(v: number) => `$${v}`} />
+          <YAxis type="category" dataKey="model" tick={chartTickXs} width={120} />
+          <Tooltip contentStyle={chartTooltipStyle} formatter={(v: number) => [`$${v}/MT`, '参考价格']} />
+          <Bar dataKey="cost_per_mt" fill={chartPrimaryFill} radius={[0, 4, 4, 0]} name="参考价格 ($/MT)" />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -142,7 +143,7 @@ function ModelRoutingCostSection() {
 
 type Range = 7 | 30 | 90;
 
-export function CostPage() {
+export function CostPage({ embedded = false }: { embedded?: boolean }) {
   const [summary, setSummary] = useState<CostSummary>({
     total_tokens: 0,
     total_cost_usd: 0,
@@ -190,29 +191,22 @@ export function CostPage() {
   const fmtUsd = (n: number) => (n >= 1 ? `$${n.toFixed(2)}` : `$${(n * 100).toFixed(1)}¢`);
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">成本看板</h1>
-        <div className="flex gap-1 rounded-lg bg-muted p-1">
-          {[7, 30, 90].map((d) => (
-            <button
-              key={d}
-              onClick={() => setRange(d as Range)}
-              className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                range === d
-                  ? 'bg-background shadow-sm text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {d}天
-            </button>
-          ))}
+    <div className={embedded ? 'space-y-4' : 'p-6 space-y-6 max-w-7xl mx-auto'}>
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">成本看板</h1>
+          <RangePicker range={range} setRange={setRange} />
         </div>
-      </div>
+      )}
+      {embedded && (
+        <div className="flex items-center justify-end">
+          <RangePicker range={range} setRange={setRange} />
+        </div>
+      )}
 
       {/* 订阅用户提示 */}
       <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs">
-        <span className="text-amber-600 mt-0.5">ⓘ</span>
+        <span className="text-amber-600 dark:text-amber-400 mt-0.5">ⓘ</span>
         <div className="text-muted-foreground leading-relaxed">
           所有金额为 <b>理论 API 成本</b>（按 Claude Sonnet 4 标准定价：input $3/M · output $15/M
           估算）。 如果你使用的是 <b>Claude Code 订阅（$20/月）</b>，实际不按 token
@@ -262,31 +256,25 @@ export function CostPage() {
             ) : (
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={daily}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} className="opacity-50" />
                   <XAxis
                     dataKey="date"
-                    tick={{ fontSize: 12 }}
+                    tick={chartTick}
                     tickFormatter={(v: string) => v.slice(5)}
                   />
                   <YAxis
                     yAxisId="tokens"
                     orientation="left"
-                    tick={{ fontSize: 12 }}
+                    tick={chartTick}
                     tickFormatter={fmt}
                   />
                   <YAxis
                     yAxisId="cost"
                     orientation="right"
-                    tick={{ fontSize: 12 }}
+                    tick={chartTick}
                     tickFormatter={(v: number) => `$${v.toFixed(2)}`}
                   />
-                  <Tooltip
-                    contentStyle={{
-                      background: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                    }}
-                  />
+                  <Tooltip contentStyle={chartTooltipStyle} />
                   <Legend />
                   <Line
                     yAxisId="tokens"
@@ -319,27 +307,18 @@ export function CostPage() {
             ) : (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={workflows.slice(0, 10)}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartGridStroke} className="opacity-50" />
                   <XAxis
                     dataKey="workflow_id"
-                    tick={{ fontSize: 11 }}
+                    tick={chartTickSm}
                     tickFormatter={(v: string) => (v.length > 12 ? `${v.slice(0, 12)}…` : v)}
                   />
-                  <YAxis
-                    tick={{ fontSize: 12 }}
-                    tickFormatter={(v: number) => `$${v.toFixed(2)}`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                    }}
-                  />
+                  <YAxis tick={chartTick} tickFormatter={(v: number) => `$${v.toFixed(2)}`} />
+                  <Tooltip contentStyle={chartTooltipStyle} />
                   <Legend />
                   <Bar
                     dataKey="total_cost_usd"
-                    fill="#6366f1"
+                    fill={chartPrimaryFill}
                     radius={[4, 4, 0, 0]}
                     name="Cost (USD)"
                   />
@@ -380,6 +359,26 @@ export function CostPage() {
           <ModelRoutingCostSection />
         </>
       )}
+    </div>
+  );
+}
+
+function RangePicker({ range, setRange }: { range: Range; setRange: (r: Range) => void }) {
+  return (
+    <div className="flex gap-1 rounded-lg bg-muted p-1">
+      {([7, 30, 90] as const).map((d) => (
+        <button
+          key={d}
+          onClick={() => setRange(d)}
+          className={`px-3 py-1 text-sm rounded-md transition-colors ${
+            range === d
+              ? 'bg-background shadow-sm text-foreground'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          {d}天
+        </button>
+      ))}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { CommandPalette } from '@/components/command';
 import { useVersionCheck } from '@/lib/versionCheck';
 import { useExecutionStore } from '@/stores/executionStore';
 import { WorkflowPauseModal } from '@/components/execution/WorkflowPauseModal';
+import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 import { closeBrowserWebview } from '@/pages/BrowserPage';
 import { waitForBackend } from '@/api/backendReady';
 import { listen } from '@tauri-apps/api/event';
@@ -56,8 +57,8 @@ const TemplatesPage = lazy(() =>
 );
 const SkillsPage = lazy(() => import('@/pages/SkillsPage').then((m) => ({ default: m.default })));
 const TeamsPage = lazy(() => import('@/pages/TeamsPage').then((m) => ({ default: m.TeamsPage })));
-const TeamsPageV2 = lazy(() =>
-  import('@/pages/TeamsPageV2').then((m) => ({ default: m.TeamsPageV2 })),
+const TeamDetailPage = lazy(() =>
+  import('@/pages/TeamDetailPage').then((m) => ({ default: m.TeamDetailPage })),
 );
 const RolesPage = lazy(() => import('@/pages/RolesPage').then((m) => ({ default: m.RolesPage })));
 const ProjectsPage = lazy(() =>
@@ -218,14 +219,14 @@ function App() {
   const { updateAvailable, showUpdateDialog } = useVersionCheck();
 
   useEffect(() => {
-    if (updateAvailable) {
-      // Show update notification after a short delay to let app load first
-      const timer = setTimeout(() => {
-        showUpdateDialog();
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [updateAvailable, showUpdateDialog]);
+    if (!updateAvailable) return;
+    const timer = setTimeout(() => {
+      void showUpdateDialog();
+    }, 2000);
+    return () => clearTimeout(timer);
+    // showUpdateDialog 每轮 render 是新引用，勿放入 deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [updateAvailable]);
 
   if (startupError) {
     return (
@@ -425,6 +426,14 @@ function App() {
                   }
                 />
                 <Route
+                  path="/teams/:teamId"
+                  element={
+                    <PageWrapper>
+                      <TeamDetailPage />
+                    </PageWrapper>
+                  }
+                />
+                <Route
                   path="/teams-v2"
                   element={
                     <PageWrapper>
@@ -489,7 +498,14 @@ function App() {
                     </PageWrapper>
                   }
                 />
-                <Route path="/canvas" element={<LegacyRedirect />} />
+                <Route
+                  path="/canvas"
+                  element={
+                    <PageWrapper>
+                      <CanvasPage />
+                    </PageWrapper>
+                  }
+                />
                 <Route path="/preview/:sessionId" element={<PreviewPage />} />
                 <Route
                   path="/sprint-board"
@@ -524,6 +540,7 @@ function App() {
 
         {/* Command Palette — inside BrowserRouter for useNavigate */}
         <CommandPalette />
+        <OnboardingWizard />
       </BrowserRouter>
 
       {/* Toast notifications */}

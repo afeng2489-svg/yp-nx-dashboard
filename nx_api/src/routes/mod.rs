@@ -2,7 +2,7 @@
 
 use anyhow::Context;
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{delete, get, post, put},
     Json, Router,
 };
@@ -38,6 +38,8 @@ pub mod browser;
 pub mod components;
 pub mod execution_logs;
 pub mod executions;
+pub mod factory_attachments;
+pub mod factory_metrics;
 pub mod feature_flags;
 pub mod file_watch;
 pub mod group_chat;
@@ -372,6 +374,7 @@ fn load_ai_config_from_env() -> AIManagerConfig {
             ProviderType::Qwen,
             ProviderType::OpenCode,
             ProviderType::MiniMax,
+            ProviderType::ClaudeCli,
         ],
         default_escalate_model: None,
     }
@@ -582,6 +585,7 @@ impl AppState {
 
         // 创建 AI 模型管理器（从环境变量加载 API 密钥）
         let ai_model_manager = Arc::new(AIModelManager::from_config(load_ai_config_from_env()));
+        execution_service.set_ai_manager(ai_model_manager.clone());
 
         // 创建 AI Provider 仓库和服务
         let provider_repo = Arc::new(
@@ -1032,6 +1036,7 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
                         variables,
                         None,
                         current_workspace,
+                        None,
                     )
                     .await
                     .map_err(|e| e.to_string())
@@ -1126,8 +1131,16 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
             post(executions::delete_executions_batch),
         )
         .route(
+            "/api/v1/executions/:id/retry-stage",
+            post(executions::retry_stage_execution),
+        )
+        .route(
             "/api/v1/executions/:id/cancel",
             post(executions::cancel_execution),
+        )
+        .route(
+            "/api/v1/executions/:id/resolve",
+            post(executions::resolve_execution),
         )
         .route(
             "/api/v1/executions/start",
@@ -1465,6 +1478,10 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         // 团队路由
         .route("/api/v1/teams", get(teams::list_teams))
         .route("/api/v1/teams", post(teams::create_team))
+        .route(
+            "/api/v1/teams/from-template",
+            post(teams::create_team_from_template),
+        )
         .route("/api/v1/teams/:team_id", get(teams::get_team))
         .route("/api/v1/teams/:team_id", put(teams::update_team))
         .route("/api/v1/teams/:team_id", delete(teams::delete_team))
@@ -1478,11 +1495,11 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
             "/api/v1/teams/:team_id/messages",
             get(teams::get_team_messages),
         )
+        // 团队对话：CLI-first（claude -p + stream-json），PTY 仅保留给 pipeline/terminal
         .route(
             "/api/v1/teams/:team_id/execute",
-            post(teams::execute_team_task),
+            post(teams_v2::execute_team_task),
         )
-        // v2: CLI-first team execution
         .route(
             "/api/v2/teams/:team_id/execute",
             post(teams_v2::execute_team_task),
@@ -1816,6 +1833,8 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         .merge(model_routing::router())
         .merge(execution_logs::router())
         .merge(quick_run::router())
+        .merge(factory_metrics::router())
+        .merge(factory_attachments::router())
         .nest("/api/v1/browser", browser::router())
         .merge(preview::preview_routes())
         // 应用认证中间件到所有 API 和 WebSocket 路由
@@ -1890,14 +1909,22 @@ pub fn spawn_watchdog(state: Arc<AppState>) {
     });
 }
 
+/// 终端 WebSocket 查询参数
+#[derive(serde::Deserialize, Default)]
+struct TerminalWsQuery {
+    cwd: Option<String>,
+}
+
 /// 终端 WebSocket 处理函数
 async fn terminal_ws_handler(
     ws: axum::extract::ws::WebSocketUpgrade,
+    Query(query): Query<TerminalWsQuery>,
 ) -> impl axum::response::IntoResponse {
     let handler = TerminalWsHandler::new();
+    let cwd = query.cwd.filter(|p| !p.trim().is_empty());
 
     ws.on_upgrade(async move |socket| {
-        handler.handle(socket).await;
+        handler.handle(socket, cwd).await;
     })
 }
 

@@ -1,10 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PauseCircle, X, Activity, AlertCircle, Globe } from 'lucide-react';
+import { PauseCircle, X, Activity, AlertCircle, Globe, Network, Loader2, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Execution } from '@/stores/executionStore';
+import { useExecutionStore } from '@/stores/executionStore';
+import { useContextPanelStore } from '@/stores/contextPanelStore';
 import { ArtifactsPanel } from '@/components/execution/ArtifactsPanel';
+import { CanvasRunView } from '@/components/canvas/CanvasRunView';
 import { extractPreviewSessionId } from '@/lib/previewUtils';
+import { nextStepsForRun, type RunNextStepAction } from '@/data/runNextSteps';
+import { runFactoryQuickPrompt } from '@/services/factoryRun';
+import { showError, showSuccess } from '@/lib/toast';
+import { Button } from '@/components/ui/button';
 import { STATUS_CONFIG } from './constants';
 import { formatTime, formatDuration, useWorkflowName } from './utils';
 import { StageResultCard } from './StageResultCard';
@@ -19,10 +26,54 @@ export interface ExecutionDetailModalProps {
 
 export function ExecutionDetailModal({ execution, onClose, onCancel }: ExecutionDetailModalProps) {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'stages' | 'logs' | 'artifacts' | 'git'>('stages');
+  const fetchExecutions = useExecutionStore((s) => s.fetchExecutions);
+  const connectWebSocket = useExecutionStore((s) => s.connectWebSocket);
+  const selectContextExecution = useContextPanelStore((s) => s.selectExecution);
+  const [activeTab, setActiveTab] = useState<'stages' | 'logs' | 'artifacts' | 'git' | 'canvas'>(
+    'stages',
+  );
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
+  const [acting, setActing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const workflowName = useWorkflowName();
   const previewSessionId = extractPreviewSessionId(execution);
+  const wfName = workflowName(execution.workflow_id);
+  const failedSteps =
+    execution.status === 'failed' ? nextStepsForRun(execution, wfName) : null;
+
+  const runRetryAction = async (action: RunNextStepAction) => {
+    if (action.kind !== 'retry' && action.kind !== 'run') return;
+    setActing(true);
+    setActionError(null);
+    try {
+      const result = await runFactoryQuickPrompt({
+        prompt: action.prompt ?? '继续完成上次失败的任务',
+        workflowName: action.workflowName,
+        retryExecutionId: action.retryExecutionId,
+        retryFromStage: action.retryFromStage,
+        skipQualityGateForStage: action.skipQualityGateForStage,
+      });
+      if (result.ok) {
+        showSuccess('已重新启动 Run');
+        await fetchExecutions();
+        if (result.executionId) {
+          connectWebSocket(result.executionId);
+          selectContextExecution(result.executionId);
+        }
+        onClose();
+      } else {
+        const msg = result.error ?? '重试失败';
+        setActionError(msg);
+        showError(msg);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '重试失败';
+      setActionError(msg);
+      showError(msg);
+    } finally {
+      setActing(false);
+    }
+  };
 
   const config =
     STATUS_CONFIG[execution.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.pending;
@@ -41,15 +92,13 @@ export function ExecutionDetailModal({ execution, onClose, onCancel }: Execution
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-b from-black/50 to-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="bg-card rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col animate-scale-in border border-border/50 overflow-hidden">
         {/* 弹窗头部 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-gradient-to-r from-indigo-500/5 to-purple-500/5">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-muted/30">
           <div className="flex items-center gap-4">
-            <div
-              className={cn('p-2.5 rounded-xl bg-gradient-to-br ', config.gradient, 'shadow-lg')}
-            >
-              <Icon className="w-5 h-5 text-white" />
+            <div className={cn('p-2.5 rounded-xl bg-primary/10 text-primary')}>
+              <Icon className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-lg font-semibold">执行详情</h2>
@@ -60,7 +109,7 @@ export function ExecutionDetailModal({ execution, onClose, onCancel }: Execution
             {previewSessionId && (
               <button
                 onClick={() => navigate(`/preview/${previewSessionId}`)}
-                className="px-4 py-2 text-sm rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all flex items-center gap-2"
+                className="btn-primary px-4 py-2 text-sm flex items-center gap-2"
               >
                 <Globe className="w-4 h-4" />
                 打开预览
@@ -69,13 +118,13 @@ export function ExecutionDetailModal({ execution, onClose, onCancel }: Execution
             {execution.status === 'running' && (
               <button
                 onClick={() => onCancel(execution.id)}
-                className="px-4 py-2 text-sm rounded-xl bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all"
+                className="px-4 py-2 text-sm rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
               >
                 取消执行
               </button>
             )}
             {execution.status === 'paused' && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30">
                 <PauseCircle className="w-4 h-4 text-amber-500 animate-pulse" />
                 <span className="text-sm text-amber-600 font-medium">等待用户输入</span>
               </div>
@@ -87,7 +136,7 @@ export function ExecutionDetailModal({ execution, onClose, onCancel }: Execution
         </div>
 
         {/* 执行信息 */}
-        <div className="px-6 py-4 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 border-b border-border/50">
+        <div className="px-6 py-4 bg-muted/20 border-b border-border/50">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">工作流</p>
@@ -127,14 +176,14 @@ export function ExecutionDetailModal({ execution, onClose, onCancel }: Execution
 
         {/* Tab 切换 */}
         <div className="flex border-b border-border/50">
-          {(['stages', 'logs', 'artifacts', 'git'] as const).map((tab) => (
+          {(['stages', 'logs', 'artifacts', 'git', 'canvas'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
                 'flex-1 px-4 py-3 text-sm font-medium transition-all relative',
                 activeTab === tab
-                  ? 'text-indigo-600'
+                  ? 'text-primary'
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >
@@ -144,9 +193,11 @@ export function ExecutionDetailModal({ execution, onClose, onCancel }: Execution
                   ? '执行日志'
                   : tab === 'artifacts'
                     ? '产物变更'
-                    : 'Git'}
+                    : tab === 'git'
+                      ? 'Git'
+                      : 'Canvas'}
               {activeTab === tab && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
               )}
             </button>
           ))}
@@ -158,8 +209,8 @@ export function ExecutionDetailModal({ execution, onClose, onCancel }: Execution
             <div className="space-y-3">
               {!execution.stage_results || execution.stage_results.length === 0 ? (
                 <div className="text-center py-12">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 flex items-center justify-center">
-                    <Activity className="w-8 h-8 text-indigo-500" />
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted/60 flex items-center justify-center">
+                    <Activity className="w-8 h-8 text-muted-foreground" />
                   </div>
                   <p className="text-muted-foreground">暂无阶段数据</p>
                 </div>
@@ -178,21 +229,73 @@ export function ExecutionDetailModal({ execution, onClose, onCancel }: Execution
             <ExecutionLogs executionId={execution.id} />
           ) : activeTab === 'artifacts' ? (
             <ArtifactsPanel executionId={execution.id} />
+          ) : activeTab === 'canvas' ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Network className="w-4 h-4" />
+                只读产线 Canvas
+              </div>
+              <CanvasRunView executionId={execution.id} workflowId={execution.workflow_id} />
+            </div>
           ) : (
             <GitTab executionId={execution.id} executionStatus={execution.status} />
           )}
         </div>
 
         {/* 错误信息 */}
-        {execution.error && (
-          <div className="px-6 py-4 border-t border-border/50 bg-gradient-to-r from-red-500/5 to-rose-500/5">
-            <div className="flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
-              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-red-600">执行错误</p>
-                <p className="text-sm mt-1 text-red-600/80">{execution.error}</p>
+        {(execution.error || (execution.status === 'failed' && failedSteps)) && (
+          <div className="px-6 py-4 border-t border-border/50 bg-destructive/5 space-y-3">
+            {execution.error && (
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-red-600">执行错误</p>
+                  <p className="text-sm mt-1 text-red-600/80 break-words">{execution.error}</p>
+                </div>
               </div>
-            </div>
+            )}
+            {actionError && <p className="text-sm text-destructive px-1">{actionError}</p>}
+            {failedSteps && (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  className="gap-1.5"
+                  disabled={acting}
+                  onClick={() => void runRetryAction(failedSteps.primary)}
+                >
+                  {acting ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  )}
+                  {failedSteps.primary.label}
+                </Button>
+                {failedSteps.secondary?.kind === 'run' && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={acting}
+                    onClick={() => void runRetryAction(failedSteps.secondary!)}
+                  >
+                    {failedSteps.secondary.label}
+                  </Button>
+                )}
+                {failedSteps.tertiary?.kind === 'retry' && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={acting}
+                    onClick={() => void runRetryAction(failedSteps.tertiary!)}
+                  >
+                    {failedSteps.tertiary.label}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -13,6 +13,10 @@
       "identifier": "fs:allow-open",
       "allow": [{ "path": "**" }]
     },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [{ "path": "**" }]
+    },
     "core:webview:allow-create-webview",
     "core:webview:allow-set-webview-position",
     "core:webview:allow-set-webview-size",

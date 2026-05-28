@@ -1,5 +1,6 @@
 sprint_id: GATE-2
 status: planned
+note: "代码/模板就绪；10 人朋友测需手动填 docs/dogfood/gate-2-results.md"
 priority: P0
 depends_on: [AF-05, AF-04]
 

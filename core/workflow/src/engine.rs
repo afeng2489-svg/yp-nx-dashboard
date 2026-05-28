@@ -51,6 +51,8 @@ pub struct WorkflowEngine {
     rag_provider: Option<Arc<dyn crate::watcher::RagProvider>>,
     /// 模型路由回调（prompt → model name，stage.model 为 None 时调用）
     model_router_fn: Option<ModelRouterFn>,
+    /// API 车道执行器（AF-04b，由 nx_api 注入 AIModelManager）
+    api_executor: Option<Arc<dyn crate::executor::ApiExecutor>>,
 }
 
 impl WorkflowEngine {
@@ -63,6 +65,7 @@ impl WorkflowEngine {
             stage_watchers: crate::watcher::StageWatchers::new(),
             rag_provider: None,
             model_router_fn: None,
+            api_executor: None,
         }
     }
 
@@ -78,6 +81,7 @@ impl WorkflowEngine {
             stage_watchers: crate::watcher::StageWatchers::new(),
             rag_provider: None,
             model_router_fn: None,
+            api_executor: None,
         }
     }
 
@@ -94,6 +98,7 @@ impl WorkflowEngine {
             stage_watchers: crate::watcher::StageWatchers::new(),
             rag_provider: None,
             model_router_fn: None,
+            api_executor: None,
         }
     }
 
@@ -105,6 +110,11 @@ impl WorkflowEngine {
     /// 注入模型路由回调
     pub fn set_model_router_fn(&mut self, f: ModelRouterFn) {
         self.model_router_fn = Some(f);
+    }
+
+    /// 注入 API 车道执行器
+    pub fn set_api_executor(&mut self, executor: Arc<dyn crate::executor::ApiExecutor>) {
+        self.api_executor = Some(executor);
     }
 
     /// 注册 stage 观察者（用于产物追踪、token 监控等）
@@ -134,9 +144,27 @@ impl WorkflowEngine {
             state.write().set_var(key, value.clone());
         }
 
+        // AF-UX-09：从指定阶段重试（跳过已完成阶段）
+        let retry_from = state
+            .read()
+            .get_var("retry_from_stage")
+            .and_then(|v| v.as_str().map(String::from));
+        if let Some(ref from) = retry_from {
+            if let Some(idx) = workflow.stages.iter().position(|s| &s.name == from) {
+                for prior in workflow.stages.iter().take(idx) {
+                    state.write().record_stage(
+                        &prior.name,
+                        vec![],
+                        None,
+                    );
+                }
+            }
+        }
+
         // ── 新执行循环：支持条件跳转、user_input 暂停、loop ──
-        let mut current_stage_name: Option<String> =
-            workflow.stages.first().map(|s| s.name.clone());
+        let mut current_stage_name: Option<String> = retry_from.or_else(|| {
+            workflow.stages.first().map(|s| s.name.clone())
+        });
 
         while let Some(ref stage_name) = current_stage_name.clone() {
             if state.read().should_stop() {
@@ -168,41 +196,103 @@ impl WorkflowEngine {
             // 通知所有观察者：stage 开始（用于产物追踪等）
             self.stage_watchers.notify_before(&exec_id_str, &stage.name);
 
+            // approval stage：暂停 → resolve → approve 继续 / reject 重跑
+            if stage.stage_type == StageType::Approval {
+                let mut approval_stage = stage.clone();
+                if approval_stage.options.is_empty() {
+                    approval_stage.options = vec![
+                        crate::parser::UserInputOption {
+                            label: "批准".to_string(),
+                            value: "approved".to_string(),
+                            description: None,
+                        },
+                        crate::parser::UserInputOption {
+                            label: "驳回".to_string(),
+                            value: "rejected".to_string(),
+                            description: None,
+                        },
+                    ];
+                }
+                if approval_stage.question.is_none() {
+                    approval_stage.question =
+                        Some("请审批当前阶段产出，批准后继续，驳回将返回修改。".to_string());
+                }
+
+                let approval_policy = {
+                    let s = state.read();
+                    s.get_var("approval_policy")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("approve_all")
+                        .to_string()
+                };
+                let approval_stages: Vec<_> = workflow
+                    .stages
+                    .iter()
+                    .filter(|s| s.stage_type == StageType::Approval)
+                    .collect();
+                let is_final_approval = approval_stages
+                    .last()
+                    .map(|s| s.name == approval_stage.name)
+                    .unwrap_or(true);
+
+                let chosen_value = if approval_policy == "trust_gates_final_only"
+                    && !is_final_approval
+                {
+                    "approved".to_string()
+                } else {
+                    self.wait_for_pause_response(&state, &approval_stage, "approval")
+                        .await
+                };
+
+                let is_rejected = chosen_value.starts_with("rejected");
+                if let Some(ref output_var) = approval_stage.output_var {
+                    state.write().set_var(
+                        output_var,
+                        serde_json::Value::String(chosen_value.clone()),
+                    );
+                }
+
+                let outputs = vec![StageOutput {
+                    path: format!("approval://{}", approval_stage.name),
+                    content: Some(chosen_value.clone()),
+                    agent_id: None,
+                    summary: None,
+                    files_changed: vec![],
+                }];
+
+                {
+                    let mut s = state.write();
+                    s.record_stage(&approval_stage.name, outputs.clone(), None);
+                }
+                self.emit_stage_completed(&state, &approval_stage, &outputs, &None);
+                self.stage_watchers
+                    .notify_after(&exec_id_str, &approval_stage.name);
+
+                current_stage_name = if is_rejected {
+                    approval_stage
+                        .on_reject_goto
+                        .clone()
+                        .or_else(|| Self::next_after(&workflow.stages, &approval_stage.name))
+                } else {
+                    self.compute_next_stage(&approval_stage, &workflow.stages, &state)
+                };
+                continue;
+            }
+
             // 根据 stage 类型分发执行
             #[allow(deprecated)] // PageGenerate stage deprecated AF-00b; match kept for compat
             let outputs = match stage.stage_type {
                 StageType::UserInput => {
-                    let question = stage.question.clone().unwrap_or_default();
-                    let options = stage.options.clone();
                     let output_var = stage.output_var.clone().unwrap_or_default();
-
-                    self.event_emitter.emit(WorkflowEvent::WorkflowPaused {
-                        execution_id: state.read().execution_id,
-                        stage_name: stage.name.clone(),
-                        question: question.clone(),
-                        options: options
-                            .iter()
-                            .map(|o| (o.label.clone(), o.value.clone()))
-                            .collect(),
-                    });
-
-                    // 等待 resume_tx channel 收到用户选择
-                    let chosen_value = if let Some(ref resume_rx) = self.resume_rx {
-                        let mut rx = resume_rx.lock().await;
-                        rx.recv().await.unwrap_or_default()
-                    } else {
-                        // 单元测试时没有 channel，用第一个选项的 value 作为默认
-                        stage
-                            .options
-                            .first()
-                            .map(|o| o.value.clone())
-                            .unwrap_or_default()
-                    };
+                    let chosen_value = self
+                        .wait_for_pause_response(&state, &stage, "user_input")
+                        .await;
 
                     if !output_var.is_empty() {
-                        state
-                            .write()
-                            .set_var(&output_var, serde_json::Value::String(chosen_value.clone()));
+                        state.write().set_var(
+                            &output_var,
+                            serde_json::Value::String(chosen_value.clone()),
+                        );
                     }
 
                     vec![StageOutput {
@@ -213,6 +303,8 @@ impl WorkflowEngine {
                         files_changed: vec![],
                     }]
                 }
+
+                StageType::Approval => unreachable!("handled above"),
 
                 StageType::Loop => {
                     let mut loop_outputs = Vec::new();
@@ -464,6 +556,50 @@ impl WorkflowEngine {
             .map(|s| s.name.clone())
     }
 
+    /// user_input / approval：发 WorkflowPaused，等待 resume channel，发 WorkflowResumed
+    async fn wait_for_pause_response(
+        &self,
+        state: &SharedState,
+        stage: &crate::parser::StageDefinition,
+        pause_kind: &str,
+    ) -> String {
+        let question = stage
+            .question
+            .clone()
+            .unwrap_or_else(|| "请选择".to_string());
+        let options = stage.options.clone();
+
+        self.event_emitter.emit(WorkflowEvent::WorkflowPaused {
+            execution_id: state.read().execution_id,
+            stage_name: stage.name.clone(),
+            question: question.clone(),
+            options: options
+                .iter()
+                .map(|o| (o.label.clone(), o.value.clone()))
+                .collect(),
+            pause_kind: pause_kind.to_string(),
+        });
+
+        let chosen_value = if let Some(ref resume_rx) = self.resume_rx {
+            let mut rx = resume_rx.lock().await;
+            rx.recv().await.unwrap_or_default()
+        } else {
+            stage
+                .options
+                .first()
+                .map(|o| o.value.clone())
+                .unwrap_or_default()
+        };
+
+        self.event_emitter.emit(WorkflowEvent::WorkflowResumed {
+            execution_id: state.read().execution_id,
+            stage_name: stage.name.clone(),
+            chosen_value: chosen_value.clone(),
+        });
+
+        chosen_value
+    }
+
     /// 求值条件表达式
     /// 支持：  变量名 == '值'  |  变量名 != '值'  |  变量名 >= 数字  |  变量名 <= 数字
     fn evaluate_condition(
@@ -544,6 +680,30 @@ impl WorkflowEngine {
         let resolved_gate = self.resolve_quality_gate(gate);
         let mut current_outputs = initial_outputs;
         let mut retry_count = 0usize;
+
+        // AF-UX-09：用户选择跳过此质量门
+        {
+            let skip = state
+                .read()
+                .get_var("skip_quality_gate_for_stage")
+                .and_then(|v| v.as_str())
+                .map(|s| s == stage.name)
+                .unwrap_or(false);
+            if skip {
+                tracing::info!(
+                    "Stage '{}' 质量门已按用户请求跳过",
+                    stage.name
+                );
+                return Ok((
+                    current_outputs,
+                    Some(QualityGateResult {
+                        passed: true,
+                        checks: vec![],
+                        retry_count: 0,
+                    }),
+                ));
+            }
+        }
 
         loop {
             let gate_result = self
@@ -1024,12 +1184,14 @@ impl WorkflowEngine {
                 let agent_clone = agent.clone();
                 let engine = self.clone();
 
+                let stage_clone = stage.clone();
                 let rag_config = stage.rag.clone();
                 let model = stage.model.clone();
                 handles.push(tokio::spawn(async move {
                     engine
                         .execute_agent(
                             &state_clone,
+                            &stage_clone,
                             &agent_clone,
                             rag_config.as_ref(),
                             model.as_deref(),
@@ -1067,7 +1229,7 @@ impl WorkflowEngine {
                 }
 
                 match self
-                    .execute_agent(state, agent, stage.rag.as_ref(), stage.model.as_deref())
+                    .execute_agent(state, stage, agent, stage.rag.as_ref(), stage.model.as_deref())
                     .await
                 {
                     Ok(agent_outputs) => outputs.extend(agent_outputs),
@@ -1138,6 +1300,7 @@ impl WorkflowEngine {
     async fn execute_agent(
         &self,
         state: &SharedState,
+        stage: &crate::parser::StageDefinition,
         agent: &crate::parser::AgentDefinition,
         rag_config: Option<&crate::parser::RagConfig>,
         model_override: Option<&str>,
@@ -1230,12 +1393,74 @@ impl WorkflowEngine {
             None
         };
 
-        // 通过 Claude CLI 执行
-        let output = self.call_claude_cli(&full_prompt, effective_model).await;
+        // 通过 Claude CLI 或 API 执行
+        let executor_kind = crate::executor::resolve_executor(stage, agent);
+        tracing::info!(
+            "[Executor] stage='{}' agent='{}' → {}",
+            stage.name,
+            agent.id,
+            executor_kind.as_str()
+        );
 
-        match output {
-            Ok(cli_result) => {
-                let response = cli_result.text;
+        let run_result: Result<(String, u64, u64, String, String, f64), WorkflowError> =
+            if executor_kind == crate::executor::ExecutorKind::Api {
+                let api = self.api_executor.as_ref().ok_or_else(|| {
+                    WorkflowError::Execution(
+                        "executor=api 但未注入 API 执行器（检查 AI Provider 配置）".into(),
+                    )
+                })?;
+                let system_prompt = format!("你扮演 {}. 请仔细遵循指示。", agent.role);
+                let user_message = format!(
+                    "{}{}{}",
+                    resolved_prompt, rag_context, format_instruction
+                );
+                let model = effective_model.unwrap_or(agent.model.as_str());
+                let cost_mode = state
+                    .read()
+                    .get_var("text_lane_cost_mode")
+                    .and_then(|v| v.as_str().map(String::from));
+                match api
+                    .complete(crate::executor::ApiCompletionRequest {
+                        system_prompt,
+                        user_message,
+                        model: model.to_string(),
+                        max_tokens: agent.config.max_tokens,
+                        temperature: agent.config.temperature,
+                        stage_name: Some(stage.name.clone()),
+                        cost_mode,
+                    })
+                    .await
+                {
+                    Ok(r) => Ok((
+                        r.text,
+                        r.input_tokens,
+                        r.output_tokens,
+                        "api".into(),
+                        r.provider,
+                        r.estimated_cost_usd,
+                    )),
+                    Err(e) => Err(e.into()),
+                }
+            } else {
+                match self.call_claude_cli(&full_prompt, effective_model).await {
+                    Ok(cli) => {
+                        let cost = (cli.input_tokens as f64 * 3.0 / 1_000_000.0)
+                            + (cli.output_tokens as f64 * 15.0 / 1_000_000.0);
+                        Ok((
+                            cli.text,
+                            cli.input_tokens,
+                            cli.output_tokens,
+                            "claude_cli".into(),
+                            "anthropic".into(),
+                            cost,
+                        ))
+                    }
+                    Err(e) => Err(e),
+                }
+            };
+
+        match run_result {
+            Ok((response, input_tokens, output_tokens, executor, provider, estimated_cost_usd)) => {
                 agent_state.status = AgentStatus::Completed;
                 agent_state.last_message = Some(response.clone());
                 agent_state.updated_at = chrono::Utc::now();
@@ -1265,12 +1490,15 @@ impl WorkflowEngine {
                 state.write().update_agent(&agent.id, agent_state);
 
                 // 发出 token 用量事件
-                if cli_result.input_tokens > 0 || cli_result.output_tokens > 0 {
+                if input_tokens > 0 || output_tokens > 0 {
                     self.event_emitter.emit(WorkflowEvent::AgentTokenUsage {
                         execution_id,
                         agent_id: agent.id.clone(),
-                        input_tokens: cli_result.input_tokens,
-                        output_tokens: cli_result.output_tokens,
+                        input_tokens,
+                        output_tokens,
+                        executor,
+                        provider,
+                        estimated_cost_usd,
                     });
                 }
 
@@ -1449,6 +1677,7 @@ impl Clone for WorkflowEngine {
             stage_watchers: self.stage_watchers.clone(),
             rag_provider: self.rag_provider.clone(),
             model_router_fn: self.model_router_fn.clone(),
+            api_executor: self.api_executor.clone(),
         }
     }
 }
@@ -1598,6 +1827,467 @@ fn rollback_moved(moved: &[(PathBuf, Option<PathBuf>)]) {
 /// 清理旧的暂存目录
 ///
 /// 保留最近 `keep_last` 个暂存目录，删除 `older_than_days` 天前的。
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::events::InMemoryEventEmitter;
+    use crate::parser::{OnFail, QualityCheck, QualityGate};
+    use crate::QualityCheckResult;
+    use std::collections::HashMap;
+
+    // ── evaluate_condition tests ──
+
+    fn make_vars(pairs: &[(&str, &str)]) -> HashMap<String, serde_json::Value> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), serde_json::Value::String(v.to_string())))
+            .collect()
+    }
+
+    #[test]
+    fn eval_eq_match() {
+        let vars = make_vars(&[("status", "done")]);
+        assert!(WorkflowEngine::evaluate_condition("status == 'done'", &vars));
+    }
+
+    #[test]
+    fn eval_eq_no_match() {
+        let vars = make_vars(&[("status", "pending")]);
+        assert!(!WorkflowEngine::evaluate_condition("status == 'done'", &vars));
+    }
+
+    #[test]
+    fn eval_eq_missing_var() {
+        let vars = make_vars(&[]);
+        assert!(!WorkflowEngine::evaluate_condition("missing == 'x'", &vars));
+    }
+
+    #[test]
+    fn eval_ne_match() {
+        let vars = make_vars(&[("status", "pending")]);
+        assert!(WorkflowEngine::evaluate_condition("status != 'done'", &vars));
+    }
+
+    #[test]
+    fn eval_ne_no_match() {
+        let vars = make_vars(&[("status", "done")]);
+        assert!(!WorkflowEngine::evaluate_condition("status != 'done'", &vars));
+    }
+
+    #[test]
+    fn eval_ne_missing_var_true() {
+        let vars = make_vars(&[]);
+        assert!(WorkflowEngine::evaluate_condition("missing != 'x'", &vars));
+    }
+
+    #[test]
+    fn eval_ge_string_number() {
+        let vars = make_vars(&[("count", "5")]);
+        assert!(WorkflowEngine::evaluate_condition("count >= 3", &vars));
+        assert!(!WorkflowEngine::evaluate_condition("count >= 10", &vars));
+    }
+
+    #[test]
+    fn eval_ge_json_number() {
+        let mut vars = HashMap::new();
+        vars.insert("count".into(), serde_json::Value::Number(serde_json::Number::from(5)));
+        assert!(WorkflowEngine::evaluate_condition("count >= 3", &vars));
+        assert!(!WorkflowEngine::evaluate_condition("count >= 10", &vars));
+    }
+
+    #[test]
+    fn eval_le_string_number() {
+        let vars = make_vars(&[("count", "3")]);
+        assert!(WorkflowEngine::evaluate_condition("count <= 5", &vars));
+        assert!(!WorkflowEngine::evaluate_condition("count <= 1", &vars));
+    }
+
+    #[test]
+    fn eval_boolean_true() {
+        let mut vars = HashMap::new();
+        vars.insert("flag".into(), serde_json::Value::Bool(true));
+        assert!(WorkflowEngine::evaluate_condition("flag", &vars));
+    }
+
+    #[test]
+    fn eval_boolean_false() {
+        let mut vars = HashMap::new();
+        vars.insert("flag".into(), serde_json::Value::Bool(false));
+        assert!(!WorkflowEngine::evaluate_condition("flag", &vars));
+    }
+
+    #[test]
+    fn eval_string_true_literal() {
+        let vars = make_vars(&[("flag", "true")]);
+        assert!(WorkflowEngine::evaluate_condition("flag", &vars));
+    }
+
+    #[test]
+    fn eval_unknown_operator_returns_false() {
+        let vars = make_vars(&[("x", "1")]);
+        assert!(!WorkflowEngine::evaluate_condition("x > 0", &vars));
+    }
+
+    #[test]
+    fn eval_ge_invalid_threshold() {
+        let vars = make_vars(&[("count", "5")]);
+        assert!(WorkflowEngine::evaluate_condition(
+            "count >= notanumber",
+            &vars
+        ));
+    }
+
+    // ── next_after tests ──
+
+    fn make_stage(name: &str) -> crate::parser::StageDefinition {
+        crate::parser::StageDefinition {
+            name: name.to_string(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn next_after_first() {
+        let stages = vec![make_stage("a"), make_stage("b"), make_stage("c")];
+        assert_eq!(
+            WorkflowEngine::next_after(&stages, "a"),
+            Some("b".to_string())
+        );
+    }
+
+    #[test]
+    fn next_after_middle() {
+        let stages = vec![make_stage("a"), make_stage("b"), make_stage("c")];
+        assert_eq!(
+            WorkflowEngine::next_after(&stages, "b"),
+            Some("c".to_string())
+        );
+    }
+
+    #[test]
+    fn next_after_last_returns_none() {
+        let stages = vec![make_stage("a"), make_stage("b")];
+        assert_eq!(WorkflowEngine::next_after(&stages, "b"), None);
+    }
+
+    #[test]
+    fn next_after_not_found_returns_none() {
+        let stages = vec![make_stage("a")];
+        assert_eq!(WorkflowEngine::next_after(&stages, "z"), None);
+    }
+
+    #[test]
+    fn next_after_empty_stages() {
+        let stages: Vec<crate::parser::StageDefinition> = vec![];
+        assert_eq!(WorkflowEngine::next_after(&stages, "a"), None);
+    }
+
+    // ── truncate_str tests ──
+
+    #[test]
+    fn truncate_short_string() {
+        assert_eq!(truncate_str("hello", 100), "hello");
+    }
+
+    #[test]
+    fn truncate_long_string() {
+        let result = truncate_str("abcdefghij", 5);
+        assert!(result.starts_with("abcde"));
+        assert!(result.contains("截断"));
+    }
+
+    #[test]
+    fn truncate_at_boundary() {
+        let s = "hello";
+        assert_eq!(truncate_str(s, 5), "hello");
+    }
+
+    #[test]
+    fn truncate_empty_string() {
+        assert_eq!(truncate_str("", 10), "");
+    }
+
+    // ── parse_structured_summary tests ──
+
+    #[test]
+    fn parse_valid_json_summary() {
+        let response = "some text\n```json\n{\"summary\": \"done work\", \"files_changed\": [\"a.rs\", \"b.rs\"]}\n```\nmore text";
+        let (summary, files) = WorkflowEngine::parse_structured_summary(response);
+        assert_eq!(summary, Some("done work".to_string()));
+        assert_eq!(files, vec!["a.rs", "b.rs"]);
+    }
+
+    #[test]
+    fn parse_no_json_block() {
+        let (summary, files) = WorkflowEngine::parse_structured_summary("plain text");
+        assert_eq!(summary, None);
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn parse_json_missing_fields() {
+        let response = "```json\n{\"other\": \"value\"}\n```";
+        let (summary, files) = WorkflowEngine::parse_structured_summary(response);
+        assert_eq!(summary, None);
+        assert!(files.is_empty());
+    }
+
+    // ── format_gate_errors tests ──
+
+    #[test]
+    fn format_gate_errors_all_passed() {
+        let engine = WorkflowEngine::new(Arc::new(InMemoryEventEmitter::new()));
+        let result = GateRunResult {
+            passed: true,
+            checks: vec![QualityCheckResult {
+                cmd: "cargo build".into(),
+                passed: true,
+                exit_code: Some(0),
+                stdout: "Compiling...".into(),
+                stderr: String::new(),
+                duration_ms: 100,
+            }],
+        };
+        let summary = engine.format_gate_errors(&result);
+        assert!(!summary.contains('❌'));
+    }
+
+    #[test]
+    fn format_gate_errors_some_failed() {
+        let engine = WorkflowEngine::new(Arc::new(InMemoryEventEmitter::new()));
+        let result = GateRunResult {
+            passed: false,
+            checks: vec![QualityCheckResult {
+                cmd: "cargo test".into(),
+                passed: false,
+                exit_code: Some(1),
+                stdout: String::new(),
+                stderr: "test failed".into(),
+                duration_ms: 200,
+            }],
+        };
+        let summary = engine.format_gate_errors(&result);
+        assert!(summary.contains('❌'));
+        assert!(summary.contains("cargo test"));
+        assert!(summary.contains("test failed"));
+    }
+
+    // ── resolve_quality_gate tests ──
+
+    #[test]
+    fn resolve_quality_gate_with_template() {
+        let engine = WorkflowEngine::new(Arc::new(InMemoryEventEmitter::new()));
+        let gate = QualityGate {
+            checks: vec![],
+            on_fail: OnFail::Retry,
+            max_retries: 3,
+            template: Some("rust_default".into()),
+        };
+        let resolved = engine.resolve_quality_gate(&gate);
+        assert_eq!(resolved.checks.len(), 3);
+        assert!(resolved.checks.iter().any(|c| c.cmd == "cargo build"));
+        assert!(resolved.checks.iter().any(|c| c.cmd == "cargo test"));
+        assert!(resolved.checks.iter().any(|c| c.cmd == "cargo clippy -- -D warnings"));
+        assert!(resolved.template.is_none());
+    }
+
+    #[test]
+    fn resolve_quality_gate_unknown_template_falls_back() {
+        let engine = WorkflowEngine::new(Arc::new(InMemoryEventEmitter::new()));
+        let gate = QualityGate {
+            checks: vec![QualityCheck {
+                cmd: "echo hi".into(),
+                timeout: 10,
+            }],
+            on_fail: OnFail::Fail,
+            max_retries: 1,
+            template: Some("nonexistent".into()),
+        };
+        let resolved = engine.resolve_quality_gate(&gate);
+        assert_eq!(resolved.checks.len(), 1);
+        assert_eq!(resolved.checks[0].cmd, "echo hi");
+    }
+
+    #[test]
+    fn resolve_quality_gate_no_template() {
+        let engine = WorkflowEngine::new(Arc::new(InMemoryEventEmitter::new()));
+        let gate = QualityGate {
+            checks: vec![QualityCheck {
+                cmd: "make test".into(),
+                timeout: 60,
+            }],
+            on_fail: OnFail::Retry,
+            max_retries: 2,
+            template: None,
+        };
+        let resolved = engine.resolve_quality_gate(&gate);
+        assert_eq!(resolved.checks.len(), 1);
+        assert_eq!(resolved.checks[0].cmd, "make test");
+    }
+
+    // ── load_quality_gate_template tests ──
+
+    #[test]
+    fn load_known_templates() {
+        assert!(WorkflowEngine::load_quality_gate_template("rust_default").is_some());
+        assert!(WorkflowEngine::load_quality_gate_template("typescript_default").is_some());
+        assert!(WorkflowEngine::load_quality_gate_template("python_default").is_some());
+        assert!(WorkflowEngine::load_quality_gate_template("go_default").is_some());
+        assert!(WorkflowEngine::load_quality_gate_template("docker_default").is_some());
+    }
+
+    #[test]
+    fn load_unknown_template() {
+        assert!(WorkflowEngine::load_quality_gate_template("made_up_template").is_none());
+    }
+
+    // ── atomic_move_staging_to_src tests ──
+
+    #[test]
+    fn atomic_move_creates_dest_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let staging = tmp.path().join("staging");
+        let dest = tmp.path().join("output");
+        fs::create_dir_all(&staging).unwrap();
+        fs::write(staging.join("hello.txt"), "world").unwrap();
+
+        atomic_move_staging_to_src(&staging, dest.to_str().unwrap()).unwrap();
+        assert!(dest.join("hello.txt").exists());
+        assert_eq!(
+            fs::read_to_string(dest.join("hello.txt")).unwrap(),
+            "world"
+        );
+    }
+
+    #[test]
+    fn atomic_move_backs_up_existing_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let staging = tmp.path().join("staging");
+        let dest = tmp.path().join("output");
+        fs::create_dir_all(&staging).unwrap();
+        fs::create_dir_all(&dest).unwrap();
+        fs::write(staging.join("file.txt"), "new").unwrap();
+        fs::write(dest.join("file.txt"), "old").unwrap();
+
+        atomic_move_staging_to_src(&staging, dest.to_str().unwrap()).unwrap();
+        assert_eq!(fs::read_to_string(dest.join("file.txt")).unwrap(), "new");
+
+        // 查找备份文件（由原子移动创建）
+        let files: Vec<_> = fs::read_dir(&dest)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        let backup = files.iter().find(|n| n.contains("backup"));
+        assert!(backup.is_some(), "no backup file found among: {files:?}");
+        let backup_path = dest.join(backup.unwrap());
+        assert_eq!(fs::read_to_string(&backup_path).unwrap(), "old");
+    }
+
+    #[test]
+    fn atomic_move_empty_staging() {
+        let tmp = tempfile::tempdir().unwrap();
+        let staging = tmp.path().join("staging");
+        let dest = tmp.path().join("output");
+        fs::create_dir_all(&staging).unwrap();
+
+        atomic_move_staging_to_src(&staging, dest.to_str().unwrap()).unwrap();
+        assert!(!dest.exists() || fs::read_dir(&dest).unwrap().next().is_none());
+    }
+
+    #[test]
+    fn cleanup_old_staging_skips_nonexistent() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = cleanup_old_staging_dirs(tmp.path(), 5, 7);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn cleanup_keeps_recent_dirs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let staging_root = tmp.path().join(".nexus-staging");
+        fs::create_dir_all(staging_root.join("keep1")).unwrap();
+        fs::create_dir_all(staging_root.join("keep2")).unwrap();
+
+        // keep_last=5 + older_than_days=365 → keeps everything
+        cleanup_old_staging_dirs(tmp.path(), 5, 365).unwrap();
+        assert!(staging_root.join("keep1").exists());
+        assert!(staging_root.join("keep2").exists());
+    }
+
+    // ── WorkflowEngine constructor tests ──
+
+    #[test]
+    fn engine_new_with_collector() {
+        let collector = Arc::new(InMemoryEventEmitter::new());
+        let engine = WorkflowEngine::new(collector.clone());
+        assert!(engine.working_directory.is_none());
+        assert!(engine.resume_rx.is_none());
+    }
+
+    #[test]
+    fn engine_with_working_directory() {
+        let collector = Arc::new(InMemoryEventEmitter::new());
+        let engine =
+            WorkflowEngine::with_working_directory(collector, Some("/tmp/test".into()));
+        assert_eq!(engine.working_directory, Some("/tmp/test".to_string()));
+    }
+
+    #[test]
+    fn engine_with_resume_channel() {
+        let collector = Arc::new(InMemoryEventEmitter::new());
+        let (_tx, rx) = tokio::sync::mpsc::channel::<String>(1);
+        let engine =
+            WorkflowEngine::with_resume_channel(collector, None, rx);
+        assert!(engine.resume_rx.is_some());
+    }
+
+    #[test]
+    fn engine_clone_preserves_state() {
+        let collector = Arc::new(InMemoryEventEmitter::new());
+        let engine =
+            WorkflowEngine::with_working_directory(collector, Some("/tmp/test".into()));
+        let cloned = engine.clone();
+        assert_eq!(cloned.working_directory, Some("/tmp/test".to_string()));
+    }
+
+    // ── Condition edge case tests ──
+
+    #[test]
+    fn eval_with_double_quoted_value() {
+        let vars = make_vars(&[("name", "alice")]);
+        assert!(WorkflowEngine::evaluate_condition(
+            "name == \"alice\"",
+            &vars
+        ));
+    }
+
+    #[test]
+    fn eval_eq_integer_values() {
+        let vars = make_vars(&[("iteration", "3")]);
+        assert!(WorkflowEngine::evaluate_condition("iteration == '3'", &vars));
+        assert!(!WorkflowEngine::evaluate_condition("iteration == '5'", &vars));
+    }
+
+    #[test]
+    fn eval_with_whitespace_in_condition() {
+        let vars = make_vars(&[("x", "hello")]);
+        assert!(WorkflowEngine::evaluate_condition("  x   ==   'hello'  ", &vars));
+    }
+
+    // ── inject_gate_error_to_state test ──
+
+    #[test]
+    fn inject_gate_error_populates_var() {
+        let engine = WorkflowEngine::new(Arc::new(InMemoryEventEmitter::new()));
+        let state: SharedState = Arc::new(RwLock::new(WorkflowState::new("test_wf")));
+        engine.inject_gate_error_to_state(&state, "build", "something broke");
+        let s = state.read();
+        let val = s.get_var("build_quality_gate_error").unwrap();
+        assert_eq!(val.as_str().unwrap(), "something broke");
+    }
+}
+
 fn cleanup_old_staging_dirs(
     project_dir: &Path,
     keep_last: usize,

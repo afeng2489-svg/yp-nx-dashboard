@@ -1,0 +1,64 @@
+sprint_id: AF-10
+status: ready-for-testing
+priority: P0
+estimated_hours: 120
+depends_on: [AF-09]
+
+title: "企业级 IA 对齐迭代"
+objective: |
+  按「企业级页面结构设计 v1.0」补齐侧栏收敛后的深度：
+  团队工作室 URL 化、工厂 Shell/Console/审批/产物、内嵌工具抽屉、
+  ⌘K 工厂命令、资产库与运营企业视图。不删现有 71 页能力。
+
+phases:
+  - id: p1-shell
+    name: Factory Shell
+    items:
+      - GlobalBranchChip + GlobalCostChip
+      - ContextPanel 阶段进度
+      - FactoryStatusBar workspace/stage
+      - 工厂 Tab 中文化
+  - id: p2-factory
+    name: 工厂台深度
+    items:
+      - FactoryConsoleTab 模板/附件/审批摘要/Sprint 快照/7 快捷产线
+      - Executions context-only + CanvasRunView + ExecutionDetailModal canvas
+      - ApprovalPanel 产物预览
+      - FactoryDeliverablesTab 分栏 diff
+      - FactoryDrawer 终端/编辑器/浏览器
+  - id: p3-teams
+    name: 团队工作室
+    items:
+      - /teams/:teamId 五 Tab
+      - GroupChat 按 team 过滤
+      - 删除 TeamsPageV2
+  - id: p4-assets-ops
+    name: 资产库与运营
+    items:
+      - 知识库 RAG|Wisdom 子 Tab
+      - Workflows embedded + TemplateGallery
+      - ExecutionFilters 客户端 filter
+  - id: p5-power
+    name: ⌘K 与响应式
+    items:
+      - factoryCommands + factoryRun
+      - ContextPanel 窄屏 bottom sheet
+
+explicit_not_doing:
+  - 完整模板市场 / Figma / 组件库 Showcase
+  - Tauri Browser 真内嵌 webview
+  - 后端 executions 服务端 filter（AF-10b）
+
+af_10b:
+  - factory attachments multipart → .nx/factory-attachments/
+  - TerminalGrid initialCwd via /ws/terminal?cwd=
+
+gate_checks:
+  - TeamDetailPage route exists
+  - KnowledgeBase embedded h-full
+  - FactoryDrawer + factoryDrawerStore
+  - factoryCommands.ts wired to CommandPalette
+
+e2e:
+  - /teams/:id?tab=discuss 不 404
+  - /assets?tab=knowledge&sub=rag 渲染 KB

@@ -22,7 +22,7 @@ export function GitTab({ executionId, executionStatus }: GitTabProps) {
   const [rollbackAction, setRollbackAction] = useState<'revert' | 'keep' | 'branch'>('revert');
   const [copied, setCopied] = useState(false);
 
-  const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
   useEffect(() => {
     setLoading(true);

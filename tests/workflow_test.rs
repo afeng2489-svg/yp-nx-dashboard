@@ -12,7 +12,7 @@ fn test_workflow_execution_states() {
     // Start execution
     let execution = service.start_execution("test-workflow".to_string(), serde_json::json!({
         "input": "test"
-    }));
+    }), None, None);
 
     assert_eq!(execution.status, ExecutionStatus::Running);
     assert!(execution.started_at.is_some());
@@ -29,7 +29,7 @@ fn test_workflow_execution_states() {
 #[test]
 fn test_workflow_execution_failure() {
     let service = ExecutionService::new();
-    let execution = service.start_execution("failing-workflow".to_string(), serde_json::json!({}));
+    let execution = service.start_execution("failing-workflow".to_string(), serde_json::json!({}), None, None);
 
     service.update_status(&execution.id, ExecutionStatus::Failed);
 
@@ -40,7 +40,7 @@ fn test_workflow_execution_failure() {
 #[test]
 fn test_workflow_execution_cancellation() {
     let service = ExecutionService::new();
-    let execution = service.start_execution("long-running-workflow".to_string(), serde_json::json!({}));
+    let execution = service.start_execution("long-running-workflow".to_string(), serde_json::json!({}), None, None);
 
     // Simulate long running
     service.add_stage_output(&execution.id, "stage-1".to_string(), serde_json::json!({}));
@@ -57,7 +57,7 @@ fn test_workflow_execution_cancellation() {
 #[test]
 fn test_workflow_stage_sequencing() {
     let service = ExecutionService::new();
-    let execution = service.start_execution("multi-stage-workflow".to_string(), serde_json::json!({}));
+    let execution = service.start_execution("multi-stage-workflow".to_string(), serde_json::json!({}), None, None);
 
     let stages = ["initialize", "validate", "process", "finalize"];
 
@@ -83,7 +83,7 @@ fn test_multiple_concurrent_workflows() {
 
     // Start multiple workflows
     let executions: Vec<Execution> = (0..5)
-        .map(|i| service.start_execution(format!("workflow-{}", i), serde_json::json!({})))
+        .map(|i| service.start_execution(format!("workflow-{}", i), serde_json::json!({}), None, None))
         .collect();
 
     assert_eq!(service.get_all_executions().len(), 5);
@@ -117,7 +117,7 @@ fn test_workflow_variables_preserved() {
         "inputs": ["file1.txt", "file2.txt"]
     });
 
-    let execution = service.start_execution("var-workflow".to_string(), variables.clone());
+    let execution = service.start_execution("var-workflow".to_string(), variables.clone(), None, None);
     let found = service.get_execution(&execution.id).unwrap();
 
     assert_eq!(found.variables, variables);

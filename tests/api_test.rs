@@ -81,7 +81,7 @@ fn test_execution_service_events() {
     let mut rx = service.subscribe();
 
     // Start execution
-    let execution = service.start_execution("workflow-1".to_string(), serde_json::json!({}));
+    let execution = service.start_execution("workflow-1".to_string(), serde_json::json!({}), None, None);
     let exec_id = execution.id.clone();
 
     // Should receive Started event
@@ -100,8 +100,8 @@ fn test_execution_service_events() {
 fn test_execution_service_multiple_executions() {
     let service = ExecutionService::new();
 
-    let exec1 = service.start_execution("workflow-1".to_string(), serde_json::json!({}));
-    let exec2 = service.start_execution("workflow-2".to_string(), serde_json::json!({}));
+    let exec1 = service.start_execution("workflow-1".to_string(), serde_json::json!({}), None, None);
+    let exec2 = service.start_execution("workflow-2".to_string(), serde_json::json!({}), None, None);
 
     let all = service.get_all_executions();
     assert_eq!(all.len(), 2);
@@ -118,7 +118,7 @@ fn test_execution_service_multiple_executions() {
 #[test]
 fn test_execution_service_stage_tracking() {
     let service = ExecutionService::new();
-    let execution = service.start_execution("workflow-1".to_string(), serde_json::json!({}));
+    let execution = service.start_execution("workflow-1".to_string(), serde_json::json!({}), None, None);
 
     // Add stage outputs
     service.add_stage_output(&execution.id, "stage-1".to_string(), serde_json::json!({"result": 1}));
@@ -138,7 +138,7 @@ fn test_execution_service_broadcast() {
     let mut rx1 = service.subscribe();
     let mut rx2 = service.subscribe();
 
-    service.start_execution("workflow-1".to_string(), serde_json::json!({}));
+    service.start_execution("workflow-1".to_string(), serde_json::json!({}), None, None);
 
     // Both receivers should get the event
     let timeout = std::time::Duration::from_millis(100);

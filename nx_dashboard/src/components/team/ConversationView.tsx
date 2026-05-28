@@ -6,17 +6,23 @@ import { useAgentExecution } from '@/hooks/useAgentExecution';
 import { TerminalPanel } from './TerminalPanel';
 import { EmbeddedTerminalPreview } from './EmbeddedTerminalPreview';
 import { MarkdownMessage } from '@/components/common/MarkdownMessage';
+import { RoleMentionPicker } from '@/components/team/RoleMentionPicker';
+import { isP5TeamChatAtEnabled } from '@/data/factoryFeatureFlags';
+import type { Role } from '@/stores/teamStore';
 
 // ── 独立输入组件，隔离重渲染 ──────────────────────────────
 interface ChatInputProps {
   isActive: boolean;
   onSend: (text: string) => void;
   onCancel: () => void;
+  roles?: Role[];
 }
 
-const ChatInput = memo(function ChatInput({ isActive, onSend, onCancel }: ChatInputProps) {
+const ChatInput = memo(function ChatInput({ isActive, onSend, onCancel, roles = [] }: ChatInputProps) {
   const [value, setValue] = useState('');
   const isComposingRef = useRef(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const atEnabled = isP5TeamChatAtEnabled();
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (isComposingRef.current) return;
@@ -40,8 +46,18 @@ const ChatInput = memo(function ChatInput({ isActive, onSend, onCancel }: ChatIn
 
   return (
     <div className="p-4 border-t border-border/50">
-      <div className="flex gap-2">
+      <div className="flex gap-2 relative">
+        {atEnabled && roles.length > 0 && (
+          <RoleMentionPicker
+            roles={roles}
+            value={value}
+            onChange={setValue}
+            onInsert={setValue}
+            inputRef={inputRef}
+          />
+        )}
         <textarea
+          ref={inputRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -51,7 +67,7 @@ const ChatInput = memo(function ChatInput({ isActive, onSend, onCancel }: ChatIn
           onCompositionEnd={() => {
             isComposingRef.current = false;
           }}
-          placeholder={isActive ? '等待响应...' : '输入消息...'}
+          placeholder={isActive ? '等待响应...' : atEnabled ? '输入消息，@ 角色派活…' : '输入消息...'}
           className="input-field flex-1 resize-none"
           rows={1}
           disabled={isActive}
@@ -72,7 +88,18 @@ const ChatInput = memo(function ChatInput({ isActive, onSend, onCancel }: ChatIn
 });
 
 // ── 消息气泡，避免列表整体重渲染 ─────────────────────────
-const MessageBubble = memo(function MessageBubble({ message }: { message: Message }) {
+const MessageBubble = memo(function MessageBubble({
+  message,
+  roles = [],
+}: {
+  message: Message;
+  roles?: Role[];
+}) {
+  const roleName =
+    message.metadata?.role_name ??
+    roles.find((r) => r.id === message.role_id)?.name ??
+    (message.role === 'assistant' ? '助手' : undefined);
+
   return (
     <div className={cn('flex gap-3', message.role === 'user' ? 'justify-end' : 'justify-start')}>
       {message.role === 'assistant' && (
@@ -88,6 +115,11 @@ const MessageBubble = memo(function MessageBubble({ message }: { message: Messag
             : 'bg-muted',
         )}
       >
+        {roleName && message.role === 'assistant' && (
+          <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 mb-1" data-testid="message-role-name">
+            {roleName}
+          </p>
+        )}
         {/* 用户消息保留纯文本（不渲染 markdown，避免误把用户输入当语法解析）；
             AI 回复用 MarkdownMessage 渲染为结构化文档 */}
         {message.role === 'user' ? (
@@ -121,10 +153,11 @@ const MessageBubble = memo(function MessageBubble({ message }: { message: Messag
 // ── 主组件 ──────────────────────────────────────────────
 interface ConversationViewProps {
   teamId: string;
-  onClose: () => void;
+  onClose?: () => void;
+  embedded?: boolean;
 }
 
-export function ConversationView({ teamId, onClose }: ConversationViewProps) {
+export function ConversationView({ teamId, onClose, embedded = false }: ConversationViewProps) {
   const fetchMessages = useTeamStore((s) => s.fetchMessages);
   const storeMessages = useTeamStore((s) => s.messages);
   const teamMonitorMode = useTeamStore((s) => s.teamMonitorMode);
@@ -175,14 +208,15 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
 
   useEffect(() => {
     if (agentExec.status === 'completed') {
-      // 立即用 result 渲染临时 AI 回复气泡，不等 fetchMessages
-      if (agentExec.result) {
+      const replyText = agentExec.result || agentExec.partialOutput || '';
+      // 立即用 result / 流式输出渲染临时 AI 回复气泡，不等 fetchMessages
+      if (replyText) {
         const tempAssistantMsg: Message = {
           id: `temp-assistant-${Date.now()}`,
           team_id: teamId,
           role: 'assistant',
           message_type: 'Assistant',
-          content: agentExec.result,
+          content: replyText,
           created_at: new Date().toISOString(),
         };
         setLocalMessages((prev) => [...prev, tempAssistantMsg]);
@@ -239,12 +273,12 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
     };
   }, [isActive, teamId, fetchMessages]);
 
-  // 冻结保护：isActive 超过 5 分钟自动重置，防止 WS 丢失事件导致 UI 永久卡死
+  // 长任务保护：CLI 最长 30 分钟，避免 WS 丢事件后 UI 永久卡死
   useEffect(() => {
     if (!isActive) return;
     const timeout = setTimeout(() => {
       agentExec.reset();
-    }, 300_000);
+    }, 1_890_000);
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, agentExec.reset]);
@@ -311,9 +345,21 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
   }, [agentExec]);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-card rounded-l-2xl shadow-2xl border-l border-border/50 overflow-hidden flex flex-col animate-slide-in">
+    <div
+      className={
+        embedded
+          ? 'relative w-full h-full bg-card overflow-hidden flex flex-col'
+          : 'fixed inset-0 z-50 flex justify-end'
+      }
+    >
+      {!embedded && <div className="absolute inset-0 bg-black/40" onClick={onClose} />}
+      <div
+        className={
+          embedded
+            ? 'relative w-full h-full overflow-hidden flex flex-col'
+            : 'relative w-full max-w-lg bg-card rounded-l-2xl shadow-2xl border-l border-border/50 overflow-hidden flex flex-col animate-slide-in'
+        }
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-gradient-to-r from-emerald-500/5 to-green-500/5">
           <div className="flex items-center gap-1">
@@ -343,9 +389,11 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={onClose} className="p-2 rounded-lg hover:bg-accent transition-colors">
-              <X className="w-5 h-5" />
-            </button>
+            {!embedded && onClose && (
+              <button onClick={onClose} className="p-2 rounded-lg hover:bg-accent transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -371,7 +419,9 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
                   <p className="text-sm mt-1">发送消息来测试团队协作</p>
                 </div>
               ) : (
-                localMessages.map((message) => <MessageBubble key={message.id} message={message} />)
+                localMessages.map((message) => (
+                  <MessageBubble key={message.id} message={message} roles={roles} />
+                ))
               )}
               {showLastOutput && lastCliOutput && !isActive && (
                 <div className="flex gap-3 justify-start">
@@ -471,7 +521,7 @@ export function ConversationView({ teamId, onClose }: ConversationViewProps) {
             )}
 
             {/* Input — 独立组件，打字不触发消息列表/终端重渲染 */}
-            <ChatInput isActive={isActive} onSend={handleSend} onCancel={handleCancel} />
+            <ChatInput isActive={isActive} onSend={handleSend} onCancel={handleCancel} roles={roles} />
           </>
         )}
       </div>

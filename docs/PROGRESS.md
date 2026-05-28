@@ -1,96 +1,78 @@
 # NexusFlow — AI 软件工厂 开发进度
 
-> **AI 恢复指令**：读 [`docs/sprints/MASTER-PLAN.yaml`](sprints/MASTER-PLAN.yaml) + [`docs/progress.json`](progress.json) → 找 `current_sprint` → 读对应 `docs/sprints/AF-*.yaml`。
+> **AI 恢复指令**：读 [`docs/sprints/MASTER-PLAN.yaml`](sprints/MASTER-PLAN.yaml) + [`docs/progress.json`](progress.json) → 找 `current_sprint` → 读对应 sprint yaml。
 
 ---
 
 ## 产品定位
 
-**目标**：300–500 独立开发者觉得好用 — 工厂台一句话 → 15min 内看到 diff → 审批 → 合入。
+**目标**：300–500 独立开发者 — 工厂台一句话 → 15min diff → 审批 → 合入。
 
 **定位**：本地 AI 开发部 — 不取代 Cursor，取代终端里的 claude 编排。
 
-**单机优先**：累计试用 / MAU 目标，非多租户 SaaS。
-
-三轮验证结论见 [`docs/sprints/VALIDATION-3ROUND.md`](sprints/VALIDATION-3ROUND.md)（R3：**7.2/10**，62% 成功率）。
+三轮验证：[`VALIDATION-3ROUND.md`](sprints/VALIDATION-3ROUND.md)（R3 **7.2/10**，62%）。
 
 ---
 
-## 快速恢复 SOP
-
-```
-1. 读 docs/sprints/MASTER-PLAN.yaml → execution_order
-2. 读 docs/progress.json → current_sprint
-3. 读 docs/sprints/{sprint_id}-*.yaml → 第一个 planned 的 remaining_task
-4. 执行该任务
-5. 完成后仅通过 scripts/gate-check.sh 更新 completed（禁止手改）
-6. 继续下一 sprint
-```
-
----
-
-## 当前状态
+## 当前状态（2026-05-28）
 
 | 字段 | 值 |
 |------|-----|
-| **当前 Sprint** | **AF-00b** — Code hygiene |
-| **Sprint 状态** | `planned` |
-| **刚完成** | AF-00 Security（permissions_mode + workspace + blocklist） |
-| **Tracker** | v5.0 |
+| **代码完成度** | AF-00 ~ AF-10 已实现；**AF-11** P1–P5 完成（三模式 + shadcn 样板三页） |
+| **待你测试** | GATE-2、AF-10 验收、**AF-11 布局切换 + 视觉收敛** |
+| **当前 Sprint** | AF-11（P6 Shell 打磨 / P7 e2e 待完成） |
 | **Master Plan** | [`MASTER-PLAN.yaml`](sprints/MASTER-PLAN.yaml) |
-| **归档** | v0–v4 见 [`sprints/_archive/`](sprints/_archive/) |
-| **最后更新** | 2026-05-27 |
 
 ---
 
 ## AF 计划进度
 
 ```
-AF-P0 安全与卫生     ░░░░░░░░░░░░░░░░░░░░   0%   AF-00, AF-00b
-AF-P1 工厂台 MVP     ░░░░░░░░░░░░░░░░░░░░   0%   AF-01, AF-02, AF-03
-AF-P2 Golden Path    ░░░░░░░░░░░░░░░░░░░░   0%   AF-04, AF-04b, AF-05, GATE-2
-AF-P3 内测           ░░░░░░░░░░░░░░░░░░░░   0%   AF-06
-AF-P4 公测           ░░░░░░░░░░░░░░░░░░░░   0%   AF-07, AF-08, AF-09
+AF-P0 安全与卫生     ████████████████████  100%  AF-00, AF-00b
+AF-P1 工厂台 MVP     ████████████████████  100%  AF-01, AF-02, AF-03
+AF-P2 Golden Path    ████████████████░░░░   80%  AF-04/04b/05 ✓ · GATE-2 待测
+AF-P3 内测           ░░░░░░░░░░░░░░░░░░░░    0%  AF-06 待 GATE-2
+AF-P4 公测扩展       ████████████████░░░░   85%  AF-07/08 ✓ · AF-09 代码就绪
 ```
 
-| Sprint | 标题 | 状态 |
-|--------|------|------|
-| AF-00 | Security — permissions + workspace | planned |
-| AF-00b | Hygiene — dead_code + deprecated | planned |
-| AF-01 | 工厂台 MVP | planned |
-| AF-02 | 审批 Harness MVP | planned |
-| AF-03 | WS 可靠性 | planned |
-| AF-04 | Golden Path + dogfood | planned |
-| AF-04b | Executor 双车道（CLI vs API） | planned |
-| AF-05 | macOS 安装包 | planned |
-| GATE-2 | 10 人朋友测 | planned |
-| AF-06 | 50 人内测（容器卡） | planned |
-| AF-07 | 资产库 + 运营中心 | planned |
-| AF-08 | 多团队 + Sprint | planned |
-| AF-09 | 300 人公测 | planned |
+| Sprint | 标题 | 代码 | 人工验证 |
+|--------|------|------|----------|
+| AF-00 ~ AF-04 | 安全 / 工厂台 / Golden Path | ✅ | GATE-1 e2e 可 skip |
+| AF-04b, AF-05 | Executor / macOS 包 | ✅ | Release 安装 |
+| GATE-2 | 10 人朋友测 | 模板就绪 | ⏸ 待填 gate-2-results |
+| AF-06 | 50 人内测 | kit 就绪 | ⏸ 待招募 |
+| AF-07, AF-08 | 资产库 / 多团队 Sprint | ✅ | — |
+| AF-09 | 300 人公测 | ✅ 代码 | ⏸ 招募 + NPS |
 
 ---
 
-## 已归档（v0–v4）
-
-Phase 0–4 共 24 sprint 已归档，**勿再执行**。能力清单与 AF 映射见 [`sprints/_archive/README.md`](sprints/_archive/README.md)。
-
----
-
-## GATE 规则
-
-| Gate | 验证 |
-|------|------|
-| GATE-1 | `e2e/golden-path.spec.ts`（AF-04） |
-| GATE-2 | `cargo test -p nexus_workflow --lib` |
-| GATE-3 | `scripts/gate-check.sh`（须验证 artifact） |
-
----
-
-## 执行命令
+## 测试前检查清单
 
 ```bash
-cargo build && cargo test -p nexus_workflow --lib
-cd nx_dashboard && npx tsc --noEmit
-./scripts/gate-check.sh AF-00   # 占位，完整实现见 AF-04/AF-05
+# 1. 后端 + 桌面
+cd nx_dashboard && npm run tauri:dev
+
+# 2. 工作流单测
+cargo test -p nexus-workflow --lib
+
+# 3. 企业 EF 冒烟 + 报告
+cd nx_dashboard && npm run ef:check:report
+
+# 4. Sprint gate（可选，会更新 progress.json）
+./scripts/gate-check.sh AF-09
 ```
+
+证据文件：
+
+- [dogfood/gate-2-results.md](dogfood/gate-2-results.md) — 朋友测
+- [dogfood/ef-evidence.md](dogfood/ef-evidence.md) — 企业十项
+- [dogfood/af-06-beta-kit.md](dogfood/af-06-beta-kit.md) — 内测
+
+---
+
+## 恢复 SOP
+
+1. 读 `MASTER-PLAN.yaml` → `execution_order`
+2. 读 `progress.json` → `current_sprint`
+3. 若 `ready-for-testing` → 按上方检查清单安排测试
+4. 测试通过后仅通过 `scripts/gate-check.sh` 更新 `completed` 计数

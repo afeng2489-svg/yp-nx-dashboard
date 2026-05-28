@@ -40,6 +40,8 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { PageEmptyState } from '@/components/ui/PageEmptyState';
 
 const PAGE_SIZE = 6;
 
@@ -297,38 +299,33 @@ export function ProjectsPage() {
 
   return (
     <div className="page-container space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent">
-              项目管理
-            </span>
-          </h1>
-          <p className="text-muted-foreground mt-1">使用团队智能体执行开发任务</p>
-        </div>
-        <button onClick={() => setShowCreateModal(true)} className="btn-primary">
-          <Plus className="w-4 h-4" />
-          新建项目
-        </button>
-      </div>
+      <PageHeader
+        title="项目管理"
+        description="使用团队智能体执行开发任务"
+        actions={
+          <button onClick={() => setShowCreateModal(true)} className="btn-primary">
+            <Plus className="w-4 h-4" />
+            新建项目
+          </button>
+        }
+      />
 
       {/* Projects Grid */}
       {(() => {
         const totalPages = Math.ceil(displayProjects.length / PAGE_SIZE);
         const pagedProjects = displayProjects.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
         return displayProjects.length === 0 ? (
-          <div className="text-center py-16 bg-gradient-to-b from-card to-accent/20 rounded-2xl border border-border/50">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 flex items-center justify-center">
-              <FolderOpen className="w-10 h-10 text-emerald-500" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2">暂无项目</h3>
-            <p className="text-muted-foreground mb-4">创建您的第一个项目开始团队协作</p>
-            <button onClick={() => setShowCreateModal(true)} className="btn-primary">
-              <Plus className="w-4 h-4" />
-              新建项目
-            </button>
-          </div>
+          <PageEmptyState
+            icon={FolderOpen}
+            title="暂无项目"
+            description="创建您的第一个项目开始团队协作"
+            action={
+              <button onClick={() => setShowCreateModal(true)} className="btn-primary">
+                <Plus className="w-4 h-4" />
+                新建项目
+              </button>
+            }
+          />
         ) : (
           <>
             <div className="grid gap-4 stagger-children">

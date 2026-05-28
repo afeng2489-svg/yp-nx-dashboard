@@ -1,8 +1,8 @@
-# Quick Bug Fix Workflow
+# Quick Bug Fix Workflow — AF-13 满配（对齐 solo-dev 审批 + API 摘要）
 
 name: "quick-fix"
-version: "1.0"
-description: "快速 Bug 修复工作流 - 分析根因 → 实施修复 → 验证测试"
+version: "1.1"
+description: "快速 Bug 修复 — 分析 → 修复 → 验证 → 审批 → 摘要"
 
 triggers:
   - type: manual
@@ -10,10 +10,11 @@ triggers:
       target:
         type: string
         required: true
-        description: "Bug 描述或相关代码路径（例如：'登录接口返回 500' 或 'src/auth/login.rs'）"
+        description: "Bug 描述或相关代码路径"
 
 variables:
   target: ""
+  task: ""
 
 agents:
   - id: analyzer
@@ -40,13 +41,12 @@ agents:
       你是修复工程师，负责实施最小化修复。
 
       目标：{{target}}
-      根因分析：{{analyzer_output}}
+      根因分析：{{analyzer_分析_output}}
 
       执行步骤：
       1. 根据分析结果定位问题代码（使用 Read 工具确认）
       2. 实施最小化修复（使用 Edit 工具）
       3. 确保修复不引入新问题
-      4. 更新受影响的注释或文档
 
   - id: verifier
     role: 验证工程师
@@ -56,13 +56,27 @@ agents:
       你是验证工程师，负责验证修复效果。
 
       目标：{{target}}
-      修复结果：{{fixer_output}}
+      修复结果：{{fixer_修复_output}}
 
       执行步骤：
       1. 运行相关测试（使用 Bash 工具）
-      2. 验证 Bug 已修复（如有测试命令）
+      2. 验证 Bug 已修复
       3. 检查无回归
       4. 输出验证报告
+
+  - id: summary
+    role: 交付摘要员
+    model: claude-sonnet-4-5
+    executor: api
+    prompt: |
+      修复目标：{{target}}
+      验证输出：{{verifier_验证_output}}
+
+      用中文生成修复交付摘要。
+      末尾 JSON：
+      ```json
+      {"summary":"…","files_changed":["path1"]}
+      ```
 
 stages:
   - name: 分析
@@ -74,6 +88,18 @@ stages:
   - name: 验证
     agents: [verifier]
     quality_gate:
-      template: rust_default
+      checks:
+        - cmd: "sh -c 'if [ -f Cargo.toml ]; then cargo test 2>&1; elif [ -f package.json ]; then npm test -- --passWithNoTests 2>&1; elif [ -f go.mod ]; then go test ./... 2>&1; else echo ok; fi'"
+          timeout: 300
       on_fail: retry
       max_retries: 2
+
+  - name: 交付审批
+    stage_type: approval
+    question: "修复与验证已完成。是否批准交付？驳回将返回「修复」阶段。"
+    output_var: approval_result
+    on_reject_goto: 修复
+
+  - name: 交付摘要
+    executor: api
+    agents: [summary]

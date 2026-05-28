@@ -8,6 +8,7 @@ import {
 } from '@/stores/taskStore';
 import { Clock, Play, Plus, RefreshCw, CheckCircle, AlertCircle, Timer, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PageEmptyState } from '@/components/ui/PageEmptyState';
 
 interface TaskStats {
   queued: number;
@@ -155,23 +156,23 @@ export function TasksTab({
       )}
 
       {filteredTasks.length === 0 && !loading ? (
-        <div className="text-center py-16 bg-gradient-to-b from-card to-accent/20 rounded-2xl border border-border/50">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 flex items-center justify-center">
-            <List className="w-10 h-10 text-indigo-500" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">暂无任务</h3>
-          <p className="text-muted-foreground mb-4 text-sm">
-            {filter === 'all'
+        <PageEmptyState
+          icon={List}
+          title="暂无任务"
+          description={
+            filter === 'all'
               ? '点击「创建任务」提交一个后台任务'
-              : `当前没有「${STATUS_FILTER_LABELS[filter]}」状态的任务`}
-          </p>
-          {filter === 'all' && (
-            <button onClick={onCreateClick} className="btn-primary flex items-center gap-2 mx-auto">
-              <Plus className="w-4 h-4" />
-              创建任务
-            </button>
-          )}
-        </div>
+              : `当前没有「${STATUS_FILTER_LABELS[filter]}」状态的任务`
+          }
+          action={
+            filter === 'all' ? (
+              <button onClick={onCreateClick} className="btn-primary flex items-center gap-2 mx-auto">
+                <Plus className="w-4 h-4" />
+                创建任务
+              </button>
+            ) : undefined
+          }
+        />
       ) : (
         <div className="space-y-3">
           {filteredTasks.map((task) => (

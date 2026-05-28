@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { dismissOnboarding, seedOnboardingDone } from './helpers';
 
 /**
  * E2E Test: Workflow Creation and Execution
@@ -12,9 +13,9 @@ import { test, expect, Page } from '@playwright/test';
 
 test.describe('Workflow Creation', () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to the dashboard
+    await seedOnboardingDone(page);
     await page.goto('/');
-    // Wait for the app to be fully loaded
+    await dismissOnboarding(page);
     await page.waitForLoadState('networkidle');
   });
 
@@ -24,12 +25,11 @@ test.describe('Workflow Creation', () => {
 
     // Should have some way to navigate to workflows
     const hasWorkflowNav = await page
-      .getByText(/workflow/i)
+      .getByText(/workflow|工作流/i)
       .isVisible()
       .catch(() => false);
     if (!hasWorkflowNav) {
-      // If no workflow nav, at least the page should load
-      await expect(page).toHaveTitle(/YpNextFlow|NexusFlow|Dashboard|Workflow/i);
+      await expect(page).toHaveTitle(/TeamFlow|YpNextFlow|NexusFlow|Dashboard|Workflow/i);
     }
   });
 

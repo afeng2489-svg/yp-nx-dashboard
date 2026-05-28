@@ -4,11 +4,22 @@ import { useIssueStore } from '@/stores/issueStore';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useExecutionStore } from '@/stores/executionStore';
+import { useTeamStore } from '@/stores/teamStore';
+import { useProjectStore } from '@/stores/projectStore';
+import { useContextPanelStore } from '@/stores/contextPanelStore';
+import { useFactoryDrawerStore } from '@/stores/factoryDrawerStore';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { runFactoryQuickPrompt } from '@/services/factoryRun';
 import { showError, showInfo, showSuccess } from '@/lib/toast';
 
 function parseCommandArgs(command: string): { name: string; args: string[] } {
   const parts = command.trim().split(/\s+/);
   return { name: parts[0] ?? '', args: parts.slice(1) };
+}
+
+function fuzzyMatchName(items: { id: string; name: string }[], query: string) {
+  const q = query.toLowerCase();
+  return items.find((i) => i.name.toLowerCase().includes(q) || i.id.startsWith(q));
 }
 
 export function useNexusflowCommands() {
@@ -22,6 +33,119 @@ export function useNexusflowCommands() {
 
       try {
         switch (name) {
+          case 'factory:run': {
+            const prompt = args.join(' ').trim();
+            if (!prompt) {
+              showError('用法: factory:run <prompt>');
+              return;
+            }
+            const teamId = useTeamStore.getState().currentTeam?.id;
+            const projectId = useProjectStore.getState().currentProject?.id;
+            const result = await runFactoryQuickPrompt({ prompt, teamId, projectId });
+            if (result.ok) {
+              showSuccess('Run 已启动');
+              if (result.executionId) {
+                useContextPanelStore.getState().selectExecution(result.executionId);
+                useExecutionStore.getState().connectWebSocket(result.executionId);
+              }
+              navigate('/factory?tab=runs');
+            } else {
+              showError(result.error ?? '启动失败');
+            }
+            break;
+          }
+          case 'factory:approve':
+          case 'factory:reject': {
+            const approved = name === 'factory:approve';
+            const paused = useExecutionStore
+              .getState()
+              .executions.find(
+                (e) =>
+                  e.status === 'paused' &&
+                  (e.pending_pause?.pause_kind === 'approval' ||
+                    useExecutionStore.getState().pendingPause?.execution_id === e.id),
+              );
+            if (!paused) {
+              showInfo('暂无待审批项');
+              return;
+            }
+            await useExecutionStore.getState().resolveExecution(paused.id, approved);
+            showSuccess(approved ? '已批准' : '已驳回');
+            break;
+          }
+          case 'project:switch': {
+            const query = args.join(' ');
+            if (!query) {
+              navigate('/settings/projects');
+              return;
+            }
+            await useProjectStore.getState().fetchProjects();
+            const match = fuzzyMatchName(useProjectStore.getState().projects, query);
+            if (!match) {
+              showError(`未找到项目: ${query}`);
+              return;
+            }
+            useProjectStore.getState().setCurrentProject(match);
+            showSuccess(`已切换项目: ${match.name}`);
+            break;
+          }
+          case 'team:switch': {
+            const query = args.join(' ');
+            if (!query) {
+              navigate('/teams');
+              return;
+            }
+            await useTeamStore.getState().fetchTeams();
+            const match = fuzzyMatchName(useTeamStore.getState().teams, query);
+            if (!match) {
+              showError(`未找到团队: ${query}`);
+              return;
+            }
+            useTeamStore.getState().setCurrentTeam(match);
+            showSuccess(`已切换团队: ${match.name}`);
+            break;
+          }
+          case 'run:open': {
+            const id = args[0];
+            if (!id) {
+              showError('用法: run:open <execution-id>');
+              return;
+            }
+            const exec = useExecutionStore
+              .getState()
+              .executions.find((e) => e.id === id || e.id.startsWith(id));
+            if (!exec) {
+              showError('Run 未找到');
+              return;
+            }
+            useContextPanelStore.getState().selectExecution(exec.id);
+            navigate('/factory?tab=runs');
+            break;
+          }
+          case 'terminal:open': {
+            const mode = useSettingsStore.getState().layout.mode;
+            if (mode === 'studio') {
+              useFactoryDrawerStore.getState().showIntegrated();
+            } else {
+              useFactoryDrawerStore.getState().open('terminal');
+            }
+            navigate('/factory');
+            break;
+          }
+          case 'layout:guided':
+          case 'layout:studio': {
+            const mode = name.replace('layout:', '') as 'guided' | 'studio';
+            useSettingsStore.getState().setLayout({ mode });
+            showSuccess(mode === 'guided' ? '已切换到引导模式' : '已切换到工作室模式');
+            break;
+          }
+          case 'layout:classic':
+          case 'layout:refined': {
+            const variant = name.replace('layout:', '') as 'classic' | 'refined';
+            useSettingsStore.getState().setLayout({ variant });
+            showSuccess(variant === 'classic' ? '已切换到经典界面' : '已切换到精简界面');
+            break;
+          }
           case 'issue:list': {
             await useIssueStore.getState().fetchIssues();
             showSuccess('已刷新 Issue 列表');
@@ -70,8 +194,12 @@ export function useNexusflowCommands() {
               .getState()
               .executions.find((e) => e.status === 'running');
             if (running) {
-              await useExecutionStore.getState().cancelExecution(running.id);
-              showSuccess('已取消正在运行的执行');
+              const result = await useExecutionStore.getState().cancelExecution(running.id);
+              if (result.ok) {
+                showSuccess('已取消正在运行的执行');
+              } else {
+                showError(result.error ?? '取消失败');
+              }
             } else {
               showInfo('当前没有运行中的工作流');
             }

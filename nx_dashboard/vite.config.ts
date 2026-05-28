@@ -11,7 +11,9 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: 1420,
+    /** 专用端口，避免与默认 Vite 5173（其他项目）冲突；须与 tauri.conf.json devUrl 一致 */
+    strictPort: true,
     // 忽略数据库/构建/状态文件变化，防止运行时写入触发 HMR 无限重载
     watch: {
       ignored: [
@@ -26,6 +28,10 @@ export default defineConfig({
       ],
     },
     proxy: {
+      '/health': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,

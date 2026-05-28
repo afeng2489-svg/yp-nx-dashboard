@@ -32,6 +32,7 @@ import { ActiveExecutionsPanel, StageMetricsPanel, TokenCostSummary } from '@/co
 import { API_BASE_URL } from '@/api/constants';
 import { WorkflowLaunchModal } from '@/components/workflow/WorkflowLaunchModal';
 import type { Workflow } from '@/stores/workflowStore';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 // 首页快速启动卡片：推荐的高频工作流
 const QUICK_START_ITEMS: {
@@ -297,21 +298,16 @@ export function DashboardPage() {
 
   return (
     <div className="page-container space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-              仪表盘
-            </span>
-          </h1>
-          <p className="text-muted-foreground mt-1">欢迎回来！查看您的工作流状态</p>
-        </div>
-        <button onClick={() => navigate('/workflows')} className="btn-primary">
-          <Sparkles className="w-4 h-4" />
-          新建工作流
-        </button>
-      </div>
+      <PageHeader
+        title="仪表盘"
+        description="欢迎回来！查看您的工作流状态"
+        actions={
+          <button onClick={() => navigate('/workflows')} className="btn-primary">
+            <Sparkles className="w-4 h-4" />
+            新建工作流
+          </button>
+        }
+      />
 
       {/* Quick Run */}
       <div className="relative">

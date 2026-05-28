@@ -4,8 +4,10 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Plus, X, Maximize2, Grid, Rows, Square } from 'lucide-react';
 import { useTerminalStore } from '@/stores/terminalStore';
+import { useShellPtySession } from '@/hooks/useShellPtySession';
+import { useThemeStore } from '@/stores/themeStore';
+import { xtermThemeFor } from '@/components/terminal/xtermThemes';
 import { cn } from '@/lib/utils';
-import { WS_BASE_URL } from '@/api/constants';
 
 import '@xterm/xterm/css/xterm.css';
 
@@ -19,260 +21,176 @@ const GRID_LAYOUTS = {
 
 type GridLayoutType = keyof typeof GRID_LAYOUTS;
 
-// WebSocket 连接状态
-interface WsConnection {
-  ws: WebSocket | null;
-  terminal: Terminal | null;
-  reconnectAttempts: number;
-  reconnectTimeout: ReturnType<typeof setTimeout> | null;
-}
-
-// WebSocket 重连配置
-const WS_RECONNECT_CONFIG = {
-  maxAttempts: 5,
-  baseDelay: 1000,
-  maxDelay: 30000,
-  backoffMultiplier: 2,
-};
-
-// 单个终端面板
+// 单个终端面板 — 原生 PTY raw 模式（Tauri 本地 / 浏览器 WS 二进制）
 function TerminalPane({
   title,
   onClose,
+  initialCwd,
+  compact = false,
+  panelHeight,
+  visible = true,
 }: {
   terminalId: string;
   title: string;
   onClose?: () => void;
+  initialCwd?: string;
+  compact?: boolean;
+  panelHeight?: number;
+  visible?: boolean;
 }) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const wsRef = useRef<WsConnection>({
-    ws: null,
-    terminal: null,
-    reconnectAttempts: 0,
-    reconnectTimeout: null,
+  const [terminalReady, setTerminalReady] = useState(false);
+  const [sessionKey, setSessionKey] = useState(0);
+  const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
+
+  const { isConnected, sessionEnded, resize } = useShellPtySession({
+    terminal: terminalReady ? xtermRef.current : null,
+    cwd: initialCwd,
+    enabled: terminalReady,
+    sessionKey,
+    onSessionEnded: () => {},
   });
-  const [isLoading, setIsLoading] = useState(true);
-  const [isConnected, setIsConnected] = useState(false);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!terminalRef.current) return;
+    if (!terminalRef.current || xtermRef.current) return;
 
-    // 初始化 xterm
     const terminal = new Terminal({
       cursorBlink: true,
-      fontSize: 14,
+      fontSize: compact ? 12 : 14,
+      lineHeight: 1.2,
+      scrollback: 5000,
+      convertEol: false,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-      theme: {
-        background: '#1e1e1e',
-        foreground: '#d4d4d4',
-        cursor: '#ffffff',
-        cursorAccent: '#1e1e1e',
-        selectionBackground: '#264f78',
-        black: '#1e1e1e',
-        red: '#f44747',
-        green: '#6a9955',
-        yellow: '#dcdcaa',
-        blue: '#569cd6',
-        magenta: '#c586c0',
-        cyan: '#4ec9b0',
-        white: '#d4d4d4',
-        brightBlack: '#808080',
-        brightRed: '#f44747',
-        brightGreen: '#6a9955',
-        brightYellow: '#dcdcaa',
-        brightBlue: '#569cd6',
-        brightMagenta: '#c586c0',
-        brightCyan: '#4ec9b0',
-        brightWhite: '#ffffff',
-      },
+      theme: xtermThemeFor(resolvedTheme),
     });
 
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
-
     terminal.open(terminalRef.current);
-    // Delay fit() to allow the terminal to render and calculate dimensions
-    requestAnimationFrame(() => {
-      fitAddon.fit();
-    });
 
     xtermRef.current = terminal;
     fitAddonRef.current = fitAddon;
-    wsRef.current.terminal = terminal;
+    setTerminalReady(true);
 
-    // 建立 WebSocket 连接的函数
-    const connectWebSocket = () => {
-      const wsUrl = `${WS_BASE_URL}/ws/terminal`;
-
-      try {
-        const ws = new WebSocket(wsUrl);
-
-        ws.onopen = () => {
-          setIsConnected(true);
-          setConnectionError(null);
-          wsRef.current.reconnectAttempts = 0;
-          terminal.writeln('\x1b[36m[TeamFlow]\x1b[0m 终端已连接');
-          terminal.writeln('');
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const msg = JSON.parse(event.data);
-            if (msg.type === 'output') {
-              terminal.write(msg.data);
-            } else if (msg.type === 'error') {
-              terminal.writeln(`\x1b[31m[错误]\x1b[0m ${msg.message}`);
-            }
-          } catch {
-            // 原始文本输出
-            terminal.write(event.data);
-          }
-        };
-
-        ws.onclose = () => {
-          setIsConnected(false);
-          terminal.writeln('\r\n\x1b[33m[连接已关闭]\x1b[0m');
-          // 尝试重连
-          scheduleReconnect(terminal);
-        };
-
-        ws.onerror = () => {
-          setConnectionError('连接失败');
-          terminal.writeln('\r\n\x1b[31m[连接错误]\x1b[0m');
-        };
-
-        // 发送用户输入到 WebSocket
-        terminal.onData((data) => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'input', data }));
-          }
-        });
-
-        // 发送 resize 事件
-        terminal.onResize(({ rows, cols }) => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'resize', rows, cols }));
-          }
-        });
-
-        wsRef.current.ws = ws;
-        setIsLoading(false);
-      } catch {
-        setConnectionError('连接初始化失败');
-        scheduleReconnect(terminal);
-      }
-    };
-
-    // 重连调度函数
-    const scheduleReconnect = (term: Terminal) => {
-      const { reconnectAttempts, reconnectTimeout } = wsRef.current;
-
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
-      }
-
-      if (reconnectAttempts >= WS_RECONNECT_CONFIG.maxAttempts) {
-        term.writeln(`\x1b[31m[连接]\x1b[0m 最大重连次数已到达，请刷新页面`);
-        return;
-      }
-
-      // 计算延迟时间（指数退避）
-      const delay = Math.min(
-        WS_RECONNECT_CONFIG.baseDelay *
-          Math.pow(WS_RECONNECT_CONFIG.backoffMultiplier, reconnectAttempts),
-        WS_RECONNECT_CONFIG.maxDelay,
-      );
-
-      wsRef.current.reconnectAttempts += 1;
-
-      term.writeln(
-        `\x1b[33m[重连]\x1b[0m ${delay / 1000}秒后尝试第${wsRef.current.reconnectAttempts}次重连...`,
-      );
-
-      wsRef.current.reconnectTimeout = setTimeout(() => {
-        connectWebSocket();
-      }, delay);
-    };
-
-    connectWebSocket();
-
-    // 监听 resize
-    const resizeObserver = new ResizeObserver(() => {
+    const fitTerminal = () => {
       try {
         fitAddon.fit();
+        resize(terminal.rows, terminal.cols);
       } catch {
-        // Ignore fit errors during rapid resize
+        /* ignore */
       }
-    });
-    resizeObserver.observe(terminalRef.current);
+    };
 
-    const wsState = wsRef.current;
+    requestAnimationFrame(fitTerminal);
+    window.setTimeout(fitTerminal, 120);
+
+    const resizeDisposable = terminal.onResize(({ rows, cols }) => {
+      resize(rows, cols);
+    });
+
+    const resizeObserver = new ResizeObserver(fitTerminal);
+    resizeObserver.observe(terminalRef.current);
+    if (terminalRef.current.parentElement) {
+      resizeObserver.observe(terminalRef.current.parentElement);
+    }
+
     return () => {
       resizeObserver.disconnect();
-      if (wsState.reconnectTimeout) {
-        clearTimeout(wsState.reconnectTimeout);
-      }
-      if (wsState.ws) {
-        wsState.ws.close();
-      }
+      resizeDisposable.dispose();
       terminal.dispose();
+      xtermRef.current = null;
+      fitAddonRef.current = null;
+      setTerminalReady(false);
     };
-  }, []);
+  }, [compact, resize, resolvedTheme]);
 
-  // 外部调整大小时重新 fit
   useEffect(() => {
-    const handleResize = () => {
+    if (xtermRef.current) {
+      xtermRef.current.options.theme = xtermThemeFor(resolvedTheme);
+    }
+  }, [resolvedTheme]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const id = window.setTimeout(() => {
       try {
         fitAddonRef.current?.fit();
+        const term = xtermRef.current;
+        if (term) resize(term.rows, term.cols);
+        term?.focus();
       } catch {
-        // Ignore fit errors during rapid resize
+        /* ignore */
       }
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    }, 120);
+    return () => window.clearTimeout(id);
+  }, [visible, panelHeight, resize]);
+
+  useEffect(() => {
+    if (!panelHeight) return;
+    try {
+      fitAddonRef.current?.fit();
+      const term = xtermRef.current;
+      if (term) resize(term.rows, term.cols);
+    } catch {
+      /* ignore */
+    }
+  }, [panelHeight, resize]);
+
+  const handleReconnect = useCallback(() => {
+    xtermRef.current?.clear();
+    setSessionKey((k) => k + 1);
   }, []);
 
   return (
-    <div className="h-full flex flex-col bg-[#1e1e1e] rounded-md overflow-hidden">
-      {/* 终端标题栏 */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[#252526] border-b border-[#3c3c3c]">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 truncate">{title}</span>
-          <span
-            className={cn(
-              'w-2 h-2 rounded-full transition-colors',
-              isConnected
-                ? 'bg-green-500'
-                : connectionError
-                  ? 'bg-red-500'
-                  : 'bg-yellow-500 animate-pulse',
+    <div
+      className={cn(
+        'h-full min-h-0 flex flex-col overflow-hidden bg-background',
+        !compact && 'rounded-md border border-border',
+      )}
+    >
+      {!compact && (
+        <>
+          <div className="flex items-center justify-between px-3 py-1.5 bg-muted/50 border-b border-border shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground truncate">{title}</span>
+              <span
+                className={cn(
+                  'w-2 h-2 rounded-full transition-colors',
+                  isConnected ? 'bg-green-500' : sessionEnded ? 'bg-red-500' : 'bg-yellow-500 animate-pulse',
+                )}
+              />
+            </div>
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             )}
-          />
-          {connectionError && (
-            <span className="text-xs text-red-400 truncate">{connectionError}</span>
-          )}
-        </div>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="p-0.5 rounded hover:bg-[#3c3c3c] text-gray-400 hover:text-gray-200"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </div>
+          </div>
+        </>
+      )}
 
-      {/* 终端内容 */}
-      <div className="flex-1 relative">
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#1e1e1e]">
-            <div className="text-gray-400 text-sm">连接中...</div>
+      <div
+        className="flex-1 min-h-0 relative overflow-hidden"
+        onClick={() => xtermRef.current?.focus()}
+      >
+        {sessionEnded && (
+          <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-2 px-3 py-2 bg-amber-500/10 border-b border-amber-500/30 text-xs">
+            <span className="text-amber-800 dark:text-amber-200/90 truncate">Shell 已退出</span>
+            <button
+              type="button"
+              className="shrink-0 px-2 py-1 rounded bg-primary/90 text-primary-foreground hover:bg-primary"
+              onClick={handleReconnect}
+            >
+              重新连接
+            </button>
           </div>
         )}
-        <div ref={terminalRef} className="h-full w-full" />
+        <div ref={terminalRef} className="absolute inset-0 xterm-host" tabIndex={0} />
       </div>
     </div>
   );
@@ -369,7 +287,19 @@ function TabBar() {
 }
 
 // 主终端网格组件
-export function TerminalGrid() {
+export function TerminalGrid({
+  initialCwd,
+  compact = false,
+  integrated = false,
+  panelHeight,
+  visible = true,
+}: {
+  initialCwd?: string;
+  compact?: boolean;
+  integrated?: boolean;
+  panelHeight?: number;
+  visible?: boolean;
+} = {}) {
   const { gridLayout, setGridLayout, terminals, activeTabId, isFullscreen, setFullscreen } =
     useTerminalStore();
 
@@ -385,52 +315,81 @@ export function TerminalGrid() {
     setFullscreen(!isFullscreen);
   }, [isFullscreen, setFullscreen]);
 
+  const shellCompact = compact || integrated;
+
   return (
     <div
       className={cn(
-        'flex flex-col bg-card border rounded-lg overflow-hidden',
-        isFullscreen ? 'fixed inset-4 z-50' : 'h-full',
+        'flex flex-col overflow-hidden h-full min-h-0',
+        !shellCompact && 'bg-card border rounded-lg',
+        isFullscreen && 'fixed inset-4 z-50 bg-card border rounded-lg',
+        shellCompact && 'border-0 rounded-none bg-transparent',
       )}
     >
-      {/* 工具栏 */}
-      <div className="flex items-center justify-between px-3 py-2 bg-card border-b">
-        <div className="flex items-center gap-3">
-          <h3 className="text-sm font-medium">终端</h3>
-          <LayoutSwitcher
-            currentLayout={gridLayout as GridLayoutType}
-            onLayoutChange={setGridLayout}
-          />
-        </div>
-        <button
-          onClick={toggleFullscreen}
-          className="p-1.5 rounded hover:bg-accent text-muted-foreground"
-          title={isFullscreen ? '退出全屏' : '全屏'}
-        >
-          <Maximize2 className="w-4 h-4" />
-        </button>
-      </div>
+      {!shellCompact && (
+        <>
+          {/* 工具栏 */}
+          <div className="flex items-center justify-between px-3 py-2 bg-card border-b">
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-medium">终端</h3>
+              <LayoutSwitcher
+                currentLayout={gridLayout as GridLayoutType}
+                onLayoutChange={setGridLayout}
+              />
+            </div>
+            <button
+              onClick={toggleFullscreen}
+              className="p-1.5 rounded hover:bg-accent text-muted-foreground"
+              title={isFullscreen ? '退出全屏' : '全屏'}
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+          </div>
 
-      {/* 标签页栏 */}
-      <TabBar />
+          {/* 标签页栏 */}
+          <TabBar />
+        </>
+      )}
 
       {/* 终端网格 */}
-      <div className="flex-1 overflow-hidden">
-        <Allotment>
-          {Array.from({ length: totalPanes }).map((_, index) => {
-            const terminal = activeTerminals[index];
-            return (
-              <Allotment.Pane key={terminal?.id || `empty-${index}`} minSize={100}>
-                {terminal ? (
-                  <TerminalPane terminalId={terminal.id} title={terminal.title} />
-                ) : (
-                  <div className="h-full flex items-center justify-center bg-[#1e1e1e]">
-                    <div className="text-gray-500 text-sm">暂无终端 - 点击 + 添加</div>
-                  </div>
-                )}
-              </Allotment.Pane>
-            );
-          })}
-        </Allotment>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {shellCompact ? (
+          activeTerminals[0] ? (
+            <TerminalPane
+              terminalId={activeTerminals[0].id}
+              title={activeTerminals[0].title}
+              initialCwd={initialCwd}
+              compact
+              panelHeight={panelHeight}
+              visible={visible}
+            />
+          ) : (
+            <div className="h-full flex items-center justify-center bg-background">
+              <div className="text-muted-foreground text-sm">暂无终端 — 点击 + 新建</div>
+            </div>
+          )
+        ) : (
+          <Allotment>
+            {Array.from({ length: totalPanes }).map((_, index) => {
+              const terminal = activeTerminals[index];
+              return (
+                <Allotment.Pane key={terminal?.id || `empty-${index}`} minSize={100}>
+                  {terminal ? (
+                    <TerminalPane
+                      terminalId={terminal.id}
+                      title={terminal.title}
+                      initialCwd={initialCwd}
+                    />
+                  ) : (
+                    <div className="h-full flex items-center justify-center bg-[#1e1e1e]">
+                      <div className="text-gray-500 text-sm">暂无终端 - 点击 + 添加</div>
+                    </div>
+                  )}
+                </Allotment.Pane>
+              );
+            })}
+          </Allotment>
+        )}
       </div>
     </div>
   );

@@ -70,6 +70,8 @@ export interface UseAgentExecutionReturn {
 /**
  * Hook for async agent execution with WebSocket progress tracking.
  *
+ * Uses POST /api/v2/teams/:id/execute — Claude CLI headless (`claude -p`), not PTY.
+ *
  * Flow:
  * 1. execute() sends POST, gets execution_id immediately
  * 2. Opens WS to /ws/agent-executions/{execution_id}
@@ -235,9 +237,10 @@ export function useAgentExecution(): UseAgentExecutionReturn {
                 ]);
               }
               break;
-            case 'completed':
+            case 'completed': {
+              const finalText = (data.result?.trim() || accOutput.trim() || '') || null;
               setStatus('completed');
-              setResult(data.result ?? null);
+              setResult(finalText);
               setDurationMs(data.duration_ms ?? null);
               stopLocalTimer();
               isRunningRef.current = false;
@@ -249,10 +252,11 @@ export function useAgentExecution(): UseAgentExecutionReturn {
                 useTeamStore.getState().setActiveTeamTask({
                   ...monitorCtx,
                   status: 'done',
-                  result: data.result ?? '',
+                  result: finalText ?? '',
                 });
               }
               break;
+            }
             case 'failed':
               setStatus('failed');
               setError(data.error ?? 'Unknown error');
@@ -356,7 +360,7 @@ export function useAgentExecution(): UseAgentExecutionReturn {
       }
 
       try {
-        const response = await fetch(`${API_BASE}/api/v1/teams/${teamId}/execute`, {
+        const response = await fetch(`${API_BASE}/api/v2/teams/${teamId}/execute`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

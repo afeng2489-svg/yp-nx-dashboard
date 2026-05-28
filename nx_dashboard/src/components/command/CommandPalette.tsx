@@ -2,7 +2,13 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, Terminal, Plus, Play, Pause, ChevronRight, Clock, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ALL_NAV_ITEMS, NAV_BY_COMMAND } from '@/data/navConfig';
+import { ALL_FACTORY_COMMANDS, FACTORY_COMMAND_PATHS } from '@/data/factoryCommands';
 
+const FACTORY_CMD_SUGGESTIONS = ALL_FACTORY_COMMANDS.map((c) => ({
+  command: c.command,
+  description: c.description,
+  arguments: [],
+}));
 const NAV_COMMANDS = ALL_NAV_ITEMS.map((item) => ({
   command: item.command,
   description: item.label,
@@ -160,17 +166,21 @@ export function CommandPalette() {
           description: n.description,
           arguments: [],
         })),
+        ...FACTORY_CMD_SUGGESTIONS,
         ...AVAILABLE_COMMANDS,
       ];
     }
     const navFiltered = NAV_COMMANDS.filter(
       (n) => n.command.toLowerCase().includes(query) || n.description.toLowerCase().includes(query),
     ).map((n) => ({ command: n.command, description: n.description, arguments: [] }));
+    const factoryFiltered = FACTORY_CMD_SUGGESTIONS.filter(
+      (c) => c.command.toLowerCase().includes(query) || c.description.toLowerCase().includes(query),
+    );
     const cmdFiltered = AVAILABLE_COMMANDS.filter(
       (cmd) =>
         cmd.command.toLowerCase().includes(query) || cmd.description.toLowerCase().includes(query),
     );
-    return [...navFiltered, ...cmdFiltered];
+    return [...navFiltered, ...factoryFiltered, ...cmdFiltered];
   }, [input]);
 
   const filteredCommands = getFilteredCommands();
@@ -273,6 +283,11 @@ export function CommandPalette() {
         navigate(navCmd.path);
         return;
       }
+      const factoryPath = FACTORY_COMMAND_PATHS[command];
+      if (factoryPath) {
+        navigate(factoryPath);
+        return;
+      }
     }
 
     // Backend commands — dispatch custom event for now
@@ -296,6 +311,9 @@ export function CommandPalette() {
     }
     if (command.startsWith('issue:')) {
       return <Plus className="w-4 h-4 text-blue-400" />;
+    }
+    if (command.startsWith('factory:') || command.startsWith('run:open') || command.startsWith('terminal:open') || command.startsWith('project:switch') || command.startsWith('team:switch')) {
+      return <Play className="w-4 h-4 text-indigo-400" />;
     }
     if (command.startsWith('workflow:')) {
       return <Play className="w-4 h-4 text-green-400" />;

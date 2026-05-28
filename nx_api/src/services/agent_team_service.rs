@@ -238,6 +238,178 @@ async fn run_claude_interactive(
     Ok((pid, status.success(), full_output.trim().to_string()))
 }
 
+/// Headless Claude CLI（stream-json），与 workflow 引擎同路径，不依赖 PTY / stdin 交互
+async fn run_claude_headless(
+    prompt: &str,
+    working_dir: Option<&str>,
+    stream_tx: &Option<(
+        broadcast::Sender<crate::ws::agent_execution::AgentExecutionEvent>,
+        String,
+    )>,
+    timeout_secs: u64,
+) -> Result<(Option<u32>, bool, String), String> {
+    use tokio::io::AsyncBufReadExt;
+    use tokio::process::Command;
+
+    let (exe_path, prefix_args) = crate::services::claude_cli::get_claude_cli_executable()
+        .ok_or_else(|| "Claude CLI not found".to_string())?;
+
+    let mut cmd = Command::new(&exe_path);
+    for arg in &prefix_args {
+        cmd.arg(arg);
+    }
+    for arg in crate::services::claude_cli::build_prompt_cli_args(true) {
+        cmd.arg(arg);
+    }
+    cmd.args(["--verbose", "--output-format", "stream-json"]);
+    cmd.arg(prompt);
+    if let Some(dir) = working_dir {
+        cmd.current_dir(dir);
+    }
+    cmd.stdin(std::process::Stdio::null());
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
+    cmd.kill_on_drop(true);
+
+    tracing::info!(
+        "[TeamCLI] spawn headless claude, cwd={:?}, prompt_len={}",
+        working_dir,
+        prompt.len()
+    );
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to spawn Claude CLI: {}", e))?;
+    let pid = child.id();
+
+    let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
+    let stderr_sender = stream_tx.clone();
+
+    let stderr_handle = tokio::spawn(async move {
+        let mut lines = tokio::io::BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let clean = strip_ansi(&line).trim().to_string();
+            if clean.is_empty() {
+                continue;
+            }
+            if let Some((ref tx, ref id)) = stderr_sender {
+                let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Output {
+                    execution_id: id.clone(),
+                    partial_output: format!("[stderr] {}\n", clean),
+                });
+            }
+        }
+    });
+
+    let mut stdout_lines = tokio::io::BufReader::new(stdout).lines();
+    let mut text_parts: Vec<String> = Vec::new();
+    let mut final_result = String::new();
+
+    let read_stdout = async {
+        while let Ok(Some(line)) = stdout_lines.next_line().await {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(trimmed) {
+                if let Some(r) = json.get("result").and_then(|v| v.as_str()) {
+                    if !r.is_empty() {
+                        final_result = r.to_string();
+                    }
+                }
+                if let Some(display) = extract_stream_json_display(&json) {
+                    if let Some((ref tx, ref id)) = stream_tx {
+                        let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Output {
+                            execution_id: id.clone(),
+                            partial_output: format!("{}\n", display),
+                        });
+                    }
+                    text_parts.push(display);
+                }
+            } else {
+                let clean = strip_ansi(trimmed).trim().to_string();
+                if !clean.is_empty() {
+                    if let Some((ref tx, ref id)) = stream_tx {
+                        let _ = tx.send(crate::ws::agent_execution::AgentExecutionEvent::Output {
+                            execution_id: id.clone(),
+                            partial_output: format!("{}\n", clean),
+                        });
+                    }
+                    text_parts.push(clean);
+                }
+            }
+        }
+    };
+
+    let timed_out = tokio::time::timeout(Duration::from_secs(timeout_secs), read_stdout)
+        .await
+        .is_err();
+
+    if timed_out {
+        stderr_handle.abort();
+        let _ = child.kill().await;
+        let _ = child.wait().await;
+        return Err(format!("Claude CLI timeout after {}s", timeout_secs));
+    }
+
+    let _ = tokio::time::timeout(Duration::from_secs(2), stderr_handle).await;
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("wait failed: {}", e))?;
+
+    let text = if !final_result.is_empty() {
+        final_result
+    } else {
+        text_parts.join("\n").trim().to_string()
+    };
+
+    tracing::info!(
+        "[TeamCLI] finished success={}, output_len={}",
+        status.success(),
+        text.len()
+    );
+
+    Ok((pid, status.success(), text))
+}
+
+fn extract_stream_json_display(json: &serde_json::Value) -> Option<String> {
+    if let Some(result) = json.get("result").and_then(|r| r.as_str()) {
+        if !result.is_empty() {
+            return Some(result.to_string());
+        }
+    }
+    if let Some(content) = json.get("content").and_then(|c| c.as_str()) {
+        if !content.is_empty() {
+            return Some(content.to_string());
+        }
+    }
+    if let Some(text) = json.get("text").and_then(|t| t.as_str()) {
+        if !text.is_empty() {
+            return Some(text.to_string());
+        }
+    }
+    if json.get("type").and_then(|t| t.as_str()) == Some("assistant") {
+        if let Some(content) = json.get("message").and_then(|m| m.get("content")) {
+            if let Some(arr) = content.as_array() {
+                let mut parts = Vec::new();
+                for block in arr {
+                    if let Some(text) = block.get("text").and_then(|t| t.as_str()) {
+                        if !text.is_empty() {
+                            parts.push(text.to_string());
+                        }
+                    }
+                }
+                if !parts.is_empty() {
+                    return Some(parts.join(""));
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Agent team service error
 #[derive(Debug, Error)]
 pub enum AgentTeamServiceError {
@@ -623,20 +795,17 @@ impl AgentTeamService {
             .get_team_with_roles(&request.team_id)
             .map_err(|e| AgentTeamServiceError::Service(e.to_string()))?;
 
-        if team_with_roles.roles.is_empty() {
-            return Ok(ExecuteTeamTaskResponse {
-                success: false,
-                team_id: request.team_id,
-                messages: vec![],
-                final_output: String::new(),
-                error: Some("No roles defined in team".to_string()),
-            });
-        }
-
-        // Save initial user message immediately
+        // Save user message first — always visible in chat even if CLI fails
         let user_msg = TeamMessage::user_message(team.id.clone(), request.task.clone());
         if let Err(e) = self.team_service.add_message(user_msg.clone()) {
             tracing::warn!("[TeamMsg] Failed to save user message: {}", e);
+        }
+
+        if team_with_roles.roles.is_empty() {
+            tracing::warn!(
+                "[Team] team {} has no roles — using generic solo dispatcher",
+                request.team_id
+            );
         }
 
         // 提取记忆上下文
@@ -686,16 +855,27 @@ impl AgentTeamService {
             // 非 auto_confirm 时不传 skip-permissions（即使用户为 trusted，此处保留交互确认路径）
             vec!["-p", "--no-session-persistence", &full_prompt]
         };
-        let pty_result = run_claude_interactive(
-            &args,
-            working_dir.as_deref(),
-            &stream_tx,
-            confirm_rx,
-            auto_confirm,
-            1800, // 30 min — complex coding tasks can take 25+ min
-        )
-        .await;
-        let (pid, success, response) = match pty_result {
+
+        let cli_result = if auto_confirm {
+            run_claude_headless(
+                &full_prompt,
+                working_dir.as_deref(),
+                &stream_tx,
+                1800,
+            )
+            .await
+        } else {
+            run_claude_interactive(
+                &args,
+                working_dir.as_deref(),
+                &stream_tx,
+                confirm_rx,
+                auto_confirm,
+                1800,
+            )
+            .await
+        };
+        let (pid, success, response) = match cli_result {
             Err(e) => {
                 self.set_process_status(&proc_exec_id, ProcessStatus::Failed);
                 return Err(AgentTeamServiceError::AiError(e));
@@ -715,14 +895,20 @@ impl AgentTeamService {
         }
         self.complete_process(&proc_exec_id, &response);
 
-        // Save assistant message (use first role as responder if skill was used)
-        let responder_id = team_with_roles
-            .roles
-            .first()
-            .map(|r| r.role.id.clone())
-            .unwrap_or_default();
-        let assistant_msg =
-            TeamMessage::assistant_message(team.id.clone(), responder_id, response.clone());
+        // Save assistant message (use first role as responder if available)
+        let assistant_msg = match team_with_roles.roles.first() {
+            Some(r) => TeamMessage::assistant_message(
+                team.id.clone(),
+                r.role.id.clone(),
+                response.clone(),
+            ),
+            None => TeamMessage::new(
+                team.id.clone(),
+                None,
+                response.clone(),
+                crate::models::team::MessageType::Assistant,
+            ),
+        };
         if let Err(e) = self.team_service.add_message(assistant_msg) {
             tracing::warn!("[TeamMsg] Failed to save assistant message: {}", e);
         }

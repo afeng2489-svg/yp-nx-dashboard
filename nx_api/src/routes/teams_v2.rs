@@ -398,6 +398,27 @@ pub async fn execute_team_task(
 
         match result {
             Ok(response) => {
+                if !response.success {
+                    let err_msg = response
+                        .error
+                        .clone()
+                        .unwrap_or_else(|| "团队任务执行失败".to_string());
+                    tracing::warn!("[RouteV2] execute failed: {}", err_msg);
+                    let event = crate::ws::agent_execution::AgentExecutionEvent::Failed {
+                        execution_id: exec_id.clone(),
+                        error: err_msg,
+                    };
+                    manager.cache_terminal_event(event.clone());
+                    let _ = tx.send(event);
+                    manager.remove_execution(&exec_id);
+                    manager.remove_confirmation(&exec_id);
+                    return;
+                }
+
+                if response.final_output.is_empty() {
+                    tracing::warn!("[RouteV2] execute returned empty output, team_id={}", team_id_bg);
+                }
+
                 // Store conversation to memory
                 let memory_state = state_bg.memory_state.clone();
                 let assistant_reply = response.final_output.clone();
@@ -446,12 +467,15 @@ pub async fn execute_team_task(
                     }
                 });
 
+                let result = response.final_output;
                 let event = crate::ws::agent_execution::AgentExecutionEvent::Completed {
                     execution_id: exec_id.clone(),
-                    result: response.final_output,
+                    result: result.clone(),
                     duration_ms: start.elapsed().as_millis() as u64,
                 };
-                manager.cache_terminal_event(event.clone());
+                if !result.is_empty() {
+                    manager.cache_terminal_event(event.clone());
+                }
                 let _ = tx.send(event);
             }
             Err(e) => {

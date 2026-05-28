@@ -26,16 +26,14 @@ export default function CrashRecoveryDialog({ projectId, onResumed }: Props) {
   const [resuming, setResuming] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (!projectId) {
-      setLoading(false);
-      return;
-    }
     (async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/v1/executions/interrupted`);
         if (res.ok) {
-          const data = await res.json();
-          setInterrupted(data.filter((e: InterruptedExecution) => e.project_id === projectId));
+          const data = (await res.json()) as InterruptedExecution[];
+          setInterrupted(
+            projectId ? data.filter((e) => e.project_id === projectId) : data,
+          );
         }
       } catch {
         // silent

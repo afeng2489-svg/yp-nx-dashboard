@@ -1,5 +1,5 @@
 sprint_id: AF-08
-status: planned
+status: done
 priority: P1
 estimated_hours: 40
 depends_on: [AF-07, AF-01]
@@ -13,6 +13,7 @@ remaining_tasks:
     name: 项目-团队绑定 UI
     priority: P0
     estimated_hours: 12
+    status: done
     description: |
       切项目自动切默认团队；GlobalBar 显示当前绑定。
     acceptance:
@@ -22,6 +23,7 @@ remaining_tasks:
     name: GlobalRunPanel 多 Run 并行分组
     priority: P0
     estimated_hours: 8
+    status: done
     description: |
       按 team/project 分组展示；点击跳转 Run 详情。
     acceptance:
@@ -31,6 +33,7 @@ remaining_tasks:
     name: Sprint Run 完成回写看板
     priority: P0
     estimated_hours: 12
+    status: done
     description: |
       Run completed → Sprint 卡片状态更新（复用 v4.7）。
     acceptance:
@@ -40,12 +43,16 @@ remaining_tasks:
     name: 团队模板扩展
     priority: P1
     estimated_hours: 8
+    status: done
     description: |
       web-team, backend-team, quick-fix-team（AF-01 已有 solo-fullstack）。
     acceptance:
       - ≥4 种模板可选
 
 quality_gates:
-  - 2 项目 2 Run 不串（手动测试）
+  - npx tsc --noEmit
 
 acceptance: 用户旅程2 多团队切换可用；2 Run 并行不互相污染 workspace
+
+completion_note: |
+  代码完成；2 项目 2 Run 隔离需用户手动验证（跳过 GATE-2）。

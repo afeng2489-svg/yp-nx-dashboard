@@ -2,14 +2,18 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SkillSummary } from '@/stores/skillStore';
+import { RoleMentionPicker } from '@/components/team/RoleMentionPicker';
+import { isP5TeamChatAtEnabled } from '@/data/factoryFeatureFlags';
+import type { Role } from '@/stores/teamStore';
 
 export interface ChatInputProps {
   onSend: (message: string) => void;
   disabled: boolean;
   skills: SkillSummary[];
+  roles?: Role[];
 }
 
-export function ChatInput({ onSend, disabled, skills }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, skills, roles = [] }: ChatInputProps) {
   const [newMessage, setNewMessage] = useState('');
   const [showSkillHint, setShowSkillHint] = useState(false);
   const [skillSearch, setSkillSearch] = useState('');
@@ -17,6 +21,7 @@ export function ChatInput({ onSend, disabled, skills }: ChatInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const skillHintRef = useRef<HTMLDivElement>(null);
   const isComposingRef = useRef(false);
+  const atEnabled = isP5TeamChatAtEnabled();
 
   // Filter skills based on search
   const filteredSkills = skillSearch
@@ -69,6 +74,15 @@ export function ChatInput({ onSend, disabled, skills }: ChatInputProps) {
     <div className="bg-card rounded-lg border p-4">
       <div className="flex gap-2 relative">
         <div className="relative flex-1">
+          {atEnabled && roles.length > 0 && (
+            <RoleMentionPicker
+              roles={roles}
+              value={newMessage}
+              onChange={setNewMessage}
+              onInsert={setNewMessage}
+              inputRef={inputRef}
+            />
+          )}
           <input
             ref={inputRef}
             type="text"
@@ -120,7 +134,11 @@ export function ChatInput({ onSend, disabled, skills }: ChatInputProps) {
                 handleSend();
               }
             }}
-            placeholder="输入消息... (输入 / 触发技能)"
+            placeholder={
+              atEnabled && roles.length > 0
+                ? '输入消息... (输入 / 触发技能，@ 角色)'
+                : '输入消息... (输入 / 触发技能)'
+            }
             className="input flex-1 pr-20"
             onCompositionStart={() => {
               isComposingRef.current = true;

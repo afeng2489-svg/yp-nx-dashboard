@@ -582,6 +582,51 @@ impl PtyManager {
         Err(PtyError::UnsupportedPlatform)
     }
 
+    /// 检查子进程是否已退出（`Some(exit_code)` 表示已退出）
+    #[cfg(unix)]
+    pub fn poll_process_exit(&self, session_id: &str) -> Option<i32> {
+        let mut children = self.children.write();
+        let child = children.get_mut(session_id)?;
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let exit_code = status.exit_code() as i32;
+                let mut sessions = self.sessions.write();
+                if let Some(session) = sessions.get_mut(session_id) {
+                    session.state = PtySessionState::Exited;
+                    session.exit_code = Some(exit_code);
+                }
+                Some(exit_code)
+            }
+            Ok(None) => None,
+            Err(_) => Some(-1),
+        }
+    }
+
+    /// 检查子进程是否已退出 (Windows)
+    #[cfg(windows)]
+    pub fn poll_process_exit(&self, session_id: &str) -> Option<i32> {
+        let mut children = self.children.write();
+        let child = children.get_mut(session_id)?;
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let exit_code = status.exit_code() as i32;
+                let mut sessions = self.sessions.write();
+                if let Some(session) = sessions.get_mut(session_id) {
+                    session.state = PtySessionState::Exited;
+                    session.exit_code = Some(exit_code);
+                }
+                Some(exit_code)
+            }
+            Ok(None) => None,
+            Err(_) => Some(-1),
+        }
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    pub fn poll_process_exit(&self, _session_id: &str) -> Option<i32> {
+        None
+    }
+
     /// 暂停会话
     #[cfg(unix)]
     pub fn pause(&self, session_id: &str) -> Result<(), PtyError> {

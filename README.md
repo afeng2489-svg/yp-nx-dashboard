@@ -31,6 +31,28 @@
 
 ## 快速开始
 
+### AI 软件工厂（Golden Path）
+
+**NexusFlow 桌面版** = 本地 AI 开发部：工厂台一句话 → 15 分钟内看到 diff → 审批 → 合入。
+
+| 步骤 | 操作 |
+|------|------|
+| 1. 安装 | macOS：见 [docs/RELEASE.md](docs/RELEASE.md)；开发：`cd nx_dashboard && npm run tauri:dev` |
+| 2. 前置 | [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) + 顶栏选择工作区文件夹 |
+| 3. 首次向导 | 检测 CLI → 选 workspace → 创建 Solo 团队 → 进入工厂台 |
+| 4. 跑通 | `/factory` → **试用演示 ★** 或输入任务 → 等待 Run → **Approvals** 审批 |
+| 5. 导航 | 工厂台 · 团队 · [资产库](/assets) · [运营](/ops) · 设置 |
+
+详细步骤、成功标准与排查见 **[docs/GOLDEN-PATH.md](docs/GOLDEN-PATH.md)**。
+
+**开发者常用命令**（`nx_dashboard/` 目录）：
+
+```bash
+npm run tauri:dev          # 桌面开发（Vite :1420 + nx_api :8080）
+npm run metrics:export     # 导出 6 项工厂指标 JSON
+npm run ef:check:report    # 企业十项 HTTP 冒烟 + 写 docs/dogfood/ef-evidence.md
+```
+
 ### 环境要求
 
 - Rust 1.75+

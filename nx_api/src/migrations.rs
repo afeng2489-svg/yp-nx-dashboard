@@ -621,6 +621,21 @@ pub(crate) const PROJECT_COMPONENT_SCHEMA: &str = "
     CREATE INDEX IF NOT EXISTS idx_project_components_type ON project_components(project_id, component_type);
 ";
 
+// ── AF-04: 工厂台本地指标 ────────────────────────────────────────────────────
+pub(crate) const FACTORY_METRICS_SCHEMA: &str = "
+    CREATE TABLE IF NOT EXISTS factory_events (
+        id TEXT PRIMARY KEY,
+        device_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        execution_id TEXT,
+        payload TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_factory_events_device ON factory_events(device_id);
+    CREATE INDEX IF NOT EXISTS idx_factory_events_type ON factory_events(event_type);
+    CREATE INDEX IF NOT EXISTS idx_factory_events_created ON factory_events(created_at);
+";
+
 /// All schema migrations in dependency order.
 const ALL_SCHEMAS: &[&str] = &[
     SESSION_SCHEMA,
@@ -649,6 +664,7 @@ const ALL_SCHEMAS: &[&str] = &[
     APP_SETTINGS_SCHEMA,
     PREVIEW_SESSION_SCHEMA,
     PROJECT_COMPONENT_SCHEMA,
+    FACTORY_METRICS_SCHEMA,
 ];
 
 /// Column additions for existing tables (ALTER TABLE).
@@ -666,6 +682,12 @@ const COLUMN_MIGRATIONS: &[&str] = &[
     // frontend-automation: 项目关联知识库与路径
     "ALTER TABLE projects ADD COLUMN knowledge_base_id TEXT REFERENCES knowledge_bases(id)",
     "ALTER TABLE projects ADD COLUMN path TEXT",
+    // AF-01: 工厂台 Run 关联团队/项目/触发来源
+    "ALTER TABLE executions ADD COLUMN team_id TEXT",
+    "ALTER TABLE executions ADD COLUMN project_id TEXT",
+    "ALTER TABLE executions ADD COLUMN trigger_source TEXT",
+    // AF-02: 审批审计
+    "ALTER TABLE executions ADD COLUMN approval_events TEXT",
 ];
 
 /// Run all schema migrations against the given database path.

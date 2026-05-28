@@ -10,7 +10,7 @@ use futures_util::{SinkExt, StreamExt};
 use std::sync::Arc;
 
 use super::AppState;
-use crate::services::execution_service::ExecutionEvent;
+use crate::services::execution_service::{ApprovalEvent, ExecutionEvent, PendingPause};
 use crate::services::workflow_service::WorkflowServiceError;
 
 /// 列出执行记录
@@ -36,6 +36,10 @@ pub async fn list_executions(State(state): State<Arc<AppState>>) -> Json<Vec<Exe
                 finished_at: e.finished_at.map(|dt| dt.to_rfc3339()),
                 total_tokens: e.total_tokens,
                 total_cost_usd: e.total_cost_usd,
+                team_id: e.team_id.clone(),
+                project_id: e.project_id.clone(),
+                trigger_source: e.trigger_source.clone(),
+                approval_events: e.approval_events.clone(),
             }
         })
         .collect();
@@ -68,6 +72,13 @@ pub async fn get_execution(
             error: execution.error,
             total_tokens: execution.total_tokens,
             total_cost_usd: execution.total_cost_usd,
+            team_id: execution.team_id.clone(),
+            project_id: execution.project_id.clone(),
+            trigger_source: execution.trigger_source.clone(),
+            approval_events: execution.approval_events.clone(),
+            pending_pause: execution.pending_pause.clone(),
+            current_stage: execution.current_stage.clone(),
+            resumed_from: execution.resumed_from.clone(),
         })
     } else {
         Json(ExecutionResponse {
@@ -81,6 +92,13 @@ pub async fn get_execution(
             error: Some("执行不存在".to_string()),
             total_tokens: 0,
             total_cost_usd: 0.0,
+            team_id: None,
+            project_id: None,
+            trigger_source: None,
+            approval_events: vec![],
+            pending_pause: None,
+            current_stage: None,
+            resumed_from: None,
         })
     }
 }
@@ -141,6 +159,178 @@ pub async fn cancel_execution(
     })
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct ResolveExecutionRequest {
+    pub approved: bool,
+    #[serde(default)]
+    pub comment: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct ResolveExecutionResponse {
+    pub ok: bool,
+    pub execution_id: String,
+}
+
+/// POST /api/v1/executions/:id/resolve — 审批 approve/reject 并驱动引擎继续
+pub async fn resolve_execution(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(req): Json<ResolveExecutionRequest>,
+) -> Result<Json<ResolveExecutionResponse>, ExecutionAppError> {
+    state
+        .execution_service
+        .resolve_execution(&id, req.approved, req.comment)
+        .map_err(ExecutionAppError::BadRequest)?;
+
+    Ok(Json(ResolveExecutionResponse {
+        ok: true,
+        execution_id: id,
+    }))
+}
+
+/// POST /api/v1/executions/:id/retry-stage — AF-UX-09 从失败阶段重试
+pub async fn retry_stage_execution(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(req): Json<RetryStageRequest>,
+) -> Result<Json<serde_json::Value>, ExecutionAppError> {
+    let execution = state
+        .execution_service
+        .get_execution(&id)
+        .ok_or_else(|| ExecutionAppError::NotFound(format!("执行 {} 不存在", id)))?;
+
+    let status = format!("{:?}", execution.status).to_lowercase();
+    if status != "failed" && status != "cancelled" {
+        return Err(ExecutionAppError::BadRequest(
+            "仅失败或已取消的执行可重试".into(),
+        ));
+    }
+
+    let workflow = state
+        .workflow_service
+        .get_workflow(&execution.workflow_id)
+        .map_err(|e| ExecutionAppError::Internal(e.to_string()))?
+        .ok_or_else(|| {
+            ExecutionAppError::NotFound(format!("工作流 {} 不存在", execution.workflow_id))
+        })?;
+
+    let from_stage = req.from_stage.or(execution.current_stage.clone()).or_else(|| {
+        execution
+            .stage_results
+            .last()
+            .map(|s| s.stage_name.clone())
+    });
+    let from_stage_for_resp = from_stage.clone();
+
+    let mut variables = if execution.variables.is_object() {
+        execution.variables.clone()
+    } else {
+        serde_json::json!({})
+    };
+    if let Some(stage) = from_stage {
+        if let Some(obj) = variables.as_object_mut() {
+            obj.insert("retry_from_stage".into(), serde_json::json!(stage));
+        }
+    }
+    if let Some(p) = req.approval_policy {
+        if let Some(obj) = variables.as_object_mut() {
+            obj.insert("approval_policy".into(), serde_json::json!(p));
+        }
+    }
+    if let Some(m) = req.text_lane_cost_mode {
+        if let Some(obj) = variables.as_object_mut() {
+            obj.insert("text_lane_cost_mode".into(), serde_json::json!(m));
+        }
+    }
+    if let Some(s) = req.skip_quality_gate_for_stage {
+        if let Some(obj) = variables.as_object_mut() {
+            obj.insert("skip_quality_gate_for_stage".into(), serde_json::json!(s));
+        }
+    }
+
+    let mut workflow_def = serde_json::json!({
+        "name": workflow.name,
+        "version": workflow.version,
+    });
+    if let Some(desc) = &workflow.description {
+        workflow_def["description"] = serde_json::json!(desc);
+    }
+    if let Some(obj) = workflow.definition.as_object() {
+        for (k, v) in obj {
+            if !["name", "version", "description"].contains(&k.as_str()) {
+                workflow_def[k] = v.clone();
+            }
+        }
+    }
+    let workflow_yaml = serde_yaml::to_string(&workflow_def)
+        .map_err(|e| ExecutionAppError::Internal(e.to_string()))?;
+
+    let launch = Some(crate::services::execution_service::ExecutionLaunchContext {
+        team_id: execution.team_id.clone(),
+        project_id: execution.project_id.clone(),
+        trigger_source: execution.trigger_source.clone().or(Some("factory".into())),
+    });
+
+    let exec_id = state
+        .execution_service
+        .execute_workflow(
+            workflow.id.clone(),
+            &workflow_yaml,
+            variables,
+            None,
+            execution.workspace_path.clone(),
+            launch,
+        )
+        .await
+        .map_err(|e| ExecutionAppError::Internal(format!("重试启动失败: {e}")))?;
+
+    let stage_names: Vec<String> = workflow
+        .definition
+        .get("stages")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|s| s.get("name").and_then(|n| n.as_str()).map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    if let Err(e) = state.execution_service.seed_retry_lineage(
+        &exec_id,
+        &id,
+        &stage_names,
+        from_stage_for_resp.as_deref(),
+    ) {
+        tracing::warn!("重试继承父 Run 阶段失败: {}", e);
+    }
+
+    if let Some(ref artifact_repo) = state.artifact_repo {
+        match artifact_repo.clone_execution_artifacts(&id, &exec_id) {
+            Ok(n) if n > 0 => tracing::info!("重试继承 {} 条产物记录", n),
+            Ok(_) => {}
+            Err(e) => tracing::warn!("重试继承产物失败: {}", e),
+        }
+    }
+
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "data": { "execution_id": exec_id, "retry_from_stage": from_stage_for_resp, "resumed_from": id }
+    })))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct RetryStageRequest {
+    #[serde(default)]
+    pub from_stage: Option<String>,
+    #[serde(default)]
+    pub approval_policy: Option<String>,
+    #[serde(default)]
+    pub text_lane_cost_mode: Option<String>,
+    #[serde(default)]
+    pub skip_quality_gate_for_stage: Option<String>,
+}
+
 /// 启动执行
 pub async fn start_execution(
     State(state): State<Arc<AppState>>,
@@ -199,6 +389,7 @@ pub async fn start_execution(
             variables.clone(),
             None, // 使用默认 AI 配置
             current_workspace,
+            None,
         )
         .await
         .map_err(|e| ExecutionAppError::Internal(format!("执行启动失败: {}", e)))?;
@@ -215,6 +406,13 @@ pub async fn start_execution(
         error: None,
         total_tokens: 0,
         total_cost_usd: 0.0,
+        team_id: None,
+        project_id: None,
+        trigger_source: None,
+        approval_events: vec![],
+        pending_pause: None,
+        current_stage: None,
+        resumed_from: None,
     }))
 }
 
@@ -410,6 +608,20 @@ pub struct ExecutionResponse {
     pub total_tokens: i64,
     #[serde(default)]
     pub total_cost_usd: f64,
+    #[serde(default)]
+    pub team_id: Option<String>,
+    #[serde(default)]
+    pub project_id: Option<String>,
+    #[serde(default)]
+    pub trigger_source: Option<String>,
+    #[serde(default)]
+    pub approval_events: Vec<ApprovalEvent>,
+    #[serde(default)]
+    pub pending_pause: Option<PendingPause>,
+    #[serde(default)]
+    pub current_stage: Option<String>,
+    #[serde(default)]
+    pub resumed_from: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -433,6 +645,14 @@ pub struct ExecutionSummary {
     pub total_tokens: i64,
     #[serde(default)]
     pub total_cost_usd: f64,
+    #[serde(default)]
+    pub team_id: Option<String>,
+    #[serde(default)]
+    pub project_id: Option<String>,
+    #[serde(default)]
+    pub trigger_source: Option<String>,
+    #[serde(default)]
+    pub approval_events: Vec<ApprovalEvent>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]

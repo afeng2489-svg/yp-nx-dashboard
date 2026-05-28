@@ -237,9 +237,10 @@ export function useAgentExecutionV2(): UseAgentExecutionReturn {
                 ]);
               }
               break;
-            case 'completed':
+            case 'completed': {
+              const finalText = (data.result?.trim() || accOutput.trim() || '') || null;
               setStatus('completed');
-              setResult(data.result ?? null);
+              setResult(finalText);
               setDurationMs(data.duration_ms ?? null);
               stopLocalTimer();
               isRunningRef.current = false;
@@ -251,10 +252,11 @@ export function useAgentExecutionV2(): UseAgentExecutionReturn {
                 useTeamStore.getState().setActiveTeamTask({
                   ...monitorCtx,
                   status: 'done',
-                  result: data.result ?? '',
+                  result: finalText ?? '',
                 });
               }
               break;
+            }
             case 'failed':
               setStatus('failed');
               setError(data.error ?? 'Unknown error');

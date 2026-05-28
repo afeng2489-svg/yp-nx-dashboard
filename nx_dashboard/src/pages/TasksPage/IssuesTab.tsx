@@ -18,6 +18,7 @@ import { CreateIssueModal } from './CreateIssueModal';
 import { IssueDetailPanel } from './IssueDetailPanel';
 import { IssuePipelineStages } from './IssuePipelineStages';
 import { triggerIssueWorkflow, triggerDiscoverWorkflow } from './issueWorkflowUtils';
+import { PageEmptyState } from '@/components/ui/PageEmptyState';
 
 const FILTER_STATUSES = [
   'discovered',
@@ -150,10 +151,7 @@ export function IssuesTab() {
       )}
 
       {filtered.length === 0 && !loading ? (
-        <div className="text-center py-12 bg-gradient-to-b from-card to-accent/20 rounded-2xl border border-border/50">
-          <Bug className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
-          <p className="text-muted-foreground text-sm">暂无 Issue</p>
-        </div>
+        <PageEmptyState icon={Bug} title="暂无 Issue" description="创建 Issue 以跟踪问题与修复流程" />
       ) : (
         <div className="space-y-2">
           {filtered.map((issue) => (

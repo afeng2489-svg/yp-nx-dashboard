@@ -1,0 +1,154 @@
+sprint_id: AF-11
+status: in-progress
+priority: P0
+estimated_hours: 80
+depends_on: [AF-10]
+
+title: "三模式布局 + shadcn 视觉收敛"
+objective: |
+  同一 AI 工厂、三种用法：Guided（D）给新手与朋友测，Focus（A）给重度 Run 用户，
+  Studio（C）给写代码开发者。共用路由与业务能力，只换 Shell 与工厂台默认视图。
+  不删 AF-10 任何路由、legacy redirect 或 ⌘K 命令。
+
+layout_modes:
+  guided:
+    persona: 朋友测、非技术、偶尔用
+    shell: 侧栏 5 项 + Tab + ContextPanel + StatusBar
+    factory: 完整 Tab + 快捷产线卡片
+  focus:
+    persona: 日常 dogfood、快速启动 Run
+    shell: 无侧栏，顶栏导航 + 主内容
+    factory: 大输入 + 进行中列表；Tab 通过 ?tab= 或 ⌘K
+  studio:
+    persona: 改代码、看 diff、终端
+    shell: 侧栏 + 默认文件树 + ContextPanel + Drawer
+    factory: 与 guided 同页，默认开文件树
+
+phases:
+  - id: p1-foundation
+    status: done
+    name: 基础架构
+    items:
+      - layoutMode in settingsStore (persist, default guided)
+      - layoutModes.ts + LayoutModeMenu + LayoutModePicker
+      - GuidedShell / FocusShell / StudioShell
+      - Dashboard 按 mode 分发
+      - 设置页布局模式选择器
+      - 顶栏 LayoutModeMenu 快捷切换
+
+  - id: p2-factory-views
+    status: done
+    name: 工厂台分视图
+    items:
+      - FactoryPage 读 layoutMode
+      - FactoryConsoleTab variant=focus（去宫格、居中输入、保留 Run 列表）
+      - Focus 模式 Tab 深链 ?tab=runs|approvals|deliverables
+      - Focus 模式底部链接 + ⌘K 提示
+
+  - id: p3-shadcn-init
+    status: done
+    name: shadcn 正式接入
+    items:
+      - npx shadcn@latest init（补 components.json，Tailwind 3 现有项目路径）
+      - 安装 tailwindcss-animate
+      - 补齐基础组件 tabs / dialog / sheet / separator / scroll-area / command
+      - 与现有 button/card/input 对齐或覆盖为官方版
+      - 去除 index.css btn-primary 渐变扫光（保留 token 变量）
+
+  - id: p4-page-convergence
+    status: done
+    name: 页面视觉收敛（Guided 样板三页）
+    items:
+      - 新增 PageHeader 组件（title / description / actions 统一）
+      - 新增 PageTabs 组件（underline 一种，sub-tab pill 一种）
+      - 工厂台 /factory 去渐变标题，换 PageHeader + PageTabs
+      - 资产库 /assets 对齐 PageHeader（与工厂台同级字号）
+      - 团队详情 /teams/:id 对齐 PageTabs（icon + label）
+      - btn-primary 在工厂 Console 启动按钮替换为 shadcn Button
+      - card-hover / gradient-text 在三页样板内停用
+
+  - id: p5-onboarding-defaults
+    status: done
+    name: 首次体验与默认策略
+    items:
+      - OnboardingWizard 最后一步「你主要怎么用？」→ 推荐 layoutMode
+        - 朋友测 / 偶尔用 → guided
+        - 每天跑任务 → focus
+        - 改代码为主 → studio
+      - 新用户默认 guided（已在 settingsStore DEFAULT）
+      - 设置页布局模式卡片补充示意图或一句话场景说明
+      - ⌘K 增加 layout:guided | layout:focus | layout:studio 命令
+
+  - id: p6-shell-polish
+    status: in-progress
+    name: 经典 / 精简双轨 + Shell 打磨
+    items:
+      - layoutVariant classic|refined（默认 classic 保留 AF-10/11 原版）
+      - AppShellsClassic + AppShellsRefined + resolveAppShell
+      - LayoutVariantMenu / LayoutVariantPicker + ⌘K layout:classic|refined
+      - Sidebar / FactoryConsoleTab / ActiveExecutionsPanel refined 变体
+      - Focus 模式 ContextPanel 可通过 ⌘K 或 Run 点击临时打开
+      - Studio 模式首次进入可选提示「文件树已展开，⌘K 打开终端」
+      - Guided 模式文件树默认关（现状），与 Studio 差异文档化
+      - 窄屏 (<1024) 三模式 responsive 冒烟清单
+      - TerminalGrid / FactoryDrawer token 对齐（去硬编码 #1e1e1e）
+
+  - id: p7-gate-e2e
+    status: in-progress
+    name: 回归门禁与 e2e
+    items:
+      - gate-check AF-11 扩展 shadcn / PageHeader 检查项
+      - e2e 设置切换 focus → 侧栏不可见
+      - e2e 设置切换 studio → 文件树可见
+      - e2e ?tab=runs 三模式均可打开
+      - e2e /canvas /assets legacy redirect 三模式仍有效
+      - e2e ⌘K go:factory / go:assets 三模式可用
+      - 三模式 AF-10 核心路由可达 checklist（手工 + 脚本）
+
+  - id: p8-docs
+    status: pending
+    name: 文档
+    items:
+      - docs/PROGRESS.md 更新 AF-11 完成态
+      - docs/RELEASE.md 补充「布局模式」说明（朋友测用 Guided）
+      - 可选 docs/design/layout-modes.md 一页纸给内测
+
+# ── AF-11b（后续 sprint，本 sprint 不做）──
+af_11b:
+  title: "运营列表 + Dice UI"
+  items:
+    - Ops / ExecutionsPage Dice Data Table（排序、筛选、分页）
+    - Combobox 团队/项目筛选
+    - 服务端 executions filter API
+
+explicit_not_doing:
+  - 三套独立代码库 / 三套主题色
+  - 删除 legacy 路由或 71 页
+  - Dice UI Data Table（移至 AF-11b）
+  - 全站 71 页一次性换 shadcn（仅三页样板）
+
+gate_checks:
+  # P1–P2（已实现）
+  - layoutMode in settingsStore
+  - GuidedShell FocusShell StudioShell exist
+  - Settings layout mode picker
+  - FactoryPage layoutMode aware
+  # P3–P4（待实现）
+  - components.json exists
+  - PageHeader component exists
+  - FactoryPage no gradient title (样板)
+  # P7（待实现）
+  - e2e layout-mode spec passes
+
+e2e:
+  - 设置切换 focus → 侧栏不可见
+  - 设置切换 studio → 文件树默认可见
+  - ?tab=runs 三模式均可打开
+  - /canvas /assets legacy redirect 仍有效
+  - onboarding 选 focus → 刷新后仍为 focus
+
+completion_criteria: |
+  1. 三模式可切换且 persist，不丢 AF-10 任何路由
+  2. 工厂/资产/团队三页视觉统一（shadcn PageHeader + Tabs + Button）
+  3. 新用户 onboarding 推荐 layoutMode
+  4. gate-check AF-11 + layout-mode e2e 全绿

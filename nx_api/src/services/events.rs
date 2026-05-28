@@ -4,6 +4,10 @@
 
 use serde::{Deserialize, Serialize};
 
+fn default_pause_kind() -> String {
+    "user_input".to_string()
+}
+
 /// 用户输入选项（pause 时展示给前端）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowOption {
@@ -49,6 +53,8 @@ pub enum ExecutionEvent {
         stage_name: String,
         question: String,
         options: Vec<WorkflowOption>,
+        #[serde(default = "default_pause_kind")]
+        pause_kind: String,
     },
     /// 工作流从暂停中恢复
     WorkflowResumed {

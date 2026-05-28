@@ -32,8 +32,8 @@ impl SqliteExecutionRepository {
     pub fn insert(&self, execution: &Execution) -> Result<(), ExecutionRepositoryError> {
         let conn = self.conn.lock();
         conn.execute(
-            "INSERT INTO executions (id, workflow_id, status, variables, error, started_at, finished_at, workspace_path)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            "INSERT INTO executions (id, workflow_id, status, variables, error, started_at, finished_at, workspace_path, team_id, project_id, trigger_source)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 execution.id,
                 execution.workflow_id,
@@ -43,6 +43,9 @@ impl SqliteExecutionRepository {
                 execution.started_at.map(|t| t.to_rfc3339()),
                 execution.finished_at.map(|t| t.to_rfc3339()),
                 execution.workspace_path,
+                execution.team_id,
+                execution.project_id,
+                execution.trigger_source,
             ],
         )?;
         Ok(())
@@ -97,6 +100,35 @@ impl SqliteExecutionRepository {
         conn.execute(
             "UPDATE executions SET total_tokens = ?1, total_cost_usd = ?2 WHERE id = ?3",
             params![total_tokens, total_cost_usd, id],
+        )?;
+        Ok(())
+    }
+
+    /// 持久化审批审计链
+    pub fn update_approval_events(
+        &self,
+        id: &str,
+        events: &[crate::services::execution_service::ApprovalEvent],
+    ) -> Result<(), ExecutionRepositoryError> {
+        let json = serde_json::to_string(events)?;
+        let conn = self.conn.lock();
+        conn.execute(
+            "UPDATE executions SET approval_events = ?1 WHERE id = ?2",
+            params![json, id],
+        )?;
+        Ok(())
+    }
+
+    /// 更新 variables（重试继承父 Run 元数据）
+    pub fn update_variables(
+        &self,
+        id: &str,
+        variables: &serde_json::Value,
+    ) -> Result<(), ExecutionRepositoryError> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "UPDATE executions SET variables = ?1 WHERE id = ?2",
+            params![serde_json::to_string(variables)?, id],
         )?;
         Ok(())
     }
@@ -212,7 +244,7 @@ fn find_by_id_with_conn(
     id: &str,
 ) -> Result<Option<Execution>, ExecutionRepositoryError> {
     let mut stmt = conn.prepare(
-        "SELECT id, workflow_id, status, variables, error, started_at, finished_at, total_tokens, total_cost_usd
+        "SELECT id, workflow_id, status, variables, error, started_at, finished_at, total_tokens, total_cost_usd, workspace_path, team_id, project_id, trigger_source, approval_events
          FROM executions WHERE id = ?1",
     )?;
 
@@ -231,7 +263,7 @@ fn find_by_id_with_conn(
 
 fn find_all_with_conn(conn: &Connection) -> Result<Vec<Execution>, ExecutionRepositoryError> {
     let mut stmt = conn.prepare(
-        "SELECT id, workflow_id, status, variables, error, started_at, finished_at, total_tokens, total_cost_usd
+        "SELECT id, workflow_id, status, variables, error, started_at, finished_at, total_tokens, total_cost_usd, workspace_path, team_id, project_id, trigger_source, approval_events
          FROM executions ORDER BY started_at DESC",
     )?;
 
@@ -328,6 +360,15 @@ fn row_to_execution(row: &rusqlite::Row) -> rusqlite::Result<Execution> {
         total_tokens: row.get::<_, i64>(7).unwrap_or(0),
         total_cost_usd: row.get::<_, f64>(8).unwrap_or(0.0),
         workspace_path: row.get(9).unwrap_or(None),
+        team_id: row.get(10).unwrap_or(None),
+        project_id: row.get(11).unwrap_or(None),
+        trigger_source: row.get(12).unwrap_or(None),
+        approval_events: {
+            let s: Option<String> = row.get(13).unwrap_or(None);
+            s.and_then(|json| serde_json::from_str(&json).ok())
+                .unwrap_or_default()
+        },
+        resumed_from: None,
     })
 }
 
@@ -350,6 +391,26 @@ mod tests {
         e.status = ExecutionStatus::Running;
         e.started_at = Some(chrono::Utc::now());
         e
+    }
+
+    #[test]
+    fn approval_events_persist() {
+        use crate::services::execution_service::ApprovalEvent;
+        let repo = tmp_db();
+        let exec = new_exec("exec-audit");
+        repo.insert(&exec).unwrap();
+
+        let events = vec![ApprovalEvent {
+            stage_name: "交付审批".into(),
+            approved: true,
+            comment: Some("LGTM".into()),
+            decided_at: chrono::Utc::now(),
+        }];
+        repo.update_approval_events("exec-audit", &events).unwrap();
+
+        let loaded = repo.find_by_id("exec-audit").unwrap().unwrap();
+        assert_eq!(loaded.approval_events.len(), 1);
+        assert!(loaded.approval_events[0].approved);
     }
 
     #[test]

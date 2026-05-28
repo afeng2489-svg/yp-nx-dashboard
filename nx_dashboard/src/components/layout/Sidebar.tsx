@@ -141,7 +141,9 @@ function CliModelDisplay() {
       <Cpu className="w-4 h-4 text-primary flex-shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="text-xs text-muted-foreground truncate">CLI 模型</p>
-        <p className="text-sm font-medium truncate">{cliModel?.sonnet_model || 'Unknown'}</p>
+        <p className="text-sm font-medium truncate">
+          {cliModel?.primary_model || cliModel?.sonnet_model || 'Unknown'}
+        </p>
       </div>
       {cliModel?.base_url && (
         <span
@@ -160,28 +162,44 @@ function NavItem({
   isActive,
   sidebarOpen,
   onClick,
+  refined = false,
+  studio = false,
 }: {
   tab: Tab;
   isActive: boolean;
   sidebarOpen: boolean;
   onClick: () => void;
+  refined?: boolean;
+  studio?: boolean;
 }) {
   const Icon = tab.icon;
   return (
     <button
       onClick={onClick}
+      title={!sidebarOpen ? tab.label : undefined}
       className={cn(
-        'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200',
-        'hover:scale-[1.02] active:scale-[0.98]',
+        'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200',
+        studio
+          ? 'hover:bg-accent/80'
+          : refined
+            ? 'hover:bg-accent/60'
+            : 'hover:scale-[1.02] active:scale-[0.98]',
         isActive
-          ? 'bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 text-primary border border-primary/20 shadow-sm'
-          : 'hover:bg-accent text-muted-foreground hover:text-foreground',
+          ? studio
+            ? 'bg-accent text-foreground border border-border'
+            : refined
+              ? 'bg-primary/10 text-primary border border-primary/20'
+              : 'bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-pink-500/10 text-primary border border-primary/20 shadow-sm'
+          : studio
+            ? 'text-muted-foreground hover:text-foreground'
+            : 'hover:bg-accent text-muted-foreground hover:text-foreground',
       )}
     >
       <Icon
         className={cn(
           'w-5 h-5 flex-shrink-0 transition-transform duration-200',
-          isActive ? 'text-primary scale-110' : '',
+          isActive ? (studio ? 'text-foreground' : 'text-primary') : '',
+          !refined && !studio && isActive && 'scale-110',
         )}
       />
       {sidebarOpen && (
@@ -194,60 +212,109 @@ function NavItem({
           {tab.label}
         </span>
       )}
-      {isActive && sidebarOpen && (
+      {isActive && sidebarOpen && !refined && (
         <div className="ml-auto w-1.5 h-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500" />
       )}
     </button>
   );
 }
 
-export function Sidebar() {
-  const { sidebarOpen, toggleSidebar } = useUIStore();
+export function Sidebar({
+  variant = 'classic',
+  rail = false,
+  theme = 'default',
+}: {
+  variant?: 'classic' | 'refined';
+  rail?: boolean;
+  theme?: 'default' | 'studio';
+} = {}) {
+  const { sidebarOpen, toggleSidebar, setSidebarOpen } = useUIStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ 工具: true });
+  const isRefined = variant === 'refined';
+  const isStudio = theme === 'studio';
+  const effectiveOpen = rail ? false : sidebarOpen;
+
+  useEffect(() => {
+    if (rail) setSidebarOpen(false);
+  }, [rail, setSidebarOpen]);
 
   const activeTab = resolveActiveNavId(location.pathname);
 
   return (
     <aside
       className={cn(
-        'h-full flex flex-col border-r transition-all duration-300 relative',
-        sidebarOpen ? 'w-64' : 'w-16',
-        'bg-gradient-to-b from-card to-background',
+        'h-full flex flex-col border-r transition-all duration-300 relative shrink-0',
+        rail ? 'w-14' : effectiveOpen ? 'w-64' : 'w-16',
+        isStudio
+          ? 'bg-background border-border text-foreground'
+          : isRefined
+            ? 'bg-card border-border/40'
+            : 'bg-gradient-to-b from-card to-background',
       )}
     >
       {/* Header */}
       <div
         className={cn(
-          'flex items-center h-16 px-4 border-b border-border/50',
-          sidebarOpen ? 'justify-between' : 'justify-center',
+          'flex items-center h-16 px-4 border-b',
+          isStudio ? 'border-border' : 'border-border/50',
+          effectiveOpen ? 'justify-between' : 'justify-center',
         )}
       >
-        {sidebarOpen ? (
+        {effectiveOpen ? (
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+            <div
+              className={cn(
+                'w-8 h-8 rounded-lg flex items-center justify-center',
+                isRefined || isStudio
+                  ? isStudio
+                    ? 'bg-foreground text-background'
+                    : 'bg-primary text-primary-foreground'
+                  : 'bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 shadow-lg shadow-indigo-500/25',
+              )}
+            >
               <Workflow className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-lg bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+            <span
+              className={cn(
+                'font-bold text-lg',
+                isRefined || isStudio
+                  ? isStudio
+                    ? 'text-foreground'
+                    : 'text-foreground'
+                  : 'bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent',
+              )}
+            >
               TeamFlow
             </span>
           </div>
         ) : (
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-            <Workflow className="w-4 h-4 text-white" />
+          <div
+            className={cn(
+              'w-8 h-8 rounded-lg flex items-center justify-center',
+              isStudio
+                ? 'bg-foreground text-background'
+                : isRefined
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 shadow-lg shadow-indigo-500/25',
+            )}
+          >
+            <Workflow className={cn('w-4 h-4', isStudio ? 'text-background' : 'text-white')} />
           </div>
         )}
-        <button
-          onClick={toggleSidebar}
-          className="p-2 rounded-lg hover:bg-accent transition-all duration-200 hover:scale-105 active:scale-95"
-        >
-          {sidebarOpen ? (
-            <ChevronLeft className="w-4 h-4 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-          )}
-        </button>
+        {!rail && (
+          <button
+            onClick={toggleSidebar}
+            className="p-2 rounded-lg hover:bg-accent transition-all duration-200 hover:scale-105 active:scale-95"
+          >
+            {effectiveOpen ? (
+              <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            )}
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
@@ -258,7 +325,7 @@ export function Sidebar() {
 
           return (
             <div key={group.label}>
-              {sidebarOpen && (
+              {effectiveOpen && (
                 <button
                   onClick={() =>
                     group.collapsible &&
@@ -294,7 +361,9 @@ export function Sidebar() {
                       key={tab.id}
                       tab={tab}
                       isActive={activeTab === tab.id}
-                      sidebarOpen={sidebarOpen}
+                      sidebarOpen={effectiveOpen}
+                      refined={isRefined}
+                      studio={isStudio}
                       onClick={() => navigate(tab.path)}
                     />
                   ))}
@@ -306,9 +375,9 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="p-3 border-t border-border/50 space-y-2">
-        <div className={cn('flex items-center', sidebarOpen ? 'justify-end' : 'justify-center')}>
-          {sidebarOpen ? (
+      <div className={cn('p-3 border-t space-y-2', isStudio ? 'border-border' : 'border-border/50')}>
+        <div className={cn('flex items-center', effectiveOpen ? 'justify-end' : 'justify-center')}>
+          {effectiveOpen ? (
             <CliModelDisplay />
           ) : (
             <div className="p-2 rounded-lg" title="CLI 模型">
@@ -318,14 +387,26 @@ export function Sidebar() {
         </div>
         <div
           className={cn(
-            'flex items-center gap-3 px-3 py-2 rounded-xl bg-gradient-to-r from-indigo-500/5 to-purple-500/5',
-            !sidebarOpen && 'justify-center',
+            'flex items-center gap-3 px-3 py-2 rounded-xl',
+            isStudio
+              ? 'bg-muted/60'
+              : 'bg-gradient-to-r from-indigo-500/5 to-purple-500/5',
+            !effectiveOpen && 'justify-center',
           )}
         >
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-indigo-500/25">
+          <div
+            className={cn(
+              'w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold',
+              isStudio
+                ? 'bg-muted-foreground'
+                : isRefined
+                  ? 'bg-primary'
+                  : 'bg-gradient-to-br from-indigo-500 to-purple-500 shadow-lg shadow-indigo-500/25',
+            )}
+          >
             N
           </div>
-          {sidebarOpen && (
+          {effectiveOpen && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">TeamFlow</p>
               <p className="text-xs text-muted-foreground truncate">v0.1.0</p>

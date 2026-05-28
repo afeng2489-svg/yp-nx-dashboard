@@ -71,13 +71,23 @@ impl SprintService {
         Ok(())
     }
 
+    pub fn get(&self, id: &str) -> anyhow::Result<Option<SprintCard>> {
+        Ok(self
+            .list()?
+            .into_iter()
+            .find(|c| c.id == id))
+    }
+
     pub fn update_status(&self, id: &str, status: &str) -> anyhow::Result<()> {
         let now = chrono::Utc::now().to_rfc3339();
         let conn = self.conn.lock();
-        conn.execute(
+        let updated = conn.execute(
             "UPDATE sprint_cards SET status=?1, updated_at=?2 WHERE id=?3",
             params![status, now, id],
         )?;
+        if updated == 0 {
+            anyhow::bail!("sprint not found: {id}");
+        }
         Ok(())
     }
 

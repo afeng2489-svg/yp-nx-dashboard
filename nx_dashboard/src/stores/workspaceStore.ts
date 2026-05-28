@@ -193,26 +193,33 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           const current = get().currentWorkspace;
           const workspaceValid = current && workspaces.some((w) => w.id === current.id);
           const effective = workspaceValid
-            ? current!
+            ? (workspaces.find((w) => w.id === current!.id) ?? current!)
             : workspaces.length > 0
               ? workspaces[0]
               : null;
 
           if (effective) {
-            if (effective !== current) {
+            const workspaceChanged =
+              !current ||
+              effective.id !== current.id ||
+              effective.root_path !== current.root_path ||
+              effective.name !== current.name;
+
+            if (workspaceChanged) {
               set({ currentWorkspace: effective });
+              notifyListeners(effective);
+              fetchWithTimeout(`${API_BASE}/api/v1/ai/current-workspace`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: effective.root_path || null }),
+              }).catch((err) => {
+                console.error('Failed to init current workspace:', err);
+              });
             }
-            notifyListeners(effective);
+
             if (effective.root_path) {
               get().browseFiles();
             }
-            fetchWithTimeout(`${API_BASE}/api/v1/ai/current-workspace`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ path: effective.root_path || null }),
-            }).catch((err) => {
-              console.error('Failed to init current workspace:', err);
-            });
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to fetch workspaces';

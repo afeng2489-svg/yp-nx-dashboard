@@ -21,7 +21,7 @@ interface RoleWithTeam extends Role {
   teamName?: string;
 }
 
-export function RolesPage() {
+export function RolesPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { teams, fetchTeams } = useTeamStore();
   const [allRoles, setAllRoles] = useState<RoleWithTeam[]>([]);
   const [loading, setLoading] = useState(true);
@@ -202,13 +202,17 @@ export function RolesPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Bot className="w-7 h-7" />
-            角色管理
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            管理所有团队角色 - 共 {allRoles.length} 个角色
-          </p>
+          {!embedded && (
+            <>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <Bot className="w-7 h-7" />
+                角色管理
+              </h1>
+              <p className="text-muted-foreground mt-1">
+                管理所有团队角色 - 共 {allRoles.length} 个角色
+              </p>
+            </>
+          )}
         </div>
         <button
           onClick={() => setShowCreateModal(true)}

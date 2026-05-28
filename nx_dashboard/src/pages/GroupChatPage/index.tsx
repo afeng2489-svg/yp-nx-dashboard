@@ -2,7 +2,7 @@ import { Plus, MessageSquare, Loader2, AlertCircle, CheckCircle, X } from 'lucid
 import { ConfirmModal } from '@/lib/ConfirmModal';
 import { useGroupChatPage } from './hooks/useGroupChatPage';
 import { CreateSessionModal } from './CreateSessionModal';
-import { StartDiscussionModal } from './StartDiscussionModal';
+import { DiscussionSetupSheet } from './DiscussionSetupSheet';
 import { ConclusionModal } from './ConclusionModal';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatInput } from './ChatInput';
@@ -11,35 +11,55 @@ import { SessionsList } from './SessionsList';
 import { SessionHeader } from './SessionHeader';
 import { ParallelRoundProgress } from './ParallelRoundProgress';
 
-export function GroupChatPage() {
-  const page = useGroupChatPage();
+export function GroupChatPage({
+  embedded = false,
+  teamId,
+}: {
+  embedded?: boolean;
+  teamId?: string;
+} = {}) {
+  const page = useGroupChatPage(teamId);
 
   if (page.loading && page.sessions.length === 0) {
     return (
-      <div className="page-container">
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
+      <div className={embedded ? 'flex items-center justify-center h-48' : 'page-container'}>
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="page-container">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <MessageSquare className="w-6 h-6" />
-          <h1 className="text-2xl font-bold">团队群组讨论</h1>
+    <div className={embedded ? 'space-y-4' : 'page-container'}>
+      {!embedded && (
+        <>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <MessageSquare className="w-6 h-6" />
+              <h1 className="text-2xl font-bold">团队群组讨论</h1>
+            </div>
+            <button
+              onClick={() => page.setShowCreateModal(true)}
+              className="btn btn-primary flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              新建讨论
+            </button>
+          </div>
+        </>
+      )}
+
+      {embedded && (
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium">多 Agent 讨论</h2>
+          <button
+            onClick={() => page.setShowCreateModal(true)}
+            className="btn btn-primary text-xs flex items-center gap-1 py-1 px-2"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            新建
+          </button>
         </div>
-        <button
-          onClick={() => page.setShowCreateModal(true)}
-          className="btn btn-primary flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          新建讨论
-        </button>
-      </div>
+      )}
 
       {/* Error display */}
       {page.error && (
@@ -95,11 +115,16 @@ export function GroupChatPage() {
               />
 
               {page.currentSession.status === 'active' && (
-                <ChatInput onSend={page.handleSendMessage} disabled={false} skills={page.skills} />
+                <ChatInput
+                  onSend={page.handleSendMessage}
+                  disabled={false}
+                  skills={page.skills}
+                  roles={page.roles[page.currentSession.team_id] ?? []}
+                />
               )}
 
               {page.currentSession.conclusion && (
-                <div className="bg-card rounded-lg border p-4">
+                <div className="bg-card rounded-lg border p-4" data-testid="discussion-conclusion">
                   <h3 className="font-semibold flex items-center gap-2 mb-3">
                     <CheckCircle className="w-4 h-4 text-green-500" />
                     讨论结论
@@ -107,11 +132,18 @@ export function GroupChatPage() {
                   <p className="text-sm whitespace-pre-wrap">
                     {page.currentSession.conclusion.content}
                   </p>
-                  <div className="mt-3 pt-3 border-t flex items-center gap-4 text-xs text-muted-foreground">
+                  <div className="mt-3 pt-3 border-t flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     <span>
                       共识度: {(page.currentSession.conclusion.consensus_level * 100).toFixed(0)}%
                     </span>
                     <span>同意人数: {page.currentSession.conclusion.agreed_by.length}</span>
+                    <a
+                      href={`/factory?tab=console&intent=${encodeURIComponent(page.currentSession.conclusion.content.slice(0, 500))}`}
+                      className="btn btn-primary text-xs py-1 px-2"
+                      data-testid="conclusion-launch-run"
+                    >
+                      按此启动 Run
+                    </a>
                   </div>
                 </div>
               )}
@@ -138,7 +170,7 @@ export function GroupChatPage() {
       />
 
       {page.currentSession && (
-        <StartDiscussionModal
+        <DiscussionSetupSheet
           isOpen={page.showStartModal}
           onClose={() => page.setShowStartModal(false)}
           currentSession={page.currentSession}

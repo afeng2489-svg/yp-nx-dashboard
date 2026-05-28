@@ -1,0 +1,152 @@
+name: greenfield-mvp
+version: "1.0"
+description: "从零搭项目 — 需求澄清 → 选型 → 脚手架 → 可运行骨架 → 审批 → 摘要"
+
+triggers:
+  - type: manual
+    inputs:
+      project_name:
+        type: string
+        required: true
+        description: "项目名称"
+      description:
+        type: string
+        required: true
+        description: "一句话产品描述"
+      stack:
+        type: string
+        required: false
+        description: "技术栈预设：auto | react-vite | next | go-api | tauri"
+      task:
+        type: string
+        required: false
+        description: "附加需求（可选）"
+
+variables:
+  project_name: ""
+  description: ""
+  stack: "auto"
+  task: ""
+  target: "."
+
+agents:
+  - id: pm
+    role: 产品经理
+    model: claude-sonnet-4-6
+    prompt: |
+      你是产品经理。项目：{{project_name}}
+      描述：{{description}}
+      附加：{{task}}
+
+      当前阶段：{{current_stage}}
+
+      ## 需求澄清
+      若 current_stage 为「需求澄清」：
+      1. 将描述整理为用户故事 + 核心 MVP 范围（≤5 条）
+      2. 明确非目标（不做啥）
+      3. 输出验收标准（可测试）
+
+  - id: architect
+    role: 架构师
+    model: claude-sonnet-4-6
+    prompt: |
+      项目：{{project_name}} · {{description}}
+      栈预设：{{stack}}
+      PM 输出：{{pm_需求澄清_output}}
+
+      当前阶段：{{current_stage}}
+
+      ## 技术选型
+      若 current_stage 为「技术选型」：
+      1. 根据 stack 预设选定具体框架与目录结构
+      2. 列出关键依赖（尽量少）
+      3. 输出脚手架命令与核心模块划分
+
+  - id: scaffolder
+    role: 脚手架工程师
+    model: claude-sonnet-4-6
+    prompt: |
+      项目：{{project_name}}
+      架构方案：{{architect_技术选型_output}}
+
+      当前阶段：{{current_stage}}
+
+      ## 脚手架
+      若 current_stage 为「脚手架」：
+      1. 用 Bash 创建项目骨架（npm create / go mod init 等）
+      2. 用 Write 补齐 README、.gitignore、基础配置
+      3. 确保目录结构清晰
+
+  - id: fullstack
+    role: 全栈工程师
+    model: claude-sonnet-4-6
+    prompt: |
+      项目：{{project_name}} · {{description}}
+      脚手架输出：{{scaffolder_脚手架_output}}
+
+      当前阶段：{{current_stage}}
+
+      ## 核心骨架
+      若 current_stage 为「核心骨架」：
+      1. 实现最小可运行核心（一个页面/API + 启动入口）
+      2. 遵循选型方案，不过度设计
+      3. Bash 验证能 build / dev 启动
+
+      ## 环境验证
+      若 current_stage 为「环境验证」：
+      1. 运行 dev/build 命令确认可运行
+      2. 修复阻塞问题
+      3. 输出启动说明（npm run dev 等）
+
+  - id: summary
+    role: 交付摘要员
+    model: claude-sonnet-4-5
+    executor: api
+    prompt: |
+      项目：{{project_name}}
+      描述：{{description}}
+      全栈输出：{{fullstack_环境验证_output}}
+
+      用中文生成交付摘要，含如何启动项目。
+      末尾 JSON：
+      ```json
+      {"summary":"…","files_changed":["…"],"dev_command":"npm run dev"}
+      ```
+
+stages:
+  - name: 需求澄清
+    agents: [pm]
+
+  - name: 技术选型
+    agents: [architect]
+
+  - name: 脚手架
+    agents: [scaffolder]
+
+  - name: 核心骨架
+    agents: [fullstack]
+    quality_gate:
+      checks:
+        - cmd: "sh -c 'if [ -f package.json ]; then npm run build --if-present 2>&1 || npx tsc --noEmit 2>&1; elif [ -f go.mod ]; then go build ./... 2>&1; elif [ -f Cargo.toml ]; then cargo build 2>&1; else echo ok; fi'"
+          timeout: 300
+      on_fail: retry
+      max_retries: 2
+
+  - name: 环境验证
+    agents: [fullstack]
+    quality_gate:
+      checks:
+        - cmd: "sh -c 'if [ -f package.json ]; then npm test -- --passWithNoTests 2>&1 || true; fi; echo verify_ok'"
+          timeout: 120
+      on_fail: retry
+      max_retries: 2
+
+  - name: 交付审批
+    stage_type: approval
+    question: "项目骨架已生成。是否批准交付？驳回将返回「核心骨架」继续完善。"
+    output_var: approval_result
+    on_reject_goto: 核心骨架
+
+  - name: 交付摘要
+    executor: api
+    agents: [summary]

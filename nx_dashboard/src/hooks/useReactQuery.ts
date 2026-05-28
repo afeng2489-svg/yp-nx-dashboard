@@ -67,9 +67,11 @@ export function useExecutionsQuery() {
     refetchInterval: 1000 * 15, // poll every 15s — executions change frequently
   });
 
+  // Zustand store is the live source of truth (optimistic cancel, WebSocket updates).
+  // React Query only drives fetch/refetch; stale query.data must not override the store.
   return {
-    executions: query.data ?? executions,
-    loading: query.isLoading,
+    executions,
+    loading: query.isLoading && executions.length === 0,
     refetch: query.refetch,
   };
 }

@@ -1035,7 +1035,16 @@ async fn reload_ai_config(state: &AppState) {
     let config = AIManagerConfig {
         default_model,
         api_config,
-        enabled_providers,
+        enabled_providers: {
+            let mut eps = enabled_providers;
+            if !eps.contains(&ProviderType::ClaudeCli) {
+                eps.push(ProviderType::ClaudeCli);
+            }
+            if !eps.contains(&ProviderType::Ollama) {
+                eps.push(ProviderType::Ollama);
+            }
+            eps
+        },
         default_escalate_model: None,
     };
 
@@ -1940,6 +1949,8 @@ pub async fn get_current_workspace(
 /// Claude CLI 真实使用的模型信息（从 ~/.claude/settings.json 读取）
 #[derive(Debug, serde::Serialize)]
 pub struct ClaudeCliModelResponse {
+    /// 主模型（ANTHROPIC_MODEL 或 Sonnet 默认键）
+    pub primary_model: String,
     /// Sonnet 层模型（主模型）
     pub sonnet_model: String,
     /// Haiku 层模型
@@ -1948,6 +1959,14 @@ pub struct ClaudeCliModelResponse {
     pub opus_model: String,
     /// API 代理地址
     pub base_url: Option<String>,
+}
+
+fn env_model(env: &serde_json::Value, specific_key: &str, fallback: &str) -> String {
+    env.get(specific_key)
+        .and_then(|v| v.as_str())
+        .or_else(|| env.get("ANTHROPIC_MODEL").and_then(|v| v.as_str()))
+        .unwrap_or(fallback)
+        .to_string()
 }
 
 /// 获取 Claude Code CLI 实际使用的模型
@@ -1961,34 +1980,36 @@ pub async fn get_claude_cli_model() -> Json<ClaudeCliModelResponse> {
     };
     let settings_path = std::path::Path::new(&home).join(".claude/settings.json");
 
-    let (sonnet, haiku, opus, base_url) = if settings_path.exists() {
+    let (primary, sonnet, haiku, opus, base_url) = if settings_path.exists() {
         match std::fs::read_to_string(&settings_path) {
             Ok(content) => {
                 let json: serde_json::Value =
                     serde_json::from_str(&content).unwrap_or(serde_json::json!({}));
                 let env = json.get("env").cloned().unwrap_or(serde_json::json!({}));
-                let sonnet = env
-                    .get("ANTHROPIC_DEFAULT_SONNET_MODEL")
+                let primary = env
+                    .get("ANTHROPIC_MODEL")
                     .and_then(|v| v.as_str())
-                    .unwrap_or("claude-sonnet-4-5")
-                    .to_string();
+                    .map(|s| s.to_string());
+                let sonnet = primary.clone().unwrap_or_else(|| {
+                    env_model(&env, "ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-5")
+                });
                 let haiku = env
-                    .get("ANTHROPIC_DEFAULT_HAIKU_MODEL")
+                    .get("ANTHROPIC_SMALL_FAST_MODEL")
                     .and_then(|v| v.as_str())
-                    .unwrap_or("claude-haiku-4-5")
-                    .to_string();
-                let opus = env
-                    .get("ANTHROPIC_DEFAULT_OPUS_MODEL")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("claude-opus-4-5")
-                    .to_string();
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| {
+                        env_model(&env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", "claude-haiku-4-5")
+                    });
+                let opus = env_model(&env, "ANTHROPIC_DEFAULT_OPUS_MODEL", "claude-opus-4-5");
+                let primary = primary.unwrap_or_else(|| sonnet.clone());
                 let base_url = env
                     .get("ANTHROPIC_BASE_URL")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
-                (sonnet, haiku, opus, base_url)
+                (primary, sonnet, haiku, opus, base_url)
             }
             Err(_) => (
+                "claude-sonnet-4-5".to_string(),
                 "claude-sonnet-4-5".to_string(),
                 "claude-haiku-4-5".to_string(),
                 "claude-opus-4-5".to_string(),
@@ -1998,6 +2019,7 @@ pub async fn get_claude_cli_model() -> Json<ClaudeCliModelResponse> {
     } else {
         (
             "claude-sonnet-4-5".to_string(),
+            "claude-sonnet-4-5".to_string(),
             "claude-haiku-4-5".to_string(),
             "claude-opus-4-5".to_string(),
             None,
@@ -2005,6 +2027,7 @@ pub async fn get_claude_cli_model() -> Json<ClaudeCliModelResponse> {
     };
 
     Json(ClaudeCliModelResponse {
+        primary_model: primary,
         sonnet_model: sonnet,
         haiku_model: haiku,
         opus_model: opus,

@@ -695,7 +695,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
 
     try {
       // Execute task - 记忆搜索和存储全部由后端处理
-      const response = await fetch(`${API_BASE}/api/v1/teams/${teamId}/execute`, {
+      const response = await fetch(`${API_BASE}/api/v2/teams/${teamId}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

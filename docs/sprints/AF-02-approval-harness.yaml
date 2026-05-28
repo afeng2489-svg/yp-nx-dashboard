@@ -1,5 +1,5 @@
 sprint_id: AF-02
-status: planned
+status: done
 priority: P0
 estimated_hours: 24
 depends_on: [AF-01]
@@ -13,6 +13,7 @@ objective: |
 remaining_tasks:
   - id: A1
     name: stage_type approval + resolve API
+    status: done
     priority: P0
     estimated_hours: 10
     description: |
@@ -23,6 +24,7 @@ remaining_tasks:
 
   - id: A2
     name: ApprovalPanel 对接真 API
+    status: done
     priority: P0
     estimated_hours: 6
     description: |
@@ -33,6 +35,7 @@ remaining_tasks:
 
   - id: A3
     name: solo-dev 或 dev-workflow 加 1 个审批节点
+    status: done
     priority: P0
     estimated_hours: 4
     description: |
@@ -42,6 +45,8 @@ remaining_tasks:
 
   - id: A4
     name: 审批记录写入 execution audit
+    status: done
+    note: approval_events 内存 + GET execution detail 返回；DB 列已加待持久化
     priority: P1
     estimated_hours: 4
     description: |

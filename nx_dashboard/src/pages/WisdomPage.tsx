@@ -326,7 +326,7 @@ function WisdomDetailPanel({ entry, onClose }: WisdomDetailPanelProps) {
 }
 
 // Main wisdom page
-export function WisdomPage() {
+export function WisdomPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { createEntry, deleteEntry, search, error, clearError } = useWisdomStore();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -382,10 +382,15 @@ export function WisdomPage() {
       <div className="flex-shrink-0 border-b border-border/50 bg-card/50 backdrop-blur-sm">
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
+            {!embedded && (
             <div>
               <h1 className="text-2xl font-bold">智慧库</h1>
               <p className="text-sm text-muted-foreground mt-0.5">共 {totalEntries} 条智慧条目</p>
             </div>
+            )}
+            {embedded && (
+              <p className="text-sm text-muted-foreground">共 {totalEntries} 条智慧条目</p>
+            )}
             <button onClick={() => setShowCreateModal(true)} className="btn-primary gap-2">
               <Plus className="w-4 h-4" />
               添加智慧

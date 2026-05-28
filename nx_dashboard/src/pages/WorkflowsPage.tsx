@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { useWorkflowStore, Workflow, Agent } from '@/stores/workflowStore';
 import { WorkflowTutorialModal } from '@/components/workflow/WorkflowTutorialModal';
 import { WorkflowLaunchModal } from '@/components/workflow/WorkflowLaunchModal';
+import { TemplateGallery } from '@/components/workflow/TemplateGallery';
+import type { Template } from '@/stores/templateStore';
 import { useSkillStore, type SkillSummary } from '@/stores/skillStore';
 import { onWorkspaceChange } from '@/stores/workspaceStore';
 import {
@@ -15,7 +17,6 @@ import {
   Users,
   GitBranch,
   Clock,
-  Sparkles,
   FileText,
   Wand2,
   Search,
@@ -29,6 +30,10 @@ import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 import { showSuccess, showError } from '@/lib/toast';
 import { API_BASE_URL } from '@/api/constants';
 import { Pagination } from '@/components/ui/Pagination';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { PageGuideBanner } from '@/components/ui/PageGuideBanner';
+import { PageEmptyState } from '@/components/ui/PageEmptyState';
+import { useIsRefinedShell } from '@/components/layout/ShellThemeContext';
 
 const PAGE_SIZE = 6;
 
@@ -70,43 +75,26 @@ function OperationGuide() {
   if (!isVisible) return null;
 
   return (
-    <div className="bg-gradient-to-r from-indigo-500/5 via-purple-500/5 to-pink-500/5 border border-indigo-500/20 rounded-2xl p-5 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 pointer-events-none" />
-
-      <button
-        onClick={() => setIsVisible(false)}
-        className="absolute top-3 right-3 p-1.5 hover:bg-indigo-500/10 rounded-lg transition-colors"
-      >
-        <X className="w-4 h-4 text-muted-foreground" />
-      </button>
-
-      <div className="flex items-start gap-4 relative">
-        <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 shadow-lg shadow-indigo-500/25">
-          <Sparkles className="w-5 h-5 text-white" />
-        </div>
-        <div>
-          <p className="font-semibold mb-2">工作流操作指南</p>
-          <ul className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-              点击卡片查看详情
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-              点击"编辑"进入可视化编辑器
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-pink-500" />
-              点击"执行"运行工作流
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-              使用模板快速开始
-            </li>
-          </ul>
-        </div>
-      </div>
-    </div>
+    <PageGuideBanner title="工作流操作指南" onDismiss={() => setIsVisible(false)}>
+      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-muted-foreground">
+        <li className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+          点击卡片查看详情
+        </li>
+        <li className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary/70" />
+          点击「编辑」进入可视化编辑器
+        </li>
+        <li className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary/50" />
+          点击「执行」运行工作流
+        </li>
+        <li className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+          使用模板快速开始
+        </li>
+      </ul>
+    </PageGuideBanner>
   );
 }
 
@@ -118,6 +106,7 @@ interface SkillSelectorModalProps {
 }
 
 function SkillSelectorModal({ isOpen, onClose, onSelect }: SkillSelectorModalProps) {
+  const isRefined = useIsRefinedShell();
   const { skills, categories, loading, fetchSkills, fetchCategories } = useSkillStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -158,8 +147,15 @@ function SkillSelectorModal({ isOpen, onClose, onSelect }: SkillSelectorModalPro
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 shadow-lg shadow-indigo-500/25">
-              <Wand2 className="w-5 h-5 text-white" />
+            <div
+              className={cn(
+                'p-2 rounded-xl',
+                isRefined
+                  ? 'bg-primary/10 text-primary'
+                  : 'bg-gradient-to-br from-indigo-500 to-purple-500 shadow-lg shadow-indigo-500/25',
+              )}
+            >
+              <Wand2 className={cn('w-5 h-5', !isRefined && 'text-white')} />
             </div>
             <div>
               <h2 className="text-lg font-semibold">从技能创建工作流</h2>
@@ -275,6 +271,7 @@ interface WorkflowDetailPanelProps {
 }
 
 function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelProps) {
+  const isRefined = useIsRefinedShell();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(workflow.name);
   const [editDescription, setEditDescription] = useState(workflow.description || '');
@@ -300,14 +297,22 @@ function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelP
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div
-        className="absolute inset-0 bg-gradient-to-r from-black/20 to-black/60 backdrop-blur-sm"
+        className={cn(
+          'absolute inset-0 backdrop-blur-sm',
+          isRefined ? 'bg-black/50' : 'bg-gradient-to-r from-black/20 to-black/60',
+        )}
         onClick={onClose}
       />
       <div className="relative w-full max-w-lg bg-card rounded-l-2xl shadow-2xl border-l border-border/50 overflow-hidden flex flex-col animate-slide-in">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-gradient-to-r from-indigo-500/5 to-purple-500/5">
+        <div
+          className={cn(
+            'flex items-center justify-between px-6 py-4 border-b border-border/50',
+            isRefined ? 'bg-muted/30' : 'bg-gradient-to-r from-indigo-500/5 to-purple-500/5',
+          )}
+        >
           <h2 className="text-lg font-semibold flex items-center gap-2">
-            <FileText className="w-5 h-5 text-indigo-500" />
+            <FileText className={cn('w-5 h-5', isRefined ? 'text-primary' : 'text-indigo-500')} />
             工作流详情
           </h2>
           <div className="flex items-center gap-2">
@@ -348,12 +353,26 @@ function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelP
                 className="input-field text-xl font-bold"
               />
             ) : (
-              <h3 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              <h3
+                className={cn(
+                  'text-2xl font-bold',
+                  isRefined
+                    ? 'text-foreground'
+                    : 'bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent',
+                )}
+              >
                 {workflow.name}
               </h3>
             )}
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-600 text-xs font-medium border border-indigo-500/20">
+              <span
+                className={cn(
+                  'px-2.5 py-1 rounded-full text-xs font-medium border',
+                  isRefined
+                    ? 'bg-primary/10 text-primary border-primary/20'
+                    : 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20',
+                )}
+              >
                 v{workflow.version}
               </span>
             </div>
@@ -386,7 +405,12 @@ function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelP
               {workflow.stages?.map((stage, index) => (
                 <div
                   key={stage.name ?? index}
-                  className="bg-gradient-to-r from-indigo-500/5 to-purple-500/5 rounded-xl p-4 border border-indigo-500/10"
+                  className={cn(
+                    'rounded-xl p-4 border',
+                    isRefined
+                      ? 'bg-muted/30 border-border/50'
+                      : 'bg-gradient-to-r from-indigo-500/5 to-purple-500/5 border-indigo-500/10',
+                  )}
                 >
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{stage.name}</span>
@@ -425,11 +449,23 @@ function WorkflowDetailPanel({ workflow, onClose, onEdit }: WorkflowDetailPanelP
                 return (
                   <div
                     key={agent.id}
-                    className="bg-gradient-to-r from-purple-500/5 to-pink-500/5 rounded-xl p-4 border border-purple-500/10"
+                    className={cn(
+                      'rounded-xl p-4 border',
+                      isRefined
+                        ? 'bg-muted/30 border-border/50'
+                        : 'bg-gradient-to-r from-purple-500/5 to-pink-500/5 border-purple-500/10',
+                    )}
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <span className="font-semibold capitalize">{agent.role}</span>
-                      <span className="px-2 py-0.5 text-xs bg-gradient-to-r from-indigo-500/10 to-purple-500/10 rounded-full border border-indigo-500/20 text-indigo-600">
+                      <span
+                        className={cn(
+                          'px-2 py-0.5 text-xs rounded-full border',
+                          isRefined
+                            ? 'bg-primary/10 text-primary border-primary/20'
+                            : 'bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border-indigo-500/20 text-indigo-600',
+                        )}
+                      >
                         {agent.model}
                       </span>
                     </div>
@@ -572,13 +608,15 @@ const SAMPLE_WORKFLOWS: Workflow[] = [
   },
 ];
 
-export function WorkflowsPage() {
+export function WorkflowsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate();
+  const isRefined = useIsRefinedShell();
   const { getWorkflow, deleteWorkflow, setCurrentWorkflow } = useWorkflowStore();
   const [displayWorkflows, setDisplayWorkflows] = useState<Workflow[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [showSkillModal, setShowSkillModal] = useState(false);
+  const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [tutorialWorkflow, setTutorialWorkflow] = useState<Workflow | null>(null);
   const [tutorialLoading, setTutorialLoading] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<WorkflowCategory>('all');
@@ -692,7 +730,7 @@ export function WorkflowsPage() {
 
   if (loading) {
     return (
-      <div className="page-container">
+      <div className={embedded ? 'p-4' : 'page-container'}>
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-muted rounded w-32" />
           <div className="h-40 bg-muted rounded-xl" />
@@ -703,28 +741,39 @@ export function WorkflowsPage() {
   }
 
   return (
-    <div className="page-container space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-              工作流
-            </span>
-          </h1>
-          <p className="text-muted-foreground mt-1">管理您的工作流和智能体编排</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setShowSkillModal(true)} className="btn-secondary">
+    <div className={embedded ? 'p-4 space-y-4' : 'page-container space-y-6'}>
+      {embedded ? (
+        <div className="flex items-center justify-end gap-2 flex-wrap">
+          <button type="button" onClick={() => setShowTemplateGallery(true)} className="btn-secondary text-sm">
+            模板浏览
+          </button>
+          <button type="button" onClick={() => setShowSkillModal(true)} className="btn-secondary text-sm">
             <Wand2 className="w-4 h-4" />
             从技能创建
           </button>
-          <button onClick={handleCreate} className="btn-primary">
+          <button type="button" onClick={handleCreate} className="btn-primary text-sm">
             <Plus className="w-4 h-4" />
             新建工作流
           </button>
         </div>
-      </div>
+      ) : (
+        <PageHeader
+          title="工作流"
+          description="管理您的工作流和智能体编排"
+          actions={
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <button type="button" onClick={() => setShowSkillModal(true)} className="btn-secondary">
+                <Wand2 className="w-4 h-4" />
+                从技能创建
+              </button>
+              <button type="button" onClick={handleCreate} className="btn-primary">
+                <Plus className="w-4 h-4" />
+                新建工作流
+              </button>
+            </div>
+          }
+        />
+      )}
 
       <OperationGuide />
 
@@ -765,7 +814,7 @@ export function WorkflowsPage() {
         {activeCategory === 'issue' && (
           <button
             onClick={() => navigate('/tasks')}
-            className="ml-auto flex items-center gap-1.5 text-xs text-indigo-600 hover:underline"
+            className="ml-auto flex items-center gap-1.5 text-xs text-primary hover:underline"
           >
             <Bug className="w-3.5 h-3.5" />
             前往 Issue 管理页
@@ -783,17 +832,31 @@ export function WorkflowsPage() {
       </div>
 
       {displayWorkflows.length === 0 ? (
-        <div className="text-center py-16 bg-gradient-to-b from-card to-accent/20 rounded-2xl border border-border/50">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 flex items-center justify-center">
-            <GitBranch className="w-10 h-10 text-indigo-500" />
+        isRefined ? (
+          <PageEmptyState
+            icon={GitBranch}
+            title="暂无工作流"
+            description="创建您的第一个工作流开始"
+            action={
+              <button onClick={handleCreate} className="btn-primary">
+                <Plus className="w-4 h-4" />
+                新建工作流
+              </button>
+            }
+          />
+        ) : (
+          <div className="text-center py-16 bg-gradient-to-b from-card to-accent/20 rounded-2xl border border-border/50">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 flex items-center justify-center">
+              <GitBranch className="w-10 h-10 text-indigo-500" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">暂无工作流</h3>
+            <p className="text-muted-foreground mb-4">创建您的第一个工作流开始</p>
+            <button onClick={handleCreate} className="btn-primary">
+              <Plus className="w-4 h-4" />
+              新建工作流
+            </button>
           </div>
-          <h3 className="text-lg font-semibold mb-2">暂无工作流</h3>
-          <p className="text-muted-foreground mb-4">创建您的第一个工作流开始</p>
-          <button onClick={handleCreate} className="btn-primary">
-            <Plus className="w-4 h-4" />
-            新建工作流
-          </button>
-        </div>
+        )
       ) : (
         (() => {
           const filteredWorkflows = displayWorkflows.filter(
@@ -818,10 +881,24 @@ export function WorkflowsPage() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-2 flex-wrap">
-                          <h3 className="font-semibold text-lg group-hover:text-indigo-600 transition-colors">
+                          <h3
+                            className={cn(
+                              'font-semibold text-lg transition-colors',
+                              isRefined
+                                ? 'group-hover:text-primary'
+                                : 'group-hover:text-indigo-600',
+                            )}
+                          >
                             {workflow.name}
                           </h3>
-                          <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 text-xs font-medium">
+                          <span
+                            className={cn(
+                              'px-2 py-0.5 rounded-full text-xs font-medium',
+                              isRefined
+                                ? 'bg-primary/10 text-primary'
+                                : 'bg-indigo-500/10 text-indigo-600',
+                            )}
+                          >
                             v{workflow.version}
                           </span>
                           {workflow.id.startsWith('sample-') && (
@@ -835,11 +912,25 @@ export function WorkflowsPage() {
                         </p>
 
                         <div className="flex items-center gap-3 flex-wrap">
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gradient-to-r from-indigo-500/10 to-purple-500/10 text-xs font-medium text-indigo-600 border border-indigo-500/20">
+                          <span
+                            className={cn(
+                              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border',
+                              isRefined
+                                ? 'bg-muted text-foreground border-border/50'
+                                : 'bg-gradient-to-r from-indigo-500/10 to-purple-500/10 text-indigo-600 border-indigo-500/20',
+                            )}
+                          >
                             <GitBranch className="w-3 h-3" />
                             {workflow.stage_count ?? workflow.stages?.length ?? 0} 阶段
                           </span>
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10 text-xs font-medium text-purple-600 border border-purple-500/20">
+                          <span
+                            className={cn(
+                              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border',
+                              isRefined
+                                ? 'bg-muted text-foreground border-border/50'
+                                : 'bg-gradient-to-r from-purple-500/10 to-pink-500/10 text-purple-600 border-purple-500/20',
+                            )}
+                          >
                             <Users className="w-3 h-3" />
                             {workflow.agent_count ?? workflow.agents?.length ?? 0} 智能体
                           </span>
@@ -866,14 +957,19 @@ export function WorkflowsPage() {
                           disabled={tutorialLoading === workflow.id}
                           className={cn(
                             'p-2.5 rounded-xl transition-all duration-200',
-                            'bg-gradient-to-r from-sky-500 to-blue-500',
-                            'text-white shadow-lg shadow-sky-500/25',
-                            'hover:shadow-sky-500/40 hover:-translate-y-0.5 active:translate-y-0',
+                            isRefined
+                              ? 'bg-muted hover:bg-blue-500/10 text-blue-600'
+                              : 'bg-gradient-to-r from-sky-500 to-blue-500 text-white shadow-lg shadow-sky-500/25 hover:shadow-sky-500/40 hover:-translate-y-0.5 active:translate-y-0',
                           )}
                           title="查看使用教程"
                         >
                           {tutorialLoading === workflow.id ? (
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <div
+                              className={cn(
+                                'w-4 h-4 border-2 border-t-transparent rounded-full animate-spin',
+                                isRefined ? 'border-current' : 'border-white',
+                              )}
+                            />
                           ) : (
                             <Eye className="w-4 h-4" />
                           )}
@@ -884,14 +980,20 @@ export function WorkflowsPage() {
                           className={cn(
                             'p-2.5 rounded-xl transition-all duration-200',
                             executingIds.has(workflow.id)
-                              ? 'bg-gray-400 cursor-not-allowed'
-                              : 'bg-gradient-to-r from-emerald-500 to-green-500 hover:shadow-emerald-500/40 hover:-translate-y-0.5 active:translate-y-0',
-                            'text-white shadow-lg shadow-emerald-500/25',
+                              ? 'bg-muted cursor-not-allowed text-muted-foreground'
+                              : isRefined
+                                ? 'bg-muted hover:bg-emerald-500/10 text-emerald-600'
+                                : 'bg-gradient-to-r from-emerald-500 to-green-500 hover:shadow-emerald-500/40 hover:-translate-y-0.5 active:translate-y-0 text-white shadow-lg shadow-emerald-500/25',
                           )}
                           title="执行"
                         >
                           {executingIds.has(workflow.id) ? (
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <div
+                              className={cn(
+                                'w-4 h-4 border-2 border-t-transparent rounded-full animate-spin',
+                                isRefined ? 'border-current' : 'border-white',
+                              )}
+                            />
                           ) : (
                             <Play className="w-4 h-4" />
                           )}
@@ -900,9 +1002,9 @@ export function WorkflowsPage() {
                           onClick={() => handleEdit(workflow)}
                           className={cn(
                             'p-2.5 rounded-xl transition-all duration-200',
-                            'bg-gradient-to-r from-indigo-500 to-purple-500',
-                            'text-white shadow-lg shadow-indigo-500/25',
-                            'hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0',
+                            isRefined
+                              ? 'bg-muted hover:bg-primary/10 text-primary'
+                              : 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0',
                           )}
                           title="编辑"
                         >
@@ -983,6 +1085,16 @@ export function WorkflowsPage() {
       {launchWorkflow && (
         <WorkflowLaunchModal workflow={launchWorkflow} onClose={() => setLaunchWorkflow(null)} />
       )}
+
+      <TemplateGallery
+        isOpen={showTemplateGallery}
+        onClose={() => setShowTemplateGallery(false)}
+        onUseTemplate={(_template: Template) => {
+          setShowTemplateGallery(false);
+          showSuccess('模板已选择', '可在 Canvas 编辑器中进一步调整');
+          navigate('/canvas');
+        }}
+      />
     </div>
   );
 }

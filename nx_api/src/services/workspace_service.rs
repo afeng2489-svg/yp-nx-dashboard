@@ -165,6 +165,15 @@ impl WorkspaceService {
         self.repository.find_by_id(id).map_err(Into::into)
     }
 
+    /// 解析工作区内相对路径（写入前校验）
+    pub fn resolve_relative_path(
+        &self,
+        root: &str,
+        relative_path: &str,
+    ) -> Result<std::path::PathBuf, WorkspaceServiceError> {
+        validate_file_path(root, relative_path)
+    }
+
     /// 根据所有者获取工作区
     pub fn list_workspaces_by_owner(
         &self,

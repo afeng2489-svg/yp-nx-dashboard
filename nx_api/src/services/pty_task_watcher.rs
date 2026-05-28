@@ -248,16 +248,17 @@ fn emit_completed(
     manager: &crate::ws::agent_execution::AgentExecutionManager,
 ) {
     let duration_ms = start.elapsed().as_millis() as u64;
-    let _ = event_tx.send(AgentExecutionEvent::Completed {
-        execution_id: execution_id.to_string(),
-        result,
+    let exec_id = execution_id.to_string();
+    let completed = AgentExecutionEvent::Completed {
+        execution_id: exec_id.clone(),
+        result: result.clone(),
         duration_ms,
-    });
-    manager.cache_terminal_event(AgentExecutionEvent::Completed {
-        execution_id: execution_id.to_string(),
-        result: String::new(),
-        duration_ms,
-    });
+    };
+    let _ = event_tx.send(completed.clone());
+    // 晚连接 WS 回放须带完整 result（此前误写 String::new() 导致对话无回复）
+    if !result.is_empty() {
+        manager.cache_terminal_event(completed);
+    }
     manager.remove_execution(execution_id);
 }
 

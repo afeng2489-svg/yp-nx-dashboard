@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { Loader2, Sparkles, Users } from 'lucide-react';
+import { API_BASE_URL } from '@/api/constants';
 import { useTeamStore } from '@/stores/teamStore';
+import { unwrapEnvelope } from '@/api/response';
 import { showError, showSuccess } from '@/lib/toast';
+import type { Team } from '@/stores/teamStore';
 
-/** Solo 团队 3 分钟向导 MVP（F5 — 待 from-template API） */
+/** Solo 团队 3 分钟向导 MVP */
 export function SoloTeamWizardBanner() {
-  const { teams, currentTeam, createTeam, setCurrentTeam, fetchTeams } = useTeamStore();
+  const { teams, currentTeam, setCurrentTeam, fetchTeams } = useTeamStore();
   const [creating, setCreating] = useState(false);
 
   const hasSolo = teams.some((t) => /solo|全栈|一人/i.test(t.name));
@@ -15,13 +18,18 @@ export function SoloTeamWizardBanner() {
   const handleCreate = async () => {
     setCreating(true);
     try {
-      const team = await createTeam({
-        name: 'Solo 全栈',
-        description: 'AF-01 默认一人团队 — 绑定 solo-dev Golden Path',
+      const res = await fetch(`${API_BASE_URL}/api/v1/teams/from-template`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template: 'solo-fullstack' }),
       });
-      setCurrentTeam(team);
+      if (!res.ok) {
+        throw new Error(`创建失败 (${res.status})`);
+      }
+      const data = unwrapEnvelope<{ team: Team; roles: unknown[] }>(await res.json());
+      setCurrentTeam(data.team);
       await fetchTeams();
-      showSuccess('Solo 团队已创建，可在顶栏切换');
+      showSuccess('Solo 团队已创建（含默认角色），可在顶栏切换');
     } catch (e) {
       showError(e instanceof Error ? e.message : '创建失败');
     } finally {

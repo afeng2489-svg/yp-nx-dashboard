@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { PageEmptyState } from '@/components/ui/PageEmptyState';
 import {
   Select,
   SelectTrigger,
@@ -304,8 +306,8 @@ export function SessionsPage() {
       <div className="page-container">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center animate-pulse">
-              <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted/60 flex items-center justify-center animate-pulse">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
             </div>
             <p className="text-muted-foreground">加载中...</p>
           </div>
@@ -316,43 +318,37 @@ export function SessionsPage() {
 
   return (
     <div className="page-container space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-              会话管理
+      <PageHeader
+        title="会话管理"
+        description="查看和管理所有活动会话"
+        actions={
+          <div className="flex items-center gap-2">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-8 text-sm w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部</SelectItem>
+                <SelectItem value="pending">等待中</SelectItem>
+                <SelectItem value="active">活跃</SelectItem>
+                <SelectItem value="idle">空闲</SelectItem>
+                <SelectItem value="paused">已暂停</SelectItem>
+                <SelectItem value="terminated">已终止</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="px-3 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium border border-primary/20">
+              {filteredSessions.length} 个会话
             </span>
-          </h1>
-          <p className="text-muted-foreground mt-1">查看和管理所有活动会话</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-8 text-sm w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部</SelectItem>
-              <SelectItem value="pending">等待中</SelectItem>
-              <SelectItem value="active">活跃</SelectItem>
-              <SelectItem value="idle">空闲</SelectItem>
-              <SelectItem value="paused">已暂停</SelectItem>
-              <SelectItem value="terminated">已终止</SelectItem>
-            </SelectContent>
-          </Select>
-          <span className="px-3 py-2 rounded-full bg-indigo-500/10 text-indigo-600 text-sm font-medium border border-indigo-500/20">
-            {filteredSessions.length} 个会话
-          </span>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       {filteredSessions.length === 0 ? (
-        <div className="text-center py-16 bg-gradient-to-b from-card to-accent/20 rounded-2xl border border-border/50">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 flex items-center justify-center">
-            <Activity className="w-10 h-10 text-indigo-500" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">暂无会话</h3>
-          <p className="text-muted-foreground mb-4">执行工作流以创建新会话</p>
-        </div>
+        <PageEmptyState
+          icon={Activity}
+          title="暂无会话"
+          description="执行工作流以创建新会话"
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2 stagger-children">
           {filteredSessions.map((session) => (

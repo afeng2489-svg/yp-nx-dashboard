@@ -131,6 +131,9 @@ pub struct AgentDefinition {
     /// 自定义输出格式（None = 使用默认结构化输出指令）
     #[serde(default)]
     pub output_format: Option<String>,
+    /// 执行器：claude_cli | api | auto（默认 claude_cli）
+    #[serde(default)]
+    pub executor: Option<crate::executor::ExecutorKind>,
 }
 
 /// 智能体配置
@@ -180,6 +183,8 @@ pub enum StageType {
     Agent,
     /// 新增：暂停等待用户在前端做选择
     UserInput,
+    /// 人工审批：approve 继续 / reject 跳转重跑指定 stage
+    Approval,
     /// 循环执行 body_stages 直到 break_condition 为 true
     Loop,
     /// 页面生成阶段（React 模板 + manifest）
@@ -325,6 +330,9 @@ pub struct StageDefinition {
     /// 用户选择结果写入的变量名
     #[serde(default)]
     pub output_var: Option<String>,
+    /// approval 专用：reject 时跳转重跑的 stage name
+    #[serde(default)]
+    pub on_reject_goto: Option<String>,
 
     // ---- loop 专用字段 ----
     /// 循环退出条件（引用 state 变量，格式同 StageTransition.condition）
@@ -336,6 +344,9 @@ pub struct StageDefinition {
     /// 最大循环次数（超出后工作流 failed）
     #[serde(default = "default_max_loop")]
     pub max_iterations: usize,
+    /// 阶段级执行器覆盖
+    #[serde(default)]
+    pub executor: Option<crate::executor::ExecutorKind>,
 }
 
 fn default_max_loop() -> usize {
@@ -508,6 +519,8 @@ stages:
     parallel: false
 "#;
 
+    // ── Basic parsing ──
+
     #[test]
     fn test_parse_valid_workflow() {
         let workflow = WorkflowParser::parse(VALID_WORKFLOW).unwrap();
@@ -517,9 +530,123 @@ stages:
     }
 
     #[test]
+    fn test_parse_minimal_workflow() {
+        let yaml = r#"
+name: "Minimal"
+stages:
+  - name: "S1"
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        assert_eq!(wf.name, "Minimal");
+        assert_eq!(wf.version, "1.0");
+        assert_eq!(wf.stages.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_empty_string_errors() {
+        assert!(WorkflowParser::parse("").is_err());
+    }
+
+    #[test]
+    fn test_parse_invalid_yaml_errors() {
+        assert!(WorkflowParser::parse("not: [valid: yaml").is_err());
+    }
+
+    // ── Validation ──
+
+    #[test]
     fn test_validate_workflow() {
         let workflow = WorkflowParser::parse(VALID_WORKFLOW).unwrap();
         assert!(WorkflowParser::validate(&workflow).is_ok());
+    }
+
+    #[test]
+    fn test_validate_duplicate_agent_id() {
+        let yaml = r#"
+name: "Dup Agents"
+agents:
+  - id: "a"
+    role: "r"
+    model: "m"
+    prompt: "p"
+  - id: "a"
+    role: "r"
+    model: "m"
+    prompt: "p"
+stages:
+  - name: "S1"
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        let err = WorkflowParser::validate(&wf).unwrap_err();
+        assert!(err.to_string().contains("重复"));
+    }
+
+    #[test]
+    fn test_validate_duplicate_stage_name() {
+        let yaml = r#"
+name: "Dup Stages"
+agents:
+  - id: "a"
+    role: "r"
+    model: "m"
+    prompt: "p"
+stages:
+  - name: "S1"
+  - name: "S1"
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        let err = WorkflowParser::validate(&wf).unwrap_err();
+        assert!(err.to_string().contains("重复"));
+    }
+
+    #[test]
+    fn test_validate_missing_agent_dependency() {
+        let yaml = r#"
+name: "Bad Dep"
+agents:
+  - id: "a"
+    role: "r"
+    model: "m"
+    prompt: "p"
+    depends_on: ["nonexistent"]
+stages:
+  - name: "S1"
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        let err = WorkflowParser::validate(&wf).unwrap_err();
+        assert!(err.to_string().contains("依赖"));
+    }
+
+    #[test]
+    fn test_validate_stage_refs_nonexistent_agent() {
+        let yaml = r#"
+name: "Bad Stage"
+stages:
+  - name: "S1"
+    agents: ["ghost"]
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        let err = WorkflowParser::validate(&wf).unwrap_err();
+        assert!(err.to_string().contains("不存在"));
+    }
+
+    #[test]
+    fn test_validate_with_self_dependency() {
+        let yaml = r#"
+name: "Self Dep"
+agents:
+  - id: "a"
+    role: "r"
+    model: "m"
+    prompt: "p"
+    depends_on: ["a"]
+stages:
+  - name: "S1"
+    agents: ["a"]
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        // Self-dependency is a valid reference (exists in agent_ids), runtime behavior TBD
+        assert!(WorkflowParser::validate(&wf).is_ok());
     }
 
     #[test]
@@ -544,5 +671,425 @@ stages:
         let workflow = WorkflowParser::parse(yaml).unwrap();
         // 循环依赖在解析层面允许，会在运行时捕获
         assert!(WorkflowParser::validate(&workflow).is_ok());
+    }
+
+    // ── Stage transitions ──
+
+    #[test]
+    fn test_parse_stage_transitions() {
+        let yaml = r#"
+name: "Conditional"
+agents:
+  - id: "a"
+    role: "r"
+    model: "m"
+    prompt: "p"
+stages:
+  - name: "Check"
+    agents: ["a"]
+    next:
+      - condition: "status == 'ok'"
+        goto: "Deploy"
+      - goto: "Rollback"
+  - name: "Deploy"
+    agents: ["a"]
+  - name: "Rollback"
+    agents: ["a"]
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        assert_eq!(wf.stages[0].next.len(), 2);
+        assert_eq!(wf.stages[0].next[0].condition.as_deref(), Some("status == 'ok'"));
+        assert_eq!(wf.stages[0].next[0].goto, "Deploy");
+        assert_eq!(wf.stages[0].next[1].condition, None);
+        assert_eq!(wf.stages[0].next[1].goto, "Rollback");
+    }
+
+    // ── Triggers ──
+
+    #[test]
+    fn test_parse_triggers() {
+        let yaml = r#"
+name: "Triggered"
+triggers:
+  - type: schedule
+    cron: "0 9 * * 1-5"
+  - type: webhook
+    secret: "abc123"
+stages:
+  - name: "S1"
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        assert_eq!(wf.triggers.len(), 2);
+        assert_eq!(wf.triggers[0].trigger_type, TriggerType::Schedule);
+        assert_eq!(wf.triggers[0].cron.as_deref(), Some("0 9 * * 1-5"));
+        assert_eq!(wf.triggers[1].trigger_type, TriggerType::Webhook);
+        assert_eq!(wf.triggers[1].secret.as_deref(), Some("abc123"));
+    }
+
+    #[test]
+    fn test_parse_chain_trigger() {
+        let yaml = r#"
+name: "Chain"
+triggers:
+  - type: event
+    workflow_ref: "upstream_wf"
+    pass_output: true
+stages:
+  - name: "S1"
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        assert_eq!(wf.triggers[0].trigger_type, TriggerType::Event);
+        assert_eq!(wf.triggers[0].workflow_ref.as_deref(), Some("upstream_wf"));
+        assert_eq!(wf.triggers[0].pass_output, Some(true));
+    }
+
+    // ── Quality gate parsing ──
+
+    #[test]
+    fn test_parse_quality_gate() {
+        let yaml = r#"
+name: "Gated"
+agents:
+  - id: "a"
+    role: "r"
+    model: "m"
+    prompt: "p"
+stages:
+  - name: "Build"
+    agents: ["a"]
+    quality_gate:
+      checks:
+        - cmd: "cargo build"
+          timeout: 300
+      on_fail: retry
+      max_retries: 3
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        let gate = wf.stages[0].quality_gate.as_ref().unwrap();
+        assert_eq!(gate.checks.len(), 1);
+        assert_eq!(gate.checks[0].cmd, "cargo build");
+        assert_eq!(gate.checks[0].timeout, 300);
+        assert_eq!(gate.on_fail, OnFail::Retry);
+        assert_eq!(gate.max_retries, 3);
+    }
+
+    #[test]
+    fn test_parse_quality_gate_template() {
+        let yaml = r#"
+name: "Templated"
+agents:
+  - id: "a"
+    role: "r"
+    model: "m"
+    prompt: "p"
+stages:
+  - name: "Build"
+    agents: ["a"]
+    quality_gate:
+      checks: []
+      template: "rust_default"
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        let gate = wf.stages[0].quality_gate.as_ref().unwrap();
+        assert_eq!(gate.template.as_deref(), Some("rust_default"));
+    }
+
+    // ── UserInput stage ──
+
+    #[test]
+    fn test_parse_user_input_stage() {
+        let yaml = r#"
+name: "Interactive"
+stages:
+  - name: "Choose"
+    stage_type: user_input
+    question: "Pick one"
+    options:
+      - label: "Option A"
+        value: "a"
+      - label: "Option B"
+        value: "b"
+        description: "The second option"
+    output_var: "choice"
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        let stage = &wf.stages[0];
+        assert_eq!(stage.stage_type, StageType::UserInput);
+        assert_eq!(stage.question.as_deref(), Some("Pick one"));
+        assert_eq!(stage.options.len(), 2);
+        assert_eq!(stage.options[0].label, "Option A");
+        assert_eq!(stage.options[0].value, "a");
+        assert_eq!(stage.options[1].description.as_deref(), Some("The second option"));
+        assert_eq!(stage.output_var.as_deref(), Some("choice"));
+    }
+
+    #[test]
+    fn test_parse_approval_stage() {
+        let yaml = r#"
+name: "ApprovalFlow"
+stages:
+  - name: "交付审批"
+    stage_type: approval
+    question: "是否批准合入？"
+    output_var: approval_result
+    on_reject_goto: 实现
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        let stage = &wf.stages[0];
+        assert_eq!(stage.stage_type, StageType::Approval);
+        assert_eq!(stage.on_reject_goto.as_deref(), Some("实现"));
+    }
+
+    // ── Loop stage ──
+
+    #[test]
+    fn test_parse_loop_stage() {
+        let yaml = r#"
+name: "Looper"
+agents:
+  - id: "a"
+    role: "r"
+    model: "m"
+    prompt: "p"
+stages:
+  - name: "RepeatUntil"
+    stage_type: loop
+    break_condition: "count >= '5'"
+    body_stages: ["Inner"]
+    max_iterations: 10
+  - name: "Inner"
+    agents: ["a"]
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        let stage = &wf.stages[0];
+        assert_eq!(stage.stage_type, StageType::Loop);
+        assert_eq!(stage.break_condition.as_deref(), Some("count >= '5'"));
+        assert_eq!(stage.body_stages, vec!["Inner"]);
+        assert_eq!(stage.max_iterations, 10);
+    }
+
+    // ── Variables ──
+
+    #[test]
+    fn test_parse_workflow_variables() {
+        let yaml = r#"
+name: "WithVars"
+variables:
+  project_name: "nexus"
+  debug: true
+stages:
+  - name: "S1"
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        assert_eq!(wf.variables.len(), 2);
+        assert_eq!(wf.variables["project_name"].as_str().unwrap(), "nexus");
+        assert_eq!(wf.variables["debug"].as_bool().unwrap(), true);
+    }
+
+    // ── Budget limit ──
+
+    #[test]
+    fn test_parse_budget_limit() {
+        let yaml = r#"
+name: "Budgeted"
+budget_limit_usd: 10.50
+stages:
+  - name: "S1"
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        assert_eq!(wf.budget_limit_usd, Some(10.50));
+    }
+
+    // ── Error handler ──
+
+    #[test]
+    fn test_parse_error_handler() {
+        let yaml = r#"
+name: "ErrHandler"
+stages:
+  - name: "S1"
+on_error:
+  stage: "fallback"
+  retry: true
+  max_retries: 3
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        let eh = wf.on_error.as_ref().unwrap();
+        assert_eq!(eh.stage, "fallback");
+        assert!(eh.retry);
+        assert_eq!(eh.max_retries, 3);
+    }
+
+    // ── Stage fail policy ──
+
+    #[test]
+    fn test_parse_stage_fail_policy() {
+        let yaml = r#"
+name: "FailPolicy"
+agents:
+  - id: "a"
+    role: "r"
+    model: "m"
+    prompt: "p"
+stages:
+  - name: "Risky"
+    agents: ["a"]
+    on_fail:
+      retry: 3
+      escalate_model: "claude-opus-4-5"
+      escalate_retries: 2
+      then: "continue"
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        let policy = wf.stages[0].on_fail.as_ref().unwrap();
+        assert_eq!(policy.retry, 3);
+        assert_eq!(policy.escalate_model.as_deref(), Some("claude-opus-4-5"));
+        assert_eq!(policy.escalate_retries, 2);
+        assert_eq!(policy.then, "continue");
+    }
+
+    // ── Default values ──
+
+    #[test]
+    fn test_default_max_loop() {
+        assert_eq!(default_max_loop(), 10);
+    }
+
+    #[test]
+    fn test_default_max_retries() {
+        assert_eq!(default_max_retries(), 3);
+    }
+
+    #[test]
+    fn test_stage_default_type_is_agent() {
+        let yaml = r#"
+name: "DefaultType"
+agents:
+  - id: "a"
+    role: "r"
+    model: "m"
+    prompt: "p"
+stages:
+  - name: "S1"
+    agents: ["a"]
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        assert_eq!(wf.stages[0].stage_type, StageType::Agent);
+    }
+
+    // ── RAG config ──
+
+    #[test]
+    fn test_parse_rag_config() {
+        let yaml = r#"
+name: "Ragged"
+agents:
+  - id: "a"
+    role: "r"
+    model: "m"
+    prompt: "p"
+stages:
+  - name: "Research"
+    agents: ["a"]
+    rag:
+      knowledge_base_id: "kb-docs"
+      top_k: 10
+      threshold: 0.8
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        let rag = wf.stages[0].rag.as_ref().unwrap();
+        assert_eq!(rag.knowledge_base_id, "kb-docs");
+        assert_eq!(rag.top_k, 10);
+        assert_eq!(rag.threshold, 0.8);
+    }
+
+    // ── VarExtraction ──
+
+    #[test]
+    fn test_parse_var_extraction() {
+        let yaml = r#"
+name: "Extractor"
+agents:
+  - id: "a"
+    role: "r"
+    model: "m"
+    prompt: "p"
+    extract_vars:
+      - name: "confidence"
+        pattern: "CONFIDENCE=([0-9.]+)"
+stages:
+  - name: "S1"
+    agents: ["a"]
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        assert_eq!(wf.agents[0].extract_vars.len(), 1);
+        assert_eq!(wf.agents[0].extract_vars[0].name, "confidence");
+        assert_eq!(
+            wf.agents[0].extract_vars[0].pattern,
+            "CONFIDENCE=([0-9.]+)"
+        );
+    }
+
+    // ── Stage model override ──
+
+    #[test]
+    fn test_parse_stage_model_override() {
+        let yaml = r#"
+name: "ModelOverride"
+agents:
+  - id: "a"
+    role: "r"
+    model: "m"
+    prompt: "p"
+stages:
+  - name: "Hard"
+    agents: ["a"]
+    model: "claude-opus-4-5"
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        assert_eq!(
+            wf.stages[0].model.as_deref(),
+            Some("claude-opus-4-5")
+        );
+    }
+
+    // ── Continue on error flag ──
+
+    #[test]
+    fn test_parse_continue_on_error() {
+        let yaml = r#"
+name: "Lenient"
+agents:
+  - id: "a"
+    role: "r"
+    model: "m"
+    prompt: "p"
+stages:
+  - name: "MayFail"
+    agents: ["a"]
+    continue_on_error: true
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        assert!(wf.stages[0].continue_on_error);
+    }
+
+    #[test]
+    fn test_parse_executor_field() {
+        let yaml = r#"
+name: ex
+agents:
+  - id: a
+    role: r
+    model: m
+    prompt: p
+    executor: api
+stages:
+  - name: S
+    executor: claude_cli
+    agents: [a]
+"#;
+        let wf = WorkflowParser::parse(yaml).unwrap();
+        assert_eq!(wf.agents[0].executor, Some(crate::executor::ExecutorKind::Api));
+        assert_eq!(wf.stages[0].executor, Some(crate::executor::ExecutorKind::ClaudeCli));
     }
 }

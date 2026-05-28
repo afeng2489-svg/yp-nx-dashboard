@@ -19,6 +19,8 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useExecutionStore } from '@/stores/executionStore';
+import { getRunMeta, recordTerminalFallback } from '@/services/factoryMetrics';
 
 type ViewMode = 'split' | 'terminal' | 'monitor';
 
@@ -153,6 +155,18 @@ export function TerminalPage() {
   const { isFullscreen, setFullscreen } = useTerminalStore();
   const { sidebarOpen, toggleSidebar } = useUIStore();
   const { otherWindows, openNewWindow, isSyncing } = useWindowSync();
+  const executions = useExecutionStore((s) => s.executions);
+
+  useEffect(() => {
+    const active = executions.find(
+      (e) =>
+        (e.status === 'running' || e.status === 'paused') &&
+        (e.trigger_source === 'factory' || getRunMeta(e.id)),
+    );
+    if (active) {
+      void recordTerminalFallback(active.id);
+    }
+  }, [executions]);
 
   // 全屏模式切换
   const toggleFullscreen = () => {

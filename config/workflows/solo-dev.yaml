@@ -65,6 +65,21 @@ agents:
       3. 发现问题直接修复，不要只列问题
       4. 输出一份简短的变更摘要（改了什么、为什么）
 
+  - id: summary
+    role: 交付摘要员
+    model: claude-sonnet-4-5
+    executor: api
+    prompt: |
+      任务：{{task}}
+      规划输出：{{solo_规划_output}}
+      审查输出：{{solo_审查_output}}
+
+      请用中文生成本次 Run 的交付摘要（纯文本，不调用工具）。
+      必须在回复末尾附上 JSON 块：
+      ```json
+      {"summary":"…","files_changed":["path1","path2"]}
+      ```
+
 stages:
   - name: 规划
     agents: [solo]
@@ -87,5 +102,15 @@ stages:
       on_fail: retry
       max_retries: 3
 
+  - name: 交付审批
+    stage_type: approval
+    question: "实现与自测已完成。是否批准进入最终审查？驳回将返回「实现」阶段修改。"
+    output_var: approval_result
+    on_reject_goto: 实现
+
   - name: 审查
     agents: [solo]
+
+  - name: 交付摘要
+    executor: api
+    agents: [summary]

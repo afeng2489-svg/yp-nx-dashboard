@@ -33,7 +33,7 @@ impl TaskExecutor for ExecutionServiceBridge {
     ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + 'a>> {
         Box::pin(async move {
             self.execution_service
-                .execute_workflow(task_id.to_string(), workflow_yaml, variables, None, None)
+                .execute_workflow(task_id.to_string(), workflow_yaml, variables, None, None, None)
                 .await
                 .map_err(|e| format!("Execution failed: {}", e))
         })

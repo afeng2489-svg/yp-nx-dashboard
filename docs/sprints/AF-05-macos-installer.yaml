@@ -1,5 +1,5 @@
 sprint_id: AF-05
-status: planned
+status: done
 priority: P0
 estimated_hours: 40
 depends_on: [AF-04]

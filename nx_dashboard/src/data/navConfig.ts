@@ -37,18 +37,17 @@ export const LEGACY_PATH_REDIRECTS: Record<string, string> = {
   '/dashboard': '/factory',
   '/guide': '/factory',
   '/workflows': '/assets?tab=workflows',
-  '/executions': '/factory?tab=runs',
-  '/canvas': '/factory?tab=runs',
+  '/executions': '/ops?tab=runs',
   '/quick-launch': '/factory',
   '/teams-v2': '/teams',
   '/group-chat': '/teams?tab=discuss',
   '/roles': '/assets?tab=roles',
   '/skills': '/assets?tab=skills',
   '/templates': '/assets?tab=workflows',
-  '/wisdom': '/assets?tab=knowledge',
-  '/knowledge-base': '/assets?tab=knowledge',
+  '/wisdom': '/assets?tab=knowledge&sub=wisdom',
+  '/knowledge-base': '/assets?tab=knowledge&sub=rag',
   '/cost': '/ops?tab=cost',
-  '/team-sessions': '/ops?tab=history',
+  '/team-sessions': '/ops?tab=runs',
   '/processes': '/ops?tab=processes',
   '/sprint-board': '/ops?tab=sprint',
   '/ai-settings': '/settings/ai',
@@ -61,6 +60,7 @@ export function resolveActiveNavId(pathname: string): string {
   if (pathname.startsWith('/assets')) return 'assets';
   if (pathname.startsWith('/ops')) return 'ops';
   if (pathname.startsWith('/settings')) return 'settings';
+  if (pathname.startsWith('/canvas')) return 'assets';
   if (pathname.startsWith('/preview/')) return 'factory';
 
   const legacy = Object.keys(LEGACY_PATH_REDIRECTS)

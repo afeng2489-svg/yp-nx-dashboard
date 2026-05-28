@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { API_BASE_URL } from '@/api/constants';
 import { cn } from '@/lib/utils';
-import { Trash2, RefreshCw, Clock, AlertCircle, List } from 'lucide-react';
+import { Trash2, RefreshCw, Clock, AlertCircle, List, Play } from 'lucide-react';
 import { ConfirmModal } from '@/lib/ConfirmModal';
 import { Pagination } from '@/components/ui/Pagination';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { PageEmptyState } from '@/components/ui/PageEmptyState';
 import {
   Select,
   SelectTrigger,
@@ -77,7 +80,8 @@ async function deleteSprint(id: string) {
   if (!res.ok) throw new Error('delete failed');
 }
 
-export function SprintBoardPage() {
+export function SprintBoardPage({ embedded = false }: { embedded?: boolean }) {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: sprints = [], isLoading } = useQuery({
     queryKey: ['sprints'],
@@ -118,25 +122,29 @@ export function SprintBoardPage() {
     setPage(1);
   };
 
+  const launchInFactory = (card: SprintCard) => {
+    navigate(
+      `/factory?intent=${encodeURIComponent(card.title)}&sprint_id=${encodeURIComponent(card.id)}`,
+    );
+  };
+
   return (
-    <div className="page-container space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-              Sprint 看板
-            </span>
-          </h1>
-          <p className="text-muted-foreground mt-1">共 {sprints.length} 个 Sprint</p>
-        </div>
-        <button
-          onClick={() => qc.invalidateQueries({ queryKey: ['sprints'] })}
-          className="btn-secondary flex items-center gap-2"
-        >
-          <RefreshCw className="w-4 h-4" />
-          刷新
-        </button>
-      </div>
+    <div className={embedded ? 'space-y-4 p-4' : 'page-container space-y-6'}>
+      {!embedded && (
+        <PageHeader
+          title="Sprint 看板"
+          description={`共 ${sprints.length} 个 Sprint`}
+          actions={
+            <button
+              onClick={() => qc.invalidateQueries({ queryKey: ['sprints'] })}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              刷新
+            </button>
+          }
+        />
+      )}
 
       <div className="flex items-center gap-1 bg-accent/50 rounded-xl p-1 w-fit">
         {STATUS_TABS.map(({ key, label }) => (
@@ -174,17 +182,15 @@ export function SprintBoardPage() {
       )}
 
       {filtered.length === 0 && !isLoading ? (
-        <div className="text-center py-16 bg-gradient-to-b from-card to-accent/20 rounded-2xl border border-border/50">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 flex items-center justify-center">
-            <List className="w-10 h-10 text-indigo-500" />
-          </div>
-          <h3 className="text-lg font-semibold mb-2">暂无 Sprint</h3>
-          <p className="text-muted-foreground text-sm">
-            {statusFilter === 'all'
+        <PageEmptyState
+          icon={List}
+          title="暂无 Sprint"
+          description={
+            statusFilter === 'all'
               ? '还没有创建任何 Sprint'
-              : `没有「${STATUS_LABELS[statusFilter] ?? statusFilter}」状态的 Sprint`}
-          </p>
-        </div>
+              : `没有「${STATUS_LABELS[statusFilter] ?? statusFilter}」状态的 Sprint`
+          }
+        />
       ) : (
         <>
           <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
@@ -276,13 +282,25 @@ export function SprintBoardPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => setConfirmDelete(card)}
-                          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all opacity-0 group-hover:opacity-100"
-                          title="删除"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          {(card.status === 'pending' || card.status === 'in_progress') && (
+                            <button
+                              type="button"
+                              onClick={() => launchInFactory(card)}
+                              className="p-1.5 rounded-lg hover:bg-primary/10 text-primary transition-all"
+                              title="AI 做 — 跳转工厂台"
+                            >
+                              <Play className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setConfirmDelete(card)}
+                            className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all opacity-0 group-hover:opacity-100"
+                            title="删除"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

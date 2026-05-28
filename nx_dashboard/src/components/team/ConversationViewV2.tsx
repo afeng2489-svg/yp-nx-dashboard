@@ -243,12 +243,12 @@ export function ConversationViewV2({ teamId, onClose }: ConversationViewProps) {
     };
   }, [isActive, teamId, fetchMessages]);
 
-  // 冻结保护：isActive 超过 5 分钟自动重置，防止 WS 丢失事件导致 UI 永久卡死
+  // 长任务保护：CLI 最长 30 分钟
   useEffect(() => {
     if (!isActive) return;
     const timeout = setTimeout(() => {
       agentExec.reset();
-    }, 300_000);
+    }, 1_890_000);
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, agentExec.reset]);

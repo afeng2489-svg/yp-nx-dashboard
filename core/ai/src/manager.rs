@@ -413,20 +413,43 @@ impl AIModelManager {
             }
         }
 
-        // 设置默认提供商
-        let default_provider = match config.default_model.provider {
-            ProviderType::Anthropic => "anthropic",
-            ProviderType::OpenAI => "openai",
-            ProviderType::Google => "google",
-            ProviderType::Ollama => "ollama",
-            ProviderType::Codex => "codex",
-            ProviderType::Qwen => "qwen",
-            ProviderType::OpenCode => "opencode",
-            ProviderType::MiniMax => "minimax",
-            ProviderType::ClaudeSwitch => "claude-switch",
-            ProviderType::ClaudeCli => "claude-cli",
+        // 设置默认提供商（优先使用已注册的第一个，避免 anthropic 未配置时路由失败）
+        let registered = self.registry.list_providers();
+        let default_provider = if registered.contains(&"anthropic".to_string()) {
+            "anthropic"
+        } else if registered.contains(&"claude-cli".to_string()) {
+            "claude-cli"
+        } else if let Some(first) = registered.first() {
+            first.as_str()
+        } else {
+            match config.default_model.provider {
+                ProviderType::Anthropic => "anthropic",
+                ProviderType::OpenAI => "openai",
+                ProviderType::Google => "google",
+                ProviderType::Ollama => "ollama",
+                ProviderType::Codex => "codex",
+                ProviderType::Qwen => "qwen",
+                ProviderType::OpenCode => "opencode",
+                ProviderType::MiniMax => "minimax",
+                ProviderType::ClaudeSwitch => "claude-switch",
+                ProviderType::ClaudeCli => "claude-cli",
+            }
         };
         let _ = self.registry.set_default(default_provider);
+
+        // 无 HTTP API 时：Claude CLI 承接常见 Anthropic 模型 ID（文本车道 fallback）
+        if registered.contains(&"claude-cli".to_string()) && !registered.contains(&"anthropic".to_string())
+        {
+            for alias in [
+                "claude-sonnet-4-5",
+                "claude-sonnet-4-5-20251101",
+                "claude-opus-4-5",
+                "claude-haiku-4-5",
+            ] {
+                self.registry
+                    .register_model_mapping(alias, "claude-cli");
+            }
+        }
 
         // 缓存模型配置并注册到选择器
         let model_id = config.default_model.model_id.clone();
@@ -461,6 +484,35 @@ impl AIModelManager {
         self.model_configs.read().get(model_id).cloned()
     }
 
+    /// 解析可在当前 registry 中路由的模型（API 车道 / 文本摘要 fallback）
+    pub fn resolve_routable_model(&self, requested: &str) -> ModelConfig {
+        let available = self.registry.list_models();
+        if available.iter().any(|m| m == requested) {
+            return self.get_model_config(requested).unwrap_or_else(|| {
+                let mut cfg = self.config.read().default_model.clone();
+                cfg.model_id = requested.to_string();
+                cfg
+            });
+        }
+
+        if available.iter().any(|m| m == "claude-local") {
+            let mut cfg = self.config.read().default_model.clone();
+            cfg.model_id = "claude-local".to_string();
+            cfg.provider = ProviderType::ClaudeCli;
+            return cfg;
+        }
+
+        if let Some(first) = available.first() {
+            let mut cfg = self.config.read().default_model.clone();
+            cfg.model_id = first.clone();
+            return cfg;
+        }
+
+        let mut cfg = self.config.read().default_model.clone();
+        cfg.model_id = requested.to_string();
+        cfg
+    }
+
     /// 列出所有可用的模型
     pub fn list_models(&self) -> Vec<ModelConfig> {
         self.model_configs.read().values().cloned().collect()
@@ -482,12 +534,18 @@ impl AIModelManager {
             system_prompt: params.system_prompt,
         };
 
+        let provider_name = self
+            .registry
+            .route(&params.model.model_id)
+            .map(|p| p.provider_name().to_string())
+            .unwrap_or_else(|_| self.config.read().default_model.provider.to_string());
+
         let response = self.registry.complete(request).await?;
 
         Ok(AIResponse {
             text: response.text,
             model: response.model,
-            provider: self.config.read().default_model.provider.to_string(),
+            provider: provider_name,
             input_tokens: response.usage.input_tokens,
             output_tokens: response.usage.output_tokens,
             stop_reason: response.stop_reason,
@@ -522,12 +580,18 @@ impl AIModelManager {
             temperature: params.model.temperature,
         };
 
+        let provider_name = self
+            .registry
+            .route(&params.model.model_id)
+            .map(|p| p.provider_name().to_string())
+            .unwrap_or_else(|_| self.config.read().default_model.provider.to_string());
+
         let response = self.registry.chat(request).await?;
 
         Ok(AIResponse {
             text: response.message.content,
             model: response.model,
-            provider: self.config.read().default_model.provider.to_string(),
+            provider: provider_name,
             input_tokens: response.usage.input_tokens,
             output_tokens: response.usage.output_tokens,
             stop_reason: response.stop_reason,

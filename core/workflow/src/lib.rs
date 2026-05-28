@@ -6,6 +6,7 @@
 pub mod artifacts;
 pub mod engine;
 pub mod events;
+pub mod executor;
 pub mod parser;
 pub mod state;
 pub mod watcher;

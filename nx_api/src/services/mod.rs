@@ -41,6 +41,8 @@ pub mod team_repository;
 pub mod team_service;
 pub mod telegram_service;
 pub mod test_generator;
+pub mod text_lane_cost;
+pub mod workflow_api_executor;
 pub mod workflow_repository;
 pub mod workflow_service;
 pub mod workspace_repository;

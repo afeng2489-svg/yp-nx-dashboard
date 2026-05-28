@@ -16,7 +16,7 @@ interface RunningProcess {
   output: string;
 }
 
-export function ProcessMonitor() {
+export function ProcessMonitor({ embedded = false }: { embedded?: boolean }) {
   const [processes, setProcesses] = useState<RunningProcess[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +76,7 @@ export function ProcessMonitor() {
       case 'killed':
         return <XCircle className="w-4 h-4 text-red-500" />;
       default:
-        return <Activity className="w-4 h-4 text-gray-500" />;
+        return <Activity className="w-4 h-4 text-muted-foreground" />;
     }
   };
 
@@ -87,30 +87,46 @@ export function ProcessMonitor() {
   };
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-gradient-to-r from-red-500/5 to-orange-500/5">
-        <div className="flex items-center gap-2">
-          <Activity className="w-5 h-5 text-red-500" />
-          <h2 className="font-semibold">进程监测</h2>
-          <span
-            className={cn(
-              'px-2 py-0.5 text-xs rounded-full',
-              processes.length > 0 ? 'bg-red-500/20 text-red-500' : 'bg-gray-500/20 text-gray-500',
-            )}
+    <div className={cn('h-full flex flex-col', embedded && 'min-h-0')}>
+      {!embedded && (
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-muted/30">
+          <div className="flex items-center gap-2">
+            <Activity className="w-5 h-5 text-red-500" />
+            <h2 className="font-semibold">进程监测</h2>
+            <span
+              className={cn(
+                'px-2 py-0.5 text-xs rounded-full',
+                processes.length > 0
+                  ? 'bg-red-500/20 text-red-500'
+                  : 'bg-muted text-muted-foreground',
+              )}
+            >
+              {processes.length} 个进程
+            </span>
+          </div>
+          <button
+            onClick={fetchProcesses}
+            disabled={loading}
+            className="p-2 rounded-lg hover:bg-accent transition-colors"
+            title="刷新"
           >
-            {processes.length} 个进程
-          </span>
+            <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
+          </button>
         </div>
-        <button
-          onClick={fetchProcesses}
-          disabled={loading}
-          className="p-2 rounded-lg hover:bg-accent transition-colors"
-          title="刷新"
-        >
-          <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
-        </button>
-      </div>
+      )}
+      {embedded && (
+        <div className="flex items-center justify-between pb-3">
+          <span className="text-sm text-muted-foreground">{processes.length} 个运行中进程</span>
+          <button
+            onClick={fetchProcesses}
+            disabled={loading}
+            className="p-2 rounded-lg hover:bg-accent transition-colors"
+            title="刷新"
+          >
+            <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
+          </button>
+        </div>
+      )}
 
       {/* Error */}
       {error && (
@@ -167,9 +183,9 @@ export function ProcessMonitor() {
 
               {/* Output */}
               {process.output && (
-                <div className="px-3 py-2 border-t border-border/30 bg-muted/40 dark:bg-black/20">
+                <div className="px-3 py-2 border-t border-border/30 bg-muted/40">
                   <p className="text-xs text-muted-foreground mb-1">输出:</p>
-                  <pre className="text-xs font-mono text-foreground/80 dark:text-gray-300 whitespace-pre-wrap max-h-32 overflow-y-auto">
+                  <pre className="text-xs font-mono text-foreground/80 whitespace-pre-wrap max-h-32 overflow-y-auto">
                     {process.output}
                   </pre>
                 </div>

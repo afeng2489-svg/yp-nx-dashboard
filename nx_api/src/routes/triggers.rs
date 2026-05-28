@@ -120,6 +120,7 @@ pub async fn trigger_webhook(
             variables,
             None,
             current_workspace,
+            None,
         )
         .await
         .map_err(|e| {

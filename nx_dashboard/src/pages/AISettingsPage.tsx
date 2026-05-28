@@ -29,6 +29,7 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 // ── 模型路由规则 ────────────────────────────────────────────────────────────
 
@@ -717,15 +718,21 @@ export function AISettingsPage() {
 
   return (
     <div className="page-container">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">AI 提供商</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          管理 AI 服务提供商，配置 API 密钥和模型映射
-        </p>
-      </div>
+      <PageHeader
+        title="AI 提供商"
+        description="管理 AI 服务提供商，配置 API 密钥和模型映射"
+        className="mb-6"
+      />
 
-      {/* Claude CLI 路径配置（最重要，放最前） */}
+      {/* AF-MM-01：双引擎分区 */}
       <div className="mb-6">
+        <h2 className="text-sm font-semibold mb-2 flex items-center gap-2">
+          <Terminal className="w-4 h-4" />
+          代码引擎（Claude CLI）
+        </h2>
+        <p className="text-xs text-muted-foreground mb-3">
+          改仓库、质量门、Golden Path 必须走 Claude Code CLI
+        </p>
         <ClaudeCliPathSection />
       </div>
 
@@ -737,6 +744,16 @@ export function AISettingsPage() {
       {/* 模型路由规则 */}
       <div className="mb-6">
         <ModelRoutingSection />
+      </div>
+
+      <div className="mb-4">
+        <h2 className="text-sm font-semibold mb-2 flex items-center gap-2">
+          <Route className="w-4 h-4" />
+          文本引擎（API Provider）
+        </h2>
+        <p className="text-xs text-muted-foreground mb-3">
+          交付摘要、计划、审查报告等多 provider；不能自动改仓库
+        </p>
       </div>
 
       {/* Provider Grid */}

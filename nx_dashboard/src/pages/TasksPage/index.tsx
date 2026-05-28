@@ -9,12 +9,13 @@ import {
 } from '@/stores/taskStore';
 import { onWorkspaceChange } from '@/stores/workspaceStore';
 import { List, Bug, RefreshCw, Plus } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { ConfirmModal, useConfirmModal } from '@/lib/ConfirmModal';
 import { CreateTaskModal } from './CreateTaskModal';
 import { TaskDetailPanel } from './TaskDetailPanel';
 import { TasksTab } from './TasksTab';
 import { IssuesTab } from './IssuesTab';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { PageTabs } from '@/components/ui/PageTabs';
 
 type PageTab = 'tasks' | 'issues';
 
@@ -78,62 +79,41 @@ export function TasksPage() {
 
   return (
     <div className="page-container space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-              {activeTab === 'tasks' ? '后台任务' : 'Issue 管理'}
-            </span>
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            {activeTab === 'tasks'
-              ? '管理和监控后台定时任务'
-              : 'Discover → Plan → Queue → Execute 全闭环'}
-          </p>
-        </div>
-        {activeTab === 'tasks' && (
-          <div className="flex items-center gap-2">
-            <button onClick={() => refetch()} className="btn-secondary flex items-center gap-2">
-              <RefreshCw className="w-4 h-4" />
-              刷新
-            </button>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="btn-primary flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              创建任务
-            </button>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title={activeTab === 'tasks' ? '后台任务' : 'Issue 管理'}
+        description={
+          activeTab === 'tasks'
+            ? '管理和监控后台定时任务'
+            : 'Discover → Plan → Queue → Execute 全闭环'
+        }
+        actions={
+          activeTab === 'tasks' ? (
+            <div className="flex items-center gap-2">
+              <button onClick={() => refetch()} className="btn-secondary flex items-center gap-2">
+                <RefreshCw className="w-4 h-4" />
+                刷新
+              </button>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="btn-primary flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                创建任务
+              </button>
+            </div>
+          ) : undefined
+        }
+      />
 
-      <div className="flex items-center gap-1 bg-accent/50 rounded-xl p-1 w-fit">
-        <button
-          onClick={() => setActiveTab('tasks')}
-          className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
-            activeTab === 'tasks'
-              ? 'bg-card shadow-sm text-foreground'
-              : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          <List className="w-4 h-4" />
-          后台任务
-        </button>
-        <button
-          onClick={() => setActiveTab('issues')}
-          className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
-            activeTab === 'issues'
-              ? 'bg-card shadow-sm text-foreground'
-              : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          <Bug className="w-4 h-4" />
-          Issue 管理
-        </button>
-      </div>
+      <PageTabs
+        variant="pills"
+        items={[
+          { id: 'tasks', label: '后台任务', icon: List },
+          { id: 'issues', label: 'Issue 管理', icon: Bug },
+        ]}
+        value={activeTab}
+        onValueChange={(id) => setActiveTab(id as PageTab)}
+      />
 
       {activeTab === 'issues' ? (
         <IssuesTab />

@@ -21,7 +21,7 @@ export function TaskDetailPanel({ task, onClose, onCancel, onUpdateStatus }: Tas
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-card rounded-l-2xl shadow-2xl border-l border-border/50 overflow-hidden flex flex-col animate-slide-in">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-gradient-to-r from-indigo-500/5 to-purple-500/5">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-muted/30">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <List className="w-5 h-5 text-indigo-500" />
             任务详情
@@ -95,7 +95,7 @@ export function TaskDetailPanel({ task, onClose, onCancel, onUpdateStatus }: Tas
           </div>
         </div>
 
-        <div className="flex items-center justify-between px-6 py-4 border-t border-border/50 bg-gradient-to-r from-indigo-500/5 to-purple-500/5">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-border/50 bg-muted/30">
           <div className="flex items-center gap-2">
             {task.status === 'running' && (
               <>

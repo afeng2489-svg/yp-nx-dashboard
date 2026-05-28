@@ -1,5 +1,5 @@
 sprint_id: AF-07
-status: planned
+status: done
 priority: P1
 estimated_hours: 40
 depends_on: [AF-06]
@@ -14,9 +14,10 @@ remaining_tasks:
     name: AssetsPage 4 Tab
     priority: P0
     estimated_hours: 16
+    status: done
     description: |
       产线模板、技能、角色库、知识库。
-      复用 WorkflowsPage, TemplatesPage, SkillsPage, RolesPage, KnowledgeBasePage。
+      复用 WorkflowsPage, SkillsPage, RolesPage, WisdomPage。
     acceptance:
       - /assets 四 Tab 可 CRUD 或跳转子页
 
@@ -24,9 +25,10 @@ remaining_tasks:
     name: OpsPage 5 Tab
     priority: P0
     estimated_hours: 16
+    status: done
     description: |
       历史、成本、进程、审计、Sprint。
-      复用 ExecutionsPage, CostPage, ProcessMonitorPage, SprintBoardPage。
+      复用 ExecutionsPage, CostPage, ProcessMonitorPage, OpsAuditPanel, SprintBoardPage。
     acceptance:
       - /ops 五 Tab 数据来自现有 API
 
@@ -34,6 +36,7 @@ remaining_tasks:
     name: Sprint [▶ AI做] → /factory 预填
     priority: P1
     estimated_hours: 4
+    status: done
     description: |
       Sprint 卡片点击启动 factory Console 并预填任务描述。
     acceptance:
@@ -43,6 +46,7 @@ remaining_tasks:
     name: 模型路由 UI（可选，低优先级）
     priority: P2
     estimated_hours: 8
+    status: deferred
     description: |
       AISettings 路由规则编辑；AF-04b 后端就绪后可做。
     acceptance:
@@ -52,3 +56,7 @@ quality_gates:
   - npx tsc --noEmit
 
 acceptance: 配置去 /assets，查历史/成本去 /ops
+
+completion_note: |
+  O1–O3 已实现；O4 模型路由 UI 延后至 AF-08+。
+  GATE-2/AF-06 未做，按用户指示跳过测试直接交付代码。

@@ -45,28 +45,29 @@
   }
 
   .dark {
-    --background: 222 47% 6%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 9%;
-    --card-foreground: 210 40% 98%;
+    /* 纯黑 zinc 深色 — 与工作室侧栏 zinc-950 一致，避免 slate 蓝偏色 */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 6% 10%;
+    --card-foreground: 0 0% 98%;
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 217 33% 13%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 13%;
-    --muted-foreground: 215 20% 55%;
-    --accent: 217 33% 14%;
-    --accent-foreground: 210 40% 98%;
+    --secondary: 240 4% 16%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 4% 16%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 240 4% 16%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 217 33% 14%;
-    --input: 217 33% 13%;
+    --border: 240 4% 16%;
+    --input: 240 4% 16%;
     --ring: 217 91% 60%;
-    --popover: 222 47% 9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 240 6% 10%;
+    --popover-foreground: 0 0% 98%;
 
-    --glass-bg: rgba(30, 35, 50, 0.8);
-    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-bg: rgba(9, 9, 11, 0.85);
+    --glass-border: rgba(255, 255, 255, 0.08);
 
     /* Dark mode shadows */
     --shadow-primary: rgba(99, 102, 241, 0.4);
@@ -203,39 +204,12 @@
     @apply bg-slate-500/10 text-slate-600;
   }
 
-  /* Button styles - Enhanced with micro-interactions */
+  /* Button styles — AF-11: solid primary, no gradient sweep */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200;
-    background: var(--gradient-primary);
-    color: white;
-    box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.35);
-    position: relative;
-    overflow: hidden;
-  }
-
-  .btn-primary::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-    transition: left 0.5s ease;
-  }
-
-  .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px 0 rgba(99, 102, 241, 0.5);
-  }
-
-  .btn-primary:hover::before {
-    left: 100%;
-  }
-
-  .btn-primary:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 10px 0 rgba(99, 102, 241, 0.35);
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors duration-200;
+    @apply bg-primary text-primary-foreground shadow-sm;
+    @apply hover:bg-primary/90 active:bg-primary/80;
+    @apply disabled:opacity-50 disabled:pointer-events-none;
   }
 
   .btn-secondary {
@@ -297,6 +271,36 @@
   /* Page container */
   .page-container {
     @apply p-6 lg:p-8 space-y-6;
+  }
+
+  /* AF-11 精炼 Shell：弱化渐变，统一用 design token */
+  .shell-refined .gradient-text {
+    @apply text-foreground;
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    background-clip: unset;
+  }
+
+  .shell-refined .card-interactive:hover {
+    @apply translate-y-0 shadow-md;
+  }
+
+  .shell-refined .card-hover:hover {
+    @apply translate-y-0;
+  }
+
+  /* Studio dark 下仍带 indigo 渐变标题 → 收敛为纯色 */
+  .shell-refined h1 span[class*='bg-clip-text'],
+  .shell-refined h1[class*='bg-clip-text'] {
+    @apply text-foreground;
+    background-image: none !important;
+    -webkit-text-fill-color: currentColor;
+  }
+
+  /* 常见 indigo/purple 提示条 → muted 底 */
+  .shell-refined [class*='from-indigo-500/5'][class*='via-purple'] {
+    @apply bg-muted/50 border-border/60;
+    background-image: none !important;
   }
 
   /* Section header */
@@ -478,4 +482,20 @@
 }
 .stagger-children > *:nth-child(8) {
   animation-delay: 350ms;
+}
+
+/* 工厂抽屉内 xterm — 避免裁切与背景色不一致 */
+.factory-drawer-terminal .xterm-host,
+.integrated-terminal-panel .xterm-host {
+  padding: 4px 8px;
+}
+
+.factory-drawer-terminal .xterm-viewport,
+.integrated-terminal-panel .xterm-viewport {
+  background-color: transparent !important;
+}
+
+.factory-drawer-terminal .xterm-screen,
+.integrated-terminal-panel .xterm-screen {
+  width: 100% !important;
 }

@@ -1,35 +1,51 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ChevronDown, Cpu, Factory, Users } from 'lucide-react';
-import { api, type ClaudeCliConfigResponse } from '@/api/client';
+import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Cpu, Factory } from 'lucide-react';
+import { useClaudeCliReady } from '@/hooks/useClaudeCliReady';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useTeamStore } from '@/stores/teamStore';
 import { useProjectStore } from '@/stores/projectStore';
-import { useExecutionStore } from '@/stores/executionStore';
+import { GlobalRunPanel } from '@/components/factory/GlobalRunPanel';
+import { GlobalBranchChip } from '@/components/factory/GlobalBranchChip';
+import { GlobalCostChip } from '@/components/factory/GlobalCostChip';
 import { cn } from '@/lib/utils';
 
 export function FactoryGlobalBar() {
-  const navigate = useNavigate();
   const { currentWorkspace } = useWorkspaceStore();
   const { teams, currentTeam, fetchTeams, setCurrentTeam } = useTeamStore();
   const { projects, currentProject, fetchProjects, setCurrentProject } = useProjectStore();
-  const runningCount = useExecutionStore((s) => s.executions.filter((e) => e.status === 'running').length);
-  const [cliConfig, setCliConfig] = useState<ClaudeCliConfigResponse | null>(null);
+  const { ready: cliReady, config: cliConfig } = useClaudeCliReady();
+  const [teamManuallyChanged, setTeamManuallyChanged] = useState(false);
+  const autoSyncedKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     fetchTeams();
     fetchProjects();
   }, [fetchTeams, fetchProjects]);
 
+  /** AF-08 M1：切项目自动切绑定团队（用户未手动改团队时） */
   useEffect(() => {
-    let cancelled = false;
-    api.getClaudeCliConfig().then((cfg) => {
-      if (!cancelled) setCliConfig(cfg);
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
+    if (!currentProject?.team_id || teamManuallyChanged) return;
+    const syncKey = `${currentProject.id}:${currentProject.team_id}`;
+    if (autoSyncedKeyRef.current === syncKey) return;
+    const bound = teams.find((t) => t.id === currentProject.team_id);
+    if (bound && bound.id !== currentTeam?.id) {
+      setCurrentTeam(bound);
+    }
+    autoSyncedKeyRef.current = syncKey;
+  }, [
+    currentProject?.team_id,
+    currentProject?.id,
+    teams,
+    currentTeam?.id,
+    teamManuallyChanged,
+    setCurrentTeam,
+  ]);
 
-  const cliBound = cliConfig?.source !== 'none' && !!cliConfig?.path;
+  const cliBound = cliReady === true;
+  const boundTeamName = currentProject
+    ? teams.find((t) => t.id === currentProject.team_id)?.name
+    : undefined;
 
   return (
     <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-wrap">
@@ -50,7 +66,7 @@ export function FactoryGlobalBar() {
       >
         <Cpu className="w-3 h-3" />
         <span className={cn('w-1.5 h-1.5 rounded-full', cliBound ? 'bg-emerald-500' : 'bg-amber-500')} />
-        {cliBound ? 'CLI' : 'CLI 未绑定'}
+        {cliBound ? 'CLI' : cliReady === null ? 'CLI…' : 'CLI 未绑定'}
       </Link>
 
       <select
@@ -58,7 +74,13 @@ export function FactoryGlobalBar() {
         value={currentProject?.id ?? ''}
         onChange={(e) => {
           const p = projects.find((x) => x.id === e.target.value) ?? null;
+          setTeamManuallyChanged(false);
+          autoSyncedKeyRef.current = null;
           setCurrentProject(p);
+          if (p?.team_id) {
+            const t = teams.find((x) => x.id === p.team_id) ?? null;
+            if (t) setCurrentTeam(t);
+          }
         }}
         title="项目"
       >
@@ -71,11 +93,11 @@ export function FactoryGlobalBar() {
       </select>
 
       <div className="flex items-center gap-1">
-        <Users className="w-3.5 h-3.5 text-muted-foreground" />
         <select
           className="text-xs sm:text-sm bg-muted/50 border border-border rounded-md px-2 py-1 max-w-[140px] truncate"
           value={currentTeam?.id ?? ''}
           onChange={(e) => {
+            setTeamManuallyChanged(true);
             const t = teams.find((x) => x.id === e.target.value) ?? null;
             setCurrentTeam(t);
           }}
@@ -88,7 +110,15 @@ export function FactoryGlobalBar() {
             </option>
           ))}
         </select>
+        {currentProject && boundTeamName && currentTeam?.id === currentProject.team_id && (
+          <span className="hidden md:inline text-[10px] text-emerald-600 dark:text-emerald-400" title="项目已绑定团队">
+            已绑定
+          </span>
+        )}
       </div>
+
+      <GlobalBranchChip />
+      <GlobalCostChip />
 
       {currentWorkspace?.root_path && (
         <span
@@ -99,20 +129,7 @@ export function FactoryGlobalBar() {
         </span>
       )}
 
-      <button
-        type="button"
-        onClick={() => navigate('/factory?tab=runs')}
-        className={cn(
-          'ml-auto flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors',
-          runningCount > 0
-            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-            : 'border-border text-muted-foreground hover:bg-accent',
-        )}
-      >
-        <span className={cn('w-2 h-2 rounded-full', runningCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/40')} />
-        {runningCount > 0 ? `${runningCount} 运行中` : '无运行'}
-        <ChevronDown className="w-3 h-3 opacity-50" />
-      </button>
+      <GlobalRunPanel />
     </div>
   );
 }

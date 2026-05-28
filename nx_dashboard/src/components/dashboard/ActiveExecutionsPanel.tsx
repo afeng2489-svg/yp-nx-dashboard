@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useExecutionStore, Execution } from '@/stores/executionStore';
+import { useContextPanelStore } from '@/stores/contextPanelStore';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import {
   Loader2,
@@ -12,6 +13,7 @@ import {
   ChevronRight,
   Zap,
 } from 'lucide-react';
+import { pipelineForWorkflow } from '@/data/workflowPipelines';
 import { cn } from '@/lib/utils';
 
 const STATUS_CONFIG = {
@@ -76,7 +78,17 @@ function useWorkflowName() {
 function ActiveExecutionRow({ execution, onClick }: { execution: Execution; onClick: () => void }) {
   const config = STATUS_CONFIG[execution.status] ?? STATUS_CONFIG.pending;
   const workflowName = useWorkflowName();
-  const totalStages = execution.stage_results?.length ?? 0;
+  const workflows = useWorkflowStore((s) => s.workflows);
+  const wf = workflows.find((w) => w.id === execution.workflow_id);
+  const wfKey = wf?.name ?? execution.workflow_id;
+  const pipeline = pipelineForWorkflow(wfKey);
+  const completedNames = new Set((execution.stage_results ?? []).map((s) => s.stage_name));
+  const doneStages = pipeline.filter((s) => completedNames.has(s.name)).length;
+  const totalStages = pipeline.length;
+  const currentStage =
+    execution.current_stage ??
+    pipeline.find((s) => !completedNames.has(s.name))?.name;
+  const runningLabel = currentStage ?? '启动中…';
 
   return (
     <button
@@ -108,16 +120,24 @@ function ActiveExecutionRow({ execution, onClick }: { execution: Execution; onCl
           >
             {config.label}
           </span>
+          {execution.trigger_source === 'factory' && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
+              工厂
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3 mt-1.5">
           {execution.status === 'running' && (
-            <span className="text-xs text-blue-500 animate-pulse">
-              {execution.stage_results?.[execution.stage_results.length - 1]?.stage_name
-                ? `${execution.stage_results[execution.stage_results.length - 1].stage_name}`
-                : '启动中...'}
+            <span className="text-xs text-blue-500 animate-pulse">{runningLabel}</span>
+          )}
+          {execution.status === 'paused' && execution.pending_pause?.stage_name && (
+            <span className="text-xs text-amber-600">
+              等待 · {execution.pending_pause.stage_name}
             </span>
           )}
-          <span className="text-xs text-muted-foreground">{totalStages} 阶段</span>
+          <span className="text-xs text-muted-foreground">
+            {doneStages > 0 ? `${doneStages}/${totalStages} 阶段` : `${totalStages} 阶段`}
+          </span>
           <span className="text-xs text-muted-foreground">
             {formatDuration(execution.started_at, execution.finished_at)}
           </span>
@@ -161,41 +181,94 @@ function PipelineGanttBar({ execution }: { execution: Execution }) {
         <div
           className="h-full rounded bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center text-[10px] font-medium text-white animate-pulse"
           style={{ width: `${segmentWidth}%`, minWidth: 24 }}
+          title={execution.current_stage ?? '进行中'}
         >
-          ...
+          {(execution.current_stage ?? '…').slice(0, 4)}
         </div>
       )}
     </div>
   );
 }
 
-export function ActiveExecutionsPanel() {
+export function ActiveExecutionsPanel({ variant = 'classic' }: { variant?: 'classic' | 'flat' }) {
   const navigate = useNavigate();
-  const { executions, connectWebSocket } = useExecutionStore();
+  const executions = useExecutionStore((s) => s.executions);
+  const connectWebSocket = useExecutionStore((s) => s.connectWebSocket);
+  const selectContextExecution = useContextPanelStore((s) => s.selectExecution);
   const getWorkflowName = useWorkflowName();
-  const activeExecutions = executions.filter(
-    (e) => e.status === 'running' || e.status === 'paused' || e.status === 'pending',
+  const activeExecutions = useMemo(
+    () =>
+      executions.filter(
+        (e) => e.status === 'running' || e.status === 'paused' || e.status === 'pending',
+      ),
+    [executions],
   );
 
-  const recentCompleted = executions
-    .filter((e) => e.status === 'completed' || e.status === 'failed')
-    .slice(0, 3);
+  const recentCompleted = useMemo(
+    () =>
+      executions
+        .filter((e) => e.status === 'completed' || e.status === 'failed')
+        .slice(0, 3),
+    [executions],
+  );
 
   const hasActive = activeExecutions.length > 0;
   const hasAny = hasActive || recentCompleted.length > 0;
   const prevActiveCount = useRef(activeExecutions.length);
 
+  const wsTargetKey = useMemo(
+    () =>
+      activeExecutions
+        .filter((e) => e.status === 'running' || e.status === 'paused')
+        .map((e) => e.id)
+        .sort()
+        .join(','),
+    [activeExecutions],
+  );
+
   useEffect(() => {
-    activeExecutions.forEach((e) => {
-      if (e.status === 'running') {
-        connectWebSocket(e.id);
-      }
-    });
-  }, [activeExecutions, connectWebSocket]);
+    if (!wsTargetKey) return;
+    for (const id of wsTargetKey.split(',')) {
+      connectWebSocket(id);
+    }
+  }, [wsTargetKey, connectWebSocket]);
 
   useEffect(() => {
     prevActiveCount.current = activeExecutions.length;
   }, [activeExecutions.length]);
+
+  if (variant === 'flat') {
+    if (!hasAny) {
+      return (
+        <p className="text-xs text-muted-foreground text-center py-2">暂无进行中的 Run</p>
+      );
+    }
+    return (
+      <div className="space-y-1">
+        {activeExecutions.map((execution) => {
+          const config = STATUS_CONFIG[execution.status] ?? STATUS_CONFIG.pending;
+          return (
+            <button
+              key={execution.id}
+              type="button"
+              onClick={() => selectContextExecution(execution.id)}
+              className="w-full flex items-center gap-2 py-2 text-sm text-left text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <div
+                className={cn(
+                  'w-1.5 h-1.5 rounded-full shrink-0',
+                  config.dot,
+                  execution.status === 'running' && 'animate-pulse',
+                )}
+              />
+              <span className="truncate flex-1">{getWorkflowName(execution.workflow_id)}</span>
+              <span className="text-xs shrink-0">{config.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
 
   if (!hasAny) {
     return (
@@ -248,7 +321,10 @@ export function ActiveExecutionsPanel() {
           </p>
           {activeExecutions.map((execution) => (
             <div key={execution.id}>
-              <ActiveExecutionRow execution={execution} onClick={() => navigate('/executions')} />
+              <ActiveExecutionRow
+                execution={execution}
+                onClick={() => selectContextExecution(execution.id)}
+              />
               {execution.stage_results && execution.stage_results.length > 0 && (
                 <div className="mt-1 px-4">
                   <PipelineGanttBar execution={execution} />
@@ -269,7 +345,7 @@ export function ActiveExecutionsPanel() {
             return (
               <button
                 key={execution.id}
-                onClick={() => navigate('/executions')}
+                onClick={() => selectContextExecution(execution.id)}
                 className="w-full flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-card to-accent/20 border border-border/30 hover:border-primary/20 transition-all text-left group"
               >
                 <div className={cn('w-2 h-2 rounded-full shrink-0', config.dot)} />

@@ -76,7 +76,7 @@ const statusVariant: Record<string, 'success' | 'destructive' | 'warning'> = {
   failed: 'destructive',
 };
 
-export function KnowledgeBasePage() {
+export function KnowledgeBasePage({ embedded = false }: { embedded?: boolean } = {}) {
   const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
   const [selectedKb, setSelectedKb] = useState<KnowledgeBase | null>(null);
   const [docs, setDocs] = useState<Document[]>([]);
@@ -216,7 +216,10 @@ export function KnowledgeBasePage() {
   }
 
   return (
-    <div className="flex bg-background text-foreground" style={{ height: 'calc(100vh - 3.5rem)' }}>
+    <div
+      className={cn('flex bg-background text-foreground', embedded ? 'h-full min-h-0' : '')}
+      style={embedded ? undefined : { height: 'calc(100vh - 3.5rem)' }}
+    >
       {/* 左侧知识库列表 */}
       <div className="w-64 border-r border-border flex flex-col shrink-0">
         <div className="p-4 border-b border-border flex items-center justify-between">

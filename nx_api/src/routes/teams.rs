@@ -108,6 +108,149 @@ pub async fn create_team(
     Ok(Json(team))
 }
 
+/// 从预置模板创建团队（AF-01 Solo 向导）
+#[derive(Debug, serde::Deserialize)]
+pub struct FromTemplateRequest {
+    pub template: String,
+    pub name: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct FromTemplateResponse {
+    pub team: Team,
+    pub roles: Vec<TeamRole>,
+}
+
+pub async fn create_team_from_template(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<FromTemplateRequest>,
+) -> ApiResponse<FromTemplateResponse> {
+    use crate::models::team::{CreateRoleRequest, CreateTeamRequest, ModelConfig};
+
+    match request.template.as_str() {
+        "solo-fullstack" => {
+            let team = state.teams_state.team_service.create_team(CreateTeamRequest {
+                name: request
+                    .name
+                    .unwrap_or_else(|| "Solo 全栈".to_string()),
+                description: Some(
+                    "AF-01 默认一人团队 — 绑定 solo-dev Golden Path".to_string(),
+                ),
+            })?;
+            let role = state.teams_state.team_service.create_role(
+                &team.id,
+                CreateRoleRequest {
+                    name: "全栈工程师".to_string(),
+                    description: "Solo 默认角色".to_string(),
+                    model_config: Some(default_model_config()),
+                    system_prompt: "你是全栈工程师，直接帮用户完成开发任务。".to_string(),
+                    trigger_keywords: Some(vec![]),
+                },
+            )?;
+            Ok(Json(FromTemplateResponse {
+                team,
+                roles: vec![role],
+            }))
+        }
+        "web-team" => {
+            let team = state.teams_state.team_service.create_team(CreateTeamRequest {
+                name: request.name.unwrap_or_else(|| "Web 前端组".to_string()),
+                description: Some("AF-08 前端 + UI 协作模板".to_string()),
+            })?;
+            let fe = state.teams_state.team_service.create_role(
+                &team.id,
+                CreateRoleRequest {
+                    name: "前端工程师".to_string(),
+                    description: "React/Vue 组件与页面".to_string(),
+                    model_config: Some(default_model_config()),
+                    system_prompt: "你是前端工程师，专注 UI 实现、组件与交互。".to_string(),
+                    trigger_keywords: Some(vec!["前端".into(), "页面".into(), "组件".into()]),
+                },
+            )?;
+            let ui = state.teams_state.team_service.create_role(
+                &team.id,
+                CreateRoleRequest {
+                    name: "UI 设计师".to_string(),
+                    description: "视觉与布局".to_string(),
+                    model_config: Some(default_model_config()),
+                    system_prompt: "你是 UI 设计师，负责布局、配色与可用性建议。".to_string(),
+                    trigger_keywords: Some(vec!["设计".into(), "UI".into(), "样式".into()]),
+                },
+            )?;
+            Ok(Json(FromTemplateResponse {
+                team,
+                roles: vec![fe, ui],
+            }))
+        }
+        "backend-team" => {
+            let team = state.teams_state.team_service.create_team(CreateTeamRequest {
+                name: request.name.unwrap_or_else(|| "后端组".to_string()),
+                description: Some("AF-08 后端 + 运维模板".to_string()),
+            })?;
+            let be = state.teams_state.team_service.create_role(
+                &team.id,
+                CreateRoleRequest {
+                    name: "后端工程师".to_string(),
+                    description: "API 与业务逻辑".to_string(),
+                    model_config: Some(default_model_config()),
+                    system_prompt: "你是后端工程师，专注 API、数据层与业务逻辑。".to_string(),
+                    trigger_keywords: Some(vec!["API".into(), "后端".into(), "数据库".into()]),
+                },
+            )?;
+            let ops = state.teams_state.team_service.create_role(
+                &team.id,
+                CreateRoleRequest {
+                    name: "运维".to_string(),
+                    description: "部署与监控".to_string(),
+                    model_config: Some(default_model_config()),
+                    system_prompt: "你是运维工程师，负责部署、日志与稳定性。".to_string(),
+                    trigger_keywords: Some(vec!["部署".into(), "Docker".into(), "CI".into()]),
+                },
+            )?;
+            Ok(Json(FromTemplateResponse {
+                team,
+                roles: vec![be, ops],
+            }))
+        }
+        "quick-fix-team" => {
+            let team = state.teams_state.team_service.create_team(CreateTeamRequest {
+                name: request.name.unwrap_or_else(|| "快修小队".to_string()),
+                description: Some("AF-08 小改动快速交付".to_string()),
+            })?;
+            let role = state.teams_state.team_service.create_role(
+                &team.id,
+                CreateRoleRequest {
+                    name: "快修工程师".to_string(),
+                    description: "小 diff 快速合入".to_string(),
+                    model_config: Some(default_model_config()),
+                    system_prompt: "你是快修工程师，优先最小改动、快速验证、清晰 diff。".to_string(),
+                    trigger_keywords: Some(vec!["fix".into(), "修复".into(), "hotfix".into()]),
+                },
+            )?;
+            Ok(Json(FromTemplateResponse {
+                team,
+                roles: vec![role],
+            }))
+        }
+        other => Err(AppError {
+            status: StatusCode::BAD_REQUEST,
+            message: format!("未知模板: {}", other),
+        }),
+    }
+}
+
+fn default_model_config() -> crate::models::team::ModelConfig {
+    use crate::models::team::ModelConfig;
+    ModelConfig {
+        model_id: "claude-sonnet-4-5".to_string(),
+        provider: "anthropic".to_string(),
+        max_tokens: 8192,
+        temperature: 0.7,
+        stop_sequences: vec![],
+        extra_params: std::collections::HashMap::new(),
+    }
+}
+
 /// Get a team by ID
 pub async fn get_team(
     State(state): State<Arc<AppState>>,

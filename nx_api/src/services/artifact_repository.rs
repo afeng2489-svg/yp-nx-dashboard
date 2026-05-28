@@ -143,6 +143,40 @@ impl SqliteArtifactRepository {
         Ok(out)
     }
 
+    /// 重试 Run 时复制父 Run 的产物索引（文件仍在工作区，只复制 DB 记录）
+    pub fn clone_execution_artifacts(
+        &self,
+        from_execution_id: &str,
+        to_execution_id: &str,
+    ) -> Result<usize, ArtifactRepositoryError> {
+        let source = self.list_by_execution(from_execution_id)?;
+        if source.is_empty() {
+            return Ok(0);
+        }
+        let conn = self.conn.lock();
+        let mut count = 0usize;
+        for rec in source {
+            conn.execute(
+                "INSERT INTO artifacts
+                 (id, execution_id, stage_name, relative_path, change_type, size_bytes, sha256, mime_type, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    Uuid::new_v4().to_string(),
+                    to_execution_id,
+                    rec.stage_name,
+                    rec.relative_path,
+                    rec.change_type,
+                    rec.size_bytes,
+                    rec.sha256,
+                    rec.mime_type,
+                    rec.created_at.to_rfc3339(),
+                ],
+            )?;
+            count += 1;
+        }
+        Ok(count)
+    }
+
     /// 找出某次 execution 中指定路径的最新一条记录
     pub fn find_by_path(
         &self,

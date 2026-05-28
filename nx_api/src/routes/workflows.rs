@@ -190,6 +190,7 @@ pub async fn execute_workflow(
             variables.clone(),
             None,
             current_workspace,
+            None,
         )
         .await
         .map_err(|e| {
@@ -212,6 +213,13 @@ pub async fn execute_workflow(
         error: None,
         total_tokens: 0,
         total_cost_usd: 0.0,
+        team_id: None,
+        project_id: None,
+        trigger_source: None,
+        approval_events: vec![],
+        pending_pause: None,
+        current_stage: None,
+        resumed_from: None,
     }))
 }
 

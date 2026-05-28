@@ -12,7 +12,7 @@ import { INPUT_CLS } from './types';
 
 const PAGE_SIZE = 6;
 
-export function SkillsPage() {
+export function SkillsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const p = useSkillsPage();
   const [page, setPage] = useState(1);
   const totalPages = Math.ceil(p.displaySkills.length / PAGE_SIZE);

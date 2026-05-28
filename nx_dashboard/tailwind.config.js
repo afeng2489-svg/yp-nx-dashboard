@@ -2,6 +2,7 @@
 import typography from '@tailwindcss/typography';
 
 export default {
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
@@ -35,6 +36,10 @@ export default {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -43,5 +48,5 @@ export default {
       },
     },
   },
-  plugins: [typography],
+  plugins: [typography, require('tailwindcss-animate')],
 };

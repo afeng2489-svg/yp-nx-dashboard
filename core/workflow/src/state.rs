@@ -250,6 +250,283 @@ pub struct AgentState {
     pub updated_at: DateTime<Utc>,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── WorkflowState::new ──
+
+    #[test]
+    fn state_new_sets_defaults() {
+        let state = WorkflowState::new("my_workflow");
+        assert_eq!(state.workflow_id, "my_workflow");
+        assert_eq!(state.status, WorkflowStatus::Pending);
+        assert!(state.variables.is_empty());
+        assert_eq!(state.current_stage, 0);
+        assert!(state.stage_results.is_empty());
+        assert!(state.agent_states.is_empty());
+        assert!(state.finished_at.is_none());
+        assert!(state.error.is_none());
+    }
+
+    #[test]
+    fn state_new_generates_unique_execution_ids() {
+        let s1 = WorkflowState::new("wf");
+        let s2 = WorkflowState::new("wf");
+        assert_ne!(s1.execution_id, s2.execution_id);
+    }
+
+    // ── set_var / get_var ──
+
+    #[test]
+    fn set_and_get_var() {
+        let mut state = WorkflowState::new("wf");
+        state.set_var("key1", serde_json::Value::String("val1".into()));
+        assert_eq!(
+            state.get_var("key1").unwrap().as_str().unwrap(),
+            "val1"
+        );
+    }
+
+    #[test]
+    fn get_var_missing() {
+        let state = WorkflowState::new("wf");
+        assert!(state.get_var("nonexistent").is_none());
+    }
+
+    #[test]
+    fn set_var_overwrites() {
+        let mut state = WorkflowState::new("wf");
+        state.set_var("x", serde_json::Value::String("a".into()));
+        state.set_var("x", serde_json::Value::String("b".into()));
+        assert_eq!(state.get_var("x").unwrap().as_str().unwrap(), "b");
+    }
+
+    #[test]
+    fn set_var_updates_timestamp() {
+        let mut state = WorkflowState::new("wf");
+        let before = state.updated_at;
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        state.set_var("x", serde_json::Value::Bool(true));
+        assert!(state.updated_at > before);
+    }
+
+    // ── resolve_template ──
+
+    #[test]
+    fn resolve_basic_variable() {
+        let mut state = WorkflowState::new("wf");
+        state.set_var("name", serde_json::Value::String("Alice".into()));
+        let result = state.resolve_template("Hello, {{name}}!");
+        assert_eq!(result, "Hello, Alice!");
+    }
+
+    #[test]
+    fn resolve_variable_with_spaces() {
+        let mut state = WorkflowState::new("wf");
+        state.set_var("name", serde_json::Value::String("Bob".into()));
+        let result = state.resolve_template("Hello, {{ name }}!");
+        assert_eq!(result, "Hello, Bob!");
+    }
+
+    #[test]
+    fn resolve_multiple_variables() {
+        let mut state = WorkflowState::new("wf");
+        state.set_var("first", serde_json::Value::String("John".into()));
+        state.set_var("last", serde_json::Value::String("Doe".into()));
+        let result = state.resolve_template("{{first}} {{last}}");
+        assert_eq!(result, "John Doe");
+    }
+
+    #[test]
+    fn resolve_numeric_variable() {
+        let mut state = WorkflowState::new("wf");
+        state.set_var("count", serde_json::Value::Number(serde_json::Number::from(42)));
+        let result = state.resolve_template("Count: {{count}}");
+        assert_eq!(result, "Count: 42");
+    }
+
+    #[test]
+    fn resolve_agent_output() {
+        let mut state = WorkflowState::new("wf");
+        state.update_agent(
+            "planner",
+            AgentState {
+                agent_id: "planner".into(),
+                role: "architect".into(),
+                status: AgentStatus::Completed,
+                last_message: Some("Design complete".into()),
+                updated_at: Utc::now(),
+            },
+        );
+        let result = state.resolve_template("Output: {{planner_output}}");
+        assert_eq!(result, "Output: Design complete");
+    }
+
+    #[test]
+    fn resolve_no_placeholders() {
+        let state = WorkflowState::new("wf");
+        let result = state.resolve_template("plain text");
+        assert_eq!(result, "plain text");
+    }
+
+    #[test]
+    fn resolve_variable_priority_over_agent_output() {
+        let mut state = WorkflowState::new("wf");
+        state.set_var(
+            "coder_output",
+            serde_json::Value::String("from vars".into()),
+        );
+        state.update_agent(
+            "coder",
+            AgentState {
+                agent_id: "coder".into(),
+                role: "dev".into(),
+                status: AgentStatus::Completed,
+                last_message: Some("from agent".into()),
+                updated_at: Utc::now(),
+            },
+        );
+        let result = state.resolve_template("{{coder_output}}");
+        assert_eq!(result, "from vars");
+    }
+
+    // ── record_stage ──
+
+    #[test]
+    fn record_stage_appends_and_increments() {
+        let mut state = WorkflowState::new("wf");
+        state.record_stage("plan", vec![], None);
+        assert_eq!(state.stage_results.len(), 1);
+        assert_eq!(state.stage_results[0].stage_name, "plan");
+        assert_eq!(state.current_stage, 1);
+
+        state.record_stage("build", vec![], None);
+        assert_eq!(state.stage_results.len(), 2);
+        assert_eq!(state.current_stage, 2);
+    }
+
+    #[test]
+    fn record_stage_with_outputs() {
+        let mut state = WorkflowState::new("wf");
+        let output = StageOutput {
+            path: "test.txt".into(),
+            content: Some("hello".into()),
+            agent_id: Some("agent1".into()),
+            summary: None,
+            files_changed: vec![],
+        };
+        state.record_stage("s1", vec![output], None);
+        assert_eq!(state.stage_results[0].outputs.len(), 1);
+        assert_eq!(state.stage_results[0].outputs[0].path, "test.txt");
+    }
+
+    // ── update_agent ──
+
+    #[test]
+    fn update_agent_inserts_and_updates() {
+        let mut state = WorkflowState::new("wf");
+        let agent = AgentState {
+            agent_id: "a1".into(),
+            role: "dev".into(),
+            status: AgentStatus::Running,
+            last_message: None,
+            updated_at: Utc::now(),
+        };
+        state.update_agent("a1", agent.clone());
+        assert_eq!(state.agent_states.len(), 1);
+        assert_eq!(state.agent_states["a1"].status, AgentStatus::Running);
+
+        let completed = AgentState {
+            status: AgentStatus::Completed,
+            ..agent
+        };
+        state.update_agent("a1", completed);
+        assert_eq!(state.agent_states["a1"].status, AgentStatus::Completed);
+    }
+
+    // ── status transitions ──
+
+    #[test]
+    fn start_sets_running() {
+        let mut state = WorkflowState::new("wf");
+        state.start();
+        assert_eq!(state.status, WorkflowStatus::Running);
+    }
+
+    #[test]
+    fn complete_sets_finished() {
+        let mut state = WorkflowState::new("wf");
+        state.complete();
+        assert_eq!(state.status, WorkflowStatus::Completed);
+        assert!(state.finished_at.is_some());
+    }
+
+    #[test]
+    fn fail_sets_error() {
+        let mut state = WorkflowState::new("wf");
+        state.fail("something went wrong".into());
+        assert_eq!(state.status, WorkflowStatus::Failed);
+        assert_eq!(state.error, Some("something went wrong".into()));
+        assert!(state.finished_at.is_some());
+    }
+
+    #[test]
+    fn cancel_sets_cancelled() {
+        let mut state = WorkflowState::new("wf");
+        state.cancel();
+        assert_eq!(state.status, WorkflowStatus::Cancelled);
+        assert!(state.finished_at.is_some());
+    }
+
+    // ── should_stop ──
+
+    #[test]
+    fn should_stop_false_for_pending() {
+        let state = WorkflowState::new("wf");
+        assert!(!state.should_stop());
+    }
+
+    #[test]
+    fn should_stop_false_for_running() {
+        let mut state = WorkflowState::new("wf");
+        state.start();
+        assert!(!state.should_stop());
+    }
+
+    #[test]
+    fn should_stop_true_for_completed() {
+        let mut state = WorkflowState::new("wf");
+        state.complete();
+        assert!(state.should_stop());
+    }
+
+    #[test]
+    fn should_stop_true_for_failed() {
+        let mut state = WorkflowState::new("wf");
+        state.fail("err".into());
+        assert!(state.should_stop());
+    }
+
+    #[test]
+    fn should_stop_true_for_cancelled() {
+        let mut state = WorkflowState::new("wf");
+        state.cancel();
+        assert!(state.should_stop());
+    }
+
+    // ── WorkflowStatus Display ──
+
+    #[test]
+    fn status_display() {
+        assert_eq!(WorkflowStatus::Pending.to_string(), "pending");
+        assert_eq!(WorkflowStatus::Running.to_string(), "running");
+        assert_eq!(WorkflowStatus::Completed.to_string(), "completed");
+        assert_eq!(WorkflowStatus::Failed.to_string(), "failed");
+        assert_eq!(WorkflowStatus::Cancelled.to_string(), "cancelled");
+    }
+}
+
 /// 智能体执行状态
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

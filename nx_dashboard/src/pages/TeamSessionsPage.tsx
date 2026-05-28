@@ -16,6 +16,8 @@ import { Pagination } from '@/components/ui/Pagination';
 import { TeamSessionTerminal } from '@/components/team/TeamSessionTerminal';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { PageEmptyState } from '@/components/ui/PageEmptyState';
 
 const PAGE_SIZE = 8;
 
@@ -235,53 +237,39 @@ export function TeamSessionsPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Users className="w-7 h-7" />
-            团队会话
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            多智能体协作历史记录 — 共 {sessions.length} 个会话
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => loadSessions()}
-            className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-            title="刷新列表"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setShowNewModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-medium shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            新建会话
-          </button>
-        </div>
-      </div>
+    <div className="page-container space-y-6">
+      <PageHeader
+        title="团队会话"
+        description={`多智能体协作历史记录 — 共 ${sessions.length} 个会话`}
+        actions={
+          <>
+            <button
+              onClick={() => loadSessions()}
+              className="p-2 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              title="刷新列表"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            <button onClick={() => setShowNewModal(true)} className="btn-primary">
+              <Plus className="w-4 h-4" />
+              新建会话
+            </button>
+          </>
+        }
+      />
 
       {sessions.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <Users className="w-16 h-16 mx-auto mb-4 opacity-30" />
-          <p className="text-lg">暂无团队会话记录</p>
-          <p className="text-sm mt-1 mb-4">
-            点击「新建会话」启动团队协作，或使用{' '}
-            <code className="bg-secondary px-1.5 py-0.5 rounded text-xs">nx team "任务描述"</code>{' '}
-            通过 CLI 创建
-          </p>
-          <button
-            onClick={() => setShowNewModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            新建会话
-          </button>
-        </div>
+        <PageEmptyState
+          icon={Users}
+          title="暂无团队会话记录"
+          description='点击「新建会话」启动团队协作，或使用 nx team "任务描述" 通过 CLI 创建'
+          action={
+            <button onClick={() => setShowNewModal(true)} className="btn-primary">
+              <Plus className="w-4 h-4" />
+              新建会话
+            </button>
+          }
+        />
       ) : (
         <>
           {/* Session list */}
@@ -504,10 +492,8 @@ export function TeamSessionsPage() {
                   onClick={handleNewSession}
                   disabled={!newTask.trim() || submitting}
                   className={cn(
-                    'px-5 py-2 text-sm rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-medium shadow-lg shadow-indigo-500/25 transition-all',
-                    !newTask.trim() || submitting
-                      ? 'opacity-50 cursor-not-allowed'
-                      : 'hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]',
+                    'btn-primary px-5 py-2 text-sm',
+                    (!newTask.trim() || submitting) && 'opacity-50 cursor-not-allowed',
                   )}
                 >
                   {submitting ? (

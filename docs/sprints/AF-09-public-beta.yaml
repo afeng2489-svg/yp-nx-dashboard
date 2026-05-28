@@ -1,5 +1,5 @@
 sprint_id: AF-09
-status: planned
+status: ready-for-testing
 priority: P0
 estimated_hours: 240
 depends_on: [AF-08, AF-06]
@@ -19,50 +19,71 @@ enterprise_features:
   - id: EF1
     name: 完整审计链
     verify: /ops?tab=audit
+    status: done
+    note: approval_events SQLite 持久化 + OpsAuditPanel
 
   - id: EF2
     name: 成本预算
     verify: /settings 项目预算（v3.3）
+    status: done
+    note: costs API + 设置页（v3.3）
 
   - id: EF3
     name: 审批门控
     verify: /factory?tab=approvals
+    status: done
+    note: AF-02 ApprovalHarness
 
   - id: EF4
     name: 产物可回溯
     verify: 历史 Run diff + rollback
+    status: done
+    note: ExecutionsPage GitTab diff/rollback/PR
 
   - id: EF5
     name: 多团队并行
     verify: AF-08
+    status: done
 
   - id: EF6
     name: Checkpoint 续跑
     verify: v1.2 + 工厂台可点续跑
+    status: done
+    note: FactoryPage + CrashRecoveryDialog
 
   - id: EF7
     name: 团队模板
     verify: ≥4 模板
+    status: done
+    note: solo/web/backend/quick-fix
 
   - id: EF8
     name: Sprint 集成
     verify: [▶ AI做]
+    status: done
+    note: SprintBoard → factory sprint_id 回写 + 存在性校验
 
   - id: EF9
     name: 知识库注入
     verify: v3.4 RAG 工厂台启动生效
+    status: done
+    note: quick_run 注入 project_kb_id + knowledge_context
 
   - id: EF10
     name: Git 审计
     verify: v3.1 合入 + commit plan
+    status: done
+    note: GitTab + pr-description API
 
 remaining_tasks:
   - id: P1
     name: 公开文档 + README 重写
     priority: P0
     estimated_hours: 16
+    status: done
     acceptance:
       - README 含 Golden Path 链接与安装
+    note: README + docs/RELEASE.md + PROGRESS.md
 
   - id: P2
     name: 社群/招募 300 人
@@ -75,15 +96,19 @@ remaining_tasks:
     name: 6 指标周报自动化
     priority: P0
     estimated_hours: 16
+    status: done
     acceptance:
       - 每周可导出 metrics JSON
+    note: scripts/export-factory-metrics.mjs + npm run metrics:export
 
   - id: P4
     name: 企业十项验收测试
     priority: P0
     estimated_hours: 24
+    status: done
     acceptance:
       - ≥7/10 EF 项有测试记录
+    note: scripts/enterprise-ef-check.mjs + docs/dogfood/ef-evidence.md；UI 截图待测试阶段补
 
   - id: P5
     name: NPS 调查 + 迭代

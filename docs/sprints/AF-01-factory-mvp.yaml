@@ -1,5 +1,5 @@
 sprint_id: AF-01
-status: in_progress
+status: done
 priority: P0
 estimated_hours: 80
 depends_on: [AF-00b]
@@ -13,8 +13,8 @@ objective: |
 remaining_tasks:
   - id: F1
     name: Factory Shell（GlobalBar + ContextPanel + StatusBar）
-    status: partial
-    note: GlobalBar + StatusBar 已接入 Dashboard；ContextPanel 待选 Run 时展示 diff
+    status: done
+    note: ContextPanel 右侧展示 Run diff 摘要（artifacts API）；GlobalBar 运行中 pill 可打开
     priority: P0
     estimated_hours: 16
     description: |
@@ -49,8 +49,8 @@ remaining_tasks:
 
   - id: F4
     name: Runs / Approvals / Deliverables Tab（MVP）
-    status: partial
-    note: 4 Tab 可切换；Deliverables 依赖 stage_results 列表数据
+    status: done
+    note: Deliverables 接入 listArtifacts API；Runs embedded 模式；点击交付物打开 ContextPanel
     priority: P0
     estimated_hours: 16
     description: |
@@ -61,8 +61,8 @@ remaining_tasks:
 
   - id: F5
     name: Solo 团队模板 + 3 分钟向导
-    status: partial
-    note: SoloTeamWizardBanner 一键 createTeam；POST /teams/from-template 未实现
+    status: done
+    note: POST /teams/from-template solo-fullstack + SoloTeamWizardBanner 一键创建
     priority: P0
     estimated_hours: 12
     description: |
@@ -73,8 +73,8 @@ remaining_tasks:
 
   - id: F6
     name: Team ↔ Workflow 绑定（Console 启动链）
-    status: pending
-    note: execution 尚未记录 team_id / trigger_source=factory
+    status: done
+    note: quick-run 传 team/project/workflow_name；execution 记录 team_id + trigger_source=factory；role overlay
     priority: P0
     estimated_hours: 8
     description: |

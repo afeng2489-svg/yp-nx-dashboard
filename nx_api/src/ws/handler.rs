@@ -10,6 +10,10 @@ use std::collections::HashSet;
 use crate::services::events::{ExecutionEvent, ExecutionStatus, WorkflowOption};
 use crate::services::execution_service::ExecutionService;
 
+fn default_pause_kind() -> String {
+    "user_input".to_string()
+}
+
 /// WebSocket 消息协议（客户端 -> 服务端）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -69,6 +73,8 @@ pub enum ServerMessage {
         stage_name: String,
         question: String,
         options: Vec<WorkflowOption>,
+        #[serde(default = "default_pause_kind")]
+        pause_kind: String,
     },
     /// 工作流已从暂停恢复
     WorkflowResumed {
@@ -283,11 +289,13 @@ impl WebSocketHandler {
                 stage_name,
                 question,
                 options,
+                pause_kind,
             } => Some(ServerMessage::WorkflowPaused {
                 execution_id,
                 stage_name,
                 question,
                 options,
+                pause_kind,
             }),
             ExecutionEvent::WorkflowResumed {
                 execution_id,
@@ -349,6 +357,7 @@ impl WebSocketHandler {
                 let execution = execution_service.start_execution(
                     workflow_id.clone(),
                     variables.unwrap_or_else(|| serde_json::json!({})),
+                    None,
                     None,
                 );
 

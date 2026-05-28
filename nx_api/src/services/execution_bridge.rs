@@ -119,6 +119,7 @@ impl WorkflowEventBridge {
                 stage_name,
                 question,
                 options,
+                pause_kind,
                 ..
             } => Some(ExecutionEvent::WorkflowPaused {
                 execution_id: id,
@@ -128,6 +129,7 @@ impl WorkflowEventBridge {
                     .into_iter()
                     .map(|(label, value)| WorkflowOption { label, value })
                     .collect(),
+                pause_kind,
             }),
             WorkflowEvent::WorkflowResumed {
                 stage_name,
@@ -171,11 +173,18 @@ impl WorkflowEventBridge {
                 agent_id,
                 input_tokens,
                 output_tokens,
+                executor,
+                provider,
+                estimated_cost_usd,
                 ..
             } => {
                 let total_tokens = (input_tokens + output_tokens) as i64;
-                let cost_usd = (input_tokens as f64 * 3.0 / 1_000_000.0)
-                    + (output_tokens as f64 * 15.0 / 1_000_000.0);
+                let cost_usd = if estimated_cost_usd > 0.0 {
+                    estimated_cost_usd
+                } else {
+                    (input_tokens as f64 * 3.0 / 1_000_000.0)
+                        + (output_tokens as f64 * 15.0 / 1_000_000.0)
+                };
                 self.execution_service.add_token_usage_with_budget(
                     &id,
                     total_tokens,
@@ -185,8 +194,8 @@ impl WorkflowEventBridge {
                 Some(ExecutionEvent::Output {
                     execution_id: id,
                     line: format!(
-                        "[TokenUsage] {} — input: {}, output: {}, cost: ${:.4}",
-                        agent_id, input_tokens, output_tokens, cost_usd
+                        "[TokenUsage] {} ({}/{}) — in: {}, out: {}, cost: ${:.4}",
+                        agent_id, executor, provider, input_tokens, output_tokens, cost_usd
                     ),
                 })
             }

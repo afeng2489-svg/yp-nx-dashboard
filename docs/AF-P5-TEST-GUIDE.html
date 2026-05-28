@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>工厂台 · 用户使用指南</title>
+  <style>
+    :root {
+      --bg: #0c0e14;
+      --surface: #151820;
+      --surface2: #1c2030;
+      --border: #2d3548;
+      --text: #eef0f4;
+      --muted: #8b95a8;
+      --accent: #7c83ff;
+      --accent2: #a78bfa;
+      --green: #4ade80;
+      --amber: #fbbf24;
+      --red: #f87171;
+      --radius: 12px;
+      --font: "PingFang SC", "SF Pro Text", -apple-system, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.7; font-size: 16px; }
+
+    .hero {
+      background: linear-gradient(135deg, #1a1f35 0%, #0c0e14 50%, #12151f 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 3rem 2rem 2.5rem;
+      text-align: center;
+    }
+    .hero h1 { font-size: 2.2rem; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 0.75rem; }
+    .hero p { color: var(--muted); max-width: 540px; margin: 0 auto 1.5rem; font-size: 1.05rem; }
+    .hero-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
+    .tag { background: rgba(124,131,255,0.15); color: #b4b9ff; padding: 0.35rem 0.85rem; border-radius: 999px; font-size: 0.8rem; }
+
+    .layout { display: grid; grid-template-columns: 240px 1fr; max-width: 1100px; margin: 0 auto; }
+    nav {
+      position: sticky; top: 0; height: 100vh; overflow-y: auto;
+      padding: 1.5rem 1rem; border-right: 1px solid var(--border);
+    }
+    nav a { display: block; padding: 0.4rem 0.65rem; color: var(--muted); text-decoration: none; border-radius: 8px; font-size: 0.9rem; }
+    nav a:hover { background: var(--surface2); color: var(--text); }
+    nav .sec { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: #5c6478; margin: 1.2rem 0 0.4rem 0.65rem; }
+
+    main { padding: 2rem 2.5rem 4rem; min-width: 0; }
+
+    h2 { font-size: 1.5rem; margin: 2.5rem 0 1rem; padding-top: 0.5rem; scroll-margin-top: 1rem; }
+    h2:first-child { margin-top: 0; }
+    h3 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; color: #d0d4de; }
+
+    p { margin-bottom: 0.9rem; color: #c8ccd6; }
+    ul, ol { margin: 0.5rem 0 1rem 1.25rem; color: #c8ccd6; }
+    li { margin-bottom: 0.45rem; }
+
+    /* ── 界面示意图容器 ── */
+    .fig {
+      margin: 1.25rem 0 1.75rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+    }
+    .fig-cap {
+      padding: 0.65rem 1rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .fig svg { display: block; width: 100%; height: auto; }
+
+    /* ── 步骤卡片 ── */
+    .steps { counter-reset: step; list-style: none; margin-left: 0; }
+    .steps li {
+      counter-increment: step;
+      position: relative;
+      padding: 1rem 1rem 1rem 3.25rem;
+      margin-bottom: 0.75rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .steps li::before {
+      content: counter(step);
+      position: absolute; left: 1rem; top: 1rem;
+      width: 1.75rem; height: 1.75rem;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 50%;
+      font-size: 0.85rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .steps li strong { color: var(--text); }
+
+    /* ── 意图索引 ── */
+    .intent-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 0.75rem;
+      margin: 1.25rem 0;
+    }
+    .intent-card {
+      display: block;
+      padding: 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    .intent-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .intent-card .emoji { font-size: 1.5rem; margin-bottom: 0.35rem; }
+    .intent-card .title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.25rem; }
+    .intent-card .desc { font-size: 0.8rem; color: var(--muted); }
+
+    .ok-box {
+      background: rgba(74,222,128,0.08);
+      border-left: 3px solid var(--green);
+      padding: 0.85rem 1rem;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 1rem 0;
+      font-size: 0.92rem;
+    }
+    .warn-box {
+      background: rgba(251,191,36,0.08);
+      border-left: 3px solid var(--amber);
+      padding: 0.85rem 1rem;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      margin: 1rem 0;
+      font-size: 0.92rem;
+    }
+
+    .prep-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1.25rem 0; }
+    .prep-item {
+      text-align: center; padding: 1.25rem 1rem;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    }
+    .prep-item .icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .prep-item h4 { font-size: 0.95rem; margin-bottom: 0.35rem; }
+    .prep-item p { font-size: 0.8rem; color: var(--muted); margin: 0; }
+
+    details { margin: 2rem 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+    summary { padding: 1rem; cursor: pointer; color: var(--muted); font-size: 0.9rem; }
+    details pre { margin: 0; padding: 1rem; font-size: 0.78rem; overflow-x: auto; background: #0a0c10; border-top: 1px solid var(--border); }
+
+    /* ── 提示词卡片 ── */
+    .prompt-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1rem;
+      margin: 1.25rem 0;
+    }
+    .prompt-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .prompt-card .pc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
+    .prompt-card .pc-title { font-weight: 600; font-size: 0.95rem; color: var(--text); }
+    .prompt-card .pc-badge {
+      font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+      padding: 0.2rem 0.45rem; border-radius: 4px; white-space: nowrap; flex-shrink: 0;
+    }
+    .badge-easy { background: rgba(74,222,128,0.15); color: var(--green); }
+    .badge-mid { background: rgba(124,131,255,0.15); color: #b4b9ff; }
+    .badge-new { background: rgba(251,191,36,0.15); color: var(--amber); }
+    .prompt-card .pc-when { font-size: 0.82rem; color: var(--muted); margin: 0; }
+    .prompt-box {
+      position: relative;
+      background: #0a0c10;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 3rem 0.75rem 0.85rem;
+      font-size: 0.88rem;
+      line-height: 1.55;
+      color: #e2e4ea;
+      font-family: "SF Mono", ui-monospace, monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 2.5rem;
+    }
+    .copy-btn {
+      position: absolute; top: 0.5rem; right: 0.5rem;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--muted); font-size: 0.72rem; padding: 0.25rem 0.55rem;
+      border-radius: 6px; cursor: pointer; font-family: inherit;
+    }
+    .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+    .copy-btn.copied { color: var(--green); border-color: var(--green); }
+    .prompt-card .pc-how { font-size: 0.8rem; color: #9aa3b5; margin: 0; }
+    .prompt-card .pc-how strong { color: #c8ccd6; }
+
+    .what-box {
+      background: linear-gradient(135deg, rgba(124,131,255,0.12) 0%, rgba(167,139,250,0.08) 100%);
+      border: 1px solid rgba(124,131,255,0.25);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .what-box h2 { margin: 0 0 0.75rem; font-size: 1.25rem; border: none; padding: 0; }
+    .what-box p { margin-bottom: 0.5rem; }
+    .what-flow {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem;
+      margin-top: 1rem; font-size: 0.85rem; color: var(--muted);
+    }
+    .what-flow span {
+      background: var(--surface); border: 1px solid var(--border);
+      padding: 0.3rem 0.65rem; border-radius: 999px; color: var(--text);
+    }
+    .what-flow .arrow { color: #5c6478; border: none; background: none; padding: 0; }
+
+    @media (max-width: 800px) {
+      .layout { grid-template-columns: 1fr; }
+      nav { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+      .prep-row { grid-template-columns: 1fr; }
+      main { padding: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="hero">
+  <h1>🏭 工厂台 · 用户使用指南</h1>
+  <p>不用懂 workflow、不用记菜单。像跟同事说一句话一样，让 AI 团队帮你改代码。</p>
+  <div class="hero-tags">
+    <span class="tag">打开 App 就能用</span>
+    <span class="tag">说人话启动</span>
+    <span class="tag">失败了有按钮救</span>
+  </div>
+</header>
+
+<div class="layout">
+  <nav>
+    <div class="sec">不知道做什么？</div>
+    <a href="#what" style="color:#b4b9ff;font-weight:600">这软件干什么的</a>
+    <a href="#prompts" style="color:#b4b9ff;font-weight:600">提示词抄作业 ⭐</a>
+
+    <div class="sec">开始</div>
+    <a href="#prep">用之前准备 3 件事</a>
+    <a href="#overview">工厂台长什么样</a>
+    <a href="#pick">我想做什么？</a>
+
+    <div class="sec">常用操作</div>
+    <a href="#first">第一次用</a>
+    <a href="#demo">30 秒试用</a>
+    <a href="#change">改现有代码</a>
+    <a href="#bug">修 bug</a>
+    <a href="#approve">等人批准</a>
+    <a href="#done">跑完了下一步</a>
+    <a href="#fail">失败了怎么办</a>
+    <a href="#nogcli">没装 Claude</a>
+
+    <div class="sec">团队</div>
+    <a href="#ask">跟团队商量</a>
+    <a href="#discuss">多人讨论</a>
+    <a href="#cursor">复制到 Cursor</a>
+
+    <div class="sec">其他</div>
+    <a href="#faq">常见问题</a>
+  </nav>
+
+  <main>
+
+    <!-- ═══ 这是什么软件 ═══ -->
+    <div class="what-box" id="what">
+      <h2>🤔 TeamFlow / 工厂台是干什么的？</h2>
+      <p><strong>一句话：</strong>你说想做什么 → AI 虚拟团队自动规划、写代码、跑测试 → 你点批准 → 项目里出现真实改动。</p>
+      <p>适合：<strong>有代码文件夹</strong>的开发者、独立开发者、小团队。不是 ChatGPT 聊天框，是<strong>会动你硬盘上文件</strong>的自动化产线。</p>
+      <div class="what-flow">
+        <span>你写一句话</span>
+        <span class="arrow">→</span>
+        <span>AI 规划</span>
+        <span class="arrow">→</span>
+        <span>AI 改代码</span>
+        <span class="arrow">→</span>
+        <span>你 Approve</span>
+        <span class="arrow">→</span>
+        <span>文件夹里有 diff</span>
+      </div>
+    </div>
+
+    <!-- ═══ 提示词抄作业 ═══ -->
+    <h2 id="prompts">⭐ 提示词抄作业（复制粘贴到工厂输入框）</h2>
+    <p>不知道输入什么？<strong>点卡片右上角「复制」</strong>，打开 App → 工厂 → 粘贴 → 启动。第一次建议从「试用演示」开始（连字都不用打）。</p>
+
+    <div class="prompt-grid">
+
+      <div class="prompt-card">
+        <div class="pc-head">
+          <span class="pc-title">⚡ 试用演示（最推荐第一次）</span>
+          <span class="pc-badge badge-easy">零输入</span>
+        </div>
+        <p class="pc-when">完全不知道能干啥 → 点 chip 就行，约 2 分钟看完整流程</p>
+        <div class="prompt-box">给 README.md 增加「快速开始」安装步骤<button class="copy-btn" data-copy="给 README.md 增加「快速开始」安装步骤">复制</button></div>
+        <p class="pc-how"><strong>怎么启动：</strong>工厂页点上方 chip「<strong>试用演示</strong>」— 不用粘贴，自动填入并启动</p>
+      </div>
+
+      <div class="prompt-card">
+        <div class="pc-head">
+          <span class="pc-title">📝 改文档 / 熟悉流程</span>
+          <span class="pc-badge badge-easy">安全</span>
+        </div>
+        <p class="pc-when">不想动业务代码，只想看看 AI 能不能改文件</p>
+        <div class="prompt-box">给 README.md 写一段项目介绍，包含：这是什么、怎么安装、怎么跑起来<button class="copy-btn" data-copy="给 README.md 写一段项目介绍，包含：这是什么、怎么安装、怎么跑起来">复制</button></div>
+        <p class="pc-how"><strong>成功：</strong>README 有实质新增，Run 状态 completed</p>
+      </div>
+
+      <div class="prompt-card">
+        <div class="pc-head">
+          <span class="pc-title">✨ 加一个小功能</span>
+          <span class="pc-badge badge-mid">常用</span>
+        </div>
+        <p class="pc-when">已有项目，想加功能但懒得自己写</p>
+        <div class="prompt-box">给登录页加一个「记住我」勾选框，状态存 localStorage<button class="copy-btn" data-copy="给登录页加一个「记住我」勾选框，状态存 localStorage">复制</button></div>
+        <p class="pc-how"><strong>产线：</strong>自动走「一人全栈」· 规划→实现→测试→审批</p>
+      </div>
+
+      <div class="prompt-card">
+        <div class="pc-head">
+          <span class="pc-title">🔐 加验证码 / 表单</span>
+          <span class="pc-badge badge-mid">常用</span>
+        </div>
+        <p class="pc-when">演示「意图路由」— 输入后推荐产线会变成一人全栈</p>
+        <div class="prompt-box">给登录加图形验证码，前端生成 4 位数字，提交时校验<button class="copy-btn" data-copy="给登录加图形验证码，前端生成 4 位数字，提交时校验">复制</button></div>
+      </div>
+
+      <div class="prompt-card">
+        <div class="pc-head">
+          <span class="pc-title">🐛 修 bug（粘贴报错）</span>
+          <span class="pc-badge badge-mid">实用</span>
+        </div>
+        <p class="pc-when">控制台 / 终端有报错，直接贴进来</p>
+        <div class="prompt-box">修复登录接口返回 500。报错：TypeError: Cannot read properties of undefined (reading 'id') at auth/login.ts:42<button class="copy-btn" data-copy="修复登录接口返回 500。报错：TypeError: Cannot read properties of undefined (reading 'id') at auth/login.ts:42">复制</button></div>
+        <p class="pc-how"><strong>产线：</strong>自动切「快速修复」· 分析→修复→验证</p>
+      </div>
+
+      <div class="prompt-card">
+        <div class="pc-head">
+          <span class="pc-title">🧪 补测试</span>
+          <span class="pc-badge badge-mid">跑完后</span>
+        </div>
+        <p class="pc-when">刚改完功能，Banner 也会建议「加相关测试」</p>
+        <div class="prompt-box">为刚才的登录改动补充单元测试，覆盖记住我和验证码两个分支<button class="copy-btn" data-copy="为刚才的登录改动补充单元测试，覆盖记住我和验证码两个分支">复制</button></div>
+      </div>
+
+      <div class="prompt-card">
+        <div class="pc-head">
+          <span class="pc-title">🏗 从零建新项目（向导用）</span>
+          <span class="pc-badge badge-new">新建</span>
+        </div>
+        <p class="pc-when">首启选「从零开始」→ 步骤 2「一句话描述」里用</p>
+        <div class="prompt-box">一个本地优先的 Todo App：增删改任务、按标签筛选、数据存 IndexedDB，界面简洁<button class="copy-btn" data-copy="一个本地优先的 Todo App：增删改任务、按标签筛选、数据存 IndexedDB，界面简洁">复制</button></div>
+        <p class="pc-how"><strong>项目名示例：</strong>my-todo · 技术栈选 React + Vite</p>
+      </div>
+
+      <div class="prompt-card">
+        <div class="pc-head">
+          <span class="pc-title">📋 只要计划不写代码</span>
+          <span class="pc-badge badge-easy">无 CLI 也行</span>
+        </div>
+        <p class="pc-when">没配 Claude CLI 时，文本产线仍能出计划</p>
+        <div class="prompt-box">帮我写一份「用户头像上传」功能的实施计划：步骤、涉及文件、风险点，先不要改代码<button class="copy-btn" data-copy="帮我写一份「用户头像上传」功能的实施计划：步骤、涉及文件、风险点，先不要改代码">复制</button></div>
+      </div>
+
+      <div class="prompt-card">
+        <div class="pc-head">
+          <span class="pc-title">💬 问团队（工厂里 @）</span>
+          <span class="pc-badge badge-easy">不启动 Run</span>
+        </div>
+        <p class="pc-when">点「和团队商量」→ 选角色 → 粘贴下面问题</p>
+        <div class="prompt-box">这个 500 错误应该先写回归测试再修，还是直接改代码？给出推荐顺序和理由<button class="copy-btn" data-copy="这个 500 错误应该先写回归测试再修，还是直接改代码？给出推荐顺序和理由">复制</button></div>
+      </div>
+
+      <div class="prompt-card">
+        <div class="pc-head">
+          <span class="pc-title">👥 多人讨论（讨论模式）</span>
+          <span class="pc-badge badge-mid">团队页</span>
+        </div>
+        <p class="pc-when">团队 → 讨论 → 新建会话 → 选「架构评审」场景</p>
+        <div class="prompt-box">我们要不要把这个单体 App 拆成前后端分离？列出 pros/cons，最后给一个明确建议<button class="copy-btn" data-copy="我们要不要把这个单体 App 拆成前后端分离？列出 pros/cons，最后给一个明确建议">复制</button></div>
+        <p class="pc-how"><strong>讨论完：</strong>点「按此启动 Run」把结论带回工厂</p>
+      </div>
+
+    </div>
+
+    <div class="ok-box">
+      <strong>第一次 5 分钟路径：</strong>顶栏选工作区 → 工厂 → 点「试用演示」→ 等审批 → Approve → 打开 Deliverables 看 README 改动。
+    </div>
+
+    <div class="warn-box">
+      <strong>写提示词的小技巧：</strong>说清「改什么文件 / 什么功能 / 成功长什么样」比泛泛的「优化一下」效果好 10 倍。可以贴报错、贴接口路径、贴设计约束。
+    </div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:2.5rem 0" />
+
+    <!-- ═══ 准备 ═══ -->
+    <h2 id="prep">用之前，准备这 3 件事</h2>
+    <div class="prep-row">
+      <div class="prep-item">
+        <div class="icon">📁</div>
+        <h4>① 选文件夹</h4>
+        <p>顶栏点工作区，选你的项目目录。AI 只能在这个文件夹里读写代码。</p>
+      </div>
+      <div class="prep-item">
+        <div class="icon">🤖</div>
+        <h4>② 配 Claude CLI</h4>
+        <p>设置 → AI → 检测 Claude Code。没配也能跑「纯文字」任务，但不能自动改文件。</p>
+      </div>
+      <div class="prep-item">
+        <div class="icon">👥</div>
+        <h4>③ 有团队（可选）</h4>
+        <p>第一次进工厂台会提示建「Solo 全栈」团队。想和角色商量时才需要。</p>
+      </div>
+    </div>
+
+    <!-- ═══ 总览图 ═══ -->
+    <h2 id="overview">工厂台长什么样</h2>
+    <p>侧边栏点 <strong>工厂</strong>，主界面从上到下大概是：</p>
+
+    <div class="fig">
+      <svg viewBox="0 0 720 420" xmlns="http://www.w3.org/2000/svg">
+        <!-- 侧栏 -->
+        <rect x="0" y="0" width="56" height="420" fill="#12151c"/>
+        <rect x="12" y="20" width="32" height="32" rx="8" fill="#7c83ff" opacity="0.3"/>
+        <text x="28" y="42" text-anchor="middle" fill="#7c83ff" font-size="14">🏭</text>
+        <rect x="16" y="70" width="24" height="4" rx="2" fill="#3d4558"/>
+        <rect x="16" y="82" width="24" height="4" rx="2" fill="#2d3548"/>
+        <rect x="16" y="94" width="24" height="4" rx="2" fill="#2d3548"/>
+        <!-- 顶栏 -->
+        <rect x="56" y="0" width="664" height="44" fill="#151820"/>
+        <text x="72" y="28" fill="#8b95a8" font-size="11">工作区: my-project ▾</text>
+        <text x="620" y="28" fill="#4ade80" font-size="10">● WS 已连接</text>
+        <!-- 主区 -->
+        <rect x="56" y="44" width="664" height="376" fill="#0c0e14"/>
+        <!-- ① 输入框 -->
+        <rect x="72" y="60" width="632" height="100" rx="10" fill="#1c2030" stroke="#7c83ff" stroke-width="2"/>
+        <text x="88" y="88" fill="#eef0f4" font-size="13" font-weight="600">① 一句话说你想做什么</text>
+        <rect x="88" y="98" width="500" height="28" rx="6" fill="#12151c" stroke="#2d3548"/>
+        <text x="98" y="116" fill="#5c6478" font-size="11">例如：给 README 加快速开始…</text>
+        <rect x="88" y="132" width="72" height="22" rx="11" fill="#7c83ff" opacity="0.25"/>
+        <text x="124" y="146" text-anchor="middle" fill="#b4b9ff" font-size="9">新建项目</text>
+        <rect x="168" y="132" width="56" height="22" rx="11" fill="#2d3548"/>
+        <text x="196" y="146" text-anchor="middle" fill="#8b95a8" font-size="9">改代码</text>
+        <rect x="232" y="132" width="64" height="22" rx="11" fill="#2d3548"/>
+        <text x="264" y="146" text-anchor="middle" fill="#8b95a8" font-size="9">试用演示</text>
+        <!-- ② 预览条 -->
+        <rect x="72" y="172" width="632" height="32" rx="6" fill="#1a1f2e" stroke="#2d3548"/>
+        <text x="88" y="192" fill="#8b95a8" font-size="10">② 启动预览 · ~15分钟 · 5阶段 · 预估 $0.12</text>
+        <!-- ③ 看板 -->
+        <rect x="72" y="216" width="632" height="72" rx="10" fill="#1c2030" stroke="#2d3548"/>
+        <text x="88" y="238" fill="#eef0f4" font-size="12" font-weight="600">③ 产线看板 — 虚拟团队 · 一人全栈</text>
+        <rect x="88" y="248" width="80" height="28" rx="6" fill="#7c83ff"/>
+        <text x="128" y="266" text-anchor="middle" fill="#fff" font-size="9">规划</text>
+        <rect x="176" y="248" width="80" height="28" rx="6" fill="#2d3548"/>
+        <text x="216" y="266" text-anchor="middle" fill="#8b95a8" font-size="9">实现</text>
+        <rect x="264" y="248" width="80" height="28" rx="6" fill="#2d3548"/>
+        <text x="304" y="266" text-anchor="middle" fill="#8b95a8" font-size="9">自测</text>
+        <rect x="352" y="248" width="80" height="28" rx="6" fill="#2d3548"/>
+        <text x="392" y="266" text-anchor="middle" fill="#8b95a8" font-size="9">审批</text>
+        <rect x="440" y="248" width="80" height="28" rx="6" fill="#2d3548"/>
+        <text x="480" y="266" text-anchor="middle" fill="#8b95a8" font-size="9">审查</text>
+        <!-- ④ Run 列表 -->
+        <rect x="72" y="300" width="632" height="56" rx="10" fill="#1c2030" stroke="#2d3548"/>
+        <text x="88" y="322" fill="#eef0f4" font-size="12" font-weight="600">④ 进行中的 Run</text>
+        <text x="88" y="342" fill="#4ade80" font-size="10">● 运行中 · 实现阶段 · 已 3 分钟</text>
+        <!-- 箭头标注 -->
+        <circle cx="680" cy="110" r="14" fill="#fbbf24"/>
+        <text x="680" y="115" text-anchor="middle" fill="#000" font-size="11" font-weight="700">1</text>
+        <circle cx="680" cy="188" r="14" fill="#fbbf24"/>
+        <text x="680" y="193" text-anchor="middle" fill="#000" font-size="11" font-weight="700">2</text>
+        <circle cx="680" cy="252" r="14" fill="#fbbf24"/>
+        <text x="680" y="257" text-anchor="middle" fill="#000" font-size="11" font-weight="700">3</text>
+      </svg>
+      <div class="fig-cap">图 1 · 工厂台 Console 主界面（示意）</div>
+    </div>
+
+    <!-- ═══ 意图索引 ═══ -->
+    <h2 id="pick">我想做什么？点这里跳转</h2>
+    <div class="intent-grid">
+      <a class="intent-card" href="#first"><div class="emoji">✨</div><div class="title">第一次用 App</div><div class="desc">从零建项目 / 已有代码</div></a>
+      <a class="intent-card" href="#demo"><div class="emoji">⚡</div><div class="title">30 秒看演示</div><div class="desc">最快感受 AI 产线</div></a>
+      <a class="intent-card" href="#change"><div class="emoji">✏️</div><div class="title">改现有代码</div><div class="desc">加功能、改 README</div></a>
+      <a class="intent-card" href="#bug"><div class="emoji">🐛</div><div class="title">修 bug</div><div class="desc">粘贴报错自动走快速修复</div></a>
+      <a class="intent-card" href="#approve"><div class="emoji">✅</div><div class="title">等人批准</div><div class="desc">Run 暂停了，点批准继续</div></a>
+      <a class="intent-card" href="#done"><div class="emoji">🎉</div><div class="title">跑完了</div><div class="desc">Banner 告诉你下一步</div></a>
+      <a class="intent-card" href="#fail"><div class="emoji">🔧</div><div class="title">失败了</div><div class="desc">重试 / 开终端 / 跳过质量门</div></a>
+      <a class="intent-card" href="#ask"><div class="emoji">💬</div><div class="title">问团队意见</div><div class="desc">工厂里 @ 角色商量</div></a>
+      <a class="intent-card" href="#discuss"><div class="emoji">👥</div><div class="title">多人讨论</div><div class="desc">架构评审、需求对齐</div></a>
+      <a class="intent-card" href="#cursor"><div class="emoji">📋</div><div class="title">给 Cursor 继续改</div><div class="desc">复制上下文一键粘贴</div></a>
+    </div>
+
+    <!-- ═══ 第一次用 ═══ -->
+    <h2 id="first">第一次打开 App</h2>
+    <p>你会看到一个欢迎弹窗，<strong>不用选 workflow</strong>，二选一就行：</p>
+
+    <div class="fig">
+      <svg viewBox="0 0 720 280" xmlns="http://www.w3.org/2000/svg">
+        <rect width="720" height="280" fill="#0c0e14"/>
+        <rect x="0" y="0" width="720" height="280" fill="#000" opacity="0.5"/>
+        <rect x="160" y="40" width="400" height="200" rx="16" fill="#1c2030" stroke="#2d3548"/>
+        <text x="360" y="78" text-anchor="middle" fill="#eef0f4" font-size="16" font-weight="600">欢迎 — 你想怎么开始？</text>
+        <text x="360" y="100" text-anchor="middle" fill="#8b95a8" font-size="11">不需要懂 workflow，30 秒内启动第一个 Run</text>
+        <!-- 左卡 -->
+        <rect x="180" y="118" width="170" height="90" rx="12" fill="#12151c" stroke="#7c83ff" stroke-width="2"/>
+        <text x="265" y="148" text-anchor="middle" fill="#eef0f4" font-size="13" font-weight="600">✨ 从零开始</text>
+        <text x="265" y="168" text-anchor="middle" fill="#8b95a8" font-size="10">有个想法，搭可运行骨架</text>
+        <text x="265" y="188" text-anchor="middle" fill="#7c83ff" font-size="9">→ 三步向导 · React+Vite</text>
+        <!-- 右卡 -->
+        <rect x="370" y="118" width="170" height="90" rx="12" fill="#12151c" stroke="#2d3548"/>
+        <text x="455" y="148" text-anchor="middle" fill="#eef0f4" font-size="13" font-weight="600">📁 已有代码</text>
+        <text x="455" y="168" text-anchor="middle" fill="#8b95a8" font-size="10">打开文件夹，直接改代码</text>
+        <text x="455" y="188" text-anchor="middle" fill="#8b95a8" font-size="9">→ 选工作区后开 Run</text>
+        <text x="360" y="228" text-anchor="middle" fill="#5c6478" font-size="10">稍后再说</text>
+      </svg>
+      <div class="fig-cap">图 2 · 首启弹窗 — 选「从零开始」或「已有代码」</div>
+    </div>
+
+    <h3>选「从零开始」之后</h3>
+    <ol class="steps">
+      <li><strong>填项目名</strong>（如 my-todo-app）→ 点「下一步」</li>
+      <li><strong>一句话描述</strong>（如「本地优先 Todo 应用」）→ 下一步</li>
+      <li><strong>确认技术栈</strong>（默认 React + Vite）→ 启动</li>
+      <li>看产线看板走 7 个阶段，等 Run 完成</li>
+    </ol>
+    <div class="ok-box">✅ 成功：项目文件夹里出现骨架代码，Banner 提示「加第一个功能」</div>
+
+    <!-- ═══ 试用演示 ═══ -->
+    <h2 id="demo">30 秒试用演示（推荐新手）</h2>
+    <p>最快感受「AI 团队帮你干活」—— 不用自己想任务。</p>
+    <ol class="steps">
+      <li>打开 <strong>工厂</strong> 页</li>
+      <li>点上方 chip <strong>「试用演示」</strong></li>
+      <li>系统自动填入任务并启动 Run（改 README 加「快速开始」）</li>
+      <li>看产线看板：规划 → 实现 → 自测 → <strong>交付审批</strong> → 审查</li>
+      <li>到审批时 → 右侧点 <strong>Approve</strong></li>
+    </ol>
+
+    <div class="fig">
+      <svg viewBox="0 0 720 200" xmlns="http://www.w3.org/2000/svg">
+        <rect width="720" height="200" fill="#0c0e14"/>
+        <rect x="40" y="30" width="640" height="140" rx="10" fill="#1c2030" stroke="#2d3548"/>
+        <!-- 看板进度 -->
+        <text x="60" y="58" fill="#eef0f4" font-size="12" font-weight="600">虚拟团队 · 一人全栈</text>
+        <rect x="60" y="70" width="90" height="36" rx="8" fill="#4ade80" opacity="0.3" stroke="#4ade80"/>
+        <text x="105" y="92" text-anchor="middle" fill="#4ade80" font-size="10">规划 ✓</text>
+        <rect x="160" y="70" width="90" height="36" rx="8" fill="#4ade80" opacity="0.3" stroke="#4ade80"/>
+        <text x="205" y="92" text-anchor="middle" fill="#4ade80" font-size="10">实现 ✓</text>
+        <rect x="260" y="70" width="90" height="36" rx="8" fill="#7c83ff" stroke="#7c83ff" stroke-width="2"/>
+        <text x="305" y="92" text-anchor="middle" fill="#fff" font-size="10" font-weight="600">自测 ●</text>
+        <rect x="360" y="70" width="90" height="36" rx="8" fill="#2d3548"/>
+        <text x="405" y="92" text-anchor="middle" fill="#8b95a8" font-size="10">审批</text>
+        <rect x="460" y="70" width="90" height="36" rx="8" fill="#2d3548"/>
+        <text x="505" y="92" text-anchor="middle" fill="#8b95a8" font-size="10">审查</text>
+        <!-- 右侧审批 -->
+        <rect x="480" y="120" width="180" height="40" rx="8" fill="#12151c" stroke="#fbbf24" stroke-width="2"/>
+        <text x="570" y="138" text-anchor="middle" fill="#fbbf24" font-size="10">⏸ 等待你的批准</text>
+        <rect x="500" y="148" width="60" height="24" rx="6" fill="#4ade80"/>
+        <text x="530" y="163" text-anchor="middle" fill="#000" font-size="10" font-weight="600">Approve</text>
+        <rect x="570" y="148" width="60" height="24" rx="6" fill="#2d3548"/>
+        <text x="600" y="163" text-anchor="middle" fill="#8b95a8" font-size="10">Reject</text>
+      </svg>
+      <div class="fig-cap">图 3 · Run 进行中 — 看板亮当前阶段，审批时右侧出 Approve</div>
+    </div>
+
+    <!-- ═══ 改代码 ═══ -->
+    <h2 id="change">改现有代码（加功能 / 改文档）</h2>
+    <ol class="steps">
+      <li>顶栏选好<strong>工作区文件夹</strong></li>
+      <li>工厂页大输入框写你想做的，例如：<em>给登录页加验证码</em></li>
+      <li>看推荐产线显示「<strong>一人全栈</strong>」（不会看到 solo-dev 这种内部名）</li>
+      <li>下方预览条出现：预计时间、阶段数、可能影响哪些文件</li>
+      <li>点 <strong>启动</strong> 或按 ⌘/Ctrl + Enter</li>
+    </ol>
+
+    <div class="fig">
+      <svg viewBox="0 0 720 120" xmlns="http://www.w3.org/2000/svg">
+        <rect width="720" height="120" fill="#0c0e14"/>
+        <rect x="40" y="20" width="640" height="36" rx="8" fill="#12151c" stroke="#2d3548"/>
+        <text x="56" y="43" fill="#eef0f4" font-size="12">给登录页加验证码</text>
+        <rect x="40" y="64" width="640" height="28" rx="6" fill="#1a1f2e" stroke="#2d3548"/>
+        <text x="56" y="82" fill="#8b95a8" font-size="10">🕐 ~15分钟  ·  📋 5阶段 · 一人全栈  ·  📁 可能影响 src/  ·  💰 ~$0.15</text>
+        <rect x="580" y="22" width="80" height="32" rx="8" fill="#7c83ff"/>
+        <text x="620" y="42" text-anchor="middle" fill="#fff" font-size="11" font-weight="600">启动 ▶</text>
+      </svg>
+      <div class="fig-cap">图 4 · 输入任务 → 预览条告诉你「会花多久、动哪些文件」→ 再点启动</div>
+    </div>
+
+    <!-- ═══ 修 bug ═══ -->
+    <h2 id="bug">修 bug</h2>
+    <ol class="steps">
+      <li>输入框直接<strong>粘贴报错</strong>或描述，如：<em>修复登录 500 报错</em></li>
+      <li>产线看板自动切到「<strong>快速修复</strong>」（分析 → 修复 → 验证）</li>
+      <li>启动后 AI 先分析再改代码，比全栈流程更短</li>
+    </ol>
+
+    <!-- ═══ 批准 ═══ -->
+    <h2 id="approve">Run 暂停了 — 等人批准</h2>
+    <p>到「交付审批」阶段，Run 会等你点头。你可以：</p>
+    <ul>
+      <li>工厂页顶部<strong>待办条</strong>看到「有 1 个 Run 等你批准」</li>
+      <li>右侧 Context 面板点 <strong>Approve</strong> 继续，或 Reject 打回</li>
+    </ul>
+    <div class="warn-box">
+      💡 <strong>设置 → 通知</strong> 里可以选「只在最终交付批一次」，中间阶段自动过（信任质量门）。第一次用建议保持「每阶段都批」建立信任。
+    </div>
+
+    <!-- ═══ 跑完 ═══ -->
+    <h2 id="done">跑完了 — 绿色 Banner 告诉你下一步</h2>
+    <p>Run 成功结束后，输入框上方会出现绿色卡片，<strong>不会把你晾在原地</strong>：</p>
+
+    <div class="fig">
+      <svg viewBox="0 0 720 160" xmlns="http://www.w3.org/2000/svg">
+        <rect width="720" height="160" fill="#0c0e14"/>
+        <rect x="40" y="24" width="640" height="112" rx="12" fill="rgba(74,222,128,0.08)" stroke="#4ade80" stroke-width="1.5"/>
+        <text x="68" y="56" fill="#4ade80" font-size="14">✓ 交付完成</text>
+        <text x="68" y="78" fill="#8b95a8" font-size="11">改了 3 个文件 · README 已更新</text>
+        <rect x="68" y="92" width="120" height="32" rx="8" fill="#7c83ff"/>
+        <text x="128" y="112" text-anchor="middle" fill="#fff" font-size="11" font-weight="600">加第一个功能 →</text>
+        <rect x="200" y="92" width="88" height="32" rx="8" fill="#2d3548" stroke="#3d4558"/>
+        <text x="244" y="112" text-anchor="middle" fill="#c8ccd6" font-size="11">查看 diff</text>
+      </svg>
+      <div class="fig-cap">图 5 · 完成后 Banner — 点主按钮继续下一轮，不用重新想任务</div>
+    </div>
+
+    <p>不同任务类型，按钮文案不同：</p>
+    <ul>
+      <li>改完代码 →「加第一个功能」或「加相关测试」</li>
+      <li>生成计划 →「开始执行计划」</li>
+      <li>新建骨架 →「加第一个功能」</li>
+    </ul>
+
+    <!-- ═══ 失败 ═══ -->
+    <h2 id="fail">失败了 — 三个按钮救你</h2>
+    <p>Run 失败（尤其<strong>测试/质量门没过</strong>）时，红色 Banner 出现：</p>
+
+    <div class="fig">
+      <svg viewBox="0 0 720 170" xmlns="http://www.w3.org/2000/svg">
+        <rect width="720" height="170" fill="#0c0e14"/>
+        <rect x="40" y="20" width="640" height="130" rx="12" fill="rgba(248,113,113,0.08)" stroke="#f87171" stroke-width="1.5"/>
+        <text x="68" y="52" fill="#f87171" font-size="14">⚠ 质量门未通过：「测试」</text>
+        <text x="68" y="74" fill="#8b95a8" font-size="11">未通过：cargo test</text>
+        <rect x="68" y="88" width="110" height="34" rx="8" fill="#f87171"/>
+        <text x="123" y="109" text-anchor="middle" fill="#fff" font-size="10" font-weight="600">AI 再修一轮</text>
+        <rect x="188" y="88" width="88" height="34" rx="8" fill="#2d3548" stroke="#3d4558"/>
+        <text x="232" y="109" text-anchor="middle" fill="#c8ccd6" font-size="10">打开终端</text>
+        <text x="296" y="109" fill="#5c6478" font-size="10">跳过此门·高级</text>
+      </svg>
+      <div class="fig-cap">图 6 · 质量门失败 — 再修一轮 / 自己开终端看 / 高级跳过（慎用）</div>
+    </div>
+
+    <ul>
+      <li><strong>AI 再修一轮</strong> — 从失败阶段重新跑，让 AI 继续修</li>
+      <li><strong>打开终端</strong> — 自己看日志、手动调试</li>
+      <li><strong>跳过此门·高级</strong> — 确认你知道风险时，跳过这一次测试门</li>
+    </ul>
+    <p>一般失败（非质量门）会显示「从 xxx 阶段重试」和「切换快速修复」。</p>
+
+    <!-- ═══ 无 CLI ═══ -->
+    <h2 id="nogcli">没装 Claude Code CLI</h2>
+    <p>工厂页会出现<strong>三步引导</strong>，帮你安装或配置路径：</p>
+    <ol class="steps">
+      <li>看引导条 <strong>cli-setup-inline</strong>：检测 → 安装提示 → 配置路径</li>
+      <li>仍可以跑<strong>纯文字</strong>任务（写计划、审查报告），但不能自动改仓库文件</li>
+      <li>设置 → AI → 配好 API Key 后，文本类 stage 走 API 车道</li>
+    </ol>
+    <div class="warn-box">App <strong>不会</strong>假装能用 API 改文件 — 要自动改代码，必须配 Claude CLI（或手动在 Cursor 里合入）。</div>
+
+    <!-- ═══ 团队商量 ═══ -->
+    <h2 id="ask">跟团队商量（工厂里 @ 角色）</h2>
+    <ol class="steps">
+      <li>工厂输入框下方点 <strong>「和团队商量」</strong></li>
+      <li>选一个角色（如全栈工程师）</li>
+      <li>输入问题，发送 — 角色会回复建议</li>
+      <li>回复显示在 Console 里，可带着意见再启动 Run</li>
+    </ol>
+
+    <div class="fig">
+      <svg viewBox="0 0 720 140" xmlns="http://www.w3.org/2000/svg">
+        <rect width="720" height="140" fill="#0c0e14"/>
+        <rect x="40" y="20" width="640" height="100" rx="10" fill="#1c2030" stroke="#2d3548"/>
+        <text x="56" y="44" fill="#8b95a8" font-size="10">@ 和团队商量</text>
+        <rect x="56" y="52" width="80" height="24" rx="12" fill="#7c83ff" opacity="0.3" stroke="#7c83ff"/>
+        <text x="96" y="68" text-anchor="middle" fill="#b4b9ff" font-size="9">@全栈</text>
+        <rect x="144" y="52" width="72" height="24" rx="12" fill="#2d3548"/>
+        <text x="180" y="68" text-anchor="middle" fill="#8b95a8" font-size="9">@架构师</text>
+        <rect x="56" y="84" width="480" height="28" rx="6" fill="#12151c" stroke="#2d3548"/>
+        <text x="68" y="102" fill="#5c6478" font-size="10">这个登录 bug 应该先写测试吗？</text>
+        <rect x="548" y="84" width="36" height="28" rx="6" fill="#7c83ff"/>
+        <text x="566" y="102" text-anchor="middle" fill="#fff" font-size="12">➤</text>
+      </svg>
+      <div class="fig-cap">图 7 · 工厂内快速问角色 — 不用切到团队页</div>
+    </div>
+
+    <!-- ═══ 讨论 ═══ -->
+    <h2 id="discuss">多人讨论（架构评审 / 需求对齐）</h2>
+    <ol class="steps">
+      <li>侧边栏 <strong>团队</strong> → 进入你的团队 → <strong>团队聊天</strong></li>
+      <li>切换到「<strong>讨论</strong>」模式</li>
+      <li>新建讨论 → 选会话 → 点「<strong>开始讨论</strong>」</li>
+      <li>选场景预设（架构评审 / 需求对齐 / 快速拍板），确认参与角色</li>
+      <li>多轮发言后点「<strong>总结讨论</strong>」→ 生成结论</li>
+      <li>结论卡片底部 →「<strong>按此启动 Run</strong>」一键带回工厂</li>
+    </ol>
+
+    <div class="fig">
+      <svg viewBox="0 0 720 200" xmlns="http://www.w3.org/2000/svg">
+        <rect width="720" height="200" fill="#0c0e14"/>
+        <rect x="120" y="16" width="480" height="168" rx="14" fill="#1c2030" stroke="#2d3548"/>
+        <text x="360" y="48" text-anchor="middle" fill="#eef0f4" font-size="14" font-weight="600">开始讨论</text>
+        <text x="360" y="68" text-anchor="middle" fill="#8b95a8" font-size="10">选场景 → 确认参与者 → 启动</text>
+        <rect x="140" y="82" width="130" height="56" rx="8" fill="#12151c" stroke="#7c83ff"/>
+        <text x="205" y="106" text-anchor="middle" fill="#eef0f4" font-size="10" font-weight="600">架构评审</text>
+        <text x="205" y="122" text-anchor="middle" fill="#8b95a8" font-size="8">多角色评审方案</text>
+        <rect x="280" y="82" width="130" height="56" rx="8" fill="#12151c" stroke="#2d3548"/>
+        <text x="345" y="106" text-anchor="middle" fill="#eef0f4" font-size="10" font-weight="600">需求对齐</text>
+        <rect x="420" y="82" width="130" height="56" rx="8" fill="#12151c" stroke="#2d3548"/>
+        <text x="485" y="106" text-anchor="middle" fill="#eef0f4" font-size="10" font-weight="600">快速拍板</text>
+        <rect x="300" y="152" width="120" height="28" rx="8" fill="#7c83ff"/>
+        <text x="360" y="170" text-anchor="middle" fill="#fff" font-size="11" font-weight="600">启动讨论</text>
+      </svg>
+      <div class="fig-cap">图 8 · 讨论 Setup — 三个场景一键选角色</div>
+    </div>
+
+    <!-- ═══ Cursor ═══ -->
+    <h2 id="cursor">复制到 Cursor 继续改</h2>
+    <ol class="steps">
+      <li>Run 完成后 → 工厂页切到 <strong>Deliverables（产物）</strong> 标签</li>
+      <li>点 <strong>「复制上下文」</strong> 或 Cursor 相关按钮</li>
+      <li>粘贴到 Cursor Chat，接着改 AI 没改完的部分</li>
+    </ol>
+
+    <!-- ═══ FAQ ═══ -->
+    <h2 id="faq">常见问题</h2>
+    <h3>「请选择工作区」</h3>
+    <p>顶栏点文件夹图标，选你的项目目录。</p>
+    <h3>「未绑定 CLI」</h3>
+    <p>设置 → AI → 检测 Claude Code。或先跑纯文字任务。</p>
+    <h3>Run 一直转圈不动</h3>
+    <p>看底栏 WS 是否「已连接」。断线会显示「轮询中」。仍不行就重启 App。</p>
+    <h3>看不到首启弹窗了</h3>
+    <p>之前点过「稍后再说」。直接用工意图框三个 chip 即可。</p>
+    <h3>⌘K 能干什么？</h3>
+    <p>任意页面按 ⌘K（Windows 用 Ctrl+K），输入「工厂」快速跳转。</p>
+    <h3>怎么少批几次？</h3>
+    <p>设置 → 通知 → 审批策略 →「仅最终交付批一次」。</p>
+
+    <details>
+      <summary>👩‍💻 开发者：自动化验收命令（可折叠）</summary>
+      <pre>cd nx_dashboard && npm run tauri:dev          # 启动 App
+npm run test:dogfood:af-p5                    # API 冒烟
+npm run test:unit                             # 单元测试
+npx playwright test e2e/journey-af-p5.spec.ts --project=chromium
+./scripts/gate-check.sh AF-UX-09              # Epic 门禁</pre>
+    </details>
+
+    <p style="margin-top:3rem;color:#5c6478;font-size:0.85rem;text-align:center;">
+      打开方式：<code style="background:#1c2030;padding:2px 6px;border-radius:4px;">open docs/AF-P5-TEST-GUIDE.html</code>
+    </p>
+  </main>
+</div>
+<script>
+  document.querySelectorAll('.copy-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const text = btn.getAttribute('data-copy') || '';
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = '已复制';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = '复制';
+          btn.classList.remove('copied');
+        }, 1800);
+      } catch {
+        btn.textContent = '手动复制';
+      }
+    });
+  });
+</script>
+</body>
+</html>

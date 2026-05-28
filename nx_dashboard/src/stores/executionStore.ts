@@ -1,23 +1,30 @@
 import { create } from 'zustand';
 import { API_BASE_URL, WS_BASE_URL } from '../api/constants';
 import { unwrapEnvelope, fetchWithTimeout } from '../api/response';
+import { maybeRecordFirstArtifact, recordRunCompleted } from '../services/factoryMetrics';
 
-// WebSocket reconnection config
-const WS_RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 16000, 32000]; // exponential backoff: 1s, 2s, 4s, 8s, 16s, 32s (max)
-const WS_MAX_RECONNECT_ATTEMPTS = Infinity; // configurable, Infinity means unlimited
-const WS_HEARTBEAT_INTERVAL = 30000; // 30 seconds
+// WebSocket reconnection + poll fallback (AF-03)
+const WS_RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 16000, 32000];
+const WS_MAX_RECONNECT_ATTEMPTS = Infinity;
+const WS_HEARTBEAT_INTERVAL = 30000;
+const WS_POLL_INTERVAL_MS = 3000;
 const WS_PING_MESSAGE = JSON.stringify({ type: 'ping' });
 
-// Connection status type
-type ConnectionStatus = 'connected' | 'connecting' | 'disconnected';
+/** 单条 Run 的 WS/降级状态 */
+export type WsConnectionStatus =
+  | 'connected'
+  | 'connecting'
+  | 'disconnected'
+  | 'reconnecting'
+  | 'polling';
 
-// WebSocket connection state per execution
 interface WsConnectionState {
   ws: WebSocket | null;
-  status: ConnectionStatus;
+  status: WsConnectionStatus;
   reconnectAttempts: number;
   heartbeatTimer: ReturnType<typeof setInterval> | null;
   reconnectTimer: ReturnType<typeof setTimeout> | null;
+  pollTimer: ReturnType<typeof setInterval> | null;
 }
 
 // Track all WebSocket connections for cleanup
@@ -39,6 +46,7 @@ export function cleanupAllWebSockets() {
   wsConnectionStates.forEach((state) => {
     if (state.heartbeatTimer) clearInterval(state.heartbeatTimer);
     if (state.reconnectTimer) clearTimeout(state.reconnectTimer);
+    if (state.pollTimer) clearInterval(state.pollTimer);
   });
   wsConnectionStates.clear();
 }
@@ -55,6 +63,20 @@ export interface Execution {
   error?: string;
   total_tokens?: number;
   total_cost_usd?: number;
+  team_id?: string;
+  project_id?: string;
+  trigger_source?: string;
+  pending_pause?: WorkflowPauseState | null;
+  approval_events?: ApprovalEvent[];
+  /** 当前进行中的 stage（WS / poll 同步） */
+  current_stage?: string;
+}
+
+export interface ApprovalEvent {
+  stage_name: string;
+  approved: boolean;
+  comment?: string;
+  decided_at: string;
 }
 
 export interface QualityCheckResult {
@@ -118,6 +140,7 @@ type ExecutionEvent =
       stage_name: string;
       question: string;
       options: WorkflowPauseOption[];
+      pause_kind?: string;
     }
   | { type: 'workflow_resumed'; execution_id: string; stage_name: string; chosen_value: string }
   | { type: 'token_usage'; execution_id: string; total_tokens: number; total_cost_usd: number }
@@ -132,6 +155,7 @@ type ExecutionEvent =
         stage_name: string;
         question: string;
         options: WorkflowPauseOption[];
+        pause_kind?: string;
       } | null;
     }
   | { type: 'pong' }; // heartbeat response
@@ -146,6 +170,7 @@ export interface WorkflowPauseState {
   stage_name: string;
   question: string;
   options: WorkflowPauseOption[];
+  pause_kind?: string;
 }
 
 // 自定义错误类型
@@ -166,7 +191,7 @@ interface ExecutionStore {
   loading: boolean;
   error: string | null;
   wsConnections: Map<string, WebSocket>;
-  wsConnectionStatus: Map<string, ConnectionStatus>;
+  wsConnectionStatus: Map<string, WsConnectionStatus>;
   /** 每个 execution 的实时输出行（给 InlineExecPanel 读取） */
   outputLines: Map<string, RawLine[]>;
   /** 当前等待用户输入的暂停状态（null 表示没有暂停） */
@@ -175,14 +200,64 @@ interface ExecutionStore {
   fetchExecutions: () => Promise<void>;
   getExecution: (id: string) => Promise<Execution | null>;
   startExecution: (workflowId: string, variables?: Record<string, unknown>) => Promise<Execution>;
-  cancelExecution: (id: string) => Promise<void>;
+  cancelExecution: (id: string) => Promise<{ ok: boolean; error?: string }>;
   deleteExecutions: (ids: string[]) => Promise<void>;
   resumeExecution: (executionId: string, value: string) => boolean;
+  resolveExecution: (
+    executionId: string,
+    approved: boolean,
+    comment?: string,
+  ) => Promise<void>;
   setCurrentExecution: (execution: Execution | null) => void;
   connectWebSocket: (executionId: string) => void;
   disconnectWebSocket: (executionId: string) => void;
   clearError: () => void;
   dismissPause: () => void;
+}
+
+/** 列表 API 不含 stage_results；合并时保留 WS/详情已拉取的字段 */
+function mergeExecutionList(incoming: Execution[], existing: Execution[]): Execution[] {
+  return incoming.map((item) => {
+    const prev = existing.find((e) => e.id === item.id);
+    if (!prev) return item;
+    const prevStages = prev.stage_results?.length ?? 0;
+    const nextStages = item.stage_results?.length ?? 0;
+    return {
+      ...item,
+      stage_results:
+        prevStages > nextStages ? prev.stage_results : (item.stage_results ?? prev.stage_results),
+      current_stage: prev.current_stage ?? item.current_stage,
+      pending_pause: prev.pending_pause ?? item.pending_pause,
+      variables:
+        prev.variables && Object.keys(prev.variables).length > 0
+          ? prev.variables
+          : item.variables,
+    };
+  });
+}
+
+function upsertExecutionInStore(
+  set: (partial: Partial<ExecutionStore> | ((state: ExecutionStore) => Partial<ExecutionStore>)) => void,
+  exec: Execution,
+) {
+  set((state) => {
+    const idx = state.executions.findIndex((e) => e.id === exec.id);
+    if (idx < 0) return { executions: [...state.executions, exec] };
+    const executions = [...state.executions];
+    executions[idx] = { ...executions[idx], ...exec };
+    return { executions };
+  });
+  if (exec.status === 'paused' && exec.pending_pause) {
+    set({
+      pendingPause: {
+        execution_id: exec.id,
+        stage_name: exec.pending_pause.stage_name,
+        question: exec.pending_pause.question,
+        options: exec.pending_pause.options,
+        pause_kind: exec.pending_pause.pause_kind,
+      },
+    });
+  }
 }
 
 export const useExecutionStore = create<ExecutionStore>((set, get) => ({
@@ -208,7 +283,10 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       }
 
       const data = unwrapEnvelope<Execution[]>(await response.json());
-      set({ executions: data, loading: false });
+      set((state) => ({
+        executions: mergeExecutionList(data, state.executions),
+        loading: false,
+      }));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       set({
@@ -229,7 +307,9 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         throw new ApiError(`Failed to fetch execution: ${response.status}`, response.status);
       }
 
-      return unwrapEnvelope<Execution>(await response.json());
+      const exec = unwrapEnvelope<Execution>(await response.json());
+      upsertExecutionInStore(set, exec);
+      return exec;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       console.error(`Failed to get execution ${id}:`, message);
@@ -266,13 +346,12 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
   },
 
   cancelExecution: async (id) => {
-    // 保存原始状态用于回滚
     const prev = get().executions;
+    const now = new Date().toISOString();
 
-    // Optimistic update
     set((state) => ({
       executions: state.executions.map((e) =>
-        e.id === id ? { ...e, status: 'cancelled' as const } : e,
+        e.id === id ? { ...e, status: 'cancelled' as const, finished_at: now } : e,
       ),
     }));
 
@@ -287,17 +366,19 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
 
       const result = await response.json();
       if (!result.success) {
-        // 后端返回失败（如执行不存在），回滚并刷新列表
         set({ executions: prev });
-        set({ error: result.message || '取消失败，执行可能已结束' });
-        // 刷新列表获取最新状态
-        get().fetchExecutions();
+        const error = result.message || '取消失败，执行可能已结束';
+        void get().fetchExecutions();
+        return { ok: false, error };
       }
+
+      get().disconnectWebSocket(id);
+      void get().fetchExecutions();
+      return { ok: true };
     } catch (error) {
-      // 回滚乐观更新
       set({ executions: prev });
       const message = error instanceof Error ? error.message : 'Unknown error';
-      set({ error: `取消失败: ${message}` });
+      return { ok: false, error: `取消失败: ${message}` };
     }
   },
 
@@ -346,24 +427,124 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
     return canSend;
   },
 
+  resolveExecution: async (executionId, approved, comment) => {
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/api/v1/executions/${executionId}/resolve`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approved, comment }),
+      },
+    );
+    if (!response.ok) {
+      let message = `审批失败: ${response.status}`;
+      try {
+        const body = await response.json();
+        if (body?.error) message = body.error;
+      } catch {
+        // ignore
+      }
+      throw new ApiError(message, response.status);
+    }
+    set((state) => ({
+      pendingPause:
+        state.pendingPause?.execution_id === executionId ? null : state.pendingPause,
+      executions: state.executions.map((e) =>
+        e.id === executionId
+          ? {
+              ...e,
+              status: 'running' as const,
+              pending_pause: null,
+            }
+          : e,
+      ),
+    }));
+    get().connectWebSocket(executionId);
+  },
+
   dismissPause: () => set({ pendingPause: null }),
 
   connectWebSocket: (executionId) => {
     const { wsConnections } = get();
-    if (wsConnections.has(executionId)) return;
+    const existing = wsConnectionStates.get(executionId);
+    if (
+      existing &&
+      (existing.status === 'connected' ||
+        existing.status === 'connecting' ||
+        existing.status === 'polling' ||
+        existing.status === 'reconnecting')
+    ) {
+      return;
+    }
+    if (wsConnections.has(executionId) && existing?.status === 'connected') return;
 
-    // Initialize connection state
-    const connectionState: WsConnectionState = {
+    const connectionState: WsConnectionState = existing ?? {
       ws: null,
       status: 'connecting',
       reconnectAttempts: 0,
       heartbeatTimer: null,
       reconnectTimer: null,
+      pollTimer: null,
     };
+    connectionState.status = 'connecting';
     wsConnectionStates.set(executionId, connectionState);
     set((state) => ({
       wsConnectionStatus: new Map(state.wsConnectionStatus).set(executionId, 'connecting'),
     }));
+
+    const setExecWsStatus = (execId: string, status: WsConnectionStatus) => {
+      const st = wsConnectionStates.get(execId);
+      if (st) st.status = status;
+      set((s) => ({
+        wsConnectionStatus: new Map(s.wsConnectionStatus).set(execId, status),
+      }));
+    };
+
+    const mergeExecutionDetail = (exec: Execution) => {
+      set((state) => {
+        const idx = state.executions.findIndex((e) => e.id === exec.id);
+        if (idx < 0) return { executions: [...state.executions, exec] };
+        const executions = [...state.executions];
+        executions[idx] = { ...executions[idx], ...exec };
+        return { executions };
+      });
+      if (exec.status === 'paused' && exec.pending_pause) {
+        set({
+          pendingPause: {
+            execution_id: exec.id,
+            stage_name: exec.pending_pause.stage_name,
+            question: exec.pending_pause.question,
+            options: exec.pending_pause.options,
+            pause_kind: exec.pending_pause.pause_kind,
+          },
+        });
+      }
+    };
+
+    const stopPollFallback = (execId: string) => {
+      const st = wsConnectionStates.get(execId);
+      if (!st?.pollTimer) return;
+      clearInterval(st.pollTimer);
+      st.pollTimer = null;
+    };
+
+    const pollOnce = async (execId: string) => {
+      const exec = await get().getExecution(execId);
+      if (!exec) return;
+      mergeExecutionDetail(exec);
+      if (exec.status === 'completed' || exec.status === 'failed' || exec.status === 'cancelled') {
+        stopPollFallback(execId);
+        cleanupConnection(execId);
+      }
+    };
+
+    const startPollFallback = (execId: string) => {
+      const st = wsConnectionStates.get(execId);
+      if (!st || st.pollTimer) return;
+      setExecWsStatus(execId, 'polling');
+      void pollOnce(execId);
+      st.pollTimer = setInterval(() => void pollOnce(execId), WS_POLL_INTERVAL_MS);
+    };
 
     const connect = () => {
       const state = wsConnectionStates.get(executionId);
@@ -392,38 +573,32 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         };
 
         ws.onopen = () => {
+          stopPollFallback(executionId);
           state.status = 'connected';
           state.reconnectAttempts = 0;
-          set((s) => ({
-            wsConnectionStatus: new Map(s.wsConnectionStatus).set(executionId, 'connected'),
-          }));
-          // Start heartbeat
+          setExecWsStatus(executionId, 'connected');
           startHeartbeat(executionId);
         };
 
         ws.onclose = () => {
-          // Clear heartbeat
           if (state.heartbeatTimer) {
             clearInterval(state.heartbeatTimer);
             state.heartbeatTimer = null;
           }
 
-          // Check if execution is completed/failed - if so, don't reconnect
           const currentExec = get().executions.find((e) => e.id === executionId);
           if (
             currentExec?.status === 'completed' ||
             currentExec?.status === 'failed' ||
             currentExec?.status === 'cancelled'
           ) {
+            stopPollFallback(executionId);
             cleanupConnection(executionId);
             return;
           }
 
-          // Attempt reconnection with exponential backoff
           state.status = 'disconnected';
-          set((s) => ({
-            wsConnectionStatus: new Map(s.wsConnectionStatus).set(executionId, 'disconnected'),
-          }));
+          startPollFallback(executionId);
           scheduleReconnect(executionId);
         };
 
@@ -436,9 +611,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       } catch (error) {
         console.error('WebSocket connection failed:', error);
         state.status = 'disconnected';
-        set((s) => ({
-          wsConnectionStatus: new Map(s.wsConnectionStatus).set(executionId, 'disconnected'),
-        }));
+        startPollFallback(executionId);
         scheduleReconnect(executionId);
       }
     };
@@ -476,6 +649,8 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
 
       state.reconnectAttempts++;
 
+      setExecWsStatus(execId, 'reconnecting');
+
       state.reconnectTimer = setTimeout(() => {
         const s = wsConnectionStates.get(execId);
         if (s && s.status !== 'connected') {
@@ -489,6 +664,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
       if (state) {
         if (state.heartbeatTimer) clearInterval(state.heartbeatTimer);
         if (state.reconnectTimer) clearTimeout(state.reconnectTimer);
+        if (state.pollTimer) clearInterval(state.pollTimer);
         wsConnectionStates.delete(execId);
       }
 
@@ -530,6 +706,9 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
             if (event.stage_results) {
               updated.stage_results = event.stage_results;
             }
+            if (event.current_stage) {
+              updated.current_stage = event.current_stage;
+            }
             executions[idx] = updated;
           }
           return { executions };
@@ -541,6 +720,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
               stage_name: event.pending_pause.stage_name,
               question: event.pending_pause.question,
               options: event.pending_pause.options,
+              pause_kind: event.pending_pause.pause_kind,
             },
           });
         }
@@ -600,19 +780,36 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
             stage_name: event.stage_name,
             question: event.question,
             options: event.options,
+            pause_kind: event.pause_kind,
           },
           executions: state.executions.map((e) =>
-            e.id === event.execution_id ? { ...e, status: 'paused' as const } : e,
+            e.id === event.execution_id
+              ? {
+                  ...e,
+                  status: 'paused' as const,
+                  pending_pause: {
+                    execution_id: event.execution_id,
+                    stage_name: event.stage_name,
+                    question: event.question,
+                    options: event.options,
+                    pause_kind: event.pause_kind,
+                  },
+                }
+              : e,
           ),
         }));
         return;
       }
 
       if (event.type === 'workflow_resumed') {
-        // Clear pause state if it matches
         set((state) => ({
           pendingPause:
             state.pendingPause?.execution_id === event.execution_id ? null : state.pendingPause,
+          executions: state.executions.map((e) =>
+            e.id === event.execution_id
+              ? { ...e, status: 'running' as const, pending_pause: null }
+              : e,
+          ),
         }));
         return;
       }
@@ -622,6 +819,15 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
         const idx = executions.findIndex((e) => e.id === event.execution_id);
 
         switch (event.type) {
+          case 'stage_started':
+            if (idx >= 0) {
+              executions[idx] = {
+                ...executions[idx],
+                current_stage: event.stage_name,
+                status: 'running',
+              };
+            }
+            break;
           case 'status_changed':
             if (idx >= 0) {
               executions[idx] = {
@@ -641,7 +847,12 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
                   event as unknown as { quality_gate_result?: QualityGateResult }
                 ).quality_gate_result,
               });
-              executions[idx] = { ...executions[idx], stage_results: stageResults };
+              executions[idx] = {
+                ...executions[idx],
+                stage_results: stageResults,
+                current_stage: undefined,
+              };
+              void maybeRecordFirstArtifact(event.execution_id);
             }
             break;
           case 'completed':
@@ -650,8 +861,11 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
                 ...executions[idx],
                 status: 'completed',
                 finished_at: new Date().toISOString(),
+                current_stage: undefined,
               };
             }
+            void recordRunCompleted(event.execution_id, 'completed');
+            stopPollFallback(event.execution_id);
             break;
           case 'failed':
             if (idx >= 0) {
@@ -660,8 +874,11 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
                 status: 'failed',
                 error: event.error,
                 finished_at: new Date().toISOString(),
+                current_stage: undefined,
               };
             }
+            void recordRunCompleted(event.execution_id, 'failed');
+            stopPollFallback(event.execution_id);
             break;
           case 'token_usage':
             if (idx >= 0) {
@@ -694,6 +911,7 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
     if (state) {
       if (state.heartbeatTimer) clearInterval(state.heartbeatTimer);
       if (state.reconnectTimer) clearTimeout(state.reconnectTimer);
+      if (state.pollTimer) clearInterval(state.pollTimer);
       wsConnectionStates.delete(executionId);
     }
 

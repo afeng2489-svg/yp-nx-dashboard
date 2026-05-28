@@ -90,6 +90,8 @@ fn load_ai_config_from_env() -> NexusAIManagerConfig {
             ProviderType::Codex,
             ProviderType::Qwen,
             ProviderType::OpenCode,
+            ProviderType::MiniMax,
+            ProviderType::ClaudeCli,
         ],
         default_escalate_model: None,
     }
@@ -97,6 +99,14 @@ fn load_ai_config_from_env() -> NexusAIManagerConfig {
 use crate::services::execution_bridge::WorkflowEventBridge;
 use crate::services::execution_repository::SqliteExecutionRepository;
 use crate::services::model_router::{default_rules, ModelRouter, TaskContext};
+
+/// 工厂台 / 调度等启动上下文（写入 execution 记录）
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ExecutionLaunchContext {
+    pub team_id: Option<String>,
+    pub project_id: Option<String>,
+    pub trigger_source: Option<String>,
+}
 
 /// 链式触发回调：接收下游工作流名和变量，返回下游 execution_id
 pub type ChainTriggerCallback = Arc<
@@ -130,6 +140,10 @@ pub struct ExecutionService {
     a2ui_service: Option<Arc<crate::a2ui::A2UIService>>,
     /// 产物追踪 watcher（单独保存以便注册 engine_id → api_id 映射）
     artifact_watcher: Option<Arc<crate::services::artifact_watcher::ArtifactStageWatcher>>,
+    /// 运行中工作流的取消令牌（execution_id → token）
+    cancel_tokens: Arc<Mutex<HashMap<String, tokio_util::sync::CancellationToken>>>,
+    /// 与 AppState 共享的 AI 管理器（含设置页 API Key / Claude CLI）
+    ai_manager: Arc<Mutex<Option<Arc<AIModelManager>>>>,
 }
 
 impl std::fmt::Debug for ExecutionService {
@@ -153,6 +167,8 @@ impl ExecutionService {
             model_router: Arc::new(Mutex::new(ModelRouter::new(default_rules()))),
             a2ui_service: None,
             artifact_watcher: None,
+            cancel_tokens: Arc::new(Mutex::new(HashMap::new())),
+            ai_manager: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -169,10 +185,15 @@ impl ExecutionService {
             model_router: Arc::new(Mutex::new(ModelRouter::new(default_rules()))),
             a2ui_service: None,
             artifact_watcher: None,
+            cancel_tokens: Arc::new(Mutex::new(HashMap::new())),
+            ai_manager: Arc::new(Mutex::new(None)),
         }
     }
 
-    /// 注入产物追踪 watcher（同时也加入 stage_watchers）
+    /// 注入与 AppState 共享的 AIModelManager（设置页 API Key 变更会同步生效）
+    pub fn set_ai_manager(&mut self, manager: Arc<AIModelManager>) {
+        *self.ai_manager.lock() = Some(manager);
+    }
     pub fn set_artifact_watcher(
         &mut self,
         watcher: Arc<crate::services::artifact_watcher::ArtifactStageWatcher>,
@@ -263,16 +284,27 @@ impl ExecutionService {
                 stage_name,
                 question,
                 options,
+                pause_kind,
             } => {
                 let mut executions = self.executions.lock();
                 if let Some(ex) = executions.get_mut(execution_id.as_str()) {
+                    ex.status = ExecutionStatus::Paused;
                     ex.pending_pause = Some(PendingPause {
                         stage_name: stage_name.clone(),
                         question: question.clone(),
                         options: options.clone(),
+                        pause_kind: pause_kind.clone(),
                     });
                 }
                 drop(executions);
+                if let Some(ref repo) = self.repo {
+                    let _ = repo.update_status(
+                        execution_id,
+                        status_to_db_str(ExecutionStatus::Paused),
+                        None,
+                        None,
+                    );
+                }
                 if let Some(a2ui) = &self.a2ui_service {
                     let session = a2ui.get_or_create_session(execution_id.as_str());
                     let msg = crate::a2ui::InteractiveMessage {
@@ -303,6 +335,18 @@ impl ExecutionService {
                 let mut executions = self.executions.lock();
                 if let Some(ex) = executions.get_mut(execution_id.as_str()) {
                     ex.pending_pause = None;
+                    if ex.status == ExecutionStatus::Paused {
+                        ex.status = ExecutionStatus::Running;
+                    }
+                }
+                drop(executions);
+                if let Some(ref repo) = self.repo {
+                    let _ = repo.update_status(
+                        execution_id,
+                        status_to_db_str(ExecutionStatus::Running),
+                        None,
+                        None,
+                    );
                 }
             }
             _ => {}
@@ -316,9 +360,15 @@ impl ExecutionService {
         workflow_id: String,
         variables: serde_json::Value,
         workspace_path: Option<String>,
+        launch: Option<ExecutionLaunchContext>,
     ) -> Execution {
         let mut execution = Execution::new(workflow_id.clone(), variables);
         execution.workspace_path = workspace_path;
+        if let Some(ctx) = launch {
+            execution.team_id = ctx.team_id;
+            execution.project_id = ctx.project_id;
+            execution.trigger_source = ctx.trigger_source;
+        }
         execution.start(); // 设置为 Running 状态
 
         let exec_clone = execution.clone();
@@ -346,18 +396,105 @@ impl ExecutionService {
         exec_clone
     }
 
+    /// 重试 Run：继承父 Run 已完成阶段、审批记录与变量链（AF-UX-09）
+    pub fn seed_retry_lineage(
+        &self,
+        child_id: &str,
+        parent_id: &str,
+        stage_order: &[String],
+        from_stage: Option<&str>,
+    ) -> Result<(), String> {
+        let parent = self
+            .get_execution(parent_id)
+            .ok_or_else(|| format!("父执行 {parent_id} 不存在"))?;
+
+        let from_idx = from_stage
+            .and_then(|s| stage_order.iter().position(|n| n == s))
+            .unwrap_or(stage_order.len());
+
+        let inherited: Vec<StageResult> = if from_idx == 0 {
+            Vec::new()
+        } else {
+            parent.stage_results.clone()
+        };
+
+        let mut child = self
+            .get_execution(child_id)
+            .ok_or_else(|| format!("子执行 {child_id} 不存在"))?;
+
+        child.resumed_from = Some(parent_id.to_string());
+        child.stage_results = inherited.clone();
+        child.approval_events = parent.approval_events.clone();
+        if let Some(obj) = child.variables.as_object_mut() {
+            obj.insert(
+                "resumed_from_execution_id".into(),
+                serde_json::json!(parent_id),
+            );
+        }
+
+        {
+            let mut executions = self.executions.lock();
+            if let Some(ex) = executions.get_mut(child_id) {
+                ex.resumed_from = child.resumed_from.clone();
+                ex.stage_results = child.stage_results.clone();
+                ex.approval_events = child.approval_events.clone();
+                ex.variables = child.variables.clone();
+            }
+        }
+
+        if let Some(ref repo) = self.repo {
+            for sr in &inherited {
+                if let Err(e) = repo.insert_stage_result(child_id, sr) {
+                    tracing::warn!("继承阶段结果失败: {}", e);
+                }
+            }
+            if let Err(e) = repo.update_approval_events(child_id, &child.approval_events) {
+                tracing::warn!("继承审批记录失败: {}", e);
+            }
+            if let Err(e) = repo.update_variables(child_id, &child.variables) {
+                tracing::warn!("更新重试 variables 失败: {}", e);
+            }
+        }
+
+        self.broadcast(ExecutionEvent::StatusChanged {
+            execution_id: child_id.to_string(),
+            status: ExecutionStatus::Running,
+        });
+
+        Ok(())
+    }
+
     /// 获取执行状态（优先查内存，再查 DB）
     pub fn get_execution(&self, id: &str) -> Option<Execution> {
-        let executions = self.executions.lock();
-        if let Some(exec) = executions.get(id) {
-            return Some(exec.clone());
+        let mut exec = {
+            let executions = self.executions.lock();
+            if let Some(exec) = executions.get(id) {
+                Some(exec.clone())
+            } else {
+                None
+            }
+        };
+        if exec.is_none() {
+            exec = self
+                .repo
+                .as_ref()
+                .and_then(|repo| repo.find_by_id(id).ok())
+                .flatten();
         }
-        drop(executions);
-        // 内存没有，尝试从 DB 恢复
-        self.repo
-            .as_ref()
-            .and_then(|repo| repo.find_by_id(id).ok())
-            .flatten()
+        exec.map(|mut e| {
+            Self::hydrate_resumed_from(&mut e);
+            e
+        })
+    }
+
+    fn hydrate_resumed_from(exec: &mut Execution) {
+        if exec.resumed_from.is_none() {
+            exec.resumed_from = exec
+                .variables
+                .get("resumed_from_execution_id")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+        }
     }
 
     /// 获取所有执行（合并 DB 历史 + 内存中的活跃记录）
@@ -382,6 +519,7 @@ impl ExecutionService {
                 existing.current_stage = exec.current_stage.clone();
                 existing.running_agents = exec.running_agents.clone();
                 existing.pending_pause = exec.pending_pause.clone();
+                existing.approval_events = exec.approval_events.clone();
             } else {
                 all.push(exec.clone());
             }
@@ -412,6 +550,10 @@ impl ExecutionService {
 
     /// 取消执行
     pub fn cancel_execution(&self, id: &str) -> bool {
+        if let Some(token) = self.cancel_tokens.lock().remove(id) {
+            token.cancel();
+        }
+
         let mut executions = self.executions.lock();
         if let Some(execution) = executions.get_mut(id) {
             execution.cancel();
@@ -431,10 +573,33 @@ impl ExecutionService {
                 execution_id: id.to_string(),
                 status,
             });
-            true
-        } else {
-            false
+            return true;
         }
+        drop(executions);
+
+        // 内存中无记录（如 API 重启后的僵尸 Run）：直接更新数据库
+        if let Some(ref repo) = self.repo {
+            if let Ok(Some(exec)) = repo.find_by_id(id) {
+                if matches!(
+                    exec.status,
+                    ExecutionStatus::Running | ExecutionStatus::Paused | ExecutionStatus::Pending
+                ) {
+                    let finished_at = chrono::Utc::now().to_rfc3339();
+                    if repo
+                        .update_status(id, "cancelled", None, Some(&finished_at))
+                        .is_ok()
+                    {
+                        self.broadcast(ExecutionEvent::StatusChanged {
+                            execution_id: id.to_string(),
+                            status: ExecutionStatus::Cancelled,
+                        });
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
     }
 
     /// 更新执行状态
@@ -442,8 +607,13 @@ impl ExecutionService {
         let mut executions = self.executions.lock();
         if let Some(execution) = executions.get_mut(id) {
             execution.status = status;
-            // 完成或失败时设置 finished_at
-            if matches!(status, ExecutionStatus::Completed | ExecutionStatus::Failed) {
+            // 终态时设置 finished_at
+            if matches!(
+                status,
+                ExecutionStatus::Completed
+                    | ExecutionStatus::Failed
+                    | ExecutionStatus::Cancelled
+            ) {
                 execution.finished_at = Some(chrono::Utc::now());
             }
             let status_str = status_to_db_str(status);
@@ -608,9 +778,82 @@ impl ExecutionService {
         }
     }
 
+    /// 审批 resolve：记录 audit + resume 引擎
+    pub fn resolve_execution(
+        &self,
+        execution_id: &str,
+        approved: bool,
+        comment: Option<String>,
+    ) -> Result<(), String> {
+        let pause = {
+            let executions = self.executions.lock();
+            let ex = executions
+                .get(execution_id)
+                .ok_or_else(|| "执行不存在".to_string())?;
+            ex.pending_pause
+                .clone()
+                .ok_or_else(|| "当前无待审批暂停".to_string())?
+        };
+
+        let trimmed_comment = comment.as_ref().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+        let value = if approved {
+            "approved".to_string()
+        } else if let Some(ref c) = trimmed_comment {
+            format!("rejected:{}", c)
+        } else {
+            "rejected".to_string()
+        };
+
+        {
+            let mut executions = self.executions.lock();
+            if let Some(ex) = executions.get_mut(execution_id) {
+                ex.approval_events.push(ApprovalEvent {
+                    stage_name: pause.stage_name.clone(),
+                    approved,
+                    comment: trimmed_comment.clone(),
+                    decided_at: Utc::now(),
+                });
+            }
+        }
+
+        if let Some(ref repo) = self.repo {
+            if let Some(ex) = self.get_execution(execution_id) {
+                let _ = repo.update_approval_events(execution_id, &ex.approval_events);
+            }
+        }
+
+        if !self.resume_execution(execution_id, value.clone()) {
+            return Err("无法恢复执行（resume channel 已关闭）".to_string());
+        }
+
+        {
+            let mut executions = self.executions.lock();
+            if let Some(ex) = executions.get_mut(execution_id) {
+                ex.pending_pause = None;
+                ex.status = ExecutionStatus::Running;
+            }
+        }
+        if let Some(ref repo) = self.repo {
+            let _ = repo.update_status(
+                execution_id,
+                status_to_db_str(ExecutionStatus::Running),
+                None,
+                None,
+            );
+        }
+
+        self.broadcast(ExecutionEvent::WorkflowResumed {
+            execution_id: execution_id.to_string(),
+            stage_name: pause.stage_name,
+            chosen_value: value,
+        });
+
+        Ok(())
+    }
+
     /// 模拟执行（用于测试）
     pub fn simulate_execution(&self, workflow_id: String) -> Execution {
-        let execution = self.start_execution(workflow_id, serde_json::json!({}), None);
+        let execution = self.start_execution(workflow_id, serde_json::json!({}), None, None);
 
         // 模拟阶段执行
         let exec_id = execution.id.clone();
@@ -671,6 +914,7 @@ impl ExecutionService {
         variables: serde_json::Value,
         ai_config: Option<NexusAIManagerConfig>,
         working_directory: Option<String>,
+        launch: Option<ExecutionLaunchContext>,
     ) -> Result<String, ExecutionError> {
         use std::sync::Arc;
 
@@ -713,17 +957,26 @@ impl ExecutionService {
                 .or_insert_with(|| serde_json::Value::String(escalate_model));
         }
 
-        // 2. 创建 AI 管理器（保留用于其他可能的需求）
-        let _ai_manager = ai_config
-            .map(AIModelManager::from_config)
+        // 2. 创建 AI 管理器（优先 AppState 共享实例，含设置页 API Key + Claude CLI）
+        let ai_manager: Arc<AIModelManager> = self
+            .ai_manager
+            .lock()
+            .clone()
             .unwrap_or_else(|| {
-                // 尝试从环境变量加载 AI 配置
-                AIModelManager::from_config(load_ai_config_from_env())
+                Arc::new(
+                    ai_config
+                        .map(AIModelManager::from_config)
+                        .unwrap_or_else(|| AIModelManager::from_config(load_ai_config_from_env())),
+                )
             });
 
         // 3. 先启动执行，拿到 exec_id，再创建事件桥（桥需要 exec_id 来替换引擎内部 UUID）
-        let execution =
-            self.start_execution(workflow_id.clone(), variables, working_directory.clone());
+        let execution = self.start_execution(
+            workflow_id.clone(),
+            variables,
+            working_directory.clone(),
+            launch,
+        );
         let exec_id = execution.id.clone();
 
         // 4. 创建事件发射器（桥接到 ExecutionService，绑定 exec_id + 预算限制）
@@ -763,6 +1016,11 @@ impl ExecutionService {
             }));
         }
 
+        // 6.4 注入 API 车道（AF-04b）
+        engine.set_api_executor(
+            crate::services::workflow_api_executor::WorkflowApiExecutor::new(ai_manager.clone()),
+        );
+
         // 7. 注册 resume channel
         {
             let mut channels = self.resume_channels.lock();
@@ -770,76 +1028,111 @@ impl ExecutionService {
         }
 
         // 8. 在后台执行工作流（不阻塞）
+        let cancel_token = tokio_util::sync::CancellationToken::new();
+        {
+            let mut tokens = self.cancel_tokens.lock();
+            tokens.insert(exec_id.clone(), cancel_token.clone());
+        }
+
         let exec_service = self.clone();
         let workflow_def = definition.clone();
 
         tokio::spawn(async move {
-            match engine.execute(&workflow_def).await {
-                Ok(result) => {
-                    tracing::info!(
-                        "工作流执行完成: execution_id={}, status={:?}",
-                        result.execution_id,
-                        result.status
-                    );
-                    exec_service.resume_channels.lock().remove(&exec_id);
-                    exec_service.update_status(&exec_id, ExecutionStatus::Completed);
-                    exec_service.broadcast(ExecutionEvent::Completed {
-                        execution_id: exec_id,
-                    });
+            let work = engine.execute(&workflow_def);
+            tokio::pin!(work);
 
-                    // 链式触发：检查 workflow triggers 中是否有 type=event 的触发器
-                    if let Some(ref handler) = exec_service.chain_trigger_handler {
-                        for trigger in &workflow_def.triggers {
-                            if trigger.trigger_type == TriggerType::Event {
-                                if let Some(ref target_name) = trigger.workflow_ref {
-                                    let variables = if trigger.pass_output.unwrap_or(false) {
-                                        // 将上游输出作为下游变量
-                                        serde_json::json!({
-                                            "upstream_execution_id": result.execution_id.to_string(),
-                                            "stages": result.stage_results.iter().map(|sr| {
+            tokio::select! {
+                result = &mut work => {
+                    let already_cancelled = exec_service
+                        .get_execution(&exec_id)
+                        .map(|e| e.status == ExecutionStatus::Cancelled)
+                        .unwrap_or(false);
+                    if already_cancelled {
+                        exec_service.resume_channels.lock().remove(&exec_id);
+                        exec_service.cancel_tokens.lock().remove(&exec_id);
+                        return;
+                    }
+
+                    match result {
+                        Ok(result) => {
+                            tracing::info!(
+                                "工作流执行完成: execution_id={}, status={:?}",
+                                result.execution_id,
+                                result.status
+                            );
+                            exec_service.resume_channels.lock().remove(&exec_id);
+                            exec_service.update_status(&exec_id, ExecutionStatus::Completed);
+                            exec_service.broadcast(ExecutionEvent::Completed {
+                                execution_id: exec_id.clone(),
+                            });
+
+                            // 链式触发：检查 workflow triggers 中是否有 type=event 的触发器
+                            if let Some(ref handler) = exec_service.chain_trigger_handler {
+                                for trigger in &workflow_def.triggers {
+                                    if trigger.trigger_type == TriggerType::Event {
+                                        if let Some(ref target_name) = trigger.workflow_ref {
+                                            let variables = if trigger.pass_output.unwrap_or(false) {
                                                 serde_json::json!({
-                                                    "stage": sr.stage_name,
-                                                    "outputs": sr.outputs,
+                                                    "upstream_execution_id": result.execution_id.to_string(),
+                                                    "stages": result.stage_results.iter().map(|sr| {
+                                                        serde_json::json!({
+                                                            "stage": sr.stage_name,
+                                                            "outputs": sr.outputs,
+                                                        })
+                                                    }).collect::<Vec<_>>(),
                                                 })
-                                            }).collect::<Vec<_>>(),
-                                        })
-                                    } else {
-                                        serde_json::json!({})
-                                    };
+                                            } else {
+                                                serde_json::json!({})
+                                            };
 
-                                    match handler(target_name.clone(), variables).await {
-                                        Ok(downstream_id) => {
-                                            tracing::info!(
-                                                "[ChainTrigger] 下游工作流 '{}' 已触发, downstream_execution_id={}",
-                                                target_name,
-                                                downstream_id,
-                                            );
-                                        }
-                                        Err(e) => {
-                                            tracing::warn!(
-                                                "[ChainTrigger] 下游工作流 '{}' 触发失败: {}",
-                                                target_name,
-                                                e,
-                                            );
+                                            match handler(target_name.clone(), variables).await {
+                                                Ok(downstream_id) => {
+                                                    tracing::info!(
+                                                        "[ChainTrigger] 下游工作流 '{}' 已触发, downstream_execution_id={}",
+                                                        target_name,
+                                                        downstream_id,
+                                                    );
+                                                }
+                                                Err(e) => {
+                                                    tracing::warn!(
+                                                        "[ChainTrigger] 下游工作流 '{}' 触发失败: {}",
+                                                        target_name,
+                                                        e,
+                                                    );
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
+                        Err(e) => {
+                            let error_msg = e.to_string();
+                            tracing::error!("工作流执行失败: {}", error_msg);
+                            exec_service.resume_channels.lock().remove(&exec_id);
+                            exec_service.set_error(&exec_id, error_msg.clone());
+                            exec_service.update_status(&exec_id, ExecutionStatus::Failed);
+                            exec_service.broadcast(ExecutionEvent::Failed {
+                                execution_id: exec_id.clone(),
+                                error: error_msg,
+                            });
+                        }
                     }
                 }
-                Err(e) => {
-                    let error_msg = e.to_string();
-                    tracing::error!("工作流执行失败: {}", error_msg);
+                _ = cancel_token.cancelled() => {
+                    tracing::info!("工作流已取消: execution_id={}", exec_id);
                     exec_service.resume_channels.lock().remove(&exec_id);
-                    exec_service.set_error(&exec_id, error_msg.clone());
-                    exec_service.update_status(&exec_id, ExecutionStatus::Failed);
-                    exec_service.broadcast(ExecutionEvent::Failed {
-                        execution_id: exec_id,
-                        error: error_msg,
-                    });
+                    let needs_update = exec_service
+                        .get_execution(&exec_id)
+                        .map(|e| e.status != ExecutionStatus::Cancelled)
+                        .unwrap_or(true);
+                    if needs_update {
+                        exec_service.update_status(&exec_id, ExecutionStatus::Cancelled);
+                    }
                 }
             }
+
+            exec_service.cancel_tokens.lock().remove(&exec_id);
         });
 
         Ok(execution.id)
@@ -879,6 +1172,21 @@ pub struct PendingPause {
     pub stage_name: String,
     pub question: String,
     pub options: Vec<crate::services::events::WorkflowOption>,
+    #[serde(default = "default_pause_kind")]
+    pub pause_kind: String,
+}
+
+fn default_pause_kind() -> String {
+    "user_input".to_string()
+}
+
+/// 审批审计记录
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApprovalEvent {
+    pub stage_name: String,
+    pub approved: bool,
+    pub comment: Option<String>,
+    pub decided_at: DateTime<Utc>,
 }
 
 /// 工作流执行
@@ -913,6 +1221,21 @@ pub struct Execution {
     /// 执行时的工作区路径（用于产物预览）
     #[serde(default)]
     pub workspace_path: Option<String>,
+    /// 启动该 Run 的团队（工厂台）
+    #[serde(default)]
+    pub team_id: Option<String>,
+    /// 关联项目
+    #[serde(default)]
+    pub project_id: Option<String>,
+    /// 触发来源：factory / scheduler / webhook 等
+    #[serde(default)]
+    pub trigger_source: Option<String>,
+    /// 审批审计记录
+    #[serde(default)]
+    pub approval_events: Vec<ApprovalEvent>,
+    /// 从哪次失败 Run 重试而来（AF-UX-09 阶段重试）
+    #[serde(default)]
+    pub resumed_from: Option<String>,
 }
 
 impl Execution {
@@ -934,6 +1257,11 @@ impl Execution {
             total_tokens: 0,
             total_cost_usd: 0.0,
             workspace_path: None,
+            team_id: None,
+            project_id: None,
+            trigger_source: None,
+            approval_events: Vec::new(),
+            resumed_from: None,
         }
     }
 
@@ -1066,6 +1394,7 @@ mod tests {
             "workflow-1".to_string(),
             serde_json::json!({"var": 123}),
             None,
+            None,
         );
 
         assert_eq!(execution.workflow_id, "workflow-1");
@@ -1080,8 +1409,8 @@ mod tests {
     #[test]
     fn test_get_all_executions() {
         let service = ExecutionService::new();
-        service.start_execution("workflow-1".to_string(), serde_json::json!({}), None);
-        service.start_execution("workflow-2".to_string(), serde_json::json!({}), None);
+        service.start_execution("workflow-1".to_string(), serde_json::json!({}), None, None);
+        service.start_execution("workflow-2".to_string(), serde_json::json!({}), None, None);
 
         let executions = service.get_all_executions();
         assert_eq!(executions.len(), 2);
@@ -1091,7 +1420,7 @@ mod tests {
     fn test_cancel_execution() {
         let service = ExecutionService::new();
         let execution =
-            service.start_execution("workflow-1".to_string(), serde_json::json!({}), None);
+            service.start_execution("workflow-1".to_string(), serde_json::json!({}), None, None);
 
         let cancelled = service.cancel_execution(&execution.id);
         assert!(cancelled);
@@ -1111,7 +1440,7 @@ mod tests {
     fn test_update_status() {
         let service = ExecutionService::new();
         let execution =
-            service.start_execution("workflow-1".to_string(), serde_json::json!({}), None);
+            service.start_execution("workflow-1".to_string(), serde_json::json!({}), None, None);
 
         service.update_status(&execution.id, ExecutionStatus::Completed);
 
@@ -1124,7 +1453,7 @@ mod tests {
     fn test_add_stage_output() {
         let service = ExecutionService::new();
         let execution =
-            service.start_execution("workflow-1".to_string(), serde_json::json!({}), None);
+            service.start_execution("workflow-1".to_string(), serde_json::json!({}), None, None);
 
         service.add_stage_output(
             &execution.id,
@@ -1142,7 +1471,7 @@ mod tests {
         let service = ExecutionService::new();
         let mut rx = service.subscribe();
 
-        service.start_execution("workflow-1".to_string(), serde_json::json!({}), None);
+        service.start_execution("workflow-1".to_string(), serde_json::json!({}), None, None);
 
         // Should receive events (Started + StatusChanged)
         let result = tokio::time::timeout(std::time::Duration::from_millis(100), rx.recv()).await;

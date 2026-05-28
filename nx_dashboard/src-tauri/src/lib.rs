@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -417,6 +417,133 @@ async fn pty_spawn_team(
     Ok(session_id)
 }
 
+/// Spawn an interactive user shell in a local PTY (workspace terminal).
+/// Returns session_id; frontend listens on `pty-output-{id}` / `pty-control-{id}`.
+#[tauri::command]
+async fn pty_spawn_shell(
+    working_dir: Option<String>,
+    rows: Option<u16>,
+    cols: Option<u16>,
+    app_handle: tauri::AppHandle,
+    direct_connections: tauri::State<'_, DirectPtyConnections>,
+) -> Result<String, String> {
+    use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+
+    let session_id = Uuid::new_v4().to_string();
+
+    let shell = std::env::var("SHELL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| {
+            if cfg!(target_os = "windows") {
+                "cmd.exe".to_string()
+            } else if cfg!(target_os = "macos") {
+                "/bin/zsh".to_string()
+            } else {
+                "/bin/bash".to_string()
+            }
+        });
+
+    let mut cmd = CommandBuilder::new(&shell);
+    cmd.env("TERM", "xterm-256color");
+    if let Some(ref dir) = working_dir {
+        if std::path::Path::new(dir).is_dir() {
+            cmd.cwd(dir);
+        }
+    }
+
+    let pty_rows = rows.unwrap_or(24).max(2);
+    let pty_cols = cols.unwrap_or(80).max(2);
+
+    let pty_system = native_pty_system();
+    let pair = pty_system
+        .openpty(PtySize {
+            rows: pty_rows,
+            cols: pty_cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| format!("无法创建 PTY: {e}"))?;
+
+    let _child = pair
+        .slave
+        .spawn_command(cmd)
+        .map_err(|e| format!("无法启动 Shell: {e}"))?;
+
+    let mut reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|e| format!("无法获取 PTY reader: {e}"))?;
+
+    let mut writer = pair
+        .master
+        .take_writer()
+        .map_err(|e| format!("无法获取 PTY writer: {e}"))?;
+    let master = pair.master;
+
+    let (tx, rx) = std::sync::mpsc::channel::<PtyInput>();
+    let tx_for_reader = tx.clone();
+    let ready = Arc::new(std::sync::Barrier::new(2));
+
+    {
+        let mut conns = direct_connections.lock().unwrap();
+        conns.insert(
+            session_id.clone(),
+            DirectPtyHandle {
+                tx,
+                ready: Arc::clone(&ready),
+            },
+        );
+    }
+    let conns_for_cleanup = direct_connections.inner().clone();
+
+    let output_event = format!("pty-output-{}", session_id);
+    let control_event = format!("pty-control-{}", session_id);
+    let app_for_reader = app_handle.clone();
+
+    std::thread::spawn(move || {
+        ready.wait();
+        let mut buf = [0u8; 4096];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let _ = app_for_reader.emit(&output_event, buf[..n].to_vec());
+                }
+                Err(_) => break,
+            }
+        }
+        let _ = app_for_reader.emit(&control_event, r#"{"type":"closed"}"#.to_string());
+        let _ = tx_for_reader.send(PtyInput::Close);
+    });
+
+    let sid_for_pump = session_id.clone();
+    std::thread::spawn(move || {
+        for cmd in rx {
+            match cmd {
+                PtyInput::Data(data) => {
+                    if writer.write_all(&data).is_err() {
+                        break;
+                    }
+                    let _ = writer.flush();
+                }
+                PtyInput::Resize(rows, cols) => {
+                    let _ = master.resize(PtySize {
+                        rows,
+                        cols,
+                        pixel_width: 0,
+                        pixel_height: 0,
+                    });
+                }
+                PtyInput::Close => break,
+            }
+        }
+        conns_for_cleanup.lock().unwrap().remove(&sid_for_pump);
+    });
+
+    Ok(session_id)
+}
+
 /// Resolve the nx CLI binary path (debug: target/debug/nx, release: sidecar)
 fn resolve_nx_binary() -> Result<PathBuf, String> {
     if cfg!(debug_assertions) {
@@ -503,6 +630,7 @@ pub fn run() {
             pty_start,
             spawn_team_session,
             pty_spawn_team,
+            pty_spawn_shell,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -907,7 +1035,7 @@ fn start_nx_api(
         .env("NEXUS_DB_PATH", &db_path)
         .env(
             "NEXUS_ALLOWED_ORIGINS",
-            "tauri://localhost,http://localhost:5173,http://localhost:3000",
+            "tauri://localhost,http://localhost:1420,http://localhost:5173,http://localhost:3000",
         )
         .env("RUST_LOG", "info");
 

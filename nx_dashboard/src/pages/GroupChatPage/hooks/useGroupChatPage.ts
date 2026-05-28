@@ -12,7 +12,7 @@ import { useAgentExecution } from '@/hooks/useAgentExecution';
 import { useParallelRound } from './useParallelRound';
 import { useGroupChatHandlers } from './useGroupChatHandlers';
 
-export function useGroupChatPage() {
+export function useGroupChatPage(teamId?: string) {
   const store = useGroupChatStore();
   const {
     sessions,
@@ -98,8 +98,14 @@ export function useGroupChatPage() {
   });
 
   useEffect(() => {
-    fetchSessions();
-  }, [fetchSessions]);
+    fetchSessions(teamId);
+  }, [fetchSessions, teamId]);
+
+  useEffect(() => {
+    if (teamId) {
+      setCreateForm((prev) => ({ ...prev, team_id: teamId }));
+    }
+  }, [teamId]);
 
   useEffect(() => {
     if (selectedSessionId) {

@@ -1,5 +1,6 @@
 use axum::{
     extract::{Path, State},
+    http::StatusCode,
     routing::{delete, get, post, put},
     Json, Router,
 };
@@ -13,6 +14,7 @@ pub fn sprint_routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/", get(list_sprints))
         .route("/", post(upsert_sprint))
+        .route("/:id", get(get_sprint))
         .route("/:id/status", put(update_status))
         .route("/:id/events", get(list_events))
         .route("/:id/events", post(add_event))
@@ -44,15 +46,34 @@ struct StatusBody {
     status: String,
 }
 
+async fn get_sprint(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Json<SprintCard>, (StatusCode, String)> {
+    state
+        .sprint_service
+        .get(&id)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("sprint {id} not found")))
+        .map(Json)
+}
+
 async fn update_status(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     Json(body): Json<StatusBody>,
-) -> Result<Json<serde_json::Value>, String> {
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     state
         .sprint_service
         .update_status(&id, &body.status)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            let msg = e.to_string();
+            if msg.contains("not found") {
+                (StatusCode::NOT_FOUND, msg)
+            } else {
+                (StatusCode::INTERNAL_SERVER_ERROR, msg)
+            }
+        })?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 

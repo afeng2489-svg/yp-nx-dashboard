@@ -15,7 +15,7 @@ export default defineConfig({
 
   // Use headless mode by default
   use: {
-    baseURL: process.env.BASE_URL || 'http://localhost:5173',
+    baseURL: process.env.BASE_URL || 'http://localhost:1420',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: process.env.RECORD_VIDEO ? 'on' : 'off',
@@ -51,7 +51,7 @@ export default defineConfig({
   webServer: process.env.CI
     ? {
         command: 'npm run dev',
-        url: 'http://localhost:5173',
+        url: 'http://localhost:1420',
         reuseExistingServer: !process.env.CI,
         timeout: 120 * 1000,
       }

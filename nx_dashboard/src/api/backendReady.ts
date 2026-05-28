@@ -40,8 +40,14 @@ async function pollHealth(): Promise<boolean> {
       clearTimeout(timeout);
 
       if (res.ok) {
-        console.log(`[NX Dashboard] Backend ready (attempt ${attempt})`);
-        return true;
+        const ct = res.headers.get('content-type') ?? '';
+        if (ct.includes('application/json')) {
+          const body = (await res.json()) as { ok?: boolean; data?: { status?: string } };
+          if (body.ok === true || body.data?.status === 'ok') {
+            console.log(`[NX Dashboard] Backend ready (attempt ${attempt})`);
+            return true;
+          }
+        }
       }
     } catch {
       // Connection refused or timeout — backend not ready yet

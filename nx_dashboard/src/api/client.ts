@@ -478,6 +478,7 @@ export interface SelectedModelResponse {
 }
 
 export interface ClaudeCliModelResponse {
+  primary_model: string;
   sonnet_model: string;
   haiku_model: string;
   opus_model: string;

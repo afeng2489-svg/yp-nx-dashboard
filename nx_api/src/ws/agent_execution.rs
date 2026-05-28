@@ -233,13 +233,24 @@ pub async fn handle_agent_execution_ws(
         execution_id
     );
 
-    // 晚连接回放：若执行已完成，直接发送缓存的终态事件并关闭
+    // 晚连接回放：若执行已完成且缓存含有效终态，直接发送并关闭
     if let Some(cached_event) = manager.get_terminal_event(&execution_id) {
-        tracing::info!("[AgentExecWS] 命中终态缓存，直接回放: {}", execution_id);
-        if let Ok(json) = serde_json::to_string(&cached_event) {
-            let _ = sender.send(AxumMessage::Text(json)).await;
+        let replay = match &cached_event {
+            AgentExecutionEvent::Completed { result, .. } => !result.is_empty(),
+            AgentExecutionEvent::Failed { .. } | AgentExecutionEvent::Cancelled { .. } => true,
+            _ => false,
+        };
+        if replay {
+            tracing::info!("[AgentExecWS] 命中终态缓存，直接回放: {}", execution_id);
+            if let Ok(json) = serde_json::to_string(&cached_event) {
+                let _ = sender.send(AxumMessage::Text(json)).await;
+            }
+            return;
         }
-        return;
+        tracing::debug!(
+            "[AgentExecWS] 跳过空 Completed 缓存，继续订阅: {}",
+            execution_id
+        );
     }
 
     loop {
