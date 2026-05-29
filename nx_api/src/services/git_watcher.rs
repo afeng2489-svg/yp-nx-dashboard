@@ -68,6 +68,62 @@ impl GitStageWatcher {
         }
         Ok(())
     }
+
+    /// 确保目录是 git 仓库；若不是，则自动 `git init` 并把现有文件提交为「执行前基线」，
+    /// 这样后续才有可回滚的起点。返回 true 表示仓库可用。
+    fn ensure_git_repo(workdir: &PathBuf) -> bool {
+        if Self::is_git_repo(workdir) {
+            return true;
+        }
+        if let Err(e) = Self::run_git(workdir, &["init"]) {
+            tracing::warn!("[GitWatcher] 自动 git init 失败: {}", e);
+            return false;
+        }
+        tracing::info!("[GitWatcher] 已自动初始化 git 仓库（非 git 工作区）: {:?}", workdir);
+        // 暂存现有文件并提交执行前基线
+        if let Err(e) = Self::run_git(workdir, &["add", "-A"]) {
+            tracing::warn!("[GitWatcher] 基线 git add 失败: {}", e);
+            return true; // 仓库已建好，后续仍可继续
+        }
+        let has_changes = Self::run_git(workdir, &["diff", "--cached", "--quiet"]).is_err();
+        if has_changes {
+            if let Err(e) = Self::git_commit(workdir, "factory: 初始化仓库（执行前基线）") {
+                tracing::warn!("[GitWatcher] 基线 commit 失败: {}", e);
+            }
+        }
+        true
+    }
+
+    /// 当仓库未配置 user.name / user.email 时，回退一个工厂身份；
+    /// 已配置则返回空，避免覆盖用户自己的身份。
+    fn identity_args(workdir: &PathBuf) -> Vec<String> {
+        let has_name = Self::run_git(workdir, &["config", "user.name"])
+            .map(|s| !s.is_empty())
+            .unwrap_or(false);
+        let has_email = Self::run_git(workdir, &["config", "user.email"])
+            .map(|s| !s.is_empty())
+            .unwrap_or(false);
+        if has_name && has_email {
+            Vec::new()
+        } else {
+            vec![
+                "-c".into(),
+                "user.name=NexusFlow Factory".into(),
+                "-c".into(),
+                "user.email=factory@nexusflow.local".into(),
+            ]
+        }
+    }
+
+    /// 提交（缺身份时自动回退工厂身份，保证自动初始化的仓库也能 commit）
+    fn git_commit(workdir: &PathBuf, message: &str) -> Result<String, String> {
+        let mut args = Self::identity_args(workdir);
+        args.push("commit".into());
+        args.push("-m".into());
+        args.push(message.into());
+        let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        Self::run_git(workdir, &arg_refs)
+    }
 }
 
 impl nexus_workflow::watcher::StageWatcher for GitStageWatcher {
@@ -76,7 +132,8 @@ impl nexus_workflow::watcher::StageWatcher for GitStageWatcher {
             return;
         };
 
-        if !Self::is_git_repo(&workdir) {
+        // 非 git 工作区自动初始化并落基线，保证后续可回滚/审批
+        if !Self::ensure_git_repo(&workdir) {
             return;
         }
 
@@ -131,7 +188,7 @@ impl nexus_workflow::watcher::StageWatcher for GitStageWatcher {
 
         // git commit
         let message = format!("stage: {}", stage_name);
-        match Self::run_git(&workdir, &["commit", "-m", &message]) {
+        match Self::git_commit(&workdir, &message) {
             Ok(output) => {
                 tracing::info!("[GitWatcher] commit: {}", message);
                 if !output.is_empty() {
@@ -216,6 +273,49 @@ impl GitService {
             initial_branch
         );
         Ok(())
+    }
+
+    /// 采纳改动：切回原分支，把执行分支合并进来，并删除执行分支
+    pub fn rollback_merge(&self, initial_branch: &str, exec_branch: &str) -> Result<(), String> {
+        let workdir = self
+            .current_workdir()
+            .ok_or_else(|| "没有设置工作区路径".to_string())?;
+
+        Self::run_git(&workdir, &["checkout", initial_branch])?;
+        // 合并执行分支（FF 优先；需要合并提交时带上身份兜底）
+        let mut merge_args = Self::identity_args(&workdir);
+        merge_args.push("merge".into());
+        merge_args.push("--no-edit".into());
+        merge_args.push(exec_branch.into());
+        let refs: Vec<&str> = merge_args.iter().map(|s| s.as_str()).collect();
+        Self::run_git(&workdir, &refs)?;
+        Self::run_git(&workdir, &["branch", "-D", exec_branch])?;
+        tracing::info!(
+            "[GitService] 采纳合并: {} → {} 并删除执行分支",
+            exec_branch,
+            initial_branch
+        );
+        Ok(())
+    }
+
+    /// 当仓库未配置 user.name / user.email 时回退一个工厂身份，避免合并提交失败
+    fn identity_args(workdir: &PathBuf) -> Vec<String> {
+        let has_name = Self::run_git(workdir, &["config", "user.name"])
+            .map(|s| !s.is_empty())
+            .unwrap_or(false);
+        let has_email = Self::run_git(workdir, &["config", "user.email"])
+            .map(|s| !s.is_empty())
+            .unwrap_or(false);
+        if has_name && has_email {
+            Vec::new()
+        } else {
+            vec![
+                "-c".into(),
+                "user.name=NexusFlow Factory".into(),
+                "-c".into(),
+                "user.email=factory@nexusflow.local".into(),
+            ]
+        }
     }
 
     /// 获取执行分支的 commit 列表

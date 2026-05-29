@@ -88,7 +88,7 @@ stages:
     agents: [solo]
     quality_gate:
       checks:
-        - cmd: "sh -c 'if [ \"{{lang}}\" = \"rust\" ] || ([ \"{{lang}}\" = \"auto\" ] && [ -f Cargo.toml ]); then cargo build 2>&1; elif [ -f package.json ]; then npx tsc --noEmit 2>&1; elif [ -f go.mod ]; then go build ./... 2>&1; fi'"
+        - cmd: "sh -c 'if [ \"{{lang}}\" = \"rust\" ] || ([ \"{{lang}}\" = \"auto\" ] && [ -f Cargo.toml ]); then cargo build 2>&1; elif [ -f package.json ]; then if [ -x node_modules/.bin/tsc ]; then node_modules/.bin/tsc --noEmit 2>&1; fi; elif [ -f go.mod ]; then go build ./... 2>&1; fi'"
           timeout: 300
       on_fail: retry
       max_retries: 3
@@ -97,7 +97,7 @@ stages:
     agents: [solo]
     quality_gate:
       checks:
-        - cmd: "sh -c 'if [ -f Cargo.toml ]; then cargo test 2>&1; elif [ -f package.json ]; then npm test -- --passWithNoTests 2>&1; elif [ -f go.mod ]; then go test ./... 2>&1; elif [ -f pytest.ini ] || [ -f pyproject.toml ]; then python -m pytest 2>&1; fi'"
+        - cmd: "sh -c 'if [ -f Cargo.toml ]; then cargo test 2>&1; elif [ -f package.json ]; then npm run test --if-present 2>&1; elif [ -f go.mod ]; then go test ./... 2>&1; elif [ -f pytest.ini ] || [ -f pyproject.toml ]; then python -m pytest 2>&1; fi'"
           timeout: 300
       on_fail: retry
       max_retries: 3

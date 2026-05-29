@@ -780,6 +780,9 @@ pub async fn rollback_execution(
         "branch" => state
             .git_service
             .rollback_branch(&id, &req.initial_branch, &req.exec_branch),
+        "merge" => state
+            .git_service
+            .rollback_merge(&req.initial_branch, &req.exec_branch),
         _ => Err(format!("未知的回滚操作: {}", req.action)),
     };
 

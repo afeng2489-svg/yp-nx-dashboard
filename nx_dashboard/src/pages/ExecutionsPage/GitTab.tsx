@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { GitBranch, Copy } from 'lucide-react';
+import { GitBranch } from 'lucide-react';
 import type { BranchInfo } from './types';
 import { CommitList } from './GitCommitList';
 import { RollbackActions } from './RollbackActions';
+import { DeliveryActions } from './DeliveryActions';
 
 export interface GitTabProps {
   executionId: string;
@@ -50,16 +51,19 @@ export function GitTab({ executionId, executionStatus }: GitTabProps) {
       .catch(() => {});
   };
 
-  const handleRollback = async () => {
+  const runRollback = async (action: 'revert' | 'keep' | 'branch' | 'merge') => {
     if (!branchInfo) return;
     setRollingBack(true);
     try {
-      const initialBranch = branchInfo.current_branch || 'main';
+      const initialBranch =
+        branchInfo.current_branch === branchInfo.exec_branch
+          ? 'main'
+          : branchInfo.current_branch || 'main';
       await fetch(`${apiBase}/api/v1/executions/${executionId}/rollback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: rollbackAction,
+          action,
           initial_branch: initialBranch,
           exec_branch: branchInfo.exec_branch,
         }),
@@ -74,6 +78,8 @@ export function GitTab({ executionId, executionStatus }: GitTabProps) {
       setRollingBack(false);
     }
   };
+
+  const handleRollback = () => runRollback(rollbackAction);
 
   const handleCopyPr = async () => {
     if (!prDescription) {
@@ -150,13 +156,12 @@ export function GitTab({ executionId, executionStatus }: GitTabProps) {
             />
           )}
           {executionStatus === 'completed' && commits.length > 0 && (
-            <button
-              onClick={handleCopyPr}
-              className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary/90"
-            >
-              <Copy className="w-4 h-4" />
-              {copied ? '已复制!' : '复制 PR 描述'}
-            </button>
+            <DeliveryActions
+              busy={rollingBack}
+              onDecide={runRollback}
+              onCopyPr={handleCopyPr}
+              copied={copied}
+            />
           )}
         </div>
       )}
