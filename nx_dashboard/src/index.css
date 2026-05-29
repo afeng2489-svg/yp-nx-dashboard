@@ -492,7 +492,7 @@
 
 .factory-drawer-terminal .xterm-viewport,
 .integrated-terminal-panel .xterm-viewport {
-  background-color: transparent !important;
+  background-color: inherit;
 }
 
 .factory-drawer-terminal .xterm-screen,

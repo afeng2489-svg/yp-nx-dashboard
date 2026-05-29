@@ -1,13 +1,13 @@
 import type { ITheme } from '@xterm/xterm';
 
-/** xterm 深色主题（zinc，对齐 Studio 暗色） */
+/** xterm 深色主题（zinc-900，对齐 --card，避免比外壳更黑一块） */
 export const XTERM_THEME_DARK: ITheme = {
-  background: '#09090b',
+  background: '#18181b',
   foreground: '#e4e4e7',
   cursor: '#fafafa',
-  cursorAccent: '#09090b',
+  cursorAccent: '#18181b',
   selectionBackground: '#3f3f46',
-  black: '#09090b',
+  black: '#18181b',
   red: '#f87171',
   green: '#4ade80',
   yellow: '#facc15',

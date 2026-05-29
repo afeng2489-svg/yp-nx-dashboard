@@ -41,6 +41,7 @@ import { NAV_GROUPS, resolveActiveNavId } from '@/data/navConfig';
 
 const NAV_ICONS: Record<string, React.ElementType> = {
   factory: Factory,
+  teams: Users,
   assets: Package,
   ops: BarChart3,
   dashboard: LayoutDashboard,
@@ -173,12 +174,15 @@ function NavItem({
   studio?: boolean;
 }) {
   const Icon = tab.icon;
+  const iconOnly = !sidebarOpen;
+
   return (
     <button
       onClick={onClick}
-      title={!sidebarOpen ? tab.label : undefined}
+      title={iconOnly ? tab.label : undefined}
       className={cn(
-        'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200',
+        'flex items-center rounded-xl transition-colors duration-200',
+        iconOnly ? 'w-10 h-10 mx-auto justify-center shrink-0' : 'w-full gap-3 px-3 py-2.5',
         studio
           ? 'hover:bg-accent/80'
           : refined
@@ -318,7 +322,12 @@ export function Sidebar({
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
+      <nav
+        className={cn(
+          'flex-1 overflow-y-auto',
+          rail ? 'px-2 py-3 space-y-1' : 'p-3 space-y-4',
+        )}
+      >
         {navGroups.map((group) => {
           const isCollapsed = group.collapsible && collapsed[group.label];
           const hasActive = group.items.some((t) => t.id === activeTab);
@@ -355,7 +364,7 @@ export function Sidebar({
                 </button>
               )}
               {!isCollapsed && (
-                <div className="space-y-0.5">
+                <div className={cn(rail ? 'space-y-1' : 'space-y-0.5')}>
                   {group.items.map((tab) => (
                     <NavItem
                       key={tab.id}

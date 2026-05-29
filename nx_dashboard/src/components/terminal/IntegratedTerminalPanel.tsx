@@ -36,7 +36,7 @@ export function IntegratedTerminalPanel({ visible }: { visible: boolean }) {
   };
 
   return (
-    <div className="integrated-terminal-panel h-full min-h-0 flex flex-col bg-background border-t border-border">
+    <div className="integrated-terminal-panel h-full min-h-0 flex flex-col bg-card border-t border-border">
       <div className="flex items-center h-9 shrink-0 border-b border-border bg-muted/20 px-1 gap-1">
         <div className="flex items-center gap-0.5 overflow-x-auto flex-1 min-w-0">
           {tabs.map((tab) => (

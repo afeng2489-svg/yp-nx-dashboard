@@ -63,7 +63,7 @@ function TerminalPane({
       scrollback: 5000,
       convertEol: false,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-      theme: xtermThemeFor(resolvedTheme),
+      theme: xtermThemeFor(useThemeStore.getState().resolvedTheme),
     });
 
     const fitAddon = new FitAddon();
@@ -76,6 +76,8 @@ function TerminalPane({
 
     const fitTerminal = () => {
       try {
+        const host = terminalRef.current;
+        if (!host || host.clientWidth < 8 || host.clientHeight < 8) return;
         fitAddon.fit();
         resize(terminal.rows, terminal.cols);
       } catch {
@@ -84,7 +86,7 @@ function TerminalPane({
     };
 
     requestAnimationFrame(fitTerminal);
-    window.setTimeout(fitTerminal, 120);
+    [50, 120, 300, 600].forEach((ms) => window.setTimeout(fitTerminal, ms));
 
     const resizeDisposable = terminal.onResize(({ rows, cols }) => {
       resize(rows, cols);
@@ -104,18 +106,21 @@ function TerminalPane({
       fitAddonRef.current = null;
       setTerminalReady(false);
     };
-  }, [compact, resize, resolvedTheme]);
+  }, [compact, resize]);
 
   useEffect(() => {
-    if (xtermRef.current) {
-      xtermRef.current.options.theme = xtermThemeFor(resolvedTheme);
-    }
+    const term = xtermRef.current;
+    if (!term) return;
+    term.options.theme = xtermThemeFor(resolvedTheme);
+    term.refresh(0, term.rows - 1);
   }, [resolvedTheme]);
 
   useEffect(() => {
     if (!visible) return;
-    const id = window.setTimeout(() => {
+    const fit = () => {
       try {
+        const host = terminalRef.current;
+        if (!host || host.clientWidth < 8 || host.clientHeight < 8) return;
         fitAddonRef.current?.fit();
         const term = xtermRef.current;
         if (term) resize(term.rows, term.cols);
@@ -123,8 +128,10 @@ function TerminalPane({
       } catch {
         /* ignore */
       }
-    }, 120);
-    return () => window.clearTimeout(id);
+    };
+    requestAnimationFrame(fit);
+    const ids = [50, 120, 300, 600].map((ms) => window.setTimeout(fit, ms));
+    return () => ids.forEach((id) => window.clearTimeout(id));
   }, [visible, panelHeight, resize]);
 
   useEffect(() => {
@@ -146,8 +153,8 @@ function TerminalPane({
   return (
     <div
       className={cn(
-        'h-full min-h-0 flex flex-col overflow-hidden bg-background',
-        !compact && 'rounded-md border border-border',
+        'h-full min-h-0 flex flex-col overflow-hidden',
+        compact ? 'bg-transparent' : 'bg-background rounded-md border border-border',
       )}
     >
       {!compact && (
@@ -188,6 +195,11 @@ function TerminalPane({
             >
               重新连接
             </button>
+          </div>
+        )}
+        {!isConnected && !sessionEnded && compact && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+            <span className="text-xs text-muted-foreground">连接 Shell…</span>
           </div>
         )}
         <div ref={terminalRef} className="absolute inset-0 xterm-host" tabIndex={0} />

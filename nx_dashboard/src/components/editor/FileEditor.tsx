@@ -2,6 +2,7 @@ import { useEffect, useCallback, useState, useRef } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { X, Save, Trash2 } from 'lucide-react';
 import { useWorkspaceStore, type OpenFile } from '@/stores/workspaceStore';
+import { useThemeStore } from '@/stores/themeStore';
 import { cn } from '@/lib/utils';
 
 /** Map backend language strings to Monaco language IDs */
@@ -88,6 +89,9 @@ export function FileEditor() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
 
+  const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
+  const monacoTheme = resolvedTheme === 'dark' ? 'vs-dark' : 'vs';
+
   const activeFile = openFiles.find((f) => f.path === activeFilePath);
 
   // Ctrl+S / Cmd+S save
@@ -170,7 +174,7 @@ export function FileEditor() {
             key={activeFile.path}
             defaultValue={activeFile.content}
             language={toMonacoLanguage(activeFile.language)}
-            theme="vs-dark"
+            theme={monacoTheme}
             onChange={handleEditorChange}
             onMount={handleEditorMount}
             options={{
