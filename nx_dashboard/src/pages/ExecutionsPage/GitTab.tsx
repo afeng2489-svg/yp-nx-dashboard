@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { GitBranch } from 'lucide-react';
+import { GitBranch, AlertTriangle } from 'lucide-react';
 import type { BranchInfo } from './types';
 import { CommitList } from './GitCommitList';
 import { RollbackActions } from './RollbackActions';
@@ -22,6 +22,7 @@ export function GitTab({ executionId, executionStatus }: GitTabProps) {
   const [rollingBack, setRollingBack] = useState(false);
   const [rollbackAction, setRollbackAction] = useState<'revert' | 'keep' | 'branch'>('revert');
   const [copied, setCopied] = useState(false);
+  const [hasMeaningfulChanges, setHasMeaningfulChanges] = useState(true);
 
   const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
@@ -32,6 +33,7 @@ export function GitTab({ executionId, executionStatus }: GitTabProps) {
       .then((data) => {
         setBranchInfo(data.branch_info);
         setCommits(data.commits || []);
+        setHasMeaningfulChanges(data.has_meaningful_changes !== false);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -55,10 +57,7 @@ export function GitTab({ executionId, executionStatus }: GitTabProps) {
     if (!branchInfo) return;
     setRollingBack(true);
     try {
-      const initialBranch =
-        branchInfo.current_branch === branchInfo.exec_branch
-          ? 'main'
-          : branchInfo.current_branch || 'main';
+      const initialBranch = branchInfo.initial_branch || 'main';
       await fetch(`${apiBase}/api/v1/executions/${executionId}/rollback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -72,6 +71,7 @@ export function GitTab({ executionId, executionStatus }: GitTabProps) {
       const data = await resp.json();
       setBranchInfo(data.branch_info);
       setCommits(data.commits || []);
+      setHasMeaningfulChanges(data.has_meaningful_changes !== false);
     } catch {
       // ignore rollback error
     } finally {
@@ -135,6 +135,20 @@ export function GitTab({ executionId, executionStatus }: GitTabProps) {
           )}
         </div>
       </div>
+
+      {/* 完成但零产出告警 */}
+      {executionStatus === 'completed' && !hasMeaningfulChanges && (
+        <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <span className="font-medium">本次执行未产生实际文件改动。</span>
+            <span className="text-muted-foreground">
+              {' '}
+              可能是 agent 无写权限（Strict 模式）、任务无需改动，或实现阶段未落盘。请检查权限设置或任务描述。
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Commit 列表 */}
       <CommitList

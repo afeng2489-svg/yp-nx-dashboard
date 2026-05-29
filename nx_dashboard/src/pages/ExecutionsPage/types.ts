@@ -17,5 +17,6 @@ export interface CommitInfo {
 export interface BranchInfo {
   current_branch: string | null;
   exec_branch: string;
+  initial_branch: string;
   is_git_repo: boolean;
 }

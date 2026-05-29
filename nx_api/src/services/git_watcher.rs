@@ -366,6 +366,25 @@ impl GitService {
         Ok(commits)
     }
 
+    /// 排除工具噪音（.omc / .git / .claude）后，base..exec 是否存在真实文件改动。
+    /// 用于识别「Run 完成但实际零产出」（如权限不足导致 agent 没写文件）。
+    pub fn has_meaningful_changes(&self, base: &str, exec_branch: &str) -> bool {
+        let Some(workdir) = self.current_workdir() else {
+            return true; // 无法判断时不误报
+        };
+        let range = format!("{}..{}", base, exec_branch);
+        let files = match Self::run_git(&workdir, &["diff", "--name-only", &range]) {
+            Ok(s) => s,
+            Err(_) => return true,
+        };
+        const NOISE_PREFIXES: [&str; 3] = [".omc/", ".git/", ".claude/"];
+        files
+            .lines()
+            .map(|l| l.trim())
+            .filter(|l| !l.is_empty())
+            .any(|f| !NOISE_PREFIXES.iter().any(|p| f.starts_with(p)))
+    }
+
     /// 获取指定 commit 的 diff
     pub fn get_commit_diff(&self, commit_hash: &str) -> Result<String, String> {
         let workdir = self
@@ -412,30 +431,83 @@ impl GitService {
         Ok(description)
     }
 
+    /// 列出本地分支名
+    fn list_branches(workdir: &PathBuf) -> Vec<String> {
+        Self::run_git(workdir, &["branch", "--format=%(refname:short)"])
+            .map(|s| {
+                s.lines()
+                    .map(|l| l.trim().to_string())
+                    .filter(|l| !l.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// 解析真实执行分支：执行分支用引擎内部 id 命名，可能与 API id 不一致，
+    /// 因此优先精确匹配 ai-exec-{id}，否则取当前 ai-exec-* 分支，再否则扫描首个。
+    fn resolve_exec_branch(
+        workdir: &PathBuf,
+        execution_id: &str,
+        current_branch: Option<&str>,
+    ) -> String {
+        let exact = format!("ai-exec-{}", execution_id);
+        let branches = Self::list_branches(workdir);
+        if branches.iter().any(|b| b == &exact) {
+            return exact;
+        }
+        if let Some(cur) = current_branch {
+            if cur.starts_with("ai-exec-") {
+                return cur.to_string();
+            }
+        }
+        if let Some(b) = branches.iter().find(|b| b.starts_with("ai-exec-")) {
+            return b.clone();
+        }
+        exact
+    }
+
+    /// 探测基线分支（执行分支的来源）：优先 main / master，否则首个非 ai-exec 分支
+    fn detect_base_branch(workdir: &PathBuf, exec_branch: &str) -> String {
+        let branches = Self::list_branches(workdir);
+        for cand in ["main", "master"] {
+            if branches.iter().any(|b| b == cand) {
+                return cand.to_string();
+            }
+        }
+        branches
+            .into_iter()
+            .find(|b| b != exec_branch && !b.starts_with("ai-exec-"))
+            .unwrap_or_else(|| "main".to_string())
+    }
+
     /// 获取当前 git 分支和初始分支信息
     pub fn get_branch_info(&self, execution_id: &str) -> BranchInfo {
-        let workdir = match self.current_workdir() {
-            Some(w) => w,
-            None => {
-                return BranchInfo {
-                    current_branch: None,
-                    exec_branch: format!("ai-exec-{}", execution_id),
-                    is_git_repo: false,
-                }
-            }
+        let fallback = || BranchInfo {
+            current_branch: None,
+            exec_branch: format!("ai-exec-{}", execution_id),
+            initial_branch: "main".to_string(),
+            is_git_repo: false,
         };
 
-        let is_git_repo = workdir.join(".git").exists();
-        let current_branch = if is_git_repo {
-            Self::run_git(&workdir, &["rev-parse", "--abbrev-ref", "HEAD"]).ok()
-        } else {
-            None
+        let workdir = match self.current_workdir() {
+            Some(w) => w,
+            None => return fallback(),
         };
+
+        if !workdir.join(".git").exists() {
+            return fallback();
+        }
+
+        let current_branch = Self::run_git(&workdir, &["rev-parse", "--abbrev-ref", "HEAD"]).ok();
+        let exec_branch =
+            Self::resolve_exec_branch(&workdir, execution_id, current_branch.as_deref());
+        let initial_branch = Self::detect_base_branch(&workdir, &exec_branch);
 
         BranchInfo {
             current_branch,
-            exec_branch: format!("ai-exec-{}", execution_id),
-            is_git_repo,
+            exec_branch,
+            initial_branch,
+            is_git_repo: true,
         }
     }
 }
@@ -455,6 +527,8 @@ pub struct CommitInfo {
 pub struct BranchInfo {
     pub current_branch: Option<String>,
     pub exec_branch: String,
+    /// 执行分支的基线分支（diff/合并的起点）
+    pub initial_branch: String,
     pub is_git_repo: bool,
 }
 
@@ -467,6 +541,7 @@ mod tests {
         let info = BranchInfo {
             current_branch: Some("main".to_string()),
             exec_branch: "ai-exec-test-123".to_string(),
+            initial_branch: "main".to_string(),
             is_git_repo: true,
         };
         let json = serde_json::to_string(&info).unwrap();

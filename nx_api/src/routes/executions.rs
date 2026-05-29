@@ -13,6 +13,26 @@ use super::AppState;
 use crate::services::execution_service::{ApprovalEvent, ExecutionEvent, PendingPause};
 use crate::services::workflow_service::WorkflowServiceError;
 
+/// 将 UI/legacy 伪 stage 名映射为 workflow YAML 中的真实阶段
+fn normalize_retry_from_stage(stage: &str, stage_order: &[String]) -> String {
+    if stage == "agent:summary" {
+        return "交付摘要".to_string();
+    }
+    if stage.starts_with("agent:") {
+        return stage_order
+            .last()
+            .cloned()
+            .unwrap_or_else(|| stage.to_string());
+    }
+    if stage_order.iter().any(|s| s == stage) {
+        return stage.to_string();
+    }
+    stage_order
+        .last()
+        .cloned()
+        .unwrap_or_else(|| stage.to_string())
+}
+
 /// 列出执行记录
 pub async fn list_executions(State(state): State<Arc<AppState>>) -> Json<Vec<ExecutionSummary>> {
     let executions = state.execution_service.get_all_executions();
@@ -40,6 +60,7 @@ pub async fn list_executions(State(state): State<Arc<AppState>>) -> Json<Vec<Exe
                 project_id: e.project_id.clone(),
                 trigger_source: e.trigger_source.clone(),
                 approval_events: e.approval_events.clone(),
+                resumed_from: e.resumed_from.clone(),
             }
         })
         .collect();
@@ -215,12 +236,24 @@ pub async fn retry_stage_execution(
             ExecutionAppError::NotFound(format!("工作流 {} 不存在", execution.workflow_id))
         })?;
 
+    let stage_names: Vec<String> = workflow
+        .definition
+        .get("stages")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|s| s.get("name").and_then(|n| n.as_str()).map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+
     let from_stage = req.from_stage.or(execution.current_stage.clone()).or_else(|| {
         execution
             .stage_results
             .last()
             .map(|s| s.stage_name.clone())
     });
+    let from_stage = from_stage.map(|s| normalize_retry_from_stage(&s, &stage_names));
     let from_stage_for_resp = from_stage.clone();
 
     let mut variables = if execution.variables.is_object() {
@@ -284,17 +317,6 @@ pub async fn retry_stage_execution(
         )
         .await
         .map_err(|e| ExecutionAppError::Internal(format!("重试启动失败: {e}")))?;
-
-    let stage_names: Vec<String> = workflow
-        .definition
-        .get("stages")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|s| s.get("name").and_then(|n| n.as_str()).map(String::from))
-                .collect()
-        })
-        .unwrap_or_default();
 
     if let Err(e) = state.execution_service.seed_retry_lineage(
         &exec_id,
@@ -653,6 +675,8 @@ pub struct ExecutionSummary {
     pub trigger_source: Option<String>,
     #[serde(default)]
     pub approval_events: Vec<ApprovalEvent>,
+    #[serde(default)]
+    pub resumed_from: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -712,6 +736,8 @@ pub struct RollbackResponse {
 pub struct GitInfoResponse {
     pub branch_info: crate::services::git_watcher::BranchInfo,
     pub commits: Vec<crate::services::git_watcher::CommitInfo>,
+    /// 排除工具噪音后是否有真实文件改动（false = 完成但零产出）
+    pub has_meaningful_changes: bool,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -730,20 +756,26 @@ pub async fn get_git_info(
         return Ok(Json(GitInfoResponse {
             branch_info,
             commits: vec![],
+            has_meaningful_changes: true,
         }));
     }
 
-    let current = branch_info.current_branch.as_deref().unwrap_or("main");
+    let base = branch_info.initial_branch.as_str();
     let exec_branch = &branch_info.exec_branch;
 
     let commits = state
         .git_service
-        .list_commits(current, exec_branch)
+        .list_commits(base, exec_branch)
         .unwrap_or_default();
+
+    let has_meaningful_changes = state
+        .git_service
+        .has_meaningful_changes(base, exec_branch);
 
     Ok(Json(GitInfoResponse {
         branch_info,
         commits,
+        has_meaningful_changes,
     }))
 }
 
@@ -805,12 +837,12 @@ pub async fn get_pr_description(
 ) -> Result<Json<PrDescriptionResponse>, ExecutionAppError> {
     let branch_info = state.git_service.get_branch_info(&id);
 
-    let current = branch_info.current_branch.as_deref().unwrap_or("main");
+    let base = branch_info.initial_branch.as_str();
     let exec_branch = &branch_info.exec_branch;
 
     let description = state
         .git_service
-        .generate_pr_description(current, exec_branch)
+        .generate_pr_description(base, exec_branch)
         .map_err(|e| ExecutionAppError::Internal(e))?;
 
     Ok(Json(PrDescriptionResponse { description }))
