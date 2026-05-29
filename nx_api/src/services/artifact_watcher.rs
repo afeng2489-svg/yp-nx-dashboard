@@ -17,6 +17,8 @@ pub struct ArtifactStageWatcher {
     opts: SnapshotOptions,
     /// 引擎内部 UUID → API exec_id 映射（每次执行注册一条）
     id_map: Mutex<HashMap<String, String>>,
+    /// 每次 Run 绑定的工作区（优先于全局 current_workspace）
+    exec_workdirs: Mutex<HashMap<String, String>>,
 }
 
 impl ArtifactStageWatcher {
@@ -30,7 +32,18 @@ impl ArtifactStageWatcher {
             pending: Mutex::new(HashMap::new()),
             opts: SnapshotOptions::default(),
             id_map: Mutex::new(HashMap::new()),
+            exec_workdirs: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// 绑定 Run 级工作区路径（产物 diff 以此为准）
+    pub fn register_workdir(&self, api_id: &str, path: &str) {
+        if path.trim().is_empty() {
+            return;
+        }
+        self.exec_workdirs
+            .lock()
+            .insert(api_id.to_string(), path.to_string());
     }
 
     /// 注册引擎内部 UUID → API exec_id 映射，并迁移已存在的 pending 条目
@@ -60,14 +73,18 @@ impl ArtifactStageWatcher {
             .unwrap_or_else(|| execution_id.to_string())
     }
 
-    fn current_workdir(&self) -> Option<PathBuf> {
+    fn workdir_for(&self, api_id: &str) -> Option<PathBuf> {
+        if let Some(p) = self.exec_workdirs.lock().get(api_id) {
+            return Some(PathBuf::from(p));
+        }
         self.workspace_path.read().clone().map(PathBuf::from)
     }
 }
 
 impl nexus_workflow::watcher::StageWatcher for ArtifactStageWatcher {
     fn before_stage(&self, execution_id: &str, stage_name: &str) {
-        let Some(workdir) = self.current_workdir() else {
+        let api_id = self.resolve_id(execution_id);
+        let Some(workdir) = self.workdir_for(&api_id) else {
             tracing::warn!(
                 "[ArtifactWatcher] before_stage: 无 workspace, 跳过 {}/{}",
                 execution_id,
@@ -76,7 +93,6 @@ impl nexus_workflow::watcher::StageWatcher for ArtifactStageWatcher {
             return;
         };
         let snap = snapshot_with_options(&workdir, &self.opts);
-        let api_id = self.resolve_id(execution_id);
         tracing::info!(
             "[ArtifactWatcher] before_stage: engine_id={} -> api_id={} stage={} workdir={:?}",
             execution_id,
@@ -89,10 +105,10 @@ impl nexus_workflow::watcher::StageWatcher for ArtifactStageWatcher {
     }
 
     fn after_stage(&self, execution_id: &str, stage_name: &str) {
-        let Some(workdir) = self.current_workdir() else {
+        let api_id = self.resolve_id(execution_id);
+        let Some(workdir) = self.workdir_for(&api_id) else {
             return;
         };
-        let api_id = self.resolve_id(execution_id);
         let key = (api_id.clone(), stage_name.to_string());
         let before = self.pending.lock().remove(&key);
         let Some(before) = before else {

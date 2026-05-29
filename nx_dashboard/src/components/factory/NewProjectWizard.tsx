@@ -10,7 +10,7 @@ import {
   type GreenfieldStackId,
   stackHintForPreset,
 } from '@/data/greenfieldStacks';
-import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useWorkspaceStore, syncWorkspacePathToApi } from '@/stores/workspaceStore';
 import { runFactoryQuickPrompt } from '@/services/factoryRun';
 import { cn } from '@/lib/utils';
 
@@ -79,8 +79,13 @@ export function NewProjectWizard({ open, onClose, onStarted }: NewProjectWizardP
   const handleLaunch = async () => {
     const name = projectName.trim();
     const desc = description.trim();
+    const parent = parentPath.trim();
     if (!name || !desc) {
       setError('请填写项目名和描述');
+      return;
+    }
+    if (!parent) {
+      setError('请选择或填写项目存放位置');
       return;
     }
 
@@ -88,17 +93,21 @@ export function NewProjectWizard({ open, onClose, onStarted }: NewProjectWizardP
     setError(null);
 
     try {
-      let rootPath = parentPath.trim();
-      if (rootPath) {
-        const fullPath = await join(rootPath, name);
-        await mkdir(fullPath, { recursive: true });
-        rootPath = fullPath;
+      let rootPath: string;
+      if (isTauri()) {
+        rootPath = await join(parent, name);
+        await mkdir(rootPath, { recursive: true });
+      } else {
+        rootPath = `${parent.replace(/\/$/, '')}/${name}`;
       }
 
-      if (rootPath) {
-        const ws = await createWorkspace(name, desc, rootPath);
-        if (ws) selectWorkspace(ws);
+      const ws = await createWorkspace(name, desc, rootPath);
+      if (!ws) {
+        setError('创建工作区失败');
+        return;
       }
+      selectWorkspace(ws);
+      await syncWorkspacePathToApi(rootPath);
 
       const prompt = [
         `项目名：${name}`,
@@ -242,7 +251,7 @@ export function NewProjectWizard({ open, onClose, onStarted }: NewProjectWizardP
             <Button
               type="button"
               size="sm"
-              disabled={step === 1 && !projectName.trim()}
+              disabled={step === 1 && (!projectName.trim() || !parentPath.trim())}
               onClick={() => setStep((s) => (s + 1) as Step)}
             >
               下一步
@@ -251,7 +260,7 @@ export function NewProjectWizard({ open, onClose, onStarted }: NewProjectWizardP
             <Button
               type="button"
               size="sm"
-              disabled={loading || !description.trim()}
+              disabled={loading || !description.trim() || !parentPath.trim()}
               onClick={() => void handleLaunch()}
               className="gap-2"
             >

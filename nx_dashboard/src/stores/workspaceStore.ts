@@ -162,6 +162,18 @@ async function fetchWithTimeout(
   }
 }
 
+/** 将工作区路径同步到 nx_api（产物追踪 / Claude CLI 依赖此路径） */
+export async function syncWorkspacePathToApi(path: string | null): Promise<void> {
+  const response = await fetchWithTimeout(`${API_BASE}/api/v1/ai/current-workspace`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: path || null }),
+  });
+  if (!response.ok) {
+    throw new ApiError(`Failed to sync workspace path: ${response.status}`, response.status);
+  }
+}
+
 export const useWorkspaceStore = create<WorkspaceStore>()(
   persist(
     (set, get) => ({

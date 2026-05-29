@@ -23,6 +23,7 @@ export function TaskTimeline({ execution, userIntent }: TaskTimelineProps) {
     }
 
     for (const sr of execution.stage_results ?? []) {
+      if (sr.stage_name.startsWith('agent:')) continue;
       items.push({
         id: sr.stage_name,
         label: sr.stage_name,

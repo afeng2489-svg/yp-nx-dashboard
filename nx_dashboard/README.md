@@ -103,49 +103,87 @@ yp-nx-dashboard/
 
 ### 环境要求
 
-- Node.js >= 18
-- Rust >= 1.70
-- npm 或 yarn
+| 工具       | 最低版本 | 检查命令           |
+| ---------- | -------- | ------------------ |
+| Node.js    | >= 18    | `node -v`           |
+| Rust       | >= 1.70  | `rustc --version`   |
+| npm        | >= 9     | `npm -v`            |
 
-### 安装依赖
+> macOS 用户需额外安装 Xcode Command Line Tools：`xcode-select --install`
+
+### 第一步：克隆仓库
 
 ```bash
-# 安装前端依赖
+git clone <repo-url>
+cd yp-nx-dashboard
+```
+
+### 第二步：安装依赖
+
+```bash
+# 进入前端目录
 cd nx_dashboard
+
+# 安装前端依赖
 npm install
 
-# 后端依赖会通过 Cargo 自动安装
+# Tauri CLI 会通过 package.json 的 devDependencies 自动安装
+# Rust 后端依赖会在首次构建时通过 Cargo 自动拉取
 ```
 
-### 开发模式
+### 第三步：配置环境变量（可选）
+
+项目已内置 `.env.development` 用于开发模式，默认配置可直接使用。如需自定义：
 
 ```bash
-# 启动 Tauri 开发模式（同时启动前端和后端）
-npm run tauri:dev
+# 复制并编辑开发环境配置
+cp .env.development .env.development.local
 
-# 仅启动前端开发服务器
+# 按需编辑以下变量：
+#   VITE_API_BASE_URL  - 后端 API 地址（默认 localhost:8080）
+#   VITE_WS_BASE_URL   - WebSocket 地址（默认 ws://localhost:8080）
+```
+
+后端可通过环境变量调整数据库路径和端口：
+
+```bash
+export NEXUS_DB_PATH=~/.teamflow/nexus.db   # 数据库文件路径
+export NEXUS_API_PORT=8080                   # API 服务端口
+export RUST_LOG=info                         # 日志级别
+```
+
+### 第四步：启动开发模式
+
+```bash
+# Tauri 开发模式——同时启动前端 dev server 和后端 Rust 服务
+npm run tauri:dev
+```
+
+开发模式下：
+- 前端运行在 Vite dev server（热更新）
+- 后端 Rust 服务通过 Tauri sidecar 启动
+- 修改后端代码后需重新编译：`npm run build:backend:dev`
+
+### 第五步：验证安装
+
+启动后应能看到 TeamFlow 桌面窗口。如果遇到问题，检查：
+
+- Node.js 和 Rust 版本是否满足要求
+- 前端依赖是否完整安装（`npm install` 无报错）
+- macOS 用户是否安装了 Xcode Command Line Tools
+
+### 其他常用命令
+
+```bash
+# 仅启动前端开发服务器（不启动 Tauri 窗口）
 npm run dev
 
-# 仅编译后端（开发模式）
+# 仅编译后端（开发模式，含调试信息）
 npm run build:backend:dev
-```
 
-### 构建
-
-```bash
-# 构建完整应用（前端 + 后端）
+# 构建生产版本
 npm run tauri:build
 
-# 仅构建前端
-npm run build
-
-# 仅构建后端（发布模式）
-npm run build:backend
-```
-
-### 其他命令
-
-```bash
 # 代码格式化
 npm run format
 

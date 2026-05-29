@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useIsNarrow } from '@/hooks/useResponsive';
 import { useFactoryDrawerStore } from '@/stores/factoryDrawerStore';
-import { api, type ArtifactRecord, type ArtifactSummary } from '@/api/client';
+import type { ArtifactRecord, ArtifactSummary } from '@/api/client';
 import { useContextPanelStore } from '@/stores/contextPanelStore';
 import { useExecutionStore } from '@/stores/executionStore';
 import { useWorkflowStore } from '@/stores/workflowStore';
@@ -20,6 +20,10 @@ import { TaskTimeline } from '@/components/factory/TaskTimeline';
 import { ExecutionLaneBadge } from '@/components/factory/ExecutionLaneBadge';
 import { isP5TaskTimelineEnabled } from '@/data/factoryFeatureFlags';
 import { pipelineForWorkflow } from '@/data/workflowPipelines';
+import {
+  loadMergedArtifacts,
+  workflowStageNamesFromResults,
+} from '@/utils/executionLineage';
 import { cn } from '@/lib/utils';
 
 function changeIcon(type: string) {
@@ -91,25 +95,11 @@ export function ContextPanel() {
         const liveExec =
           useExecutionStore.getState().executions.find((e) => e.id === selectedExecutionId) ??
           execution;
-        const lineageIds = [
-          ...(liveExec?.resumed_from ? [liveExec.resumed_from] : []),
-          selectedExecutionId,
-        ];
-        const summaries = await Promise.all(
-          lineageIds.map((id) => api.getArtifactsSummary(id)),
-        );
-        const lists = await Promise.all(lineageIds.map((id) => api.listArtifacts(id)));
-        const mergedSummary = summaries.flatMap((s) => (Array.isArray(s) ? s : []));
-        const fileMap = new Map<string, (typeof lists)[0][0]>();
-        for (const list of lists) {
-          if (!Array.isArray(list)) continue;
-          for (const f of list) {
-            fileMap.set(f.relative_path, f);
-          }
-        }
+        if (!liveExec) return;
+        const { summary: mergedSummary, files: mergedFiles } = await loadMergedArtifacts(liveExec);
         if (cancelled) return;
         setSummary(mergedSummary);
-        setFiles([...fileMap.values()].slice(0, 12));
+        setFiles(mergedFiles.slice(0, 12));
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : '加载产物失败');
@@ -145,7 +135,7 @@ export function ContextPanel() {
   const wf = workflows.find((w) => w.id === execution.workflow_id);
   const wfName = wf?.name ?? execution.workflow_id;
   const pipeline = pipelineForWorkflow(wfName);
-  const completedNames = new Set((execution.stage_results ?? []).map((s) => s.stage_name));
+  const completedNames = workflowStageNamesFromResults(execution);
   const stageCount = pipeline.filter((s) => completedNames.has(s.name)).length;
   const totalStages = pipeline.length;
   const stageProgressPct =

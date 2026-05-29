@@ -206,6 +206,11 @@ impl ExecutionService {
     pub fn register_engine_id(&self, engine_id: &str, api_id: &str) {
         if let Some(ref watcher) = self.artifact_watcher {
             watcher.register_id(engine_id, api_id);
+            if let Some(exec) = self.get_execution(api_id) {
+                if let Some(ref path) = exec.workspace_path {
+                    watcher.register_workdir(api_id, path);
+                }
+            }
         }
     }
 
@@ -383,6 +388,12 @@ impl ExecutionService {
             }
         }
 
+        if let Some(ref path) = exec_clone.workspace_path {
+            if let Some(ref watcher) = self.artifact_watcher {
+                watcher.register_workdir(&exec_clone.id, path);
+            }
+        }
+
         // 广播事件
         self.broadcast(ExecutionEvent::Started {
             execution_id: exec_clone.id.clone(),
@@ -415,7 +426,17 @@ impl ExecutionService {
         let inherited: Vec<StageResult> = if from_idx == 0 {
             Vec::new()
         } else {
-            parent.stage_results.clone()
+            stage_order
+                .iter()
+                .take(from_idx)
+                .filter_map(|name| {
+                    parent
+                        .stage_results
+                        .iter()
+                        .find(|sr| sr.stage_name == *name)
+                        .cloned()
+                })
+                .collect()
         };
 
         let mut child = self
@@ -520,9 +541,14 @@ impl ExecutionService {
                 existing.running_agents = exec.running_agents.clone();
                 existing.pending_pause = exec.pending_pause.clone();
                 existing.approval_events = exec.approval_events.clone();
+                existing.resumed_from = exec.resumed_from.clone();
             } else {
                 all.push(exec.clone());
             }
+        }
+        drop(executions);
+        for e in all.iter_mut() {
+            Self::hydrate_resumed_from(e);
         }
         // 按 started_at 降序排列
         all.sort_by_key(|b| std::cmp::Reverse(b.started_at));

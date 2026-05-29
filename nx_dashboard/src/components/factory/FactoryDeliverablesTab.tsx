@@ -3,11 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ExternalLink, FileDiff, FileCode, GitBranch, Loader2, Copy } from 'lucide-react';
 import { isP5CursorSymbiosisEnabled } from '@/data/factoryFeatureFlags';
 import { showSuccess } from '@/lib/toast';
-import { api, type ArtifactRecord } from '@/api/client';
+import type { ArtifactRecord } from '@/api/client';
+import { api } from '@/api/client';
 import { useContextPanelStore } from '@/stores/contextPanelStore';
 import { useExecutionStore } from '@/stores/executionStore';
 import { useTeamStore } from '@/stores/teamStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { loadMergedArtifacts } from '@/utils/executionLineage';
 import { cn } from '@/lib/utils';
 
 interface DeliverableRow extends ArtifactRecord {
@@ -36,9 +38,11 @@ export function FactoryDeliverablesTab() {
 
   useEffect(() => {
     const candidates = executions
-      .filter((e) => e.status === 'completed' || e.status === 'running')
+      .filter((e) =>
+        ['completed', 'running', 'failed', 'cancelled'].includes(e.status),
+      )
       .filter((e) => !currentTeam?.id || e.team_id === currentTeam.id)
-      .slice(0, 10);
+      .slice(0, 12);
 
     if (candidates.length === 0) {
       setItems([]);
@@ -52,8 +56,8 @@ export function FactoryDeliverablesTab() {
     Promise.all(
       candidates.map(async (exec) => {
         try {
-          const files = await api.listArtifacts(exec.id);
-          return (Array.isArray(files) ? files : []).slice(0, 8).map((f) => ({
+          const { files } = await loadMergedArtifacts(exec);
+          return files.slice(0, 12).map((f) => ({
             ...f,
             executionId: exec.id,
             executionStatus: exec.status,
@@ -112,7 +116,7 @@ export function FactoryDeliverablesTab() {
       <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
         <FileDiff className="w-12 h-12 mb-3 opacity-40" />
         <p className="text-sm">暂无交付物</p>
-        <p className="text-xs mt-1">Run 完成后，变更文件会出现在这里</p>
+        <p className="text-xs mt-1">Run 完成后，变更文件会出现在这里（含重试继承）</p>
       </div>
     );
   }
@@ -121,7 +125,7 @@ export function FactoryDeliverablesTab() {
     <div className="rounded-xl border border-border overflow-hidden flex flex-col lg:flex-row min-h-[360px]">
       <ul className="lg:w-2/5 border-b lg:border-b-0 lg:border-r border-border divide-y divide-border overflow-y-auto max-h-[280px] lg:max-h-none">
         {items.map((d) => (
-          <li key={d.id}>
+          <li key={`${d.executionId}-${d.relative_path}`}>
             <button
               type="button"
               onClick={() => {
@@ -130,7 +134,10 @@ export function FactoryDeliverablesTab() {
               }}
               className={cn(
                 'w-full text-left px-4 py-3 transition-colors',
-                selected?.id === d.id ? 'bg-primary/5' : 'bg-card/30 hover:bg-accent/30',
+                selected?.executionId === d.executionId &&
+                  selected?.relative_path === d.relative_path
+                  ? 'bg-primary/5'
+                  : 'bg-card/30 hover:bg-accent/30',
               )}
             >
               <div className="flex items-center gap-2">
@@ -165,12 +172,12 @@ export function FactoryDeliverablesTab() {
                   className="inline-flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent"
                   data-testid="open-in-cursor"
                   onClick={() => {
-                    void navigator.clipboard.writeText(`cursor://${selected.relative_path}`);
-                    showSuccess('已复制 Cursor 打开链接');
+                    void navigator.clipboard.writeText(selected.relative_path);
+                    showSuccess('已复制文件路径');
                   }}
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  在 Cursor 中打开
+                  复制路径
                 </button>
                 <button
                   type="button"
@@ -200,11 +207,11 @@ export function FactoryDeliverablesTab() {
               className="inline-flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent"
               onClick={() => {
                 selectExecution(selected.executionId);
-                navigate('/ops?tab=runs');
+                navigate('/factory?tab=runs');
               }}
             >
               <GitBranch className="w-3.5 h-3.5" />
-              运营 Git
+              查看 Run
             </button>
             <Link
               to="/browser"

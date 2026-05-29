@@ -116,9 +116,14 @@ export function nextStepsForRun(
     if (
       execution.error &&
       (/summary|摘要/i.test(execution.error) ||
+        /Agent\s+\S+\s+failed/i.test(execution.error) ||
         execution.error.includes('智能体 summary'))
     ) {
       stage = '交付摘要';
+    }
+
+    if (stage?.startsWith('agent:')) {
+      stage = stage === 'agent:summary' ? '交付摘要' : stage.replace(/^agent:/, '');
     }
 
     if (qgFail) {

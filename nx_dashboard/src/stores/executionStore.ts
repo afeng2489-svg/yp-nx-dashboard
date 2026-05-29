@@ -228,6 +228,7 @@ function mergeExecutionList(incoming: Execution[], existing: Execution[]): Execu
         prevStages > nextStages ? prev.stage_results : (item.stage_results ?? prev.stage_results),
       current_stage: prev.current_stage ?? item.current_stage,
       pending_pause: prev.pending_pause ?? item.pending_pause,
+      resumed_from: prev.resumed_from ?? item.resumed_from,
       variables:
         prev.variables && Object.keys(prev.variables).length > 0
           ? prev.variables

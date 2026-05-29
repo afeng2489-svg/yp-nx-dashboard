@@ -97,17 +97,10 @@ impl WorkflowEventBridge {
             }),
             WorkflowEvent::AgentCompleted {
                 agent_id, output, ..
-            } => {
-                self.execution_service.add_stage_output(
-                    &id,
-                    format!("agent:{}", agent_id),
-                    serde_json::json!({ "agent_id": agent_id, "content": output }),
-                );
-                Some(ExecutionEvent::Output {
-                    execution_id: id,
-                    line: format!("[Agent {}]\n{}", agent_id, output),
-                })
-            }
+            } => Some(ExecutionEvent::Output {
+                execution_id: id,
+                line: format!("[Agent {}]\n{}", agent_id, output),
+            }),
             WorkflowEvent::AgentFailed {
                 agent_id, error, ..
             } => Some(ExecutionEvent::Failed {
