@@ -1,0 +1,48 @@
+/* Theme: brutalist-mono —— 粗野等宽 / 硬边
+   vibe: 设计工作室、作品集、独立产品、潮流（高对比、硬阴影、零圆角） */
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Archivo:wght@400;500;600;700;800;900&display=swap');
+
+:root[data-theme='brutalist-mono'] {
+  --font-display: 'Space Mono', 'PingFang SC', monospace;
+  --font-sans: 'Archivo', 'PingFang SC', system-ui, sans-serif;
+
+  --bg: 0 0% 100%;
+  --surface: 0 0% 100%;
+  --elevated: 48 100% 97%;
+  --border: 0 0% 8%;
+  --ink: 0 0% 6%;
+  --muted: 0 0% 32%;
+  --primary: 0 0% 6%;
+  --primary-fg: 0 0% 100%;
+  --accent: 56 100% 50%;
+  --accent-fg: 0 0% 6%;
+
+  --radius-sm: 0rem;
+  --radius: 0rem;
+  --radius-lg: 0rem;
+  --radius-xl: 0rem;
+  --radius-2xl: 0rem;
+
+  --shadow-soft: 3px 3px 0 hsl(0 0% 6%);
+  --shadow-lift: 6px 6px 0 hsl(0 0% 6%);
+  --shadow-glow: 6px 6px 0 hsl(var(--accent));
+
+  --content-width: 78rem;
+}
+
+:root[data-theme='brutalist-mono'].dark {
+  --bg: 0 0% 7%;
+  --surface: 0 0% 10%;
+  --elevated: 0 0% 13%;
+  --border: 0 0% 96%;
+  --ink: 0 0% 96%;
+  --muted: 0 0% 66%;
+  --primary: 56 100% 50%;
+  --primary-fg: 0 0% 6%;
+  --accent: 56 100% 50%;
+  --accent-fg: 0 0% 6%;
+
+  --shadow-soft: 3px 3px 0 hsl(0 0% 96%);
+  --shadow-lift: 6px 6px 0 hsl(0 0% 96%);
+  --shadow-glow: 6px 6px 0 hsl(var(--accent));
+}

@@ -1,0 +1,48 @@
+/* Theme: corporate-navy —— 专业商务 / 金融 SaaS
+   vibe: 企业官网、金融、法律、B2B SaaS（浅色为主，沉稳可信） */
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root[data-theme='corporate-navy'] {
+  --font-display: 'Newsreader', 'Songti SC', Georgia, serif;
+  --font-sans: 'Plus Jakarta Sans', 'PingFang SC', system-ui, sans-serif;
+
+  --bg: 210 32% 98%;
+  --surface: 0 0% 100%;
+  --elevated: 210 32% 99%;
+  --border: 214 22% 88%;
+  --ink: 222 47% 11%;
+  --muted: 215 16% 42%;
+  --primary: 222 68% 30%;
+  --primary-fg: 0 0% 100%;
+  --accent: 199 89% 46%;
+  --accent-fg: 0 0% 100%;
+
+  --radius-sm: 0.25rem;
+  --radius: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+
+  --shadow-soft: 0 1px 2px hsl(222 47% 11% / 0.05), 0 4px 16px hsl(222 47% 11% / 0.06);
+  --shadow-lift: 0 8px 30px hsl(222 47% 11% / 0.1);
+  --shadow-glow: 0 0 0 1px hsl(var(--accent) / 0.3), 0 12px 40px hsl(var(--accent) / 0.15);
+
+  --content-width: 76rem;
+}
+
+:root[data-theme='corporate-navy'].dark {
+  --bg: 222 42% 7%;
+  --surface: 222 36% 10%;
+  --elevated: 222 32% 13%;
+  --border: 220 24% 22%;
+  --ink: 210 32% 94%;
+  --muted: 213 18% 66%;
+  --primary: 213 90% 62%;
+  --primary-fg: 222 47% 8%;
+  --accent: 199 89% 56%;
+  --accent-fg: 222 47% 8%;
+
+  --shadow-soft: 0 1px 2px hsl(0 0% 0% / 0.35), 0 4px 16px hsl(0 0% 0% / 0.35);
+  --shadow-lift: 0 8px 30px hsl(0 0% 0% / 0.5);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.4), 0 12px 40px hsl(var(--primary) / 0.22);
+}

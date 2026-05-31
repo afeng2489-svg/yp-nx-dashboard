@@ -1,0 +1,48 @@
+/* Theme: luxury-serif —— 奢华高衬线 / 时尚
+   vibe: 奢侈品、时尚、腕表、高端餐饮、艺术（黑金、高对比、克制） */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Jost:wght@300;400;500;600&display=swap');
+
+:root[data-theme='luxury-serif'] {
+  --font-display: 'Cormorant Garamond', 'Songti SC', Georgia, serif;
+  --font-sans: 'Jost', 'PingFang SC', system-ui, sans-serif;
+
+  --bg: 40 38% 96%;
+  --surface: 40 30% 99%;
+  --elevated: 40 34% 99%;
+  --border: 40 16% 84%;
+  --ink: 30 10% 10%;
+  --muted: 35 8% 38%;
+  --primary: 38 64% 46%;
+  --primary-fg: 40 40% 98%;
+  --accent: 30 12% 18%;
+  --accent-fg: 40 40% 96%;
+
+  --radius-sm: 0.125rem;
+  --radius: 0.25rem;
+  --radius-lg: 0.375rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.75rem;
+
+  --shadow-soft: 0 1px 2px hsl(30 10% 10% / 0.05), 0 4px 16px hsl(30 10% 10% / 0.06);
+  --shadow-lift: 0 10px 36px hsl(30 10% 10% / 0.12);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.3), 0 14px 44px hsl(var(--primary) / 0.16);
+
+  --content-width: 74rem;
+}
+
+:root[data-theme='luxury-serif'].dark {
+  --bg: 40 12% 7%;
+  --surface: 40 10% 10%;
+  --elevated: 40 9% 13%;
+  --border: 40 8% 20%;
+  --ink: 40 30% 92%;
+  --muted: 40 10% 62%;
+  --primary: 40 72% 60%;
+  --primary-fg: 40 12% 8%;
+  --accent: 40 40% 82%;
+  --accent-fg: 40 12% 8%;
+
+  --shadow-soft: 0 1px 2px hsl(0 0% 0% / 0.4), 0 4px 16px hsl(0 0% 0% / 0.4);
+  --shadow-lift: 0 10px 36px hsl(0 0% 0% / 0.55);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.35), 0 14px 44px hsl(var(--primary) / 0.25);
+}

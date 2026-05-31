@@ -1,0 +1,191 @@
+name: landing-page
+version: "1.0"
+description: "落地页生成 — 基于 web-starter 底座：需求澄清+选主题 → 脚手架 → 内容组装 → build门 → 预览 → 审批 → 摘要"
+
+triggers:
+  - type: manual
+    inputs:
+      brand:
+        type: string
+        required: true
+        description: "品牌/产品名称"
+      description:
+        type: string
+        required: true
+        description: "一句话讲清这个产品是做什么的、卖点是什么"
+        examples:
+          - { label: "SaaS 效率工具", value: "一款帮团队自动化日常工作流的 SaaS 工具，卖点是开箱即用、无需写代码、节省 80% 重复操作" }
+          - { label: "AI 写作助手", value: "面向内容创作者的 AI 写作助手，卖点是多场景模板、风格可定制、一键生成并润色" }
+          - { label: "开发者 API 服务", value: "提供稳定高性能的 API 服务，卖点是 99.99% 可用性、毫秒级响应、按量计费" }
+          - { label: "线下门店预约", value: "面向线下门店的在线预约与会员管理工具，卖点是减少空档、自动提醒、提升复购" }
+      theme:
+        type: string
+        required: false
+        description: "风格预设（留空=按描述自动选）"
+        options:
+          - { value: "",                    label: "自动选择（推荐）" }
+          - { value: "terracotta-editorial", label: "暖色编辑感 · 内容/工作室（暗）" }
+          - { value: "cyber-noir",           label: "赛博暗黑 · 科技/开发者/AI（暗）" }
+          - { value: "corporate-navy",       label: "专业商务 · 企业/金融（浅）" }
+          - { value: "pastel-playful",       label: "活泼糖果 · 消费/教育（浅）" }
+          - { value: "luxury-serif",         label: "奢华高衬线 · 高端/时尚（暗）" }
+          - { value: "brutalist-mono",       label: "粗野等宽 · 设计/作品集（浅）" }
+          - { value: "botanical-calm",       label: "自然草本 · 健康/可持续（浅）" }
+          - { value: "midnight-aurora",      label: "午夜极光 · AI/创意工具（暗）" }
+      sections:
+        type: string
+        required: false
+        description: "想要的板块（可选）"
+        examples:
+          - { label: "标准全套", value: "Hero,功能,数据,定价,CTA,Footer" }
+          - { label: "极简", value: "Hero,功能,CTA,Footer" }
+          - { label: "带定价", value: "Hero,功能,定价,CTA,Footer" }
+      task:
+        type: string
+        required: false
+        description: "附加要求（可选）"
+        examples:
+          - { label: "深色科技感", value: "整体偏深色科技感，强调对比与霓虹点缀" }
+          - { label: "突出转化", value: "首屏直接放主 CTA，弱化次要信息，引导注册/试用" }
+          - { label: "中英双语", value: "主要文案中文，关键术语保留英文" }
+
+variables:
+  brand: ""
+  description: ""
+  theme: "auto"
+  sections: ""
+  task: ""
+  target: "."
+  # 注意：不要在此声明 starter_path。后端会在运行时自动注入它的绝对路径
+  # （execution_service::resolve_starter_path → config/starters/web-starter）。
+  # 若此处声明了任何值（包括空串），将阻止自动注入。需自定义时请在运行工作流的输入里传入。
+
+agents:
+  - id: brief
+    role: 品牌策略 / 需求与风格定调
+    model: claude-sonnet-4-6
+    prompt: |
+      你是品牌策略师。要为「{{brand}}」做一个落地页。
+      产品描述：{{description}}
+      指定风格：{{theme}}（若为 auto 则你来选）
+      期望板块：{{sections}}
+      附加：{{task}}
+
+      ## 可选主题（必须从中选一个，禁止自创）
+      - terracotta-editorial：暖色编辑感 / 博客·内容·精品工作室（暗）
+      - cyber-noir：赛博暗黑 / 科技·开发者·AI·游戏（暗）
+      - corporate-navy：专业商务 / 金融·B2B·SaaS·企业官网（浅）
+      - pastel-playful：活泼糖果 / 消费·教育·社区·App（浅）
+      - luxury-serif：奢华高衬线 / 奢侈品·时尚·高端餐饮（暗）
+      - brutalist-mono：粗野等宽 / 设计工作室·作品集·潮流（浅）
+      - botanical-calm：自然草本 / 健康·护肤·有机·可持续（浅）
+      - midnight-aurora：午夜极光 / AI·SaaS·创意工具·音乐（暗）
+
+      输出一份 JSON 简报（不要写任何其它代码）：
+      ```json
+      {
+        "theme_id": "从上表选定的 id（若用户已指定 theme 且非 auto，直接用它）",
+        "brand": "品牌名",
+        "tagline_main": "主标题前半句",
+        "tagline_highlight": "主标题高亮后半句",
+        "subtitle": "副标题一句话",
+        "primary_cta": "主按钮文案",
+        "secondary_cta": "次按钮文案",
+        "features": [{"title":"…","desc":"…"}],
+        "stats": [{"value":"…","label":"…"}],
+        "plans": [{"name":"…","price":"…","period":"/月","desc":"…","features":["…"],"featured":false,"cta":"…"}],
+        "footer_tagline": "页脚一句话",
+        "nav_links": ["功能","定价","文档"]
+      }
+      ```
+      要求：文案要具体、贴合该产品，不要占位词；features 4–6 条，plans 通常 3 档。
+
+  - id: scaffolder
+    role: 脚手架工程师
+    model: claude-sonnet-4-6
+    prompt: |
+      简报：{{brief_需求澄清_output}}
+
+      用 Bash 在当前目录 {{target}} 搭好底座：
+      1. 复制底座：`cp -R {{starter_path}}/. .`（包含 src、config、package.json 等，排除已存在的 .git）
+      2. 删除底座自带的 node_modules（若有）与 dist，避免污染
+      3. 读取简报里的 theme_id，写进 index.html 的 <html data-theme="...">，并按该主题默认明暗设置/去掉 class="dark"
+         - 暗色主题(terracotta-editorial/cyber-noir/luxury-serif/midnight-aurora) 保留 class="dark"
+         - 浅色主题 去掉 class="dark"
+      4. 瘦身 src/themes/index.css：只保留选中主题那一行 @import，删除其余 7 行（成品站不需要多余字体）
+      5. `npm install`
+      不要改组件结构，只做上面的接线。完成后用 Bash 确认 `ls src/components/blocks` 正常。
+
+  - id: builder
+    role: 落地页内容工程师
+    model: claude-sonnet-4-6
+    prompt: |
+      简报：{{brief_需求澄清_output}}
+
+      把底座变成「{{brand}}」真实落地页，只改内容层与页面装配，不要重写组件样式：
+      1. 用 Write 重写 src/data/landing.ts：features/stats/plans 全部换成简报里的真实内容（图标从 lucide-react 里挑语义贴切的）
+      2. 改 src/pages/LandingDemo.tsx：把 Navbar 的 brand/links/cta、Hero 的 eyebrow/title/highlight/subtitle/cta、Footer 的 brand/tagline/columns 全换成简报内容；
+         删除 Navbar 的 showThemeControls（成品站不要主题切换器）
+      3. 改 src/App.tsx：直接渲染 <LandingDemo />，删掉 ?p=nav 演示分支与 NavSiteDemo 引用
+      4. 可删除 src/pages/NavSiteDemo.tsx、导航站专用 blocks(SearchHeader/CategoryGrid)、src/data/links.ts、未使用的 ThemeControls/registry（如不再引用）
+      保持 Reveal 动效、间距、圆角、阴影等底座质感不动——这些决定成品质量，务必保留。
+
+  - id: preview-launcher
+    role: 预览启动
+    model: claude-haiku-4-5
+    prompt: |
+      为当前项目启动预览：
+      1. 若无 node_modules 则 `npm install`
+      2. 调用 POST /api/v1/preview/start 启动预览
+      3. 轮询 GET /api/v1/preview/status?session_id=<上一步返回的 session_id> 直到 status=running
+      4. 返回 { session_id, preview_port, preview_url }
+
+  - id: summary
+    role: 交付摘要员
+    model: claude-sonnet-4-5
+    executor: api
+    prompt: |
+      品牌：{{brand}} · {{description}}
+      装配输出：{{builder_内容组装_output}}
+
+      用中文写交付摘要：用了哪个主题、包含哪些板块、如何本地启动。
+      末尾 JSON：
+      ```json
+      {"summary":"…","theme":"…","dev_command":"npm run dev","files_changed":["…"]}
+      ```
+
+stages:
+  - name: 需求澄清
+    agents: [brief]
+
+  - name: 脚手架
+    agents: [scaffolder]
+    quality_gate:
+      checks:
+        - cmd: "sh -c 'test -d src/components/blocks && test -f src/themes/index.css && echo scaffold_ok'"
+          timeout: 240
+      on_fail: retry
+      max_retries: 2
+
+  - name: 内容组装
+    agents: [builder]
+    quality_gate:
+      checks:
+        - cmd: "npm run build"
+          timeout: 240
+      on_fail: retry
+      max_retries: 2
+
+  - name: 预览
+    stage_type: agent
+    agents: [preview-launcher]
+
+  - name: 交付审批
+    stage_type: approval
+    question: "落地页已生成并通过构建。是否批准交付？驳回将返回「内容组装」继续打磨。"
+    output_var: approval_result
+    on_reject_goto: 内容组装
+
+  - name: 交付摘要
+    executor: api
+    agents: [summary]

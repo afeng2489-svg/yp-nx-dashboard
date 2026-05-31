@@ -181,6 +181,19 @@ pub async fn execute_workflow(
 
     let current_workspace = state.current_workspace_path.read().clone();
 
+    // 闸：必须先选定项目工作区，否则 Claude CLI 会继承 nx_api 的工作目录，
+    // 把生成内容写入应用自身目录（污染本仓库）。强制要求显式选择目标文件夹。
+    let workspace_ok = current_workspace
+        .as_deref()
+        .map(|p| !p.trim().is_empty())
+        .unwrap_or(false);
+    if !workspace_ok {
+        return Err(ApiErrorResponse::new(
+            StatusCode::BAD_REQUEST,
+            "未选择项目工作区：请先在界面选择目标项目文件夹后再运行工作流，以确保生成内容写入该文件夹而非应用自身目录。".to_string(),
+        ));
+    }
+
     let variables = payload.variables.unwrap_or(serde_json::json!({}));
     let execution_id = state
         .execution_service

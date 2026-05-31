@@ -1914,6 +1914,9 @@ pub async fn set_current_workspace(
     tracing::info!("当前工作区路径已设置为: {:?}", request.path);
     drop(current);
 
+    // 持久化，使 nx_api 重启后仍能恢复该工作区
+    crate::routes::persist_workspace(&state.db_path, request.path.as_deref());
+
     // 自动触发搜索索引重建
     if let Some(ref path) = request.path {
         let search_state = state.search_state.clone();

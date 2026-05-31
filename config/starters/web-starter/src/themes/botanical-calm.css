@@ -1,0 +1,48 @@
+/* Theme: botanical-calm —— 自然草本 / 沉静
+   vibe: 健康、护肤、有机食品、冥想、可持续品牌（大地色、柔和） */
+@import url('https://fonts.googleapis.com/css2?family=Bitter:ital,wght@0,400..700;1,400..600&family=Karla:wght@400;500;600;700&display=swap');
+
+:root[data-theme='botanical-calm'] {
+  --font-display: 'Bitter', 'Songti SC', Georgia, serif;
+  --font-sans: 'Karla', 'PingFang SC', system-ui, sans-serif;
+
+  --bg: 80 28% 96%;
+  --surface: 76 36% 99%;
+  --elevated: 80 30% 98%;
+  --border: 90 18% 84%;
+  --ink: 140 30% 13%;
+  --muted: 130 12% 38%;
+  --primary: 142 52% 30%;
+  --primary-fg: 80 40% 97%;
+  --accent: 28 68% 52%;
+  --accent-fg: 40 40% 98%;
+
+  --radius-sm: 0.5rem;
+  --radius: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+  --radius-2xl: 2.25rem;
+
+  --shadow-soft: 0 1px 2px hsl(140 30% 13% / 0.05), 0 4px 16px hsl(140 30% 13% / 0.07);
+  --shadow-lift: 0 10px 30px hsl(140 30% 13% / 0.12);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.25), 0 12px 40px hsl(var(--primary) / 0.16);
+
+  --content-width: 74rem;
+}
+
+:root[data-theme='botanical-calm'].dark {
+  --bg: 150 24% 8%;
+  --surface: 150 20% 11%;
+  --elevated: 150 18% 14%;
+  --border: 140 14% 22%;
+  --ink: 90 30% 92%;
+  --muted: 120 12% 64%;
+  --primary: 142 50% 50%;
+  --primary-fg: 150 24% 8%;
+  --accent: 30 72% 60%;
+  --accent-fg: 150 24% 8%;
+
+  --shadow-soft: 0 1px 2px hsl(0 0% 0% / 0.35), 0 4px 16px hsl(0 0% 0% / 0.35);
+  --shadow-lift: 0 10px 30px hsl(0 0% 0% / 0.5);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.35), 0 12px 40px hsl(var(--primary) / 0.22);
+}

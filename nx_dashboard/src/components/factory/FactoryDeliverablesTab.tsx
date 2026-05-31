@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ExternalLink, FileDiff, FileCode, GitBranch, Loader2, Copy } from 'lucide-react';
+import { ExternalLink, FileDiff, FileCode, GitBranch, Loader2, Copy, Play } from 'lucide-react';
 import { isP5CursorSymbiosisEnabled } from '@/data/factoryFeatureFlags';
 import { showSuccess } from '@/lib/toast';
 import type { ArtifactRecord } from '@/api/client';
@@ -9,6 +9,7 @@ import { useContextPanelStore } from '@/stores/contextPanelStore';
 import { useExecutionStore } from '@/stores/executionStore';
 import { useTeamStore } from '@/stores/teamStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { usePreviewLauncher } from '@/lib/usePreviewLauncher';
 import { loadMergedArtifacts } from '@/utils/executionLineage';
 import { cn } from '@/lib/utils';
 
@@ -30,6 +31,8 @@ export function FactoryDeliverablesTab() {
   const currentTeam = useTeamStore((s) => s.currentTeam);
   const selectExecution = useContextPanelStore((s) => s.selectExecution);
   const openFile = useWorkspaceStore((s) => s.openFile);
+  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
+  const { launching, launch } = usePreviewLauncher();
   const [items, setItems] = useState<DeliverableRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<DeliverableRow | null>(null);
@@ -122,8 +125,34 @@ export function FactoryDeliverablesTab() {
   }
 
   return (
-    <div className="rounded-xl border border-border overflow-hidden flex flex-col lg:flex-row min-h-[360px]">
-      <ul className="lg:w-2/5 border-b lg:border-b-0 lg:border-r border-border divide-y divide-border overflow-y-auto max-h-[280px] lg:max-h-none">
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground truncate">
+          {currentWorkspace?.root_path ? (
+            <>
+              工作区：<span className="font-mono">{currentWorkspace.root_path}</span>
+            </>
+          ) : (
+            '未选择项目工作区'
+          )}
+        </p>
+        <button
+          type="button"
+          disabled={launching || !currentWorkspace?.root_path}
+          onClick={() => launch(currentWorkspace?.root_path, currentWorkspace?.name || 'preview')}
+          className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+          title={
+            currentWorkspace?.root_path
+              ? '启动 dev server 预览当前工作区项目效果'
+              : '请先在左侧选择项目工作区'
+          }
+        >
+          {launching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+          {launching ? '启动预览中…' : '预览效果'}
+        </button>
+      </div>
+      <div className="rounded-xl border border-border overflow-hidden flex flex-col lg:flex-row min-h-[360px]">
+        <ul className="lg:w-2/5 border-b lg:border-b-0 lg:border-r border-border divide-y divide-border overflow-y-auto max-h-[280px] lg:max-h-none">
         {items.map((d) => (
           <li key={`${d.executionId}-${d.relative_path}`}>
             <button
@@ -234,6 +263,7 @@ export function FactoryDeliverablesTab() {
             </pre>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

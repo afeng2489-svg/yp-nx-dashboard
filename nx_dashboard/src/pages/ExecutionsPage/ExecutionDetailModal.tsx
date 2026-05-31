@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { PauseCircle, X, Activity, AlertCircle, Globe, Network, Loader2, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Execution } from '@/stores/executionStore';
 import { useExecutionStore } from '@/stores/executionStore';
 import { useContextPanelStore } from '@/stores/contextPanelStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { ArtifactsPanel } from '@/components/execution/ArtifactsPanel';
 import { CanvasRunView } from '@/components/canvas/CanvasRunView';
-import { extractPreviewSessionId } from '@/lib/previewUtils';
+import { usePreviewLauncher } from '@/lib/usePreviewLauncher';
 import { nextStepsForRun, type RunNextStepAction } from '@/data/runNextSteps';
 import { runFactoryQuickPrompt } from '@/services/factoryRun';
 import { showError, showSuccess } from '@/lib/toast';
@@ -25,10 +25,11 @@ export interface ExecutionDetailModalProps {
 }
 
 export function ExecutionDetailModal({ execution, onClose, onCancel }: ExecutionDetailModalProps) {
-  const navigate = useNavigate();
   const fetchExecutions = useExecutionStore((s) => s.fetchExecutions);
   const connectWebSocket = useExecutionStore((s) => s.connectWebSocket);
   const selectContextExecution = useContextPanelStore((s) => s.selectExecution);
+  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
+  const { launching, launch } = usePreviewLauncher();
   const [activeTab, setActiveTab] = useState<'stages' | 'logs' | 'artifacts' | 'git' | 'canvas'>(
     'stages',
   );
@@ -36,7 +37,11 @@ export function ExecutionDetailModal({ execution, onClose, onCancel }: Execution
   const [acting, setActing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const workflowName = useWorkflowName();
-  const previewSessionId = extractPreviewSessionId(execution);
+  // 预览目录：优先用本次 Run 注入的 project_path，回退到当前工作区根目录。
+  const previewPath =
+    (typeof execution.variables?.project_path === 'string'
+      ? execution.variables.project_path
+      : undefined) ?? currentWorkspace?.root_path;
   const wfName = workflowName(execution.workflow_id);
   const failedSteps =
     execution.status === 'failed' ? nextStepsForRun(execution, wfName) : null;
@@ -106,13 +111,19 @@ export function ExecutionDetailModal({ execution, onClose, onCancel }: Execution
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {previewSessionId && (
+            {previewPath && (
               <button
-                onClick={() => navigate(`/preview/${previewSessionId}`)}
-                className="btn-primary px-4 py-2 text-sm flex items-center gap-2"
+                onClick={() => launch(previewPath, execution.id)}
+                disabled={launching}
+                className="btn-primary px-4 py-2 text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="启动 dev server 预览本次生成的项目效果"
               >
-                <Globe className="w-4 h-4" />
-                打开预览
+                {launching ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Globe className="w-4 h-4" />
+                )}
+                {launching ? '启动预览中…' : '预览效果'}
               </button>
             )}
             {execution.status === 'running' && (

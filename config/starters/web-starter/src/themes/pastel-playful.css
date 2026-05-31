@@ -1,0 +1,48 @@
+/* Theme: pastel-playful —— 活泼糖果 / 消费品
+   vibe: 消费 App、教育、儿童、社区、轻松品牌（圆润友好） */
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;500;600;700;800&display=swap');
+
+:root[data-theme='pastel-playful'] {
+  --font-display: 'Baloo 2', 'PingFang SC', cursive;
+  --font-sans: 'Nunito', 'PingFang SC', system-ui, sans-serif;
+
+  --bg: 40 60% 98%;
+  --surface: 0 0% 100%;
+  --elevated: 36 70% 99%;
+  --border: 30 40% 90%;
+  --ink: 270 28% 22%;
+  --muted: 270 12% 50%;
+  --primary: 330 82% 62%;
+  --primary-fg: 0 0% 100%;
+  --accent: 160 62% 46%;
+  --accent-fg: 0 0% 100%;
+
+  --radius-sm: 0.5rem;
+  --radius: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+  --radius-2xl: 2.5rem;
+
+  --shadow-soft: 0 2px 4px hsl(330 82% 62% / 0.08), 0 8px 24px hsl(330 60% 50% / 0.1);
+  --shadow-lift: 0 12px 32px hsl(330 50% 50% / 0.16);
+  --shadow-glow: 0 0 0 2px hsl(var(--primary) / 0.25), 0 14px 40px hsl(var(--primary) / 0.22);
+
+  --content-width: 76rem;
+}
+
+:root[data-theme='pastel-playful'].dark {
+  --bg: 268 30% 10%;
+  --surface: 268 26% 13%;
+  --elevated: 268 24% 16%;
+  --border: 270 18% 26%;
+  --ink: 40 50% 95%;
+  --muted: 280 12% 68%;
+  --primary: 330 88% 70%;
+  --primary-fg: 268 30% 10%;
+  --accent: 160 66% 56%;
+  --accent-fg: 268 30% 10%;
+
+  --shadow-soft: 0 2px 4px hsl(0 0% 0% / 0.3), 0 8px 24px hsl(0 0% 0% / 0.32);
+  --shadow-lift: 0 12px 32px hsl(0 0% 0% / 0.45);
+  --shadow-glow: 0 0 0 2px hsl(var(--primary) / 0.35), 0 14px 40px hsl(var(--primary) / 0.3);
+}

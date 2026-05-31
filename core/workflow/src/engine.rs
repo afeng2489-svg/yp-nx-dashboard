@@ -890,6 +890,8 @@ impl WorkflowEngine {
 
             cmd.stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped());
+            // 取消时一并终止质量门子进程（如 npm run build），避免后台继续跑。
+            cmd.kill_on_drop(true);
 
             let result =
                 tokio::time::timeout(std::time::Duration::from_secs(check.timeout), cmd.output())
@@ -1581,6 +1583,9 @@ impl WorkflowEngine {
 
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
+        // 取消工作流时，承载本次调用的 future 会被 drop；kill_on_drop 确保
+        // 底层 Claude CLI 子进程被一并终止，而不是继续在后台写文件。
+        cmd.kill_on_drop(true);
 
         let child = cmd.spawn().map_err(|e| {
             let display = if prefix_args.is_empty() {

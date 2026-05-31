@@ -15,3 +15,6 @@ dashboard.png
 /src/
 .omc/
 .nx/
+# 运行时本地状态/日志（不应入库）
+.nx_api.manual.log
+nx_dashboard/.nexus-current-workspace

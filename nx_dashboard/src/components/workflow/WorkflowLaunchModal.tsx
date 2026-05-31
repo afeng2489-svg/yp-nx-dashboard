@@ -6,10 +6,20 @@ import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '@/api/constants';
 import { showError, showSuccess } from '@/lib/toast';
 
+interface InputChoice {
+  value: string;
+  label?: string;
+  description?: string;
+}
+
 interface WorkflowInput {
   type: string;
   required?: boolean;
   description?: string;
+  /** 固定可选项 → 渲染为下拉框 */
+  options?: InputChoice[];
+  /** 写好的示例提示词 → 渲染为可点击填入的胶囊 */
+  examples?: InputChoice[];
 }
 
 interface LaunchWorkflow {
@@ -43,8 +53,8 @@ export function WorkflowLaunchModal({ workflow, onClose }: WorkflowLaunchModalPr
         const wfInputs: Record<string, WorkflowInput> = triggers[0]?.inputs ?? {};
         setInputs(wfInputs);
         const initial: Record<string, string> = {};
-        Object.keys(wfInputs).forEach((k) => {
-          initial[k] = '';
+        Object.entries(wfInputs).forEach(([k, input]) => {
+          initial[k] = input.options?.[0]?.value ?? '';
         });
         setValues(initial);
       } finally {
@@ -117,12 +127,50 @@ export function WorkflowLaunchModal({ workflow, onClose }: WorkflowLaunchModalPr
                   {input.description && (
                     <p className="text-xs text-muted-foreground mb-1.5">{input.description}</p>
                   )}
-                  <textarea
-                    className="w-full bg-background border border-border/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none min-h-[80px]"
-                    placeholder={input.description ?? `输入 ${key}…`}
-                    value={values[key] ?? ''}
-                    onChange={(e) => setValues((prev) => ({ ...prev, [key]: e.target.value }))}
-                  />
+                  {input.options ? (
+                    <select
+                      className="w-full bg-background border border-border/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                      value={values[key] ?? ''}
+                      onChange={(e) => setValues((prev) => ({ ...prev, [key]: e.target.value }))}
+                    >
+                      {input.options.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label ?? opt.value}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <>
+                      <textarea
+                        className="w-full bg-background border border-border/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none min-h-[80px]"
+                        placeholder={input.description ?? `输入 ${key}…`}
+                        value={values[key] ?? ''}
+                        onChange={(e) => setValues((prev) => ({ ...prev, [key]: e.target.value }))}
+                      />
+                      {input.examples && input.examples.length > 0 && (
+                        <div className="mt-1.5">
+                          <p className="text-[11px] text-muted-foreground mb-1">
+                            不知道怎么写？点一个示例直接填入：
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {input.examples.map((ex) => (
+                              <button
+                                key={ex.value}
+                                type="button"
+                                title={ex.value}
+                                onClick={() =>
+                                  setValues((prev) => ({ ...prev, [key]: ex.value }))
+                                }
+                                className="px-2.5 py-1 rounded-lg border border-border/50 bg-background hover:bg-accent text-xs text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                {ex.label ?? ex.value}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               ))}
             </div>

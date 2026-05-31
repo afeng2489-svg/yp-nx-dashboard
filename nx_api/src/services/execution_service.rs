@@ -16,6 +16,72 @@ use nexus_workflow::{InMemoryEventEmitter, TriggerType, WorkflowDefinition, Work
 
 pub use crate::services::events::{ExecutionEvent, ExecutionStatus};
 
+/// 解析底座目录 config/starters/web-starter 的绝对路径。
+///
+/// 查找策略（与 routes::resolve_workflows_dir 同源）：
+/// 1. 环境变量 WEB_STARTER_PATH（显式覆盖）
+/// 2. 可执行文件祖先目录中找 workspace root
+/// 3. 当前工作目录祖先中找 workspace root
+/// 4. 编译期 CARGO_MANIFEST_DIR 的上级
+///
+/// workspace root 判定：含 Cargo.toml 且含 nx_dashboard 子目录。
+fn resolve_starter_path() -> Option<String> {
+    let subpath = std::path::Path::new("config")
+        .join("starters")
+        .join("web-starter");
+
+    let is_workspace_root =
+        |dir: &std::path::Path| dir.join("Cargo.toml").exists() && dir.join("nx_dashboard").is_dir();
+
+    let into_str = |p: std::path::PathBuf| p.to_string_lossy().into_owned();
+
+    // 策略1：环境变量显式覆盖
+    if let Ok(dir) = std::env::var("WEB_STARTER_PATH") {
+        let p = std::path::PathBuf::from(dir);
+        if p.is_dir() {
+            return Some(into_str(p));
+        }
+    }
+
+    // 策略2：可执行文件祖先
+    if let Ok(exe) = std::env::current_exe() {
+        let exe = exe.canonicalize().unwrap_or(exe);
+        for ancestor in exe.ancestors().skip(1) {
+            if is_workspace_root(ancestor) {
+                let p = ancestor.join(&subpath);
+                if p.is_dir() {
+                    return Some(into_str(p));
+                }
+            }
+        }
+    }
+
+    // 策略3：当前工作目录祖先
+    if let Ok(cwd) = std::env::current_dir() {
+        for ancestor in cwd.ancestors() {
+            if is_workspace_root(ancestor) {
+                let p = ancestor.join(&subpath);
+                if p.is_dir() {
+                    return Some(into_str(p));
+                }
+            }
+        }
+    }
+
+    // 策略4：编译期路径
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    if let Some(parent) = manifest_dir.parent() {
+        if is_workspace_root(parent) {
+            let p = parent.join(&subpath);
+            if p.is_dir() {
+                return Some(into_str(p));
+            }
+        }
+    }
+
+    None
+}
+
 /// 从环境变量加载 AI 配置
 fn load_ai_config_from_env() -> NexusAIManagerConfig {
     let mut api_config = HashMap::new();
@@ -944,6 +1010,19 @@ impl ExecutionService {
     ) -> Result<String, ExecutionError> {
         use std::sync::Arc;
 
+        // 闸（防御性）：无工作区时拒绝执行，避免 Claude CLI 继承 nx_api 的工作目录
+        // 把生成内容写入应用自身目录。覆盖所有调用方（UI、触发器、流水线、内部）。
+        let has_workspace = working_directory
+            .as_deref()
+            .map(|p| !p.trim().is_empty())
+            .unwrap_or(false);
+        if !has_workspace {
+            return Err(ExecutionError::ExecutionError(
+                "未选择项目工作区：请先选择目标项目文件夹后再运行工作流，以避免生成内容写入应用自身目录。"
+                    .to_string(),
+            ));
+        }
+
         // 1. 解析工作流定义
         let mut definition: WorkflowDefinition = serde_yaml::from_str(workflow_yaml)
             .map_err(|e| ExecutionError::ParseError(format!("YAML 解析失败: {}", e)))?;
@@ -981,6 +1060,16 @@ impl ExecutionService {
                 .variables
                 .entry("escalate_model".to_string())
                 .or_insert_with(|| serde_json::Value::String(escalate_model));
+
+            // starter_path: 自动解析仓库内的 config/starters/web-starter 底座目录，
+            // 供 landing-page / nav-site 等基于底座的工作流使用。
+            // 用户仍可通过工作流输入显式覆盖（or_insert 不会替换已有值）。
+            if let Some(sp) = resolve_starter_path() {
+                definition
+                    .variables
+                    .entry("starter_path".to_string())
+                    .or_insert_with(|| serde_json::Value::String(sp));
+            }
         }
 
         // 2. 创建 AI 管理器（优先 AppState 共享实例，含设置页 API Key + Claude CLI）

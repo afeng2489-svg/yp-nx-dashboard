@@ -134,10 +134,13 @@ export function ContextPanel() {
   );
   const wf = workflows.find((w) => w.id === execution.workflow_id);
   const wfName = wf?.name ?? execution.workflow_id;
-  const pipeline = pipelineForWorkflow(wfName);
+  // 进度以执行的真实阶段为准，避免依赖硬编码产线（未注册的工作流会算成 0/N）。
+  // 总数优先用工作流定义的 stage_count，回退到注册产线长度。
   const completedNames = workflowStageNamesFromResults(execution);
-  const stageCount = pipeline.filter((s) => completedNames.has(s.name)).length;
-  const totalStages = pipeline.length;
+  const pipelineLen = pipelineForWorkflow(wfName).length;
+  const totalStages = wf?.stage_count && wf.stage_count > 0 ? wf.stage_count : pipelineLen;
+  const stageCount =
+    totalStages > 0 ? Math.min(completedNames.size, totalStages) : completedNames.size;
   const stageProgressPct =
     totalStages > 0 ? Math.min(100, Math.round((stageCount / totalStages) * 100)) : 0;
   const isApprovalPause =

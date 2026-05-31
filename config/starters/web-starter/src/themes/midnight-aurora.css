@@ -1,0 +1,48 @@
+/* Theme: midnight-aurora —— 午夜极光 / 梦幻科技
+   vibe: AI/SaaS、创意工具、音乐、未来感产品（暗底 + 极光紫青） */
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap');
+
+:root[data-theme='midnight-aurora'] {
+  --font-display: 'Sora', 'PingFang SC', sans-serif;
+  --font-sans: 'Hanken Grotesk', 'PingFang SC', system-ui, sans-serif;
+
+  --bg: 230 40% 98%;
+  --surface: 0 0% 100%;
+  --elevated: 230 40% 99%;
+  --border: 230 22% 88%;
+  --ink: 230 45% 12%;
+  --muted: 230 14% 44%;
+  --primary: 265 84% 58%;
+  --primary-fg: 0 0% 100%;
+  --accent: 175 78% 40%;
+  --accent-fg: 0 0% 100%;
+
+  --radius-sm: 0.5rem;
+  --radius: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+  --radius-2xl: 2.25rem;
+
+  --shadow-soft: 0 1px 2px hsl(230 45% 12% / 0.05), 0 4px 16px hsl(230 45% 12% / 0.07);
+  --shadow-lift: 0 10px 32px hsl(265 60% 40% / 0.16);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.3), 0 0 48px hsl(var(--primary) / 0.22);
+
+  --content-width: 76rem;
+}
+
+:root[data-theme='midnight-aurora'].dark {
+  --bg: 230 38% 7%;
+  --surface: 230 30% 10%;
+  --elevated: 230 28% 13%;
+  --border: 230 20% 22%;
+  --ink: 220 32% 95%;
+  --muted: 225 16% 66%;
+  --primary: 265 88% 68%;
+  --primary-fg: 230 38% 8%;
+  --accent: 175 82% 54%;
+  --accent-fg: 230 38% 8%;
+
+  --shadow-soft: 0 1px 2px hsl(0 0% 0% / 0.4), 0 4px 16px hsl(0 0% 0% / 0.4);
+  --shadow-lift: 0 10px 32px hsl(0 0% 0% / 0.5);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.5), 0 0 56px hsl(var(--primary) / 0.4);
+}

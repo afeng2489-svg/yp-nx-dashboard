@@ -12,8 +12,8 @@ use std::time::{Duration, Instant};
 use tokio::process::{Child, Command};
 use tokio::time::interval;
 
-/// 空闲超时：5 分钟无请求即回收
-const IDLE_TIMEOUT_SECS: u64 = 300;
+/// 空闲超时：30 分钟无请求即回收（前端预览页会定期 ping status 保活）
+const IDLE_TIMEOUT_SECS: u64 = 1800;
 /// SIGTERM 后等待 SIGKILL 的时间
 const KILL_GRACE_SECS: u64 = 9;
 /// 健康探测间隔
@@ -78,89 +78,112 @@ impl PreviewServerManager {
         project_id: &str,
         project_path: &str,
     ) -> Result<PreviewSessionInfo, PreviewError> {
-        let node_path = detect_node().await?;
-        let port = arbitrate_port().await?;
+        let npm_path = detect_node().await?;
         let session_id = uuid::Uuid::new_v4().to_string();
-
-        let preview_url = format!("http://127.0.0.1:{}", port);
 
         // npm install（如 node_modules 不存在）
         let node_modules = std::path::Path::new(project_path).join("node_modules");
         if !node_modules.exists() {
             tracing::info!(session_id = %session_id, "安装依赖: npm install");
-            let install = Command::new(&node_path)
-                .arg("npm")
+            let install = Command::new(&npm_path)
                 .arg("install")
                 .current_dir(project_path)
                 .output()
                 .await;
-            if let Err(e) = install {
-                tracing::error!(session_id = %session_id, error = %e, "npm install 失败");
-                return Err(PreviewError::InstallFailed(e.to_string()));
+            match install {
+                Ok(out) if !out.status.success() => {
+                    let stderr = String::from_utf8_lossy(&out.stderr);
+                    tracing::error!(session_id = %session_id, "npm install 失败: {}", stderr);
+                    return Err(PreviewError::InstallFailed(stderr.trim().to_string()));
+                }
+                Err(e) => {
+                    tracing::error!(session_id = %session_id, error = %e, "npm install 失败");
+                    return Err(PreviewError::InstallFailed(e.to_string()));
+                }
+                _ => {}
             }
         }
 
-        // 启动 dev server
-        let child = Command::new(&node_path)
-            .arg("npm")
-            .arg("run")
-            .arg("dev")
-            .arg("--")
-            .arg("--port")
-            .arg(port.to_string())
-            .arg("--host")
-            .arg("127.0.0.1")
-            .current_dir(project_path)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(|e| PreviewError::SpawnFailed(e.to_string()))?;
-
-        let session = PreviewSession {
-            session_id: session_id.clone(),
-            project_id: project_id.to_string(),
-            project_path: project_path.to_string(),
-            port,
-            preview_url: preview_url.clone(),
-            status: PreviewStatus::Starting,
-            started_at: Instant::now(),
-            last_request_at: Instant::now(),
-            child: Some(child),
-        };
-
-        self.sessions
-            .write()
-            .insert(session_id.clone(), Arc::new(RwLock::new(session)));
-
-        // 健康探测
-        tracing::info!(session_id = %session_id, port = port, "启动预览，等待健康探测...");
-        match wait_ready(port, PROBE_TIMEOUT_SECS).await {
-            Ok(_) => {
-                let mut sessions = self.sessions.write();
-                if let Some(s) = sessions.get_mut(&session_id) {
-                    let mut s = s.write();
-                    s.status = PreviewStatus::Running;
-                }
-                tracing::info!(session_id = %session_id, url = %preview_url, "预览就绪");
+        // 端口候选：优先随机空闲端口（避开用户常用的 3000/5173），再退回固定端口。
+        // 每个候选都以 --strictPort 启动：端口被占时 vite 会立即退出而不是悄悄漂移到
+        // 别的端口，于是我们能秒级换端口重试，而不是死等 30 秒健康探测超时。
+        let mut candidates: Vec<u16> = Vec::new();
+        if let Ok(p) = random_available_port().await {
+            candidates.push(p);
+        }
+        for p in [5173u16, 3000u16] {
+            if port_is_available(p) && !candidates.contains(&p) {
+                candidates.push(p);
             }
-            Err(e) => {
-                let mut sessions = self.sessions.write();
-                if let Some(s) = sessions.get_mut(&session_id) {
-                    let mut s = s.write();
-                    s.status = PreviewStatus::Failed;
+        }
+        if let Ok(p) = random_available_port().await {
+            if !candidates.contains(&p) {
+                candidates.push(p);
+            }
+        }
+        if candidates.is_empty() {
+            return Err(PreviewError::NoPortAvailable);
+        }
+
+        let mut last_err: Option<PreviewError> = None;
+        for port in candidates {
+            let preview_url = format!("http://127.0.0.1:{}", port);
+
+            // 启动 dev server（--strictPort：端口被占即退出，不漂移）
+            // --host 0.0.0.0：绑定所有接口（IPv4+IPv6），避免 reqwest 无法连接纯 IPv6 localhost
+            let mut child = Command::new(&npm_path)
+                .arg("run")
+                .arg("dev")
+                .arg("--")
+                .arg("--port")
+                .arg(port.to_string())
+                .arg("--strictPort")
+                .arg("--host")
+                .arg("0.0.0.0")
+                .current_dir(project_path)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .kill_on_drop(true)
+                .spawn()
+                .map_err(|e| PreviewError::SpawnFailed(e.to_string()))?;
+
+            tracing::info!(session_id = %session_id, port = port, "启动预览，等待健康探测...");
+            match wait_ready_or_exit(&mut child, port, PROBE_TIMEOUT_SECS).await {
+                Ok(_) => {
+                    let session = PreviewSession {
+                        session_id: session_id.clone(),
+                        project_id: project_id.to_string(),
+                        project_path: project_path.to_string(),
+                        port,
+                        preview_url: preview_url.clone(),
+                        status: PreviewStatus::Running,
+                        started_at: Instant::now(),
+                        last_request_at: Instant::now(),
+                        child: Some(child),
+                    };
+                    self.sessions
+                        .write()
+                        .insert(session_id.clone(), Arc::new(RwLock::new(session)));
+                    tracing::info!(session_id = %session_id, url = %preview_url, "预览就绪");
+                    return Ok(PreviewSessionInfo {
+                        session_id,
+                        project_id: project_id.to_string(),
+                        port,
+                        preview_url,
+                        status: PreviewStatus::Running,
+                    });
                 }
-                return Err(e);
+                Err(e) => {
+                    // 关键：失败时立即杀掉子进程，避免泄漏 vite 进程继续占用端口，
+                    // 否则后续仲裁会越来越糟（端口雪崩）。
+                    let _ = child.start_kill();
+                    tracing::warn!(session_id = %session_id, port = port, "该端口启动失败，换端口重试: {}", e);
+                    last_err = Some(e);
+                }
             }
         }
 
-        Ok(PreviewSessionInfo {
-            session_id,
-            project_id: project_id.to_string(),
-            port,
-            preview_url,
-            status: PreviewStatus::Running,
-        })
+        Err(last_err.unwrap_or(PreviewError::NoPortAvailable))
     }
 
     /// 停止预览服务器
@@ -199,11 +222,12 @@ impl PreviewServerManager {
         }
     }
 
-    /// 查询预览状态
+    /// 查询预览状态（同时刷新空闲计时：浏览页面的轮询即视为活跃，避免被回收）
     pub fn status(&self, session_id: &str) -> Option<PreviewSessionInfo> {
         let sessions = self.sessions.read();
         sessions.get(session_id).map(|s| {
-            let s = s.read();
+            let mut s = s.write();
+            s.touch();
             PreviewSessionInfo {
                 session_id: s.session_id.clone(),
                 project_id: s.project_id.clone(),
@@ -268,16 +292,6 @@ pub struct PreviewSessionInfo {
     pub status: PreviewStatus,
 }
 
-/// 端口仲裁：项目配置端口 → 5173 → 3000 → 随机可用
-async fn arbitrate_port() -> Result<u16, PreviewError> {
-    for port in [5173u16, 3000u16] {
-        if port_is_available(port) {
-            return Ok(port);
-        }
-    }
-    random_available_port().await
-}
-
 fn port_is_available(port: u16) -> bool {
     TcpListener::bind(("127.0.0.1", port)).is_ok()
 }
@@ -301,10 +315,10 @@ async fn random_available_port() -> Result<u16, PreviewError> {
     Err(PreviewError::NoPortAvailable)
 }
 
-/// 检测 Node.js：which node → nvm exec
+/// 检测 npm：which npm → nvm exec
 async fn detect_node() -> Result<String, PreviewError> {
     let output = Command::new("which")
-        .arg("node")
+        .arg("npm")
         .output()
         .await
         .map_err(|e| PreviewError::NodeNotFound(e.to_string()))?;
@@ -319,29 +333,40 @@ async fn detect_node() -> Result<String, PreviewError> {
     // 回退 nvm
     let nvm_output = Command::new("bash")
         .arg("-c")
-        .arg("source ~/.nvm/nvm.sh && nvm exec node --version")
+        .arg("source ~/.nvm/nvm.sh && nvm exec npm --version")
         .output()
         .await
         .map_err(|e| PreviewError::NodeNotFound(e.to_string()))?;
 
     if nvm_output.status.success() {
-        return Ok("node".to_string());
+        return Ok("npm".to_string());
     }
 
     Err(PreviewError::NodeNotFound(
-        "未找到 Node.js，请安装 node 或 nvm".to_string(),
+        "未找到 npm，请安装 Node.js 或 nvm".to_string(),
     ))
 }
 
-/// 健康探测：轮询 HTTP GET / 直到成功或超时
-async fn wait_ready(port: u16, timeout_secs: u64) -> Result<(), PreviewError> {
+/// 健康探测：轮询 TCP 连接直到成功或超时；同时检测 dev 进程是否提前退出
+/// （端口被占用时 --strictPort 会让 vite 立即退出，此时无需再等满超时）。
+/// 使用 TCP 连接而非 HTTP 请求，避免 reqwest 的 localhost 解析问题。
+async fn wait_ready_or_exit(
+    child: &mut Child,
+    port: u16,
+    timeout_secs: u64,
+) -> Result<(), PreviewError> {
     let start = Instant::now();
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
-        .build()
-        .map_err(|e| PreviewError::HealthCheck(e.to_string()))?;
 
     loop {
+        // dev 进程提前退出（多半是端口冲突 / 启动报错）→ 立即失败，触发换端口重试
+        if let Ok(Some(status)) = child.try_wait() {
+            return Err(PreviewError::SpawnFailed(format!(
+                "dev server 在端口 {} 上提前退出 (code={:?})",
+                port,
+                status.code()
+            )));
+        }
+
         if start.elapsed().as_secs() >= timeout_secs {
             return Err(PreviewError::HealthCheck(format!(
                 "端口 {} 在 {} 秒内未就绪",
@@ -349,10 +374,9 @@ async fn wait_ready(port: u16, timeout_secs: u64) -> Result<(), PreviewError> {
             )));
         }
 
-        let url = format!("http://127.0.0.1:{}", port);
-        match client.get(&url).send().await {
-            Ok(resp) if resp.status().is_success() => return Ok(()),
-            _ => {}
+        // 简单 TCP 连接检查：端口可连接即认为就绪
+        if tokio::net::TcpStream::connect(("127.0.0.1", port)).await.is_ok() {
+            return Ok(());
         }
 
         tokio::time::sleep(Duration::from_millis(PROBE_INTERVAL_MS)).await;

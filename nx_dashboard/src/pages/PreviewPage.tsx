@@ -226,6 +226,15 @@ export function PreviewPage() {
     };
   }, [getGeometry]);
 
+  // 保活：预览运行期间定期 ping status，刷新后端空闲计时，避免被自动回收。
+  useEffect(() => {
+    if (!sessionId || status?.status !== 'running') return;
+    const timer = setInterval(() => {
+      fetchPreviewStatus(sessionId).catch(() => {});
+    }, 45000);
+    return () => clearInterval(timer);
+  }, [sessionId, status?.status]);
+
   const openExternal = useCallback(() => {
     if (status?.url) {
       window.open(status.url, '_blank');

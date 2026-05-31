@@ -148,6 +148,48 @@ fn resolve_workflows_dir() -> Option<PathBuf> {
     None
 }
 
+/// 当前工作区持久化文件路径（与数据库同目录的隐藏文件）。
+/// 用于在 nx_api 重启后恢复用户上次选择的项目工作区，避免回退到 None
+/// 导致工作流把生成内容写入应用自身目录。
+fn workspace_state_path(db_path: &str) -> PathBuf {
+    let dir = std::path::Path::new(db_path)
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."));
+    dir.join(".nexus-current-workspace")
+}
+
+/// 读取持久化的工作区路径；若文件缺失或目录已不存在则返回 None。
+pub(crate) fn load_persisted_workspace(db_path: &str) -> Option<String> {
+    let file = workspace_state_path(db_path);
+    let content = std::fs::read_to_string(&file).ok()?;
+    let path = content.trim();
+    if path.is_empty() {
+        return None;
+    }
+    if std::path::Path::new(path).is_dir() {
+        tracing::info!("[Workspace] 恢复上次工作区: {}", path);
+        Some(path.to_string())
+    } else {
+        tracing::warn!("[Workspace] 持久化的工作区已不存在，忽略: {}", path);
+        None
+    }
+}
+
+/// 写入/清除持久化的工作区路径（None 或空串表示清除）。
+pub(crate) fn persist_workspace(db_path: &str, path: Option<&str>) {
+    let file = workspace_state_path(db_path);
+    match path {
+        Some(p) if !p.trim().is_empty() => {
+            if let Err(e) = std::fs::write(&file, p.trim()) {
+                tracing::warn!("[Workspace] 持久化工作区失败: {}", e);
+            }
+        }
+        _ => {
+            let _ = std::fs::remove_file(&file);
+        }
+    }
+}
+
 /// 将 config/workflows/**/*.yaml 种子文件 upsert 到数据库（递归扫描子目录）
 /// 规则：按 name 匹配；不存在则创建，已存在则跳过（避免覆盖用户修改）
 fn seed_workflows_from_yaml(workflow_service: &WorkflowService) {
@@ -462,7 +504,9 @@ impl AppState {
         let api_key_config = config.api_key.clone();
 
         // 创建当前工作区路径（用于 Claude CLI --project 参数）
-        let current_workspace_path = Arc::new(RwLock::new(None));
+        // 启动时尝试恢复上次持久化的工作区，避免重启后回退到 None。
+        let current_workspace_path =
+            Arc::new(RwLock::new(load_persisted_workspace(&config.db_path)));
 
         tracing::info!("[DB] Using database path: {}", config.db_path);
 

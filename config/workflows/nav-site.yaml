@@ -1,0 +1,185 @@
+name: nav-site
+version: "1.0"
+description: "导航站生成 — 基于 web-starter 底座：信息架构+选主题 → 脚手架 → 内容组装 → build门 → 预览 → 审批 → 摘要"
+
+triggers:
+  - type: manual
+    inputs:
+      brand:
+        type: string
+        required: true
+        description: "导航站名称"
+      description:
+        type: string
+        required: true
+        description: "这个导航站收录什么主题/面向谁"
+        examples:
+          - { label: "前端开发工具导航", value: "面向前端开发者的常用工具与资源导航，收录框架文档、UI 库、调试与性能工具、设计素材等" }
+          - { label: "AI 工具集合站", value: "收录主流 AI 工具的导航站，按对话、绘图、写作、编程、音视频、效率等场景分类" }
+          - { label: "设计师灵感资源", value: "面向 UI/UX 设计师的灵感与素材导航，含配色、字体、图标、组件库与作品集平台" }
+          - { label: "独立开发者出海", value: "面向独立开发者/出海团队的工具导航，含建站、支付、增长、数据分析与社区运营" }
+      theme:
+        type: string
+        required: false
+        description: "风格预设（留空=按描述自动选）"
+        options:
+          - { value: "",                    label: "自动选择（推荐）" }
+          - { value: "terracotta-editorial", label: "暖色编辑感 · 内容/工作室（暗）" }
+          - { value: "cyber-noir",           label: "赛博暗黑 · 科技/开发者/AI（暗）" }
+          - { value: "corporate-navy",       label: "专业商务 · 企业/金融（浅）" }
+          - { value: "pastel-playful",       label: "活泼糖果 · 消费/教育（浅）" }
+          - { value: "luxury-serif",         label: "奢华高衬线 · 高端/时尚（暗）" }
+          - { value: "brutalist-mono",       label: "粗野等宽 · 设计/作品集（浅）" }
+          - { value: "botanical-calm",       label: "自然草本 · 健康/可持续（浅）" }
+          - { value: "midnight-aurora",      label: "午夜极光 · AI/创意工具（暗）" }
+      links:
+        type: string
+        required: false
+        description: "已有的站点清单（可选，可贴一堆名称/网址，AI 会归类）"
+      task:
+        type: string
+        required: false
+        description: "附加要求（可选）"
+        examples:
+          - { label: "突出搜索", value: "首屏放大搜索框，弱化其他元素，主打快速查找" }
+          - { label: "卡片密集", value: "分类卡片排布更密集，一屏展示更多站点" }
+          - { label: "中英双语", value: "主要文案中文，关键术语保留英文" }
+
+variables:
+  brand: ""
+  description: ""
+  theme: "auto"
+  links: ""
+  task: ""
+  target: "."
+  # 注意：不要在此声明 starter_path。后端会在运行时自动注入它的绝对路径
+  # （execution_service::resolve_starter_path → config/starters/web-starter）。
+  # 若此处声明了任何值（包括空串），将阻止自动注入。需自定义时请在运行工作流的输入里传入。
+
+agents:
+  - id: ia
+    role: 信息架构师 / 选主题
+    model: claude-sonnet-4-6
+    prompt: |
+      你要设计一个导航站「{{brand}}」。
+      定位：{{description}}
+      指定风格：{{theme}}（auto 则你来选）
+      已有清单：{{links}}
+      附加：{{task}}
+
+      ## 可选主题（必选其一，禁止自创）
+      - terracotta-editorial：暖色编辑感（暗）
+      - cyber-noir：赛博暗黑 / 科技·开发者·AI（暗）
+      - corporate-navy：专业商务 / 企业·金融（浅）
+      - pastel-playful：活泼糖果 / 消费·教育（浅）
+      - luxury-serif：奢华高衬线 / 高端·时尚（暗）
+      - brutalist-mono：粗野等宽 / 设计·作品集（浅）
+      - botanical-calm：自然草本 / 健康·可持续（浅）
+      - midnight-aurora：午夜极光 / AI·创意工具（暗）
+
+      输出 JSON（不写代码）：
+      ```json
+      {
+        "theme_id": "选定 id",
+        "brand": "站名",
+        "hero_title": "搜索头主标题前半句",
+        "hero_highlight": "高亮后半句",
+        "hero_subtitle": "副标题",
+        "search_placeholder": "搜索框占位文案",
+        "categories": [
+          {"id":"英文短id","name":"分类名","emoji":"一个emoji","items":[
+            {"title":"站点名","url":"https://…","desc":"一句话简介"}
+          ]}
+        ],
+        "footer_tagline": "页脚一句话"
+      }
+      ```
+      要求：4–8 个分类，每类 3–8 个真实存在的优质站点（给真实 url），简介要短而准。
+
+  - id: scaffolder
+    role: 脚手架工程师
+    model: claude-sonnet-4-6
+    prompt: |
+      信息架构：{{ia_信息架构_output}}
+
+      用 Bash 在当前目录 {{target}} 搭好底座：
+      1. `cp -R {{starter_path}}/. .`（排除已存在的 .git）
+      2. 删除底座自带的 node_modules、dist
+      3. 把 theme_id 写进 index.html 的 <html data-theme="...">；暗色主题保留 class="dark"，浅色去掉
+      4. 瘦身 src/themes/index.css：只保留选中主题那一行 @import
+      5. `npm install`
+      不要改组件结构。完成后 `ls src/components/blocks` 确认。
+
+  - id: builder
+    role: 导航站内容工程师
+    model: claude-sonnet-4-6
+    prompt: |
+      信息架构：{{ia_信息架构_output}}
+
+      把底座变成「{{brand}}」真实导航站，只改内容层与装配，不改组件样式：
+      1. 用 Write 重写 src/data/links.ts：categories 全部换成信息架构里的真实分类与站点
+      2. 改 src/pages/NavSiteDemo.tsx：Navbar 的 brand 改掉、删 showThemeControls；
+         SearchHeader 的 title/highlight/subtitle/placeholder 用信息架构内容；Footer brand/tagline 换掉
+      3. 改 src/App.tsx：直接渲染 <NavSiteDemo />，删掉 ?p 演示分支与 LandingDemo 引用
+      4. 可删除 src/pages/LandingDemo.tsx、落地页专用 blocks(Hero/Stats/FeatureGrid/Pricing/CTA)、src/data/landing.ts、未使用的 ThemeControls/registry
+      保留底座的 Reveal 动效、间距、圆角、阴影质感——这些决定成品质量。
+
+  - id: preview-launcher
+    role: 预览启动
+    model: claude-haiku-4-5
+    prompt: |
+      为当前项目启动预览：
+      1. 若无 node_modules 则 `npm install`
+      2. 调用 POST /api/v1/preview/start 启动预览
+      3. 轮询 GET /api/v1/preview/status?session_id=<上一步返回的 session_id> 直到 status=running
+      4. 返回 { session_id, preview_port, preview_url }
+
+  - id: summary
+    role: 交付摘要员
+    model: claude-sonnet-4-5
+    executor: api
+    prompt: |
+      站点：{{brand}} · {{description}}
+      装配输出：{{builder_内容组装_output}}
+
+      用中文写交付摘要：用了哪个主题、收录了哪些分类、如何本地启动。
+      末尾 JSON：
+      ```json
+      {"summary":"…","theme":"…","dev_command":"npm run dev","files_changed":["…"]}
+      ```
+
+stages:
+  - name: 信息架构
+    agents: [ia]
+
+  - name: 脚手架
+    agents: [scaffolder]
+    quality_gate:
+      checks:
+        - cmd: "sh -c 'test -d src/components/blocks && test -f src/data/links.ts && echo scaffold_ok'"
+          timeout: 240
+      on_fail: retry
+      max_retries: 2
+
+  - name: 内容组装
+    agents: [builder]
+    quality_gate:
+      checks:
+        - cmd: "npm run build"
+          timeout: 240
+      on_fail: retry
+      max_retries: 2
+
+  - name: 预览
+    stage_type: agent
+    agents: [preview-launcher]
+
+  - name: 交付审批
+    stage_type: approval
+    question: "导航站已生成并通过构建。是否批准交付？驳回将返回「内容组装」继续打磨。"
+    output_var: approval_result
+    on_reject_goto: 内容组装
+
+  - name: 交付摘要
+    executor: api
+    agents: [summary]

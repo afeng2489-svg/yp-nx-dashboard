@@ -1,0 +1,48 @@
+/* Theme: cyber-noir —— 赛博暗黑 / 霓虹科技
+   vibe: 开发者工具、AI 产品、游戏、科技初创（暗色为主） */
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap');
+
+:root[data-theme='cyber-noir'] {
+  --font-display: 'Chakra Petch', 'PingFang SC', sans-serif;
+  --font-sans: 'Hanken Grotesk', 'PingFang SC', system-ui, sans-serif;
+
+  --bg: 210 24% 97%;
+  --surface: 0 0% 100%;
+  --elevated: 210 24% 99%;
+  --border: 214 18% 88%;
+  --ink: 222 45% 9%;
+  --muted: 215 14% 42%;
+  --primary: 160 92% 34%;
+  --primary-fg: 0 0% 100%;
+  --accent: 195 92% 42%;
+  --accent-fg: 0 0% 100%;
+
+  --radius-sm: 0.125rem;
+  --radius: 0.25rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+
+  --shadow-soft: 0 1px 2px hsl(222 45% 9% / 0.05), 0 4px 16px hsl(222 45% 9% / 0.07);
+  --shadow-lift: 0 8px 30px hsl(222 45% 9% / 0.12);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.4), 0 0 40px hsl(var(--primary) / 0.25);
+
+  --content-width: 76rem;
+}
+
+:root[data-theme='cyber-noir'].dark {
+  --bg: 222 32% 6%;
+  --surface: 222 26% 9%;
+  --elevated: 222 24% 12%;
+  --border: 220 18% 20%;
+  --ink: 180 22% 93%;
+  --muted: 200 12% 62%;
+  --primary: 152 100% 50%;
+  --primary-fg: 222 40% 6%;
+  --accent: 190 100% 56%;
+  --accent-fg: 222 40% 6%;
+
+  --shadow-soft: 0 1px 2px hsl(0 0% 0% / 0.4), 0 4px 16px hsl(0 0% 0% / 0.4);
+  --shadow-lift: 0 8px 30px hsl(0 0% 0% / 0.55);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.5), 0 0 48px hsl(var(--primary) / 0.35);
+}

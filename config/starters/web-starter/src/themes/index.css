@@ -1,0 +1,10 @@
+/* 主题聚合入口：演示态加载全部主题以便运行时切换。
+   生成成品站时，工作流只需保留选中的那一个 @import（去掉其余以减小体积）。 */
+@import './terracotta-editorial.css';
+@import './cyber-noir.css';
+@import './corporate-navy.css';
+@import './pastel-playful.css';
+@import './luxury-serif.css';
+@import './brutalist-mono.css';
+@import './botanical-calm.css';
+@import './midnight-aurora.css';
