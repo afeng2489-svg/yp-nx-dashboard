@@ -17,7 +17,10 @@ function parseCommandArgs(command: string): { name: string; args: string[] } {
   return { name: parts[0] ?? '', args: parts.slice(1) };
 }
 
-function fuzzyMatchName(items: { id: string; name: string }[], query: string) {
+function fuzzyMatchName<T extends { id: string; name: string }>(
+  items: T[],
+  query: string,
+): T | undefined {
   const q = query.toLowerCase();
   return items.find((i) => i.name.toLowerCase().includes(q) || i.id.startsWith(q));
 }

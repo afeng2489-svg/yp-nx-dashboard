@@ -18,3 +18,5 @@ dashboard.png
 # 运行时本地状态/日志（不应入库）
 .nx_api.manual.log
 nx_dashboard/.nexus-current-workspace
+# Tauri 打包前由 prepare:resources 生成的暂存资源
+nx_dashboard/src-tauri/resources/

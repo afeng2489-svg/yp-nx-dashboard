@@ -5,8 +5,8 @@ let lastNotifiedApprovalId: string | null = null;
 
 /** AF-UX-08：待批准桌面通知（Tauri / 浏览器 fallback） */
 export async function notifyPendingApproval(executionId: string, question: string): Promise<void> {
-  const { notifications, approvalDesktopNotify } = useSettingsStore.getState();
-  if (!approvalDesktopNotify || !notifications.executionComplete) return;
+  const { notifications, factory } = useSettingsStore.getState();
+  if (!factory.approvalDesktopNotify || !notifications.executionComplete) return;
   if (lastNotifiedApprovalId === executionId) return;
   lastNotifiedApprovalId = executionId;
 

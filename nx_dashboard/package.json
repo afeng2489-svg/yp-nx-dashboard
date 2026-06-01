@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "typecheck": "tsc -b",
     "build:backend": "cargo build --release --bin nx_api --manifest-path ../Cargo.toml",
     "build:backend:dev": "cargo build --bin nx_api --manifest-path ../Cargo.toml",
     "build:all": "npm run build && npm run build:backend",
     "prepare:sidecar": "node -e \"const fs=require('fs');const p='src-tauri/binaries';fs.mkdirSync(p,{recursive:true});const t=require('os').arch()==='arm64'?'aarch64-apple-darwin':'x86_64-apple-darwin';const f=p+'/nx_api-'+t;if(!fs.existsSync(f)){fs.writeFileSync(f,'');fs.chmodSync(f,0o755);}\"",
+    "prepare:resources": "node ../scripts/prepare-tauri-resources.mjs",
     "copy:sidecar": "node -e \"const fs=require('fs');const p='src-tauri/binaries';fs.mkdirSync(p,{recursive:true});const t=require('os').arch()==='arm64'?'aarch64-apple-darwin':'x86_64-apple-darwin';const src='../target/release/nx_api';const dst=p+'/nx_api-'+t;if(!fs.existsSync(src)){console.error('Backend binary not found: '+src);process.exit(1);}fs.copyFileSync(src,dst);fs.chmodSync(dst,0o755);console.log('Copied '+src+' -> '+dst);\"",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -24,8 +26,8 @@
     "ef:check": "node ../scripts/enterprise-ef-check.mjs",
     "ef:check:report": "node ../scripts/enterprise-ef-check.mjs --report",
     "tauri": "tauri",
-    "tauri:dev": "npm run prepare:sidecar && npm run build:backend:dev && tauri dev",
-    "tauri:build": "npm run build:backend && npm run copy:sidecar && tauri build",
+    "tauri:dev": "npm run prepare:sidecar && npm run prepare:resources && npm run build:backend:dev && tauri dev",
+    "tauri:build": "npm run build:backend && npm run copy:sidecar && npm run prepare:resources && tauri build",
     "format": "prettier --write 'src/**/*.{ts,tsx,css,json}'",
     "format:check": "prettier --check 'src/**/*.{ts,tsx,css,json}'"
   },

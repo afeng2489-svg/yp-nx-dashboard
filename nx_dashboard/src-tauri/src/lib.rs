@@ -1055,11 +1055,28 @@ fn start_nx_api(
         child_cmd.env("CLAUDE_BIN", cli_path);
     }
 
-    // 本地 dev：trusted 模式，让 Claude Code CLI 能以 agent 模式读写项目（无需开终端点确认）
-    if cfg!(debug_assertions) {
-        child_cmd.env("NEXUS_PERMISSIONS_MODE", "trusted");
-        diag("NEXUS_PERMISSIONS_MODE=trusted (dev)");
+    // Release：config/ 被打进 $RESOURCE，nx_api 无法再"向上找仓库根"来定位，
+    // 必须显式告诉它 workflows 目录与 web-starter 底座路径，否则
+    // 落地页/导航站工作流会因 starter_path 解析失败而无法运行（与 dev 不一致）。
+    if cfg!(not(debug_assertions)) {
+        let workflows_dir = resources_dir.join("config").join("workflows");
+        let starter_dir = resources_dir
+            .join("config")
+            .join("starters")
+            .join("web-starter");
+        child_cmd.env("WORKFLOWS_DIR", &workflows_dir);
+        child_cmd.env("WEB_STARTER_PATH", &starter_dir);
+        diag(&format!("WORKFLOWS_DIR: {:?}", workflows_dir));
+        diag(&format!("WEB_STARTER_PATH: {:?}", starter_dir));
     }
+
+    // trusted 模式：让 Claude Code CLI 能以 agent 模式读写所选工作区（无需逐条确认）。
+    // 打包版需与 dev 行为一致，故 release 同样启用。
+    child_cmd.env("NEXUS_PERMISSIONS_MODE", "trusted");
+    diag(&format!(
+        "NEXUS_PERMISSIONS_MODE=trusted ({})",
+        if cfg!(debug_assertions) { "dev" } else { "release" }
+    ));
 
     diag("Spawning nx_api...");
     let mut child = child_cmd

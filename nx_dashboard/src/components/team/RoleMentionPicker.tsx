@@ -7,7 +7,7 @@ export interface RoleMentionPickerProps {
   value: string;
   onChange: (value: string) => void;
   onInsert: (mention: string) => void;
-  inputRef?: React.RefObject<HTMLInputElement | null>;
+  inputRef?: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>;
 }
 
 /** AF-UX-04a：@ 角色选择器 */

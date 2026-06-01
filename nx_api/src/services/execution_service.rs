@@ -730,7 +730,68 @@ impl ExecutionService {
                 execution_id: exec_id,
                 status,
             });
+        } else {
+            // 内存中没有该执行：多半是 nx_api 重启后遗留在 DB 里的“僵尸”记录
+            // （上一个进程跑到一半崩溃/被杀，状态停留在 running）。此前这里直接 return，
+            // 导致 watchdog 检测到超时却无法把它落库，UI 永远显示“运行中”。
+            // 这里改为直接写库 + 广播，使其能被正常收尾。
+            drop(executions);
+            let finished_at = if matches!(
+                status,
+                ExecutionStatus::Completed
+                    | ExecutionStatus::Failed
+                    | ExecutionStatus::Cancelled
+            ) {
+                Some(chrono::Utc::now().to_rfc3339())
+            } else {
+                None
+            };
+            if let Some(ref repo) = self.repo {
+                if let Err(e) = repo.update_status(
+                    id,
+                    status_to_db_str(status),
+                    None,
+                    finished_at.as_deref(),
+                ) {
+                    tracing::error!("持久化状态更新失败(DB-only): {}", e);
+                }
+            }
+            self.broadcast(ExecutionEvent::StatusChanged {
+                execution_id: id.to_string(),
+                status,
+            });
         }
+    }
+
+    /// 开机对账：把 DB 中仍为 running、但当前进程内存里并不存在的执行标记为 Failed。
+    ///
+    /// 进程崩溃/重启后，没有任何工作流任务能跨进程存活，因此启动时 DB 里残留的
+    /// running 记录都是“僵尸”，必须收尾，否则 UI 会永远显示“运行中”。
+    /// 返回被收尾的执行 id 列表。
+    pub fn reconcile_orphaned_running(&self) -> Vec<String> {
+        let db_running: Vec<String> = match self.repo {
+            Some(ref repo) => repo
+                .find_all()
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|e| matches!(e.status, ExecutionStatus::Running))
+                .map(|e| e.id)
+                .collect(),
+            None => return Vec::new(),
+        };
+
+        let in_memory: std::collections::HashSet<String> =
+            { self.executions.lock().keys().cloned().collect() };
+
+        let orphaned: Vec<String> = db_running
+            .into_iter()
+            .filter(|id| !in_memory.contains(id))
+            .collect();
+
+        for id in &orphaned {
+            self.update_status(id, ExecutionStatus::Failed);
+        }
+        orphaned
     }
 
     /// 设置执行错误

@@ -1152,6 +1152,22 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         }
     }
 
+    // ── 开机对账：收尾上个进程遗留的 running 僵尸执行 ──
+    // 工作流类执行不在 Resume 覆盖范围内，崩溃/重启后会一直停留在 running，
+    // 导致前端永远显示“运行中”。这里把内存里不存在的 running 记录统一标记为 Failed。
+    {
+        let orphaned = app_state.execution_service.reconcile_orphaned_running();
+        if orphaned.is_empty() {
+            tracing::info!("[Reconcile] 无遗留 running 执行");
+        } else {
+            tracing::warn!(
+                "[Reconcile] 收尾 {} 个遗留 running 执行 → Failed: {:?}",
+                orphaned.len(),
+                orphaned
+            );
+        }
+    }
+
     // 需要认证的 API 路由
     let api_routes = Router::new()
         // 工作流路由
@@ -1926,15 +1942,31 @@ pub fn spawn_watchdog(state: Arc<AppState>) {
         loop {
             interval.tick().await;
             let now = chrono::Utc::now();
+            // 以“最近活跃时间”判断卡死，而非开始时间，否则会误杀正常运行超过阈值的
+            // 长工作流（多 agent 生成站点很容易跑十几分钟）。活跃时间取
+            // max(started_at, 最近一个阶段的 completed_at)，无更新超过 20 分钟才算卡死。
+            const STALE_MINUTES: i64 = 20;
             let stale: Vec<String> = state
                 .execution_service
                 .get_all_executions()
                 .into_iter()
                 .filter(|e| {
-                    matches!(e.status, crate::services::events::ExecutionStatus::Running)
-                        && e.started_at
-                            .map(|t| (now - t).num_minutes() > 5)
-                            .unwrap_or(false)
+                    if !matches!(e.status, crate::services::events::ExecutionStatus::Running) {
+                        return false;
+                    }
+                    let last_stage_at = e
+                        .stage_results
+                        .iter()
+                        .filter_map(|s| s.completed_at)
+                        .max();
+                    let last_active = match (e.started_at, last_stage_at) {
+                        (Some(s), Some(st)) => Some(s.max(st)),
+                        (Some(s), None) => Some(s),
+                        (None, st) => st,
+                    };
+                    last_active
+                        .map(|t| (now - t).num_minutes() > STALE_MINUTES)
+                        .unwrap_or(false)
                 })
                 .map(|e| e.id)
                 .collect();

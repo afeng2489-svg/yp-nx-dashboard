@@ -37,7 +37,15 @@ export interface FactoryIntentConsoleProps {
   onAttachmentPick: (file: File | null) => void;
   onRemoveAttachment: (relativePath: string) => void;
   currentProjectName?: string;
-  onRun: (prompt: string, workflowName?: string) => void;
+  onRun: (
+    prompt: string,
+    workflowName?: string,
+    retryOpts?: {
+      retryExecutionId?: string;
+      retryFromStage?: string;
+      skipQualityGateForStage?: string;
+    },
+  ) => void | Promise<{ ok: boolean; error?: string }>;
   onQuickLineLegacy: (item: QuickCardItem) => void;
   quickCards: QuickCardItem[];
   routingHint?: string;
@@ -94,7 +102,7 @@ export function FactoryIntentConsole({
       return;
     }
     onSelectedWorkflowChange(chip.workflowName);
-    if (!intent.trim() && chip.placeholder) {
+    if (!intent.trim() && 'placeholder' in chip && chip.placeholder) {
       onIntentChange('');
     }
   };
@@ -307,7 +315,7 @@ export function FactoryIntentConsole({
           {quickCards
             .filter(
               (item) =>
-                !FACTORY_INTENT_CHIPS.some((c) => c.id === item.id) &&
+                !FACTORY_INTENT_CHIPS.some((c) => String(c.id) === String(item.id)) &&
                 isVisibleInMoreDrawer(item.workflowName),
             )
             .map((item) => {
