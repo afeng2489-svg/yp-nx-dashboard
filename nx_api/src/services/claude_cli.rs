@@ -390,8 +390,66 @@ fn clear_claude_bin_env() {
     std::env::remove_var("CLAUDE_BIN");
 }
 
-/// 启动时初始化：读取用户配置（最高优先级）→ 否则智能搜索 → 写入 env
+/// 把 `~/.claude/settings.json` + `settings.local.json` 的 `env` 块（cc-switch 维护，
+/// local 覆盖 base）注入到当前进程的**真实环境变量**。
+///
+/// 为什么必须这么做：实测证明 Claude Code CLI 的鉴权**只认真实环境变量**，不读 settings
+/// 文件里的 `env`（`claude -p` 在仅有 settings.local.json 时报 "Not logged in"）。因此工厂
+/// 要复刻"用户当前 profile"，必须由我们把该 `env` 桥接成进程环境变量。
+///
+/// 特性：provider 无关（读什么注什么）、跟随 cc-switch、跨平台（解析 JSON 而非探测 shell）。
+/// `anthropic` profile 的 env 为空 → 不注入任何东西 → claude 回退官方 /login。
+fn apply_settings_local_env() {
+    let home = if cfg!(target_os = "windows") {
+        std::env::var("USERPROFILE")
+            .or_else(|_| std::env::var("HOME"))
+            .unwrap_or_default()
+    } else {
+        std::env::var("HOME").unwrap_or_default()
+    };
+    if home.is_empty() {
+        return;
+    }
+
+    let mut applied = Vec::new();
+    // base 先、local 后（settings.local.json 覆盖 settings.json）
+    for name in [".claude/settings.json", ".claude/settings.local.json"] {
+        let path = std::path::Path::new(&home).join(name);
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) else {
+            continue;
+        };
+        let Some(env) = json.get("env").and_then(|v| v.as_object()) else {
+            continue;
+        };
+        for (key, value) in env {
+            if let Some(s) = value.as_str() {
+                if !s.is_empty() {
+                    std::env::set_var(key, s);
+                    applied.push(key.clone());
+                }
+            }
+        }
+    }
+
+    if !applied.is_empty() {
+        applied.sort();
+        applied.dedup();
+        tracing::info!(
+            "[Claude CLI] 已从 settings.local.json 注入 provider 环境变量: {}",
+            applied.join(", ")
+        );
+    }
+}
+
+/// 启动时初始化：注入 profile 环境变量 → 读取用户配置路径（最高优先级）→ 否则智能搜索 → 写入 env
 pub fn init_at_startup() {
+    // 0. 把 cc-switch 写入的当前 profile（settings.local.json 的 env）桥接成真实环境变量，
+    //    否则 Claude Code CLI 鉴权会报 "Not logged in"（实测：它不读 settings 文件做鉴权）。
+    apply_settings_local_env();
+
     // 1. 用户在设置里指定的路径优先
     if let Some(user_path) = load_user_configured_path() {
         if std::path::Path::new(&user_path).exists() {

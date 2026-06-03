@@ -1972,62 +1972,31 @@ fn env_model(env: &serde_json::Value, specific_key: &str, fallback: &str) -> Str
         .to_string()
 }
 
-/// 获取 Claude Code CLI 实际使用的模型
+/// 获取 Claude Code CLI 实际使用的模型。
+///
+/// 读取 `~/.claude/settings.local.json`（覆盖）+ `settings.json` 的 `env` 块——即
+/// `cc-switch` 维护、Claude CLI 原生消费的真相源，从而反映当前 profile（minimax/deepseek/官方）。
 pub async fn get_claude_cli_model() -> Json<ClaudeCliModelResponse> {
-    let home = if cfg!(target_os = "windows") {
-        std::env::var("USERPROFILE")
-            .or_else(|_| std::env::var("HOME"))
-            .unwrap_or_else(|_| r"C:\Users\Default".to_string())
-    } else {
-        std::env::var("HOME").unwrap_or_else(|_| "/root".to_string())
-    };
-    let settings_path = std::path::Path::new(&home).join(".claude/settings.json");
+    let env = serde_json::Value::Object(read_claude_settings_env());
 
-    let (primary, sonnet, haiku, opus, base_url) = if settings_path.exists() {
-        match std::fs::read_to_string(&settings_path) {
-            Ok(content) => {
-                let json: serde_json::Value =
-                    serde_json::from_str(&content).unwrap_or(serde_json::json!({}));
-                let env = json.get("env").cloned().unwrap_or(serde_json::json!({}));
-                let primary = env
-                    .get("ANTHROPIC_MODEL")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-                let sonnet = primary.clone().unwrap_or_else(|| {
-                    env_model(&env, "ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-5")
-                });
-                let haiku = env
-                    .get("ANTHROPIC_SMALL_FAST_MODEL")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| {
-                        env_model(&env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", "claude-haiku-4-5")
-                    });
-                let opus = env_model(&env, "ANTHROPIC_DEFAULT_OPUS_MODEL", "claude-opus-4-5");
-                let primary = primary.unwrap_or_else(|| sonnet.clone());
-                let base_url = env
-                    .get("ANTHROPIC_BASE_URL")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-                (primary, sonnet, haiku, opus, base_url)
-            }
-            Err(_) => (
-                "claude-sonnet-4-5".to_string(),
-                "claude-sonnet-4-5".to_string(),
-                "claude-haiku-4-5".to_string(),
-                "claude-opus-4-5".to_string(),
-                None,
-            ),
-        }
-    } else {
-        (
-            "claude-sonnet-4-5".to_string(),
-            "claude-sonnet-4-5".to_string(),
-            "claude-haiku-4-5".to_string(),
-            "claude-opus-4-5".to_string(),
-            None,
-        )
-    };
+    let primary = env
+        .get("ANTHROPIC_MODEL")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let sonnet = primary
+        .clone()
+        .unwrap_or_else(|| env_model(&env, "ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-4-5"));
+    let haiku = env
+        .get("ANTHROPIC_SMALL_FAST_MODEL")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| env_model(&env, "ANTHROPIC_DEFAULT_HAIKU_MODEL", "claude-haiku-4-5"));
+    let opus = env_model(&env, "ANTHROPIC_DEFAULT_OPUS_MODEL", "claude-opus-4-5");
+    let primary = primary.unwrap_or_else(|| sonnet.clone());
+    let base_url = env
+        .get("ANTHROPIC_BASE_URL")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
 
     Json(ClaudeCliModelResponse {
         primary_model: primary,
@@ -2108,6 +2077,263 @@ pub async fn redetect_claude_cli() -> Json<ClaudeCliConfigResponse> {
     Json(resolution_to_response(
         crate::services::claude_cli::redetect(),
     ))
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct ClaudeCliDiagnosticsResponse {
+    pub healthy: bool,
+    pub status: String,
+    pub message: String,
+    pub path: Option<String>,
+    pub source: String,
+    pub executable: Option<String>,
+    pub prefix_args: Vec<String>,
+    pub version: Option<String>,
+    pub base_url: Option<String>,
+    pub model: Option<String>,
+    pub has_auth_token: bool,
+    pub has_api_key: bool,
+    pub suggestion: String,
+    pub stderr_preview: Option<String>,
+}
+
+fn classify_claude_cli_error(stderr: &str) -> (&'static str, String) {
+    let lower = stderr.to_lowercase();
+    if lower.contains("not logged in") || lower.contains("please run /login") {
+        (
+            "not_logged_in",
+            "Claude Code CLI 未登录。请在终端运行 `claude` 后执行 `/login`，或配置可用的 Anthropic 兼容端点环境变量。".to_string(),
+        )
+    } else if lower.contains("invalid api key") || lower.contains("authentication_error") {
+        (
+            "invalid_api_key",
+            "Claude Code CLI 认证失败。请检查 ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY 是否正确，以及 Base URL 是否匹配该 Key 所属区域。".to_string(),
+        )
+    } else if lower.contains("unknown file extension") && lower.contains(".exe") {
+        (
+            "bad_spawn",
+            "Claude Code CLI 启动方式异常：原生二进制不应通过 node 执行。请重新检测 CLI 路径或升级应用。".to_string(),
+        )
+    } else if lower.contains("node: no such file") || lower.contains("env: node") {
+        (
+            "node_missing",
+            "Claude Code CLI 需要 node，但当前环境找不到 node。请安装 Node 18+ 或重新安装 Claude Code CLI。".to_string(),
+        )
+    } else if lower.contains("timed out") || lower.contains("timeout") {
+        (
+            "timeout",
+            "Claude Code CLI 探测超时。请先在同一终端运行 `claude -p ping` 验证本机 CLI 是否可用。".to_string(),
+        )
+    } else {
+        (
+            "failed",
+            "Claude Code CLI 探测失败。请查看 stderr 摘要，并在同一启动环境中运行 `claude -p ping` 复现。".to_string(),
+        )
+    }
+}
+
+fn preview_stderr(bytes: &[u8]) -> Option<String> {
+    let text = String::from_utf8_lossy(bytes).trim().to_string();
+    if text.is_empty() {
+        None
+    } else {
+        Some(text.chars().take(800).collect())
+    }
+}
+
+/// 读取 `~/.claude/settings.json` + `settings.local.json` 的 `env` 块并合并（local 覆盖 base）。
+/// 这是 `cc-switch` 维护的真相源，Claude Code CLI 启动时原生读取。
+fn read_claude_settings_env() -> serde_json::Map<String, serde_json::Value> {
+    let mut merged = serde_json::Map::new();
+    let home = if cfg!(target_os = "windows") {
+        std::env::var("USERPROFILE")
+            .or_else(|_| std::env::var("HOME"))
+            .unwrap_or_default()
+    } else {
+        std::env::var("HOME").unwrap_or_default()
+    };
+    if home.is_empty() {
+        return merged;
+    }
+    // base 先、local 后（settings.local.json 覆盖 settings.json）
+    for name in [".claude/settings.json", ".claude/settings.local.json"] {
+        let path = std::path::Path::new(&home).join(name);
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                if let Some(env) = json.get("env").and_then(|v| v.as_object()) {
+                    for (k, v) in env {
+                        merged.insert(k.clone(), v.clone());
+                    }
+                }
+            }
+        }
+    }
+    merged
+}
+
+/// 诊断展示用的有效 ANTHROPIC 配置。
+///
+/// 取值顺序：进程环境变量优先（用户显式 export / 启动环境），其次 `settings.local.json` /
+/// `settings.json` 的 `env` 块。后者是工厂 spawn 的 claude 实际生效的配置源，
+/// 因此即便 nx_api 进程自身没有 ANTHROPIC_* 也能正确反映当前 profile。
+fn effective_anthropic_config() -> (Option<String>, Option<String>, bool, bool) {
+    let settings_env = read_claude_settings_env();
+    let pick = |key: &str| -> Option<String> {
+        std::env::var(key)
+            .ok()
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                settings_env
+                    .get(key)
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .filter(|s| !s.is_empty())
+            })
+    };
+
+    let base_url = pick("ANTHROPIC_BASE_URL");
+    let model = pick("ANTHROPIC_MODEL").or_else(|| pick("ANTHROPIC_DEFAULT_SONNET_MODEL"));
+    let has_auth_token = pick("ANTHROPIC_AUTH_TOKEN").is_some();
+    let has_api_key = pick("ANTHROPIC_API_KEY").is_some();
+    (base_url, model, has_auth_token, has_api_key)
+}
+
+/// 诊断 Claude CLI：路径、版本、认证与当前后端是否可用
+pub async fn diagnose_claude_cli() -> Json<ClaudeCliDiagnosticsResponse> {
+    let resolution = crate::services::claude_cli::get_resolution_status();
+    let source = match resolution.source {
+        crate::services::claude_cli::ClaudeCliSource::User => "user",
+        crate::services::claude_cli::ClaudeCliSource::Auto => "auto",
+        crate::services::claude_cli::ClaudeCliSource::None => "none",
+    }
+    .to_string();
+
+    let (base_url, model, has_auth_token, has_api_key) = effective_anthropic_config();
+
+    let Some((exe, prefix_args)) = crate::services::claude_cli::get_claude_cli_executable() else {
+        return Json(ClaudeCliDiagnosticsResponse {
+            healthy: false,
+            status: "not_found".to_string(),
+            message: "未找到 Claude Code CLI".to_string(),
+            path: resolution.path,
+            source,
+            executable: None,
+            prefix_args: vec![],
+            version: None,
+            base_url,
+            model,
+            has_auth_token,
+            has_api_key,
+            suggestion: install_hint().unwrap_or_else(|| {
+                "请安装 Claude Code CLI，或在设置页手动指定 claude 可执行文件路径。".to_string()
+            }),
+            stderr_preview: None,
+        });
+    };
+
+    let version_output = tokio::process::Command::new(&exe)
+        .args(&prefix_args)
+        .arg("--version")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .await;
+    let version = version_output
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                String::from_utf8_lossy(&o.stdout)
+                    .lines()
+                    .next()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+            } else {
+                None
+            }
+        });
+
+    let probe = tokio::time::timeout(std::time::Duration::from_secs(20), async {
+        tokio::process::Command::new(&exe)
+            .args(&prefix_args)
+            .args(["-p", "ping", "--output-format", "text"])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .await
+    })
+    .await;
+
+    match probe {
+        Ok(Ok(output)) if output.status.success() => Json(ClaudeCliDiagnosticsResponse {
+            healthy: true,
+            status: "ok".to_string(),
+            message: "Claude Code CLI 可用".to_string(),
+            path: resolution.path,
+            source,
+            executable: Some(exe),
+            prefix_args,
+            version,
+            base_url,
+            model,
+            has_auth_token,
+            has_api_key,
+            suggestion: "无需处理。团队执行将使用同一 Claude CLI 启动环境。".to_string(),
+            stderr_preview: preview_stderr(&output.stderr),
+        }),
+        Ok(Ok(output)) => {
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let (status, suggestion) = classify_claude_cli_error(&stderr);
+            Json(ClaudeCliDiagnosticsResponse {
+                healthy: false,
+                status: status.to_string(),
+                message: format!("Claude Code CLI 探测失败（exit: {}）", output.status),
+                path: resolution.path,
+                source,
+                executable: Some(exe),
+                prefix_args,
+                version,
+                base_url,
+                model,
+                has_auth_token,
+                has_api_key,
+                suggestion,
+                stderr_preview: preview_stderr(&output.stderr),
+            })
+        }
+        Ok(Err(e)) => Json(ClaudeCliDiagnosticsResponse {
+            healthy: false,
+            status: "spawn_failed".to_string(),
+            message: format!("无法启动 Claude Code CLI: {}", e),
+            path: resolution.path,
+            source,
+            executable: Some(exe),
+            prefix_args,
+            version,
+            base_url,
+            model,
+            has_auth_token,
+            has_api_key,
+            suggestion: "请确认路径指向可执行的 claude 命令，并在终端中运行 `claude --version` 验证。".to_string(),
+            stderr_preview: None,
+        }),
+        Err(_) => Json(ClaudeCliDiagnosticsResponse {
+            healthy: false,
+            status: "timeout".to_string(),
+            message: "Claude Code CLI 探测超时".to_string(),
+            path: resolution.path,
+            source,
+            executable: Some(exe),
+            prefix_args,
+            version,
+            base_url,
+            model,
+            has_auth_token,
+            has_api_key,
+            suggestion: "请先在同一终端运行 `claude -p ping` 验证是否卡在登录、权限确认或网络请求。".to_string(),
+            stderr_preview: None,
+        }),
+    }
 }
 
 // ============== CLI Security ==============

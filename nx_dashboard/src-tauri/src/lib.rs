@@ -309,6 +309,10 @@ async fn pty_spawn_team(
 
     // Set TERM so the TUI uses ANSI escape codes
     cmd.env("TERM", "xterm-256color");
+    // 注入当前 profile 的真实环境变量，使 nx team PTY 里的 claude 跟随 cc-switch。
+    for (key, value) in claude_profile_env_from_settings() {
+        cmd.env(key, value);
+    }
 
     // ── Create PTY ──
     let pty_system = native_pty_system();
@@ -446,6 +450,11 @@ async fn pty_spawn_shell(
 
     let mut cmd = CommandBuilder::new(&shell);
     cmd.env("TERM", "xterm-256color");
+    // 注入当前 profile（settings.local.json 的 env）为真实环境变量，使整合终端里的裸
+    // `claude` 跟随 cc-switch（claude 鉴权不读 settings 文件，必须桥接成真实 env）。
+    for (key, value) in claude_profile_env_from_settings() {
+        cmd.env(key, value);
+    }
     if let Some(ref dir) = working_dir {
         if std::path::Path::new(dir).is_dir() {
             cmd.cwd(dir);
@@ -818,6 +827,92 @@ fn resolve_claude_cli_for_sidecar() -> Option<String> {
     }
 }
 
+/// 从登录 shell 抓取**仅代理类**环境变量传给 nx_api sidecar（覆盖只在 .zprofile/.zshrc
+/// 设代理、而 GUI 启动时拿不到的场景）。
+///
+/// 关键：这里**绝不**抓 `ANTHROPIC_*` / provider 相关变量。Claude Code CLI 的 provider 配置
+/// 唯一来源是 `~/.claude/settings.local.json`（由 cc-switch 维护）；若在此注入 ANTHROPIC，
+/// 会污染 nx_api 进程 env、盖过 settings 文件，导致 `cc-switch` 切换不被工厂跟随。
+fn shell_env_for_sidecar() -> HashMap<String, String> {
+    let allowed_keys = [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "no_proxy",
+    ];
+
+    let mut envs = HashMap::new();
+    if cfg!(target_os = "windows") {
+        return envs;
+    }
+
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+    let output = Command::new(&shell)
+        .args(["-i", "-l", "-c", "env"])
+        .output();
+
+    let Ok(output) = output else {
+        return envs;
+    };
+    if !output.status.success() {
+        return envs;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        if allowed_keys.contains(&key) && !value.is_empty() {
+            envs.insert(key.to_string(), value.to_string());
+        }
+    }
+
+    envs
+}
+
+/// 读取 `~/.claude/settings.json` + `settings.local.json` 的 `env` 块（cc-switch 维护，
+/// local 覆盖 base），用于注入工厂 PTY 中 claude 的真实环境变量。
+///
+/// 为什么需要：实测 Claude Code CLI 鉴权**只认真实环境变量**，不读 settings 文件的 `env`。
+/// 整合终端 / nx team PTY 里要让 `claude` 跟随当前 profile（minimax/deepseek/官方），
+/// 必须由这里把 settings 的 `env` 桥接成真实环境变量。provider 无关、跨平台。
+/// `anthropic` profile 的 env 为空 → 返回空 → claude 回退官方 /login。
+fn claude_profile_env_from_settings() -> HashMap<String, String> {
+    let home = if cfg!(target_os = "windows") {
+        std::env::var("USERPROFILE")
+            .or_else(|_| std::env::var("HOME"))
+            .unwrap_or_default()
+    } else {
+        std::env::var("HOME").unwrap_or_default()
+    };
+    let mut merged: HashMap<String, String> = HashMap::new();
+    if home.is_empty() {
+        return merged;
+    }
+    for name in [".claude/settings.json", ".claude/settings.local.json"] {
+        let path = std::path::Path::new(&home).join(name);
+        let Ok(content) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) else {
+            continue;
+        };
+        if let Some(env) = json.get("env").and_then(|v| v.as_object()) {
+            for (k, v) in env {
+                if let Some(s) = v.as_str() {
+                    if !s.is_empty() {
+                        merged.insert(k.clone(), s.to_string());
+                    }
+                }
+            }
+        }
+    }
+    merged
+}
+
 /// 查找 workspace root：包含 Cargo.toml（含 [workspace]）和 nx_dashboard/ 的目录
 fn find_workspace_root() -> Option<PathBuf> {
     let is_workspace = |dir: &std::path::Path| -> bool {
@@ -1053,6 +1148,16 @@ fn start_nx_api(
         diag(&format!("Claude CLI path: {}", cli_path));
         child_cmd.env("CLAUDE_CLI_PATH_OVERRIDE", cli_path);
         child_cmd.env("CLAUDE_BIN", cli_path);
+    }
+
+    let shell_env = shell_env_for_sidecar();
+    for (key, value) in &shell_env {
+        child_cmd.env(key, value);
+    }
+    if !shell_env.is_empty() {
+        let mut keys: Vec<&str> = shell_env.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        diag(&format!("Imported shell env for Claude CLI: {}", keys.join(", ")));
     }
 
     // Release：config/ 被打进 $RESOURCE，nx_api 无法再"向上找仓库根"来定位，
