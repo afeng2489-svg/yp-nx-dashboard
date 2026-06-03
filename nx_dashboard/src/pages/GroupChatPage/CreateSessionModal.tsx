@@ -1,12 +1,28 @@
+import { MessagesSquare } from 'lucide-react';
 import { CreateGroupSessionRequest, SpeakingStrategy } from '@/stores/groupChatStore';
 import { Team } from '@/stores/teamStore';
 import {
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
+import { LaunchModalShell } from '@/components/workflow/LaunchModalShell';
+import { LaunchModalFooter } from '@/components/workflow/LaunchModalFooter';
+import {
+  FormField,
+  FormSection,
+  formControlClass,
+} from '@/components/ui/formStyles';
+import { cn } from '@/lib/utils';
+
+const STRATEGY_LABELS: Record<SpeakingStrategy, string> = {
+  round_robin: '轮流发言',
+  free: '自由发言',
+  moderator: '主持人模式',
+  debate: '辩论模式',
+};
 
 export interface CreateSessionModalProps {
   isOpen: boolean;
@@ -27,22 +43,42 @@ export function CreateSessionModal({
 }: CreateSessionModalProps) {
   if (!isOpen) return null;
 
+  const canSubmit =
+    createForm.team_id &&
+    createForm.team_id !== '__select__' &&
+    createForm.name.trim() &&
+    createForm.topic.trim();
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-card rounded-lg border w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
-        <h2 className="text-xl font-bold mb-4">新建讨论会话</h2>
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium mb-1 block">团队</label>
+    <LaunchModalShell
+      onClose={onClose}
+      title="新建讨论会话"
+      subtitle="配置团队与讨论规则，创建后可邀请 Agent 参与"
+      icon={<MessagesSquare />}
+      accent="indigo"
+      size="md"
+      footer={
+        <LaunchModalFooter
+          onCancel={onClose}
+          onSubmit={onSubmit}
+          submitLabel="创建会话"
+          disabled={!canSubmit}
+          hint="标有 * 的字段为必填"
+        />
+      }
+    >
+      <div className="space-y-8">
+        <FormSection title="会话信息">
+          <FormField label="团队" required hint="选择参与讨论的团队">
             <Select
               value={createForm.team_id}
               onValueChange={(v) => onFormChange({ ...createForm, team_id: v })}
             >
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue />
+              <SelectTrigger className={cn(formControlClass, 'cursor-pointer')}>
+                <SelectValue placeholder="选择团队" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__select__">选择团队</SelectItem>
+                <SelectItem value="__select__">请选择…</SelectItem>
                 {teams.map((team) => (
                   <SelectItem key={team.id} value={team.id}>
                     {team.name}
@@ -50,80 +86,68 @@ export function CreateSessionModal({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-1 block">会话名称</label>
+          </FormField>
+
+          <FormField label="会话名称" required hint="便于在列表中识别">
             <input
               type="text"
               value={createForm.name}
               onChange={(e) => onFormChange({ ...createForm, name: e.target.value })}
-              className="input w-full"
+              className={formControlClass}
               placeholder="架构方案讨论"
             />
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-1 block">讨论主题</label>
+          </FormField>
+
+          <FormField label="讨论主题" required hint="Agent 将围绕此主题展开讨论">
             <input
               type="text"
               value={createForm.topic}
               onChange={(e) => onFormChange({ ...createForm, topic: e.target.value })}
-              className="input w-full"
+              className={formControlClass}
               placeholder="微服务 vs 单体架构"
             />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium mb-1 block">发言策略</label>
+          </FormField>
+        </FormSection>
+
+        <FormSection title="讨论规则">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField label="发言策略">
               <Select
                 value={createForm.speaking_strategy}
                 onValueChange={(v) =>
                   onFormChange({ ...createForm, speaking_strategy: v as SpeakingStrategy })
                 }
               >
-                <SelectTrigger className="h-8 text-sm">
+                <SelectTrigger className={cn(formControlClass, 'cursor-pointer')}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="round_robin">轮流发言</SelectItem>
-                  <SelectItem value="free">自由发言</SelectItem>
-                  <SelectItem value="moderator">主持人模式</SelectItem>
-                  <SelectItem value="debate">辩论模式</SelectItem>
+                  {(Object.entries(STRATEGY_LABELS) as [SpeakingStrategy, string][]).map(
+                    ([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ),
+                  )}
                 </SelectContent>
               </Select>
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">最大回合</label>
+            </FormField>
+
+            <FormField label="最大回合" hint="达到上限后自动结束">
               <input
                 type="number"
                 value={createForm.max_turns}
                 onChange={(e) =>
-                  onFormChange({ ...createForm, max_turns: parseInt(e.target.value) || 10 })
+                  onFormChange({ ...createForm, max_turns: parseInt(e.target.value, 10) || 10 })
                 }
-                className="input w-full"
+                className={formControlClass}
                 min={1}
                 max={100}
               />
-            </div>
+            </FormField>
           </div>
-        </div>
-        <div className="flex justify-end gap-2 mt-6">
-          <button onClick={onClose} className="btn btn-outline">
-            取消
-          </button>
-          <button
-            onClick={onSubmit}
-            disabled={
-              !createForm.team_id ||
-              createForm.team_id === '__select__' ||
-              !createForm.name ||
-              !createForm.topic
-            }
-            className="btn btn-primary"
-          >
-            创建
-          </button>
-        </div>
+        </FormSection>
       </div>
-    </div>
+    </LaunchModalShell>
   );
 }

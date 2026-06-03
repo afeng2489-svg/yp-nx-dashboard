@@ -50,6 +50,7 @@ const DEFAULT_SERVICES: ServiceEntry[] = [
 
 export type ApprovalPolicy = 'trust_gates_final_only' | 'approve_all';
 export type TextLaneCostMode = 'cost' | 'quality';
+export type FactoryEditMode = 'agent' | 'human';
 
 export interface FactorySettings {
   /** AF-UX-08：审批策略 */
@@ -66,11 +67,14 @@ interface SettingsStore {
   security: SecuritySettings;
   services: ServiceEntry[];
   factory: FactorySettings;
+  /** AF-UX-12 Beta: agent vs human edit during active Run */
+  factoryEditMode: FactoryEditMode;
 
   setLayout: (patch: Partial<LayoutSettings>) => void;
   setNotifications: (patch: Partial<NotificationSettings>) => void;
   setSecurity: (patch: Partial<SecuritySettings>) => void;
   setFactory: (patch: Partial<FactorySettings>) => void;
+  setFactoryEditMode: (mode: FactoryEditMode) => void;
   setServices: (services: ServiceEntry[]) => void;
   updateService: (id: string, patch: Partial<ServiceEntry>) => void;
   reset: () => void;
@@ -111,6 +115,7 @@ export const useSettingsStore = create<SettingsStore>()(
       security: { ...DEFAULT_SECURITY },
       services: [...DEFAULT_SERVICES],
       factory: { ...DEFAULT_FACTORY },
+      factoryEditMode: 'agent' as FactoryEditMode,
 
       setLayout: (patch) =>
         set((state) => {
@@ -128,6 +133,8 @@ export const useSettingsStore = create<SettingsStore>()(
 
       setFactory: (patch) => set((state) => ({ factory: { ...state.factory, ...patch } })),
 
+      setFactoryEditMode: (mode) => set({ factoryEditMode: mode }),
+
       setServices: (services) => set({ services }),
 
       updateService: (id, patch) =>
@@ -142,15 +149,17 @@ export const useSettingsStore = create<SettingsStore>()(
           security: { ...DEFAULT_SECURITY },
           services: [...DEFAULT_SERVICES],
           factory: { ...DEFAULT_FACTORY },
+          factoryEditMode: 'agent' as FactoryEditMode,
         }),
     }),
     {
       name: 'nexus-settings',
-      version: 3,
+      version: 4,
       migrate: (persisted, version) => {
         const state = persisted as {
           layout?: { mode?: string; variant?: string };
           factory?: Partial<FactorySettings>;
+          factoryEditMode?: FactoryEditMode;
         };
         if (state?.layout?.mode === 'focus') {
           state.layout.mode = 'guided';
@@ -160,6 +169,9 @@ export const useSettingsStore = create<SettingsStore>()(
         }
         if (version < 3) {
           state.factory = { ...DEFAULT_FACTORY, ...state?.factory };
+        }
+        if (version < 4 && !state.factoryEditMode) {
+          state.factoryEditMode = 'agent';
         }
         return persisted;
       },

@@ -10,7 +10,7 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { DEFAULT_LAYOUT_VARIANT } from '@/data/layoutVariants';
 import { recordFactoryEvent } from '@/services/factoryMetrics';
 import CrashRecoveryDialog from '@/components/team/CrashRecoveryDialog';
-import { useProjectStore } from '@/stores/projectStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PageTabs } from '@/components/ui/PageTabs';
 
@@ -29,7 +29,7 @@ export function FactoryPage() {
   const intentParam = searchParams.get('intent') ?? undefined;
   const sprintIdParam = searchParams.get('sprint_id') ?? undefined;
   const fetchExecutions = useExecutionStore((s) => s.fetchExecutions);
-  const currentProject = useProjectStore((s) => s.currentProject);
+  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
   const layoutVariant = useSettingsStore((s) => s.layout.variant ?? DEFAULT_LAYOUT_VARIANT);
   const consoleVariant = layoutVariant === 'refined' ? 'guided-refined' : 'full';
 
@@ -49,7 +49,7 @@ export function FactoryPage() {
       <SoloTeamWizardBanner />
 
       <CrashRecoveryDialog
-        projectId={currentProject?.id}
+        projectId={currentWorkspace?.id}
         onResumed={() => void fetchExecutions()}
       />
 

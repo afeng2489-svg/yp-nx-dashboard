@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useExecutionsQuery } from '@/hooks/useReactQuery';
 import { useExecutionStore, type Execution } from '@/stores/executionStore';
 import { useTeamStore } from '@/stores/teamStore';
-import { useProjectStore } from '@/stores/projectStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { onWorkspaceChange } from '@/stores/workspaceStore';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { Loader2, Trash2 } from 'lucide-react';
@@ -55,7 +55,7 @@ export function ExecutionsPage({
         : executions,
     [executions, runsOnly],
   );
-  const { filters, setFilters, filtered, teams, projects, workflows, reset } =
+  const { filters, setFilters, filtered, teams, workspaces, workflows, reset } =
     useExecutionFilters(sourceExecutions);
   const selectContextExecution = useContextPanelStore((s) => s.selectExecution);
   const isStudio = useIsStudioDark();
@@ -68,7 +68,7 @@ export function ExecutionsPage({
   useEffect(() => {
     fetchWorkflows();
     void useTeamStore.getState().fetchTeams();
-    void useProjectStore.getState().fetchProjects();
+    void useWorkspaceStore.getState().fetchWorkspaces();
   }, [fetchWorkflows]);
   useEffect(() => {
     const unsub = onWorkspaceChange(() => {
@@ -223,7 +223,7 @@ export function ExecutionsPage({
           onChange={setFilters}
           onReset={reset}
           teams={teams}
-          projects={projects}
+          workspaces={workspaces}
           workflows={workflows}
         />
       )}

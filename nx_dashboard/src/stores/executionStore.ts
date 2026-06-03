@@ -185,6 +185,17 @@ class ApiError extends Error {
   }
 }
 
+/** 后端 409：目标工作区非空，需用户确认后用 confirmOverwrite 重试 */
+export class WorkspaceConflictError extends Error {
+  constructor(
+    message: string,
+    public files: string[] = [],
+  ) {
+    super(message);
+    this.name = 'WorkspaceConflictError';
+  }
+}
+
 interface ExecutionStore {
   executions: Execution[];
   currentExecution: Execution | null;
@@ -199,7 +210,11 @@ interface ExecutionStore {
 
   fetchExecutions: () => Promise<void>;
   getExecution: (id: string) => Promise<Execution | null>;
-  startExecution: (workflowId: string, variables?: Record<string, unknown>) => Promise<Execution>;
+  startExecution: (
+    workflowId: string,
+    variables?: Record<string, unknown>,
+    opts?: { confirmOverwrite?: boolean },
+  ) => Promise<Execution>;
   cancelExecution: (id: string) => Promise<{ ok: boolean; error?: string }>;
   deleteExecutions: (ids: string[]) => Promise<void>;
   resumeExecution: (executionId: string, value: string) => boolean;
@@ -318,14 +333,32 @@ export const useExecutionStore = create<ExecutionStore>((set, get) => ({
     }
   },
 
-  startExecution: async (workflowId, variables = {}) => {
+  startExecution: async (workflowId, variables = {}, opts = {}) => {
     set({ error: null });
     try {
       const response = await fetchWithTimeout(`${API_BASE_URL}/api/v1/executions/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workflow_id: workflowId, variables }),
+        body: JSON.stringify({
+          workflow_id: workflowId,
+          variables,
+          confirm_overwrite: opts.confirmOverwrite ?? false,
+        }),
       });
+
+      // 409：目标工作区非空，需要用户确认。抛出可识别的错误供调用方弹确认。
+      if (response.status === 409) {
+        let message = '目标文件夹非空，可能与现有文件冲突';
+        let files: string[] = [];
+        try {
+          const body = (await response.json()) as { error?: string; files?: string[] };
+          if (body.error) message = body.error;
+          if (Array.isArray(body.files)) files = body.files;
+        } catch {
+          /* ignore parse error */
+        }
+        throw new WorkspaceConflictError(message, files);
+      }
 
       if (!response.ok) {
         throw new ApiError(`Failed to start execution: ${response.status}`, response.status);

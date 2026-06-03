@@ -4,38 +4,37 @@ import { Cpu, Factory } from 'lucide-react';
 import { useClaudeCliReady } from '@/hooks/useClaudeCliReady';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useTeamStore } from '@/stores/teamStore';
-import { useProjectStore } from '@/stores/projectStore';
+import { workspaceTeamId } from '@/lib/workspaceTeam';
 import { GlobalRunPanel } from '@/components/factory/GlobalRunPanel';
 import { GlobalBranchChip } from '@/components/factory/GlobalBranchChip';
 import { GlobalCostChip } from '@/components/factory/GlobalCostChip';
 import { cn } from '@/lib/utils';
 
 export function FactoryGlobalBar() {
-  const { currentWorkspace } = useWorkspaceStore();
+  const { workspaces, currentWorkspace, fetchWorkspaces, selectWorkspace } = useWorkspaceStore();
   const { teams, currentTeam, fetchTeams, setCurrentTeam } = useTeamStore();
-  const { projects, currentProject, fetchProjects, setCurrentProject } = useProjectStore();
   const { ready: cliReady, config: cliConfig } = useClaudeCliReady();
   const [teamManuallyChanged, setTeamManuallyChanged] = useState(false);
   const autoSyncedKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     fetchTeams();
-    fetchProjects();
-  }, [fetchTeams, fetchProjects]);
+    fetchWorkspaces();
+  }, [fetchTeams, fetchWorkspaces]);
 
-  /** AF-08 M1：切项目自动切绑定团队（用户未手动改团队时） */
+  /** 切工作区 → 自动切绑定团队（用户未手动改团队时） */
   useEffect(() => {
-    if (!currentProject?.team_id || teamManuallyChanged) return;
-    const syncKey = `${currentProject.id}:${currentProject.team_id}`;
+    const wsTeamId = currentWorkspace ? workspaceTeamId(currentWorkspace) : undefined;
+    if (!wsTeamId || teamManuallyChanged) return;
+    const syncKey = `${currentWorkspace?.id}:${wsTeamId}`;
     if (autoSyncedKeyRef.current === syncKey) return;
-    const bound = teams.find((t) => t.id === currentProject.team_id);
+    const bound = teams.find((t) => t.id === wsTeamId);
     if (bound && bound.id !== currentTeam?.id) {
       setCurrentTeam(bound);
     }
     autoSyncedKeyRef.current = syncKey;
   }, [
-    currentProject?.team_id,
-    currentProject?.id,
+    currentWorkspace,
     teams,
     currentTeam?.id,
     teamManuallyChanged,
@@ -43,9 +42,8 @@ export function FactoryGlobalBar() {
   ]);
 
   const cliBound = cliReady === true;
-  const boundTeamName = currentProject
-    ? teams.find((t) => t.id === currentProject.team_id)?.name
-    : undefined;
+  const wsTeamId = currentWorkspace ? workspaceTeamId(currentWorkspace) : undefined;
+  const boundTeamName = wsTeamId ? teams.find((t) => t.id === wsTeamId)?.name : undefined;
 
   return (
     <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-wrap">
@@ -70,24 +68,27 @@ export function FactoryGlobalBar() {
       </Link>
 
       <select
-        className="text-xs sm:text-sm bg-muted/50 border border-border rounded-md px-2 py-1 max-w-[140px] truncate"
-        value={currentProject?.id ?? ''}
+        className="text-xs sm:text-sm bg-muted/50 border border-border rounded-md px-2 py-1 max-w-[160px] truncate"
+        value={currentWorkspace?.id ?? ''}
         onChange={(e) => {
-          const p = projects.find((x) => x.id === e.target.value) ?? null;
+          const ws = workspaces.find((x) => x.id === e.target.value) ?? null;
           setTeamManuallyChanged(false);
           autoSyncedKeyRef.current = null;
-          setCurrentProject(p);
-          if (p?.team_id) {
-            const t = teams.find((x) => x.id === p.team_id) ?? null;
-            if (t) setCurrentTeam(t);
+          selectWorkspace(ws);
+          if (ws) {
+            const tid = workspaceTeamId(ws);
+            if (tid) {
+              const t = teams.find((x) => x.id === tid) ?? null;
+              if (t) setCurrentTeam(t);
+            }
           }
         }}
-        title="项目"
+        title="工作区"
       >
-        <option value="">项目…</option>
-        {projects.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
+        <option value="">工作区…</option>
+        {workspaces.map((w) => (
+          <option key={w.id} value={w.id}>
+            {w.name}
           </option>
         ))}
       </select>
@@ -110,8 +111,8 @@ export function FactoryGlobalBar() {
             </option>
           ))}
         </select>
-        {currentProject && boundTeamName && currentTeam?.id === currentProject.team_id && (
-          <span className="hidden md:inline text-[10px] text-emerald-600 dark:text-emerald-400" title="项目已绑定团队">
+        {wsTeamId && boundTeamName && currentTeam?.id === wsTeamId && (
+          <span className="hidden md:inline text-[10px] text-emerald-600 dark:text-emerald-400" title="工作区已绑定团队">
             已绑定
           </span>
         )}

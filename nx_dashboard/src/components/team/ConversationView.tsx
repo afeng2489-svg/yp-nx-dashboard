@@ -6,7 +6,7 @@ import { useAgentExecution } from '@/hooks/useAgentExecution';
 import { TerminalPanel } from './TerminalPanel';
 import { EmbeddedTerminalPreview } from './EmbeddedTerminalPreview';
 import { MarkdownMessage } from '@/components/common/MarkdownMessage';
-import { RoleMentionPicker } from '@/components/team/RoleMentionPicker';
+import { RoleMentionPicker, parseMentionRoleIds } from '@/components/team/RoleMentionPicker';
 import { isP5TeamChatAtEnabled } from '@/data/factoryFeatureFlags';
 import type { Role } from '@/stores/teamStore';
 
@@ -250,26 +250,26 @@ export function ConversationView({ teamId, onClose, embedded = false }: Conversa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
 
-  // 兜底轮询：isActive 期间每 10s 拉一次消息，防止 WS Completed 事件丢失导致消息不更新
+  // 兜底轮询（慢速 backstop）：消息主要由 WS Completed 事件驱动刷新（见上方
+  // agentExec.status 的 effect），且后端会缓存终态事件、在 WS 重连时回放，
+  // 因此这里只需低频兜底，防止极端情况下终态事件彻底丢失导致 UI 卡住。
   useEffect(() => {
     if (!isActive) return;
     let aborted = false;
     let timer: ReturnType<typeof setTimeout>;
-    const abortController = new AbortController();
     const poll = async () => {
       if (aborted) return;
       try {
         await fetchMessages(teamId);
       } catch {
-        // AbortController cancellation — ignore
+        // ignore
       }
-      if (!aborted) timer = setTimeout(poll, 10000);
+      if (!aborted) timer = setTimeout(poll, 30000);
     };
-    poll();
+    timer = setTimeout(poll, 30000);
     return () => {
       aborted = true;
       clearTimeout(timer);
-      abortController.abort();
     };
   }, [isActive, teamId, fetchMessages]);
 
@@ -310,11 +310,12 @@ export function ConversationView({ teamId, onClose, embedded = false }: Conversa
       };
 
       setLocalMessages((prev) => [...prev, userMessage]);
-      agentExec.execute(teamId, text).finally(() => {
+      const mentionedRoleIds = parseMentionRoleIds(text, roles);
+      agentExec.execute(teamId, text, undefined, mentionedRoleIds).finally(() => {
         executingRef.current = false;
       });
     },
-    [teamId, isActive, agentExec, isMonitorMode],
+    [teamId, isActive, agentExec, isMonitorMode, roles],
   );
 
   const handleConfirmTask = useCallback(() => {
@@ -329,11 +330,12 @@ export function ConversationView({ teamId, onClose, embedded = false }: Conversa
       created_at: new Date().toISOString(),
     };
     setLocalMessages((prev) => [...prev, userMessage]);
-    agentExec.execute(teamId, pendingConfirmTask, true).finally(() => {
+    const mentionedRoleIds = parseMentionRoleIds(pendingConfirmTask, roles);
+    agentExec.execute(teamId, pendingConfirmTask, true, mentionedRoleIds).finally(() => {
       executingRef.current = false;
     });
     setPendingConfirmTask(null);
-  }, [teamId, pendingConfirmTask, agentExec]);
+  }, [teamId, pendingConfirmTask, agentExec, roles]);
 
   const handleCancelTask = useCallback(() => {
     setPendingConfirmTask(null);

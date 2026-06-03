@@ -4,7 +4,13 @@ import {
   ClaudeSwitchBackendInfo,
   ClaudeSwitchBackendConfig,
 } from '@/stores/aiConfigStore';
-import { AddModelMappingRequest, ClaudeCliConfigResponse, RoutingRule, api } from '@/api/client';
+import {
+  AddModelMappingRequest,
+  ClaudeCliConfigResponse,
+  ClaudeCliDiagnosticsResponse,
+  RoutingRule,
+  api,
+} from '@/api/client';
 import { ProviderGrid } from '@/components/provider/ProviderGrid';
 import { showSuccess, showError } from '@/lib/toast';
 import {
@@ -240,8 +246,10 @@ function ModelRoutingSection() {
 
 function ClaudeCliPathSection() {
   const [config, setConfig] = useState<ClaudeCliConfigResponse | null>(null);
+  const [diagnostics, setDiagnostics] = useState<ClaudeCliDiagnosticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [detecting, setDetecting] = useState(false);
+  const [diagnosing, setDiagnosing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [inputPath, setInputPath] = useState('');
 
@@ -291,6 +299,23 @@ function ClaudeCliPathSection() {
       showError(`保存失败: ${(e as Error).message}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDiagnose = async () => {
+    setDiagnosing(true);
+    try {
+      const data = await api.diagnoseClaudeCli();
+      setDiagnostics(data);
+      if (data.healthy) {
+        showSuccess('Claude CLI 诊断通过');
+      } else {
+        showError(data.suggestion);
+      }
+    } catch (e) {
+      showError(`诊断失败: ${(e as Error).message}`);
+    } finally {
+      setDiagnosing(false);
     }
   };
 
@@ -378,7 +403,72 @@ function ClaudeCliPathSection() {
             )}
             自动检测
           </button>
+          <button
+            onClick={() => void handleDiagnose()}
+            disabled={diagnosing}
+            className="px-4 py-2 rounded-lg border bg-background text-sm font-medium hover:bg-accent disabled:opacity-50 flex items-center gap-2"
+          >
+            {diagnosing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : diagnostics?.healthy ? (
+              <Check className="w-4 h-4 text-emerald-500" />
+            ) : diagnostics ? (
+              <X className="w-4 h-4 text-red-500" />
+            ) : (
+              <FlaskConical className="w-4 h-4" />
+            )}
+            诊断
+          </button>
         </div>
+
+        {diagnostics && (
+          <div
+            className={cn(
+              'rounded-lg border p-3 text-xs space-y-2',
+              diagnostics.healthy
+                ? 'bg-emerald-500/10 border-emerald-500/30'
+                : 'bg-amber-500/10 border-amber-500/30',
+            )}
+          >
+            <div className="flex items-start gap-2">
+              {diagnostics.healthy ? (
+                <Check className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+              )}
+              <div className="space-y-1">
+                <p className="font-medium">{diagnostics.message}</p>
+                <p className="text-muted-foreground">{diagnostics.suggestion}</p>
+              </div>
+            </div>
+
+            <div className="grid gap-1 text-muted-foreground sm:grid-cols-2">
+              <div>
+                版本：<span className="font-mono">{diagnostics.version ?? '未知'}</span>
+              </div>
+              <div>
+                状态：<span className="font-mono">{diagnostics.status}</span>
+              </div>
+              <div>
+                Base URL：
+                <span className="font-mono">{diagnostics.base_url ?? '默认 Anthropic'}</span>
+              </div>
+              <div>
+                模型：<span className="font-mono">{diagnostics.model ?? '默认'}</span>
+              </div>
+              <div>
+                Auth Token：{diagnostics.has_auth_token ? '已配置' : '未配置'}
+              </div>
+              <div>API Key：{diagnostics.has_api_key ? '已配置' : '未配置'}</div>
+            </div>
+
+            {diagnostics.stderr_preview && (
+              <pre className="max-h-28 overflow-auto whitespace-pre-wrap rounded bg-background/70 p-2 font-mono text-[11px] text-muted-foreground">
+                {diagnostics.stderr_preview}
+              </pre>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

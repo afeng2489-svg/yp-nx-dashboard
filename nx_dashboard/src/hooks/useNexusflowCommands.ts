@@ -5,7 +5,7 @@ import { useWorkflowStore } from '@/stores/workflowStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useExecutionStore } from '@/stores/executionStore';
 import { useTeamStore } from '@/stores/teamStore';
-import { useProjectStore } from '@/stores/projectStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useContextPanelStore } from '@/stores/contextPanelStore';
 import { useFactoryDrawerStore } from '@/stores/factoryDrawerStore';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -43,7 +43,7 @@ export function useNexusflowCommands() {
               return;
             }
             const teamId = useTeamStore.getState().currentTeam?.id;
-            const projectId = useProjectStore.getState().currentProject?.id;
+            const projectId = useWorkspaceStore.getState().currentWorkspace?.id;
             const result = await runFactoryQuickPrompt({ prompt, teamId, projectId });
             if (result.ok) {
               showSuccess('Run 已启动');
@@ -76,20 +76,21 @@ export function useNexusflowCommands() {
             showSuccess(approved ? '已批准' : '已驳回');
             break;
           }
-          case 'project:switch': {
+          case 'project:switch':
+          case 'workspace:switch': {
             const query = args.join(' ');
             if (!query) {
               navigate('/settings/projects');
               return;
             }
-            await useProjectStore.getState().fetchProjects();
-            const match = fuzzyMatchName(useProjectStore.getState().projects, query);
+            await useWorkspaceStore.getState().fetchWorkspaces();
+            const match = fuzzyMatchName(useWorkspaceStore.getState().workspaces, query);
             if (!match) {
-              showError(`未找到项目: ${query}`);
+              showError(`未找到工作区: ${query}`);
               return;
             }
-            useProjectStore.getState().setCurrentProject(match);
-            showSuccess(`已切换项目: ${match.name}`);
+            useWorkspaceStore.getState().selectWorkspace(match);
+            showSuccess(`已切换工作区: ${match.name}`);
             break;
           }
           case 'team:switch': {

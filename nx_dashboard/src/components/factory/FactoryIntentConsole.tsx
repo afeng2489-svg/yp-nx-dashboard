@@ -17,6 +17,7 @@ import { FACTORY_QUICK_LINES } from '@/data/factoryQuickStart';
 import type { Workflow } from '@/stores/workflowStore';
 import type { Team } from '@/stores/teamStore';
 import type { FactoryAttachment } from '@/services/factoryAttachment';
+import type { StackProfile } from '@/data/stackProfile';
 
 type QuickCardItem = (typeof FACTORY_QUICK_LINES)[number] & { workflow: Workflow | null };
 
@@ -49,6 +50,7 @@ export interface FactoryIntentConsoleProps {
   onQuickLineLegacy: (item: QuickCardItem) => void;
   quickCards: QuickCardItem[];
   routingHint?: string;
+  stackProfile?: StackProfile;
   onOpenNewProject?: () => void;
   teamId?: string;
   teamOpinions?: Array<{ roleName: string; content: string }>;
@@ -76,6 +78,7 @@ export function FactoryIntentConsole({
   onQuickLineLegacy,
   quickCards,
   routingHint,
+  stackProfile,
   onOpenNewProject,
   teamId,
   teamOpinions = [],
@@ -159,7 +162,7 @@ export function FactoryIntentConsole({
       </div>
 
       {launchPreviewEnabled && intent.trim() && (
-        <LaunchPreviewBar workflowName={effectiveWorkflowName} intent={intent} />
+        <LaunchPreviewBar workflowName={effectiveWorkflowName} intent={intent} stack={stackProfile} />
       )}
 
       {factoryAtEnabled && teamId && (
@@ -304,7 +307,7 @@ export function FactoryIntentConsole({
           </label>
           {currentProjectName && (
             <span className="text-muted-foreground truncate max-w-[120px]" title={currentProjectName}>
-              项目: {currentProjectName}
+              工作区: {currentProjectName}
             </span>
           )}
         </div>

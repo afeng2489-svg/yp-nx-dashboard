@@ -6,6 +6,7 @@ import { showError } from '@/lib/toast';
 import { SkillAssigner } from '@/components/team/SkillAssigner';
 import { Pagination } from '@/components/ui/Pagination';
 import { API_BASE_URL } from '@/api/constants';
+import { unwrapEnvelope } from '@/api/response';
 import {
   Select,
   SelectTrigger,
@@ -22,7 +23,7 @@ interface RoleWithTeam extends Role {
 }
 
 export function RolesPage({ embedded = false }: { embedded?: boolean } = {}) {
-  const { teams, fetchTeams } = useTeamStore();
+  const { teams, fetchTeams, listAllRoles, createRole, updateRole, deleteRole } = useTeamStore();
   const [allRoles, setAllRoles] = useState<RoleWithTeam[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -45,8 +46,8 @@ export function RolesPage({ embedded = false }: { embedded?: boolean } = {}) {
       // Fetch skills for this role from API
       const response = await fetch(`${API_BASE}/api/v1/roles/${role.id}/skills`);
       if (response.ok) {
-        const skills = await response.json();
-        const skillIds = skills.map((s: { skill_id: string }) => s.skill_id);
+        const skills = unwrapEnvelope<{ skill_id: string }[]>(await response.json());
+        const skillIds = skills.map((s) => s.skill_id);
         setRoleSkills((prev) => ({ ...prev, [role.id]: skillIds }));
       }
     } catch (error) {
@@ -60,26 +61,22 @@ export function RolesPage({ embedded = false }: { embedded?: boolean } = {}) {
     fetchTeams();
   }, [fetchTeams]);
 
-  // Fetch all roles from API
+  // Fetch all roles via the team store (envelope-safe, consistent baseURL)
   useEffect(() => {
     let cancelled = false;
     const loadAllRoles = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`${API_BASE}/api/v1/roles`);
+        const roles = await listAllRoles();
         if (cancelled) return;
-        if (response.ok) {
-          const roles: RoleWithTeam[] = await response.json();
-          // Deduplicate by id
-          const seen = new Set<string>();
-          const uniqueRoles = roles.filter((r) => {
-            if (seen.has(r.id)) return false;
-            seen.add(r.id);
-            return true;
-          });
-          // Roles are global now - no team association in the response
-          setAllRoles(uniqueRoles);
-        }
+        // Deduplicate by id
+        const seen = new Set<string>();
+        const uniqueRoles = roles.filter((r) => {
+          if (seen.has(r.id)) return false;
+          seen.add(r.id);
+          return true;
+        });
+        setAllRoles(uniqueRoles);
       } catch (error) {
         if (cancelled) return;
         console.error('Failed to fetch roles:', error);
@@ -91,7 +88,7 @@ export function RolesPage({ embedded = false }: { embedded?: boolean } = {}) {
     return () => {
       cancelled = true;
     };
-  }, [teams]);
+  }, [teams, listAllRoles]);
 
   const filteredRoles = allRoles.filter((role) => {
     const matchesSearch =
@@ -109,27 +106,23 @@ export function RolesPage({ embedded = false }: { embedded?: boolean } = {}) {
     setShowRoleModal(true);
   };
 
+  const refreshRoles = async () => {
+    const roles = await listAllRoles();
+    const seen = new Set<string>();
+    setAllRoles(roles.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true))));
+  };
+
   const handleSaveRole = async () => {
     if (!editingRole) return;
     try {
-      const response = await fetch(`${API_BASE}/api/v1/roles/${editingRole.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newRoleName,
-          description: newRoleDescription,
-          system_prompt: newRoleInstructions,
-        }),
-      });
-      if (response.ok) {
-        setShowRoleModal(false);
-        // Refresh roles
-        const rolesRes = await fetch(`${API_BASE}/api/v1/roles`);
-        if (rolesRes.ok) {
-          const roles: RoleWithTeam[] = await rolesRes.json();
-          setAllRoles(roles);
-        }
-      }
+      const roleData = {
+        name: newRoleName,
+        description: newRoleDescription,
+        system_prompt: newRoleInstructions,
+      };
+      await updateRole(editingRole.id, roleData);
+      setShowRoleModal(false);
+      await refreshRoles();
     } catch (error) {
       console.error('Failed to update role:', error);
       showError('操作失败', '更新角色失败');
@@ -139,13 +132,9 @@ export function RolesPage({ embedded = false }: { embedded?: boolean } = {}) {
   const handleDeleteRole = async () => {
     if (!confirmDelete) return;
     try {
-      const response = await fetch(`${API_BASE}/api/v1/roles/${confirmDelete.id}`, {
-        method: 'DELETE',
-      });
-      if (response.ok) {
-        setAllRoles((prev) => prev.filter((r) => r.id !== confirmDelete.id));
-        setConfirmDelete(null);
-      }
+      await deleteRole(confirmDelete.id);
+      setAllRoles((prev) => prev.filter((r) => r.id !== confirmDelete.id));
+      setConfirmDelete(null);
     } catch (error) {
       console.error('Failed to delete role:', error);
       showError('操作失败', '删除角色失败');
@@ -158,31 +147,21 @@ export function RolesPage({ embedded = false }: { embedded?: boolean } = {}) {
       // Use first team as default if none selected, or allow global creation
       const teamId = newRoleTeamId && newRoleTeamId !== '__global__' ? newRoleTeamId : teams[0]?.id;
       if (!teamId) {
-        alert('请先创建一个团队');
+        showError('无法创建角色', '请先创建一个团队');
         return;
       }
-      const response = await fetch(`${API_BASE}/api/v1/teams/${teamId}/roles`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newRoleName,
-          description: newRoleDescription || '',
-          system_prompt: newRoleInstructions || '',
-        }),
-      });
-      if (response.ok) {
-        setShowCreateModal(false);
-        setNewRoleName('');
-        setNewRoleDescription('');
-        setNewRoleInstructions('');
-        setNewRoleTeamId('');
-        // Refresh roles
-        const rolesRes = await fetch(`${API_BASE}/api/v1/roles`);
-        if (rolesRes.ok) {
-          const roles: RoleWithTeam[] = await rolesRes.json();
-          setAllRoles(roles);
-        }
-      }
+      const roleData = {
+        name: newRoleName,
+        description: newRoleDescription || '',
+        system_prompt: newRoleInstructions || '',
+      };
+      await createRole({ ...roleData, team_id: teamId });
+      setShowCreateModal(false);
+      setNewRoleName('');
+      setNewRoleDescription('');
+      setNewRoleInstructions('');
+      setNewRoleTeamId('');
+      await refreshRoles();
     } catch (error) {
       console.error('Failed to create role:', error);
       showError('操作失败', '创建角色失败');

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
+import { workspaceScopePath } from '../lib/workspaceScope';
 
 // --- Types ---
 
@@ -55,10 +56,10 @@ interface SnapshotState {
   snapshotsLoading: boolean;
   error: string | null;
 
-  fetchProgress: (projectId: string) => Promise<void>;
-  fetchSnapshots: (projectId: string) => Promise<void>;
-  fetchHistory: (projectId: string, roleId: string) => Promise<void>;
-  snapshotAll: (projectId: string) => Promise<void>;
+  fetchProgress: (workspaceId: string) => Promise<void>;
+  fetchSnapshots: (workspaceId: string) => Promise<void>;
+  fetchHistory: (workspaceId: string, roleId: string) => Promise<void>;
+  snapshotAll: (workspaceId: string) => Promise<void>;
   clearError: () => void;
   reset: () => void;
 }
@@ -73,10 +74,10 @@ export const useSnapshotStore = create<SnapshotState>((set, get) => ({
   snapshotsLoading: false,
   error: null,
 
-  fetchProgress: async (projectId: string) => {
+  fetchProgress: async (workspaceId: string) => {
     set({ progressLoading: true, error: null });
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/projects/${projectId}/progress`);
+      const res = await fetch(`${API_BASE_URL}${workspaceScopePath(workspaceId, 'progress')}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
@@ -88,10 +89,10 @@ export const useSnapshotStore = create<SnapshotState>((set, get) => ({
     }
   },
 
-  fetchSnapshots: async (projectId: string) => {
+  fetchSnapshots: async (workspaceId: string) => {
     set({ snapshotsLoading: true, error: null });
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/projects/${projectId}/role-snapshots`);
+      const res = await fetch(`${API_BASE_URL}${workspaceScopePath(workspaceId, 'role-snapshots')}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
@@ -103,10 +104,10 @@ export const useSnapshotStore = create<SnapshotState>((set, get) => ({
     }
   },
 
-  fetchHistory: async (projectId: string, roleId: string) => {
+  fetchHistory: async (workspaceId: string, roleId: string) => {
     try {
       const res = await fetch(
-        `${API_BASE_URL}/api/v1/projects/${projectId}/role-snapshots/${roleId}/history`,
+        `${API_BASE_URL}${workspaceScopePath(workspaceId, `role-snapshots/${encodeURIComponent(roleId)}/history`)}`,
       );
       if (!res.ok) return;
       const data = await res.json();
@@ -116,9 +117,9 @@ export const useSnapshotStore = create<SnapshotState>((set, get) => ({
     }
   },
 
-  snapshotAll: async (projectId: string) => {
+  snapshotAll: async (workspaceId: string) => {
     try {
-      await fetch(`${API_BASE_URL}/api/v1/projects/${projectId}/snapshot-all`, {
+      await fetch(`${API_BASE_URL}${workspaceScopePath(workspaceId, 'snapshot-all')}`, {
         method: 'POST',
       });
     } catch {

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTeamStore, Team } from '@/stores/teamStore';
-import { useProjectStore } from '@/stores/projectStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { workspacesForTeam } from '@/lib/workspaceTeam';
 import { useExecutionStore } from '@/stores/executionStore';
 import { onWorkspaceChange } from '@/stores/workspaceStore';
 import { useTeamsQuery } from '@/hooks/useReactQuery';
@@ -28,7 +29,7 @@ import { PageEmptyState } from '@/components/ui/PageEmptyState';
 export function TeamsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { projects } = useProjectStore();
+  const { workspaces, fetchWorkspaces } = useWorkspaceStore();
   const executions = useExecutionStore((s) => s.executions);
   const { deleteTeam, roles, teamMonitorMode, setTeamMonitorMode } = useTeamStore();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -53,7 +54,8 @@ export function TeamsPage() {
 
   useEffect(() => {
     void useExecutionStore.getState().fetchExecutions();
-  }, []);
+    void fetchWorkspaces();
+  }, [fetchWorkspaces]);
 
   useEffect(() => {
     const unsubscribe = onWorkspaceChange(() => {
@@ -135,7 +137,7 @@ export function TeamsPage() {
           </li>
           <li className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-primary/70" />
-            详情页：成员 / 对话 / 讨论 / Pipeline
+            详情页：成员 / 团队聊天 / 工作区 & Run
           </li>
           <li className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-primary/50" />
@@ -143,7 +145,7 @@ export function TeamsPage() {
           </li>
           <li className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
-            卡片显示绑定项目与活跃 Run
+            卡片显示绑定工作区与活跃 Run
           </li>
         </ul>
       </PageGuideBanner>
@@ -168,7 +170,7 @@ export function TeamsPage() {
       ) : (
         <div className="grid gap-4 stagger-children">
           {teams.map((team) => {
-            const boundProject = projects.find((p) => p.team_id === team.id);
+            const boundWs = workspacesForTeam(workspaces, team.id);
             const runs = activeRunCount(team.id);
             return (
               <div
@@ -198,9 +200,9 @@ export function TeamsPage() {
                         <Bot className="w-3 h-3" />
                         {roles[team.id]?.length || 0} 角色
                       </span>
-                      {boundProject && (
+                      {boundWs.length > 0 && (
                         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground px-2 py-0.5 rounded-md bg-muted/50">
-                          项目: {boundProject.name}
+                          {boundWs.length} 工作区
                         </span>
                       )}
                       {runs > 0 && (

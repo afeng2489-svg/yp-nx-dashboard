@@ -10,6 +10,7 @@ import { useVersionCheck } from '@/lib/versionCheck';
 import { useExecutionStore } from '@/stores/executionStore';
 import { WorkflowPauseModal } from '@/components/execution/WorkflowPauseModal';
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
+import { AutoPreviewWatcher } from '@/components/factory/AutoPreviewWatcher';
 import { closeBrowserWebview } from '@/pages/BrowserPage';
 import { waitForBackend } from '@/api/backendReady';
 import { listen } from '@tauri-apps/api/event';
@@ -61,8 +62,8 @@ const TeamDetailPage = lazy(() =>
   import('@/pages/TeamDetailPage').then((m) => ({ default: m.TeamDetailPage })),
 );
 const RolesPage = lazy(() => import('@/pages/RolesPage').then((m) => ({ default: m.RolesPage })));
-const ProjectsPage = lazy(() =>
-  import('@/pages/ProjectsPage').then((m) => ({ default: m.ProjectsPage })),
+const WorkspacesPage = lazy(() =>
+  import('@/pages/WorkspacesPage').then((m) => ({ default: m.WorkspacesPage })),
 );
 const GroupChatPage = lazy(() =>
   import('@/pages/GroupChatPage').then((m) => ({ default: m.GroupChatPage })),
@@ -405,7 +406,7 @@ function App() {
                   path="/settings/projects"
                   element={
                     <PageWrapper>
-                      <ProjectsPage />
+                      <WorkspacesPage />
                     </PageWrapper>
                   }
                 />
@@ -541,6 +542,8 @@ function App() {
         {/* Command Palette — inside BrowserRouter for useNavigate */}
         <CommandPalette />
         <OnboardingWizard />
+        {/* 落地页/导航站工作流跑完后自动提示一键预览（需在 Router 内用 useNavigate） */}
+        <AutoPreviewWatcher />
       </BrowserRouter>
 
       {/* Toast notifications */}

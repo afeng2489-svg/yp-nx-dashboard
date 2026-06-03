@@ -1,5 +1,9 @@
+import { Users } from 'lucide-react';
 import { GroupSession } from '@/stores/groupChatStore';
 import { Role } from '@/stores/teamStore';
+import { LaunchModalShell } from '@/components/workflow/LaunchModalShell';
+import { LaunchModalFooter } from '@/components/workflow/LaunchModalFooter';
+import { cn } from '@/lib/utils';
 
 export interface StartDiscussionModalProps {
   isOpen: boolean;
@@ -22,22 +26,43 @@ export function StartDiscussionModal({
 }: StartDiscussionModalProps) {
   if (!isOpen) return null;
 
+  const sessionRoles = roles[currentSession.team_id] || [];
+  const count = startForm.participant_role_ids.length;
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-card rounded-lg border w-full max-w-md max-h-[90vh] overflow-y-auto p-6">
-        <h2 className="text-xl font-bold mb-4">开始讨论</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          选择参与讨论的角色（当前团队中的角色将作为讨论参与者）
-        </p>
-        <div className="space-y-2 max-h-[300px] overflow-y-auto">
-          {(roles[currentSession.team_id] || []).map((role) => (
+    <LaunchModalShell
+      onClose={onClose}
+      title="开始讨论"
+      subtitle="勾选参与讨论的角色，至少选择一位"
+      icon={<Users />}
+      accent="indigo"
+      size="md"
+      footer={
+        <LaunchModalFooter
+          onCancel={onClose}
+          onSubmit={onSubmit}
+          submitLabel="开始讨论"
+          disabled={count === 0}
+          hint={count > 0 ? `已选 ${count} 位参与者` : '请至少选择一位角色'}
+        />
+      }
+    >
+      <div className="max-h-[min(360px,45vh)] space-y-2 overflow-y-auto overscroll-contain pr-0.5">
+        {sessionRoles.map((role) => {
+          const checked = startForm.participant_role_ids.includes(role.id);
+          return (
             <label
               key={role.id}
-              className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent cursor-pointer"
+              className={cn(
+                'flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 transition-colors',
+                checked
+                  ? 'border-primary/50 bg-primary/5'
+                  : 'border-border hover:bg-muted/40',
+              )}
             >
               <input
                 type="checkbox"
-                checked={startForm.participant_role_ids.includes(role.id)}
+                checked={checked}
                 onChange={(e) => {
                   if (e.target.checked) {
                     onFormChange({
@@ -51,28 +76,23 @@ export function StartDiscussionModal({
                     });
                   }
                 }}
-                className="rounded"
+                className="mt-1 rounded border-input text-primary focus:ring-primary/30"
               />
-              <div>
-                <span className="font-medium">{role.name}</span>
-                <p className="text-xs text-muted-foreground">{role.description}</p>
+              <div className="min-w-0 flex-1">
+                <span className="text-sm font-medium">{role.name}</span>
+                {role.description && (
+                  <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                    {role.description}
+                  </p>
+                )}
               </div>
             </label>
-          ))}
-        </div>
-        <div className="flex justify-end gap-2 mt-6">
-          <button onClick={onClose} className="btn btn-outline">
-            取消
-          </button>
-          <button
-            onClick={onSubmit}
-            disabled={startForm.participant_role_ids.length === 0}
-            className="btn btn-primary"
-          >
-            开始
-          </button>
-        </div>
+          );
+        })}
+        {sessionRoles.length === 0 && (
+          <p className="py-10 text-center text-sm text-muted-foreground">该团队暂无可用角色</p>
+        )}
       </div>
-    </div>
+    </LaunchModalShell>
   );
 }

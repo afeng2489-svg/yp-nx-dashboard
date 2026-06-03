@@ -52,7 +52,7 @@ export function TeamChatUnified({ teamId }: TeamChatUnifiedProps) {
           <ConversationView teamId={teamId} embedded />
         </div>
       ) : (
-        <div className="min-h-[480px] rounded-xl border border-border/50 overflow-hidden">
+        <div className="min-h-[480px] overflow-hidden rounded-xl border border-border/60 bg-background">
           <GroupChatPage embedded teamId={teamId} />
         </div>
       )}

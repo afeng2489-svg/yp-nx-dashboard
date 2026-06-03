@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Bot,
-  GitBranch,
+  FolderOpen,
   Loader2,
   MessageCircle,
   MessageSquare,
@@ -15,15 +15,16 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTeamStore, type Role } from '@/stores/teamStore';
-import { useProjectStore } from '@/stores/projectStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useExecutionStore } from '@/stores/executionStore';
+import { workspacesForTeam } from '@/lib/workspaceTeam';
 import { RoleCard } from '@/components/team/RoleCard';
 import { RoleEditor } from '@/components/team/RoleEditor';
-import PipelineView from '@/components/team/PipelineView';
 import { TelegramConfigPanel } from '@/components/team/TelegramConfigPanel';
 import { AddExistingRoleModal } from '@/components/team/AddExistingRoleModal';
 import { TeamChatUnified } from '@/components/team/TeamChatUnified';
 import { GroupChatPage } from '@/pages/GroupChatPage';
+import { TeamWorkspaceRunsPanel } from '@/pages/WorkspacesPage';
 import { isP5TeamChatUnifiedEnabled } from '@/data/factoryFeatureFlags';
 import { showError } from '@/lib/toast';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -35,7 +36,7 @@ const TABS = [
   ...(isP5TeamChatUnifiedEnabled()
     ? []
     : [{ id: 'discuss' as const, label: '讨论', icon: MessageSquare }]),
-  { id: 'pipelines', label: 'Pipeline', icon: GitBranch },
+  { id: 'workspaces', label: '工作区 & Run', icon: FolderOpen },
   { id: 'settings', label: '设置', icon: Settings },
 ] as const;
 
@@ -45,11 +46,14 @@ export function TeamDetailPage() {
   const { teamId = '' } = useParams<{ teamId: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = (searchParams.get('tab') as TeamTab) || 'members';
+  const tabParam = searchParams.get('tab');
+  const tab = (
+    tabParam === 'pipelines' ? 'workspaces' : (tabParam as TeamTab)
+  ) || 'members';
 
   const { getTeam, fetchRoles, roles, setCurrentTeam, deleteRole, teamMonitorMode, setTeamMonitorMode } =
     useTeamStore();
-  const { projects } = useProjectStore();
+  const { workspaces, fetchWorkspaces } = useWorkspaceStore();
   const executions = useExecutionStore((s) => s.executions);
   const fetchExecutions = useExecutionStore((s) => s.fetchExecutions);
 
@@ -61,7 +65,8 @@ export function TeamDetailPage() {
 
   useEffect(() => {
     void fetchExecutions();
-  }, [fetchExecutions]);
+    void fetchWorkspaces();
+  }, [fetchExecutions, fetchWorkspaces]);
 
   useEffect(() => {
     if (!teamId) return;
@@ -83,7 +88,7 @@ export function TeamDetailPage() {
   }, [teamId, getTeam, fetchRoles, setCurrentTeam]);
 
   const teamRoles = roles[teamId] ?? [];
-  const boundProject = projects.find((p) => p.team_id === teamId);
+  const boundWorkspaces = workspacesForTeam(workspaces, teamId);
   const activeRuns = useMemo(
     () =>
       executions.filter(
@@ -134,9 +139,9 @@ export function TeamDetailPage() {
         }
         badges={
           <>
-            {boundProject && (
+            {boundWorkspaces.length > 0 && (
               <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-xs">
-                项目: {boundProject.name}
+                {boundWorkspaces.length} 工作区
               </span>
             )}
             <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-xs">
@@ -218,15 +223,7 @@ export function TeamDetailPage() {
           </div>
         )}
 
-        {tab === 'pipelines' && (
-          boundProject ? (
-            <PipelineView projectId={boundProject.id} />
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-12">
-              该团队尚未绑定项目 — 请在设置 → 项目中关联
-            </p>
-          )
-        )}
+        {tab === 'workspaces' && <TeamWorkspaceRunsPanel teamId={teamId} />}
 
         {tab === 'settings' && (
           <div className="space-y-4">

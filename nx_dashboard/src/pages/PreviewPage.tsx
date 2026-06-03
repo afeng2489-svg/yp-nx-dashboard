@@ -4,15 +4,17 @@ import { ExternalLink, RotateCw, AlertTriangle, CheckCircle, Globe } from 'lucid
 import { API_BASE_URL } from '@/api/constants';
 
 const isTauri = '__TAURI_INTERNALS__' in window;
-const MAX_POLLS = 60;
+// 1s 一次轮询。首次启动可能要跑 npm install（几十秒甚至更久），给到 5 分钟窗口。
+const MAX_POLLS = 300;
 
-type PreviewStatusValue = 'starting' | 'running' | 'failed' | 'stopped' | 'not_found';
+type PreviewStatusValue = 'starting' | 'installing' | 'running' | 'failed' | 'stopped' | 'not_found';
 
 interface PreviewStatus {
   status: PreviewStatusValue;
   url?: string;
   port?: number;
   error?: string;
+  message?: string;
 }
 
 async function createChildWebview(url: string, x: number, y: number, w: number, h: number, label: string) {
@@ -253,7 +255,7 @@ export function PreviewPage() {
         {status?.status === 'running' && (
           <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
         )}
-        {status?.status === 'starting' && (
+        {(status?.status === 'starting' || status?.status === 'installing') && (
           <RotateCw className="w-4 h-4 text-amber-500 animate-spin flex-shrink-0" />
         )}
         {status?.status === 'failed' && (
@@ -261,7 +263,13 @@ export function PreviewPage() {
         )}
 
         <span className="flex-1 text-sm text-muted-foreground truncate">
-          {status?.url || (status?.status === 'starting' ? '启动中...' : '预览')}
+          {status?.url ||
+            status?.message ||
+            (status?.status === 'installing'
+              ? '安装依赖中...'
+              : status?.status === 'starting'
+                ? '启动中...'
+                : '预览')}
         </span>
 
         {status?.url && (
@@ -275,7 +283,7 @@ export function PreviewPage() {
         )}
       </div>
 
-      {(isLoading || status?.status === 'starting') && (
+      {(isLoading || status?.status === 'starting' || status?.status === 'installing') && (
         <div className="h-0.5 bg-primary/20">
           <div className="h-full bg-primary animate-pulse w-2/3 rounded-r" />
         </div>
@@ -317,8 +325,15 @@ export function PreviewPage() {
           <div className="flex flex-col items-center justify-center h-full gap-4">
             <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
             <div className="text-center">
-              <p className="text-sm font-medium">正在启动预览服务器...</p>
-              <p className="text-xs text-muted-foreground mt-1">开发服务器启动最多需要 30 秒</p>
+              <p className="text-sm font-medium">
+                {status?.status === 'installing' ? '正在安装依赖...' : '正在启动预览服务器...'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {status?.message ??
+                  (status?.status === 'installing'
+                    ? '首次启动需要安装依赖，可能需要几十秒，请稍候'
+                    : '开发服务器启动最多需要 30 秒')}
+              </p>
             </div>
           </div>
         )}

@@ -24,10 +24,10 @@ const PHASE_LABELS: Record<string, string> = {
 };
 
 interface Props {
-  projectId: string;
+  workspaceId: string;
 }
 
-export default function ProjectProgressDashboard({ projectId }: Props) {
+export default function ProjectProgressDashboard({ workspaceId }: Props) {
   const {
     progress,
     snapshots,
@@ -39,14 +39,14 @@ export default function ProjectProgressDashboard({ projectId }: Props) {
   } = useSnapshotStore();
 
   React.useEffect(() => {
-    if (projectId) {
-      fetchProgress(projectId);
-      fetchSnapshots(projectId);
+    if (workspaceId) {
+      fetchProgress(workspaceId);
+      fetchSnapshots(workspaceId);
     }
-  }, [projectId, fetchProgress, fetchSnapshots]);
+  }, [workspaceId, fetchProgress, fetchSnapshots]);
 
-  if (!projectId) {
-    return <div className="text-sm text-muted-foreground p-4">请先打开一个项目工作区</div>;
+  if (!workspaceId) {
+    return <div className="text-sm text-muted-foreground p-4">请先选择工作区</div>;
   }
 
   const isLoading = (progressLoading || snapshotsLoading) && !progress && snapshots.length === 0;

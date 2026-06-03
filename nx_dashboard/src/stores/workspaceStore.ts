@@ -8,6 +8,9 @@ export interface Workspace {
   description?: string;
   root_path?: string;
   owner_id: string;
+  /** 绑定团队（API summary 或 settings.team_id） */
+  team_id?: string;
+  settings?: { team_id?: string; [key: string]: unknown };
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +48,16 @@ export interface GitStatus {
   ahead: number;
   behind: number;
   is_dirty: boolean;
+}
+
+export interface ProjectScript {
+  name: string;
+  command: string;
+}
+
+export interface ProjectScripts {
+  project_type: string;
+  scripts: ProjectScript[];
 }
 
 // Event emitter for workspace changes with debouncing
@@ -93,8 +106,10 @@ interface WorkspaceStore {
     name: string,
     description?: string,
     rootPath?: string,
+    teamId?: string,
   ) => Promise<Workspace | null>;
-  updateWorkspace: (id: string, updates: Partial<Workspace>) => Promise<Workspace | null>;
+  updateWorkspace: (id: string, updates: Partial<Workspace> & { team_id?: string | null }) => Promise<Workspace | null>;
+  bindWorkspaceTeam: (id: string, teamId: string | null) => Promise<Workspace | null>;
   /** 仅从数据库列表移除（不删除本地文件夹） */
   deleteWorkspace: (id: string) => Promise<boolean>;
   clearError: () => void;
@@ -120,6 +135,10 @@ interface WorkspaceStore {
   fetchGitDiffs: () => Promise<void>;
   getFileDiff: (filePath: string) => Promise<string>;
   fetchGitStatus: () => Promise<void>;
+
+  projectScripts: ProjectScripts | null;
+  scriptsLoading: boolean;
+  fetchProjectScripts: () => Promise<void>;
 }
 
 // Use relative path for Vite dev server proxy, or full URL for production
@@ -188,6 +207,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       gitStatus: null,
       diffsLoading: false,
       diffsError: null,
+      projectScripts: null,
+      scriptsLoading: false,
       openFiles: [],
       activeFilePath: null,
 
@@ -198,7 +219,11 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           if (!response.ok) {
             throw new ApiError(`Failed to fetch workspaces: ${response.status}`, response.status);
           }
-          const workspaces: Workspace[] = unwrapEnvelope(await response.json());
+          const raw = unwrapEnvelope<Workspace[]>(await response.json());
+          const workspaces = raw.map((w) => ({
+            ...w,
+            team_id: w.team_id ?? w.settings?.team_id,
+          }));
           set({ workspaces, loading: false });
 
           // Determine effective workspace: persist may have restored a stale ID
@@ -259,18 +284,26 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         });
       },
 
-      createWorkspace: async (name, description, rootPath) => {
+      createWorkspace: async (name, description, rootPath, teamId) => {
         set({ error: null });
         try {
+          const body: Record<string, unknown> = { name, description, root_path: rootPath };
+          if (teamId) body.team_id = teamId;
           const response = await fetchWithTimeout(`${API_BASE}/api/v1/workspaces`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, description, root_path: rootPath }),
+            body: JSON.stringify(body),
           });
           if (!response.ok) {
             throw new ApiError(`Failed to create workspace: ${response.status}`, response.status);
           }
-          const workspace: Workspace = unwrapEnvelope(await response.json());
+          const raw = unwrapEnvelope<Workspace & { settings?: { team_id?: string } }>(
+            await response.json(),
+          );
+          const workspace: Workspace = {
+            ...raw,
+            team_id: raw.team_id ?? raw.settings?.team_id ?? teamId,
+          };
           set((state) => ({
             workspaces: [...state.workspaces, workspace],
             currentWorkspace: workspace,
@@ -292,21 +325,34 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       updateWorkspace: async (id, updates) => {
         set({ error: null });
         try {
+          const { team_id, settings, ...rest } = updates;
+          const body: Record<string, unknown> = { ...rest };
+          if (team_id !== undefined) {
+            body.team_id = team_id ?? '';
+          }
+          if (settings !== undefined) {
+            body.settings = settings;
+          }
           const response = await fetchWithTimeout(`${API_BASE}/api/v1/workspaces/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updates),
+            body: JSON.stringify(body),
           });
           if (!response.ok) {
             throw new ApiError(`Failed to update workspace: ${response.status}`, response.status);
           }
-          const workspace: Workspace = unwrapEnvelope(await response.json());
+          const raw = unwrapEnvelope<Workspace & { settings?: { team_id?: string } }>(
+            await response.json(),
+          );
+          const workspace: Workspace = {
+            ...raw,
+            team_id: raw.team_id ?? raw.settings?.team_id,
+          };
           set((state) => ({
             workspaces: state.workspaces.map((w) => (w.id === id ? workspace : w)),
             currentWorkspace:
               state.currentWorkspace?.id === id ? workspace : state.currentWorkspace,
           }));
-          // Re-browse if root_path changed
           if (updates.root_path && get().currentWorkspace?.id === id) {
             get().browseFiles();
           }
@@ -317,6 +363,10 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           });
           return null;
         }
+      },
+
+      bindWorkspaceTeam: async (id, teamId) => {
+        return get().updateWorkspace(id, { team_id: teamId === null ? '' : teamId });
       },
 
       // 仅从数据库列表移除（不删除本地文件夹）
@@ -611,6 +661,30 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           set({ gitStatus: status });
         } catch {
           set({ gitStatus: null });
+        }
+      },
+
+      fetchProjectScripts: async () => {
+        const workspace = get().currentWorkspace;
+        if (!workspace?.id) {
+          set({ projectScripts: null });
+          return;
+        }
+        set({ scriptsLoading: true });
+        try {
+          const response = await fetchWithTimeout(
+            `${API_BASE}/api/v1/workspaces/${workspace.id}/scripts`,
+            {},
+            10000,
+          );
+          if (!response.ok) {
+            set({ projectScripts: null, scriptsLoading: false });
+            return;
+          }
+          const data: ProjectScripts = unwrapEnvelope(await response.json());
+          set({ projectScripts: data, scriptsLoading: false });
+        } catch {
+          set({ projectScripts: null, scriptsLoading: false });
         }
       },
     }),

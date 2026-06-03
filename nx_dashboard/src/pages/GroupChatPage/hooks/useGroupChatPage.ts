@@ -111,13 +111,10 @@ export function useGroupChatPage(teamId?: string) {
     if (selectedSessionId) {
       fetchSession(selectedSessionId);
       fetchMessages(selectedSessionId);
-      // Only poll for active sessions
+      // 不再 5s 轮询：选中/激活会话时取一次下一位发言人，之后每轮发言由
+      // WS 完成事件（见下方 agentExec.status === 'completed' 的 effect）刷新。
       if (currentSession?.status === 'active') {
-        const interval = setInterval(async () => {
-          const speaker = await getNextSpeaker(selectedSessionId);
-          setNextSpeaker(speaker);
-        }, 5000);
-        return () => clearInterval(interval);
+        getNextSpeaker(selectedSessionId).then(setNextSpeaker);
       }
     }
   }, [selectedSessionId, currentSession?.status, fetchSession, fetchMessages, getNextSpeaker]);

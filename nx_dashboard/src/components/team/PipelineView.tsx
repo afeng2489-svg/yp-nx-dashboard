@@ -59,7 +59,8 @@ const PHASE_GROUPS = [
 ];
 
 interface PipelineViewProps {
-  projectId: string;
+  workspaceId: string;
+  teamId?: string;
 }
 
 function StepCard({ step, pipelineId }: { step: PipelineStep; pipelineId: string }) {
@@ -121,7 +122,7 @@ function isTerminalStatus(status: PipelineStatusType): boolean {
   return status === 'completed' || status === 'failed' || status === 'idle';
 }
 
-export default function PipelineView({ projectId }: PipelineViewProps) {
+export default function PipelineView({ workspaceId, teamId }: PipelineViewProps) {
   const {
     pipeline,
     loading,
@@ -138,18 +139,18 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
     reset,
   } = usePipelineStore();
 
-  // Fetch pipeline on mount / projectId change
+  // Fetch pipeline on mount / workspaceId change
   React.useEffect(() => {
-    if (projectId) fetchPipeline(projectId);
+    if (workspaceId) fetchPipeline(workspaceId);
     return () => {
       reset();
     };
-  }, [projectId, fetchPipeline, reset]);
+  }, [workspaceId, fetchPipeline, reset]);
 
   // Polling: start when pipeline is running, stop otherwise
   React.useEffect(() => {
     if (pipeline && pipeline.status === 'running') {
-      startPolling(projectId);
+      startPolling(workspaceId);
     } else {
       stopPolling();
     }
@@ -157,10 +158,10 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
       stopPolling();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pipeline?.status, projectId, startPolling, stopPolling]);
+  }, [pipeline?.status, workspaceId, startPolling, stopPolling]);
 
-  if (!projectId) {
-    return <div className="text-sm text-muted-foreground p-4">请先打开一个项目工作区</div>;
+  if (!workspaceId) {
+    return <div className="text-sm text-muted-foreground p-4">请先选择工作区</div>;
   }
 
   if (loading && !pipeline) {
@@ -182,7 +183,7 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
     return (
       <div className="text-sm text-muted-foreground p-4 flex items-center gap-3">
         暂无 Pipeline
-        <Button size="sm" onClick={() => createPipeline(projectId, '')}>
+        <Button size="sm" onClick={() => createPipeline(workspaceId, teamId)}>
           创建 Pipeline
         </Button>
       </div>
@@ -233,7 +234,7 @@ export default function PipelineView({ projectId }: PipelineViewProps) {
             </Button>
           )}
           {isTerminalStatus(pipeline.status) && pipeline.status !== 'idle' && (
-            <Button size="sm" variant="ghost" onClick={() => fetchPipeline(projectId)}>
+            <Button size="sm" variant="ghost" onClick={() => fetchPipeline(workspaceId)}>
               刷新
             </Button>
           )}

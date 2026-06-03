@@ -1,16 +1,18 @@
-import { Clock, Coins, FolderOpen, Layers } from 'lucide-react';
+import { Clock, Coins, FolderOpen, Layers, ShieldCheck } from 'lucide-react';
 import { buildLaunchPreview } from '@/data/launchPreview';
+import type { StackProfile } from '@/data/stackProfile';
 
 export interface LaunchPreviewBarProps {
   workflowName: string;
   intent?: string;
+  stack?: StackProfile;
 }
 
 /** AF-UX-07：启动前预览 — 时长 · 阶段 · 路径 · 成本 */
-export function LaunchPreviewBar({ workflowName, intent }: LaunchPreviewBarProps) {
+export function LaunchPreviewBar({ workflowName, intent, stack }: LaunchPreviewBarProps) {
   if (!intent?.trim()) return null;
 
-  const preview = buildLaunchPreview(workflowName);
+  const preview = buildLaunchPreview(workflowName, stack);
 
   return (
     <div
@@ -37,6 +39,12 @@ export function LaunchPreviewBar({ workflowName, intent }: LaunchPreviewBarProps
         {preview.codeLane}
         {preview.textLane !== '—' ? ` · 文本 ${preview.textLane}` : ''}
       </span>
+      {preview.qualityGateHint && (
+        <span className="inline-flex items-center gap-1 text-[10px]">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          门控 {preview.qualityGateHint}
+        </span>
+      )}
     </div>
   );
 }

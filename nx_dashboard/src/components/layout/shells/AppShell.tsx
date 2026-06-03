@@ -44,12 +44,8 @@ function ShellHeader({
       <header className="relative z-50 min-h-12 px-4 sm:px-6 py-2 flex items-center justify-between gap-2 border-b shrink-0 border-border bg-background text-foreground">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           <WorkspaceSelector />
-          {!isStudio && (
-            <>
-              <div className="hidden md:block h-5 w-px bg-border/60" />
-              <FactoryGlobalBar />
-            </>
-          )}
+          <div className="hidden md:block h-5 w-px bg-border/60" />
+          <FactoryGlobalBar />
           {showFileToggle && (
             <button
               type="button"

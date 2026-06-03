@@ -52,6 +52,7 @@ export const LEGACY_PATH_REDIRECTS: Record<string, string> = {
   '/sprint-board': '/ops?tab=sprint',
   '/ai-settings': '/settings/ai',
   '/projects': '/settings/projects',
+  '/settings/workspaces': '/settings/projects',
 };
 
 export function resolveActiveNavId(pathname: string): string {

@@ -81,11 +81,62 @@ const PIPELINE_LABELS: Record<string, string> = {
   investigate: '技术调研',
   'greenfield-mvp': '从零搭项目',
   'ui-ux-design': 'UI 设计',
+  'landing-page': '落地页生成',
+  'nav-site': '导航站生成',
 };
 
 export function pipelineForWorkflow(workflowName?: string): PipelineStageDef[] {
   const key = workflowName?.trim() || 'solo-dev';
   return PIPELINE_REGISTRY[key] ?? SOLO_DEV_PIPELINE;
+}
+
+/** 该工作流是否有精心维护的产线注册表（有则用注册表的中文阶段名/角色） */
+export function hasRegisteredPipeline(workflowName?: string): boolean {
+  const key = workflowName?.trim();
+  return Boolean(key && PIPELINE_REGISTRY[key]);
+}
+
+type RawStage = {
+  name?: string;
+  stage_type?: string;
+  question?: string;
+  quality_gate?: unknown;
+};
+
+/** 用工作流定义里的真实 stages 构建产线（未注册的工作流，如 landing-page/nav-site） */
+export function mapStagesToPipeline(stages: RawStage[]): PipelineStageDef[] {
+  return stages
+    .filter((s): s is RawStage & { name: string } => Boolean(s.name) && !s.name!.startsWith('agent:'))
+    .map((s) => {
+      const isApproval = s.stage_type === 'approval' || Boolean(s.question);
+      const isGate = !isApproval && (s.stage_type === 'quality_gate' || s.quality_gate != null);
+      const kind: PipelineStageKind = isApproval ? 'approval' : isGate ? 'gate' : 'agent';
+      return {
+        name: s.name,
+        role: isApproval ? '你 · 厂长' : '',
+        kind,
+        gateLabel: isApproval ? '人工批准' : isGate ? '质量门' : undefined,
+      };
+    });
+}
+
+/** 兜底：从执行结果（已完成阶段 + 当前阶段）推断真实产线，保证名字与进度一致 */
+export function deriveStagesFromExecution(execution: {
+  stage_results?: { stage_name: string; quality_gate_result?: unknown }[];
+  current_stage?: string;
+}): PipelineStageDef[] {
+  const seen = new Set<string>();
+  const out: PipelineStageDef[] = [];
+  const push = (name: string | undefined, gate: boolean) => {
+    if (!name || name.startsWith('agent:') || seen.has(name)) return;
+    seen.add(name);
+    out.push({ name, role: '', kind: gate ? 'gate' : 'agent' });
+  };
+  for (const sr of execution.stage_results ?? []) {
+    push(sr.stage_name, sr.quality_gate_result != null);
+  }
+  push(execution.current_stage, false);
+  return out;
 }
 
 export function pipelineLabelForWorkflow(workflowName?: string): string {

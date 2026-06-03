@@ -105,6 +105,7 @@ interface ProjectStore {
   clearExecutionResult: () => void;
 }
 
+/** @deprecated 使用 workspaceStore — execution 项目已收敛为工作区 */
 export const useProjectStore = create<ProjectStore>((set, get) => ({
   projects: [],
   currentProject: null,

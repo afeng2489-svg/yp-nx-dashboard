@@ -256,7 +256,7 @@ export function TeamDetailPanel({
 
           {activeTab === 'pipeline' &&
             (projectId ? (
-              <PipelineView projectId={projectId} />
+              <PipelineView workspaceId={projectId} />
             ) : (
               <div className="text-sm text-muted-foreground text-center py-8">
                 请先打开一个项目工作区以查看 Pipeline

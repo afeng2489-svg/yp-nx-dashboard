@@ -1,4 +1,5 @@
 import { unwrapEnvelope } from '../api/response';
+import { API_BASE_URL } from '../api/constants';
 import { create } from 'zustand';
 
 // Team interfaces
@@ -87,9 +88,10 @@ export interface ExecutionResult {
   error: string | null;
 }
 
-// API 配置 - 使用相对路径，Vite 开发服务器代理会处理 /api 请求
-// 在 Tauri 生产模式，需要配置外部 URL 访问或使用 tauri-plugin-http
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+// API 配置 — 统一使用 constants 里的 API_BASE_URL：
+// dev 走 Vite proxy（相对路径），生产（Tauri bundle）直连 127.0.0.1:8080。
+// 不要用 `import.meta.env.VITE_API_BASE_URL || ''`，那在打包后会变成空串导致请求打到 tauri://localhost 而失败。
+const API_BASE = API_BASE_URL;
 
 // Helper to map backend role to frontend format
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -168,6 +170,8 @@ interface TeamStore {
     partialOutput?: string;
     result?: string;
     error?: string;
+    // agent 执行 id（用于"停止"按钮按 id 真正取消正在运行的子进程）
+    executionId?: string;
   } | null;
 
   // Team actions
@@ -454,7 +458,8 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
 
   updateRole: async (id, updates) => {
     const state = get();
-    // Find the team_id for this role
+    // Find the team_id for this role (may be absent on the global RolesPage,
+    // where roles are not loaded into per-team buckets)
     let teamId: string | undefined;
     for (const [tid, teamRoles] of Object.entries(state.roles)) {
       if (teamRoles.some((r) => r.id === id)) {
@@ -462,17 +467,19 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         break;
       }
     }
-    if (!teamId) return;
 
-    // Optimistic update
-    set((state) => ({
-      roles: {
-        ...state.roles,
-        [teamId]: state.roles[teamId].map((r) =>
-          r.id === id ? { ...r, ...updates, updated_at: new Date().toISOString() } : r,
-        ),
-      },
-    }));
+    // Optimistic update only when the role is currently loaded in a bucket
+    if (teamId) {
+      const bucketId = teamId;
+      set((state) => ({
+        roles: {
+          ...state.roles,
+          [bucketId]: state.roles[bucketId].map((r) =>
+            r.id === id ? { ...r, ...updates, updated_at: new Date().toISOString() } : r,
+          ),
+        },
+      }));
+    }
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/roles/${id}`, {
@@ -493,7 +500,7 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
 
   deleteRole: async (id) => {
     const state = get();
-    // Find the team_id for this role
+    // Find the team_id for this role (may be absent on the global RolesPage)
     let teamId: string | undefined;
     for (const [tid, teamRoles] of Object.entries(state.roles)) {
       if (teamRoles.some((r) => r.id === id)) {
@@ -501,15 +508,17 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
         break;
       }
     }
-    if (!teamId) return;
 
-    // Optimistic delete
-    set((state) => ({
-      roles: {
-        ...state.roles,
-        [teamId]: state.roles[teamId].filter((r) => r.id !== id),
-      },
-    }));
+    // Optimistic delete only when the role is currently loaded in a bucket
+    if (teamId) {
+      const bucketId = teamId;
+      set((state) => ({
+        roles: {
+          ...state.roles,
+          [bucketId]: state.roles[bucketId].filter((r) => r.id !== id),
+        },
+      }));
+    }
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/roles/${id}`, {
@@ -771,10 +780,23 @@ export const useTeamStore = create<TeamStore>((set, get) => ({
   },
 
   stopExecution: () => {
-    const { abortController } = get();
+    const { abortController, activeTeamTask } = get();
     if (abortController) {
       abortController.abort();
       set({ abortController: null });
+    }
+    // 真正取消正在运行的 agent 执行：走和 WS cancel 相同的取消路径，
+    // 后端 cancel 对应的 CancellationToken → 终止 Claude 子进程并发出 Cancelled 事件。
+    // 仅 abort fetch 是不够的（流式执行根本不依赖那个 AbortController）。
+    const execId = activeTeamTask?.executionId;
+    if (execId) {
+      void fetch(`${API_BASE}/api/v1/agent-executions/${execId}/cancel`, {
+        method: 'POST',
+      }).catch(() => {
+        // 取消请求失败不阻塞 UI；最终状态仍以 WS 事件为准
+      });
+      // 乐观更新悬浮卡，最终态由 WS Cancelled 事件确认
+      set({ activeTeamTask: { ...activeTeamTask, status: 'error', error: '已取消' } });
     }
   },
 

@@ -18,6 +18,10 @@ import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PageEmptyState } from '@/components/ui/PageEmptyState';
+import { LaunchModalShell } from '@/components/workflow/LaunchModalShell';
+import { LaunchModalFooter } from '@/components/workflow/LaunchModalFooter';
+import { FormField, FormSection, formControlClass, formTextareaClass } from '@/components/ui/formStyles';
+import { ConfirmModal } from '@/lib/ConfirmModal';
 
 const PAGE_SIZE = 8;
 
@@ -422,126 +426,66 @@ export function TeamSessionsPage() {
         </div>
       )}
 
-      {/* New session modal */}
       {showNewModal && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          onClick={() => setShowNewModal(false)}
+        <LaunchModalShell
+          onClose={() => setShowNewModal(false)}
+          title="新建团队会话"
+          subtitle="描述任务目标，CLI 团队将自动规划并执行"
+          icon={<Plus />}
+          accent="indigo"
+          footer={
+            <LaunchModalFooter
+              onCancel={() => setShowNewModal(false)}
+              onSubmit={handleNewSession}
+              submitLabel="启动会话"
+              submitting={submitting}
+              disabled={!newTask.trim()}
+              submitIcon={!submitting ? <Play className="h-4 w-4" /> : undefined}
+            />
+          }
         >
-          <div
-            className="bg-background rounded-lg shadow-xl w-full max-w-lg m-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="border-b px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Plus className="w-5 h-5 text-indigo-500" />
-                新建团队会话
-              </h2>
-              <button
-                onClick={() => setShowNewModal(false)}
-                className="p-1 hover:bg-accent rounded-md text-muted-foreground"
-              >
-                ✕
-              </button>
-            </div>
+          <FormSection title="任务配置">
+            <FormField label="任务描述" required hint="⌘/Ctrl + Enter 快速提交">
+              <textarea
+                value={newTask}
+                onChange={(e) => setNewTask(e.target.value)}
+                placeholder='例如："实现用户登录功能" 或 "重构 auth 模块"'
+                className={formTextareaClass}
+                rows={3}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    handleNewSession();
+                  }
+                }}
+              />
+            </FormField>
 
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1.5">任务描述</label>
-                <textarea
-                  value={newTask}
-                  onChange={(e) => setNewTask(e.target.value)}
-                  placeholder='例如："实现用户登录功能" 或 "重构 auth 模块"'
-                  className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                  rows={3}
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                      handleNewSession();
-                    }
-                  }}
-                />
-              </div>
+            <FormField label="模型" hint="留空则使用团队默认模型">
+              <input
+                value={newModel}
+                onChange={(e) => setNewModel(e.target.value)}
+                placeholder="例如: claude-sonnet-4-6"
+                className={formControlClass}
+              />
+            </FormField>
 
-              <div>
-                <label className="block text-sm font-medium mb-1.5">
-                  模型 <span className="text-muted-foreground font-normal">（可选）</span>
-                </label>
-                <input
-                  value={newModel}
-                  onChange={(e) => setNewModel(e.target.value)}
-                  placeholder="例如: claude-sonnet-4-6"
-                  className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              {submitError && (
-                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-600">
-                  {submitError}
-                </div>
-              )}
-
-              <div className="flex items-center gap-3 justify-end pt-2">
-                <button
-                  onClick={() => setShowNewModal(false)}
-                  className="px-4 py-2 text-sm rounded-lg hover:bg-accent text-muted-foreground transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={handleNewSession}
-                  disabled={!newTask.trim() || submitting}
-                  className={cn(
-                    'btn-primary px-5 py-2 text-sm',
-                    (!newTask.trim() || submitting) && 'opacity-50 cursor-not-allowed',
-                  )}
-                >
-                  {submitting ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      启动中...
-                    </span>
-                  ) : (
-                    '启动会话'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+            {submitError && (
+              <p className="text-sm text-destructive">{submitError}</p>
+            )}
+          </FormSection>
+        </LaunchModalShell>
       )}
 
-      {/* Delete confirmation modal */}
-      {deletingId && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]"
-          onClick={() => setDeletingId(null)}
-        >
-          <div
-            className="bg-background rounded-lg shadow-xl w-full max-w-sm m-4 p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-semibold mb-2">确认删除</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              此操作将永久删除该会话记录，无法恢复。
-            </p>
-            <div className="flex items-center gap-3 justify-end">
-              <button
-                onClick={() => setDeletingId(null)}
-                className="px-4 py-2 text-sm rounded-lg hover:bg-accent text-muted-foreground transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={() => handleDelete(deletingId)}
-                className="px-4 py-2 text-sm rounded-lg bg-red-500 text-white font-medium hover:bg-red-600 transition-colors"
-              >
-                删除
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={Boolean(deletingId)}
+        title="确认删除"
+        message="此操作将永久删除该会话记录，无法恢复。"
+        confirmText="删除"
+        variant="danger"
+        onConfirm={() => deletingId && handleDelete(deletingId)}
+        onCancel={() => setDeletingId(null)}
+      />
     </div>
   );
 }

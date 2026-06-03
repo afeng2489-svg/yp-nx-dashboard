@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Check,
   Circle,
@@ -8,12 +8,14 @@ import {
   Users,
 } from 'lucide-react';
 import { useExecutionStore, type Execution } from '@/stores/executionStore';
-import { useWorkflowStore } from '@/stores/workflowStore';
+import { useWorkflowStore, type Stage } from '@/stores/workflowStore';
 import { useContextPanelStore } from '@/stores/contextPanelStore';
 import { useTeamStore } from '@/stores/teamStore';
 import {
-  formatPipelineStageSummary,
+  deriveStagesFromExecution,
+  hasRegisteredPipeline,
   inferCurrentStageName,
+  mapStagesToPipeline,
   nextGateHint,
   pipelineForWorkflow,
   pipelineLabelForWorkflow,
@@ -94,8 +96,13 @@ function PipelineStageNode({
   );
 }
 
-function RunPipelineTrack({ execution, workflowName }: { execution: Execution; workflowName: string }) {
-  const pipeline = pipelineForWorkflow(workflowName);
+function RunPipelineTrack({
+  execution,
+  pipeline,
+}: {
+  execution: Execution;
+  pipeline: PipelineStageDef[];
+}) {
   const completed = (execution.stage_results ?? []).map((s) => s.stage_name);
   const current = inferCurrentStageName(
     execution.current_stage,
@@ -167,9 +174,14 @@ function RunPipelineTrack({ execution, workflowName }: { execution: Execution; w
   );
 }
 
-function IdlePipelinePreview({ workflowName }: { workflowName: string }) {
-  const pipeline = pipelineForWorkflow(workflowName);
-  const summary = formatPipelineStageSummary(workflowName);
+function IdlePipelinePreview({
+  workflowName,
+  pipeline,
+}: {
+  workflowName: string;
+  pipeline: PipelineStageDef[];
+}) {
+  const summary = pipeline.map((s) => s.name).join(' → ');
 
   return (
     <div className="text-center py-6 px-4">
@@ -202,8 +214,11 @@ export interface RunPipelineBoardProps {
 export function RunPipelineBoard({ previewWorkflowName = 'solo-dev' }: RunPipelineBoardProps) {
   const executions = useExecutionStore((s) => s.executions);
   const workflows = useWorkflowStore((s) => s.workflows);
+  const getWorkflow = useWorkflowStore((s) => s.getWorkflow);
   const contextId = useContextPanelStore((s) => s.selectedExecutionId);
   const currentTeam = useTeamStore((s) => s.currentTeam);
+  // 缓存按需拉取的工作流真实 stages（列表接口只返回 stage_count，stages 为空）
+  const [stagesByWorkflowId, setStagesByWorkflowId] = useState<Record<string, Stage[]>>({});
 
   const hero = useMemo(() => {
     const active = executions.filter(
@@ -224,6 +239,42 @@ export function RunPipelineBoard({ previewWorkflowName = 'solo-dev' }: RunPipeli
     }
     return previewWorkflowName || 'solo-dev';
   }, [hero, workflows, previewWorkflowName]);
+
+  // 解析目标工作流 id（运行中取 hero，空闲态按名字从列表找）
+  const workflowId = useMemo(() => {
+    if (hero?.workflow_id) return hero.workflow_id;
+    return workflows.find((w) => w.name === workflowName)?.id;
+  }, [hero, workflows, workflowName]);
+
+  // 未注册的工作流（如 landing-page/nav-site）按需拉取真实 stages 以正确渲染阶段
+  useEffect(() => {
+    if (!workflowId || hasRegisteredPipeline(workflowName)) return;
+    if (stagesByWorkflowId[workflowId]) return;
+    let cancelled = false;
+    void getWorkflow(workflowId).then((wf) => {
+      if (!cancelled && wf?.stages?.length) {
+        setStagesByWorkflowId((prev) => ({ ...prev, [workflowId]: wf.stages }));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [workflowId, workflowName, stagesByWorkflowId, getWorkflow]);
+
+  // 产线解析优先级：注册表 → 工作流真实 stages → 执行结果推断 → 兜底
+  const pipeline = useMemo<PipelineStageDef[]>(() => {
+    if (hasRegisteredPipeline(workflowName)) return pipelineForWorkflow(workflowName);
+    const realStages = workflowId ? stagesByWorkflowId[workflowId] : undefined;
+    if (realStages?.length) {
+      const mapped = mapStagesToPipeline(realStages);
+      if (mapped.length) return mapped;
+    }
+    if (hero) {
+      const derived = deriveStagesFromExecution(hero);
+      if (derived.length) return derived;
+    }
+    return pipelineForWorkflow(workflowName);
+  }, [workflowName, workflowId, stagesByWorkflowId, hero]);
 
   const displayLabel = pipelineLabelForWorkflow(workflowName);
 
@@ -264,9 +315,9 @@ export function RunPipelineBoard({ previewWorkflowName = 'solo-dev' }: RunPipeli
 
       <div className="px-5 py-5">
         {hero ? (
-          <RunPipelineTrack execution={hero} workflowName={workflowName} />
+          <RunPipelineTrack execution={hero} pipeline={pipeline} />
         ) : (
-          <IdlePipelinePreview workflowName={workflowName} />
+          <IdlePipelinePreview workflowName={workflowName} pipeline={pipeline} />
         )}
       </div>
     </section>

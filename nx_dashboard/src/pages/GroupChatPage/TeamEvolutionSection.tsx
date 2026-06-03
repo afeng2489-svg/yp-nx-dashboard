@@ -8,31 +8,42 @@ import ProcessResourceBar from '@/components/team/ProcessResourceBar';
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 export interface TeamEvolutionSectionProps {
-  projectId: string;
+  workspaceId: string;
+  /** Force visible even without pipeline (team detail page) */
+  forceVisible?: boolean;
 }
 
-/** Collapsible Team Evolution section: progress + resources + crash recovery */
-export function TeamEvolutionSection({ projectId }: TeamEvolutionSectionProps) {
+/** Collapsible Team Evolution section — only shown when Pipeline exists or forceVisible */
+export function TeamEvolutionSection({ workspaceId, forceVisible }: TeamEvolutionSectionProps) {
   const [expanded, setExpanded] = useState(false);
   const { progress, fetchProgress } = useSnapshotStore();
   const [approving, setApproving] = useState(false);
+  const [checked, setChecked] = useState(false);
 
   const pipelineId = progress?.pipeline_id;
   const needsApproval = progress?.overall_phase === 'waiting_for_approval';
+  const hasPipeline = Boolean(pipelineId);
 
-  // 轮询 pipeline 状态（等待审批时加快频率）
   useEffect(() => {
-    if (!projectId) return;
-    const interval = setInterval(() => fetchProgress(projectId), needsApproval ? 5000 : 15000);
+    if (!workspaceId) return;
+    void fetchProgress(workspaceId).finally(() => setChecked(true));
+  }, [workspaceId, fetchProgress]);
+
+  useEffect(() => {
+    if (!workspaceId || !hasPipeline) return;
+    const interval = setInterval(() => fetchProgress(workspaceId), needsApproval ? 5000 : 15000);
     return () => clearInterval(interval);
-  }, [projectId, needsApproval, fetchProgress]);
+  }, [workspaceId, needsApproval, fetchProgress, hasPipeline]);
+
+  if (!workspaceId) return null;
+  if (checked && !hasPipeline && !forceVisible) return null;
 
   const handleApprove = async () => {
     if (!pipelineId) return;
     setApproving(true);
     try {
       await fetch(`${API_BASE}/api/v1/pipelines/${pipelineId}/approve`, { method: 'POST' });
-      await fetchProgress(projectId);
+      await fetchProgress(workspaceId);
     } finally {
       setApproving(false);
     }
@@ -49,7 +60,7 @@ export function TeamEvolutionSection({ projectId }: TeamEvolutionSectionProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason }),
       });
-      await fetchProgress(projectId);
+      await fetchProgress(workspaceId);
     } finally {
       setApproving(false);
     }
@@ -63,6 +74,9 @@ export function TeamEvolutionSection({ projectId }: TeamEvolutionSectionProps) {
       >
         <GitBranch className="w-4 h-4 text-indigo-500" />
         <span className="text-sm font-medium flex-1">团队进化面板</span>
+        {hasPipeline && (
+          <span className="text-xs text-muted-foreground">{progress?.overall_pct ?? 0}%</span>
+        )}
         {needsApproval && (
           <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full font-medium">
             等待审批
@@ -96,8 +110,16 @@ export function TeamEvolutionSection({ projectId }: TeamEvolutionSectionProps) {
 
       {expanded && (
         <div className="border-t p-4 space-y-4 max-h-[400px] overflow-y-auto">
-          <ProjectProgressDashboard projectId={projectId} />
-          <CrashRecoveryDialog projectId={projectId} />
+          {hasPipeline ? (
+            <>
+              <ProjectProgressDashboard workspaceId={workspaceId} />
+              <CrashRecoveryDialog projectId={workspaceId} />
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              暂无 Pipeline。在团队详情 → 工作区 & Run 中创建，用于长周期完整产品交付。
+            </p>
+          )}
         </div>
       )}
     </div>

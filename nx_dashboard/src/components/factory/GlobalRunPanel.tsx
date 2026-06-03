@@ -3,19 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import { useExecutionStore, type Execution } from '@/stores/executionStore';
 import { useTeamStore } from '@/stores/teamStore';
-import { useProjectStore } from '@/stores/projectStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { workspaceDisplayName } from '@/lib/workspaceTeam';
 import { useContextPanelStore } from '@/stores/contextPanelStore';
 import { cn } from '@/lib/utils';
 
 function groupLabel(
   execution: Execution,
   teamName: string,
-  projectName: string,
+  workspaceName: string,
 ): string {
-  if (projectName && teamName) return `${projectName} · ${teamName}`;
+  if (workspaceName && teamName) return `${workspaceName} · ${teamName}`;
   if (teamName) return teamName;
-  if (projectName) return projectName;
-  return '未绑定项目/团队';
+  if (workspaceName) return workspaceName;
+  return '未绑定工作区/团队';
 }
 
 function RunRow({
@@ -51,14 +52,14 @@ function RunRow({
   );
 }
 
-/** AF-08 顶栏 Run 面板 — 按 team/project 分组 */
+/** AF-08 顶栏 Run 面板 — 按 team/工作区分组 */
 export function GlobalRunPanel() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const { executions, fetchExecutions } = useExecutionStore();
   const { teams } = useTeamStore();
-  const { projects } = useProjectStore();
+  const { workspaces, fetchWorkspaces } = useWorkspaceStore();
   const selectContextExecution = useContextPanelStore((s) => s.selectExecution);
 
   const active = useMemo(
@@ -73,18 +74,19 @@ export function GlobalRunPanel() {
     const map = new Map<string, Execution[]>();
     for (const ex of active) {
       const teamName = teams.find((t) => t.id === ex.team_id)?.name ?? '';
-      const projectName = projects.find((p) => p.id === ex.project_id)?.name ?? '';
-      const key = groupLabel(ex, teamName, projectName);
+      const workspaceName = workspaceDisplayName(workspaces, ex.project_id) ?? '';
+      const key = groupLabel(ex, teamName, workspaceName);
       const list = map.get(key) ?? [];
       list.push(ex);
       map.set(key, list);
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b, 'zh-CN'));
-  }, [active, teams, projects]);
+  }, [active, teams, workspaces]);
 
   useEffect(() => {
     void fetchExecutions();
-  }, [fetchExecutions]);
+    void fetchWorkspaces();
+  }, [fetchExecutions, fetchWorkspaces]);
 
   useEffect(() => {
     if (!open) return;

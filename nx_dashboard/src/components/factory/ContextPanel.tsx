@@ -24,6 +24,8 @@ import {
   loadMergedArtifacts,
   workflowStageNamesFromResults,
 } from '@/utils/executionLineage';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { WorkspacePipelineSummary } from '@/components/factory/WorkspacePipelineSummary';
 import { cn } from '@/lib/utils';
 
 function changeIcon(type: string) {
@@ -54,6 +56,7 @@ export function ContextPanel() {
   const connectWebSocket = useExecutionStore((s) => s.connectWebSocket);
   const pendingPause = useExecutionStore((s) => s.pendingPause);
   const workflows = useWorkflowStore((s) => s.workflows);
+  const currentWorkspace = useWorkspaceStore((s) => s.currentWorkspace);
 
   const [summary, setSummary] = useState<ArtifactSummary[]>([]);
   const [files, setFiles] = useState<ArtifactRecord[]>([]);
@@ -181,6 +184,8 @@ export function ContextPanel() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <WorkspacePipelineSummary workspaceId={currentWorkspace?.id} />
+
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span
             className={cn(

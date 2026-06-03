@@ -9,12 +9,14 @@ import {
   type RunNextStepAction,
 } from '@/data/runNextSteps';
 import type { Execution } from '@/stores/executionStore';
+import type { StackProfile } from '@/data/stackProfile';
 import { recordFactoryEvent } from '@/services/factoryMetrics';
 import { showError, showSuccess } from '@/lib/toast';
 
 export interface RunCompleteBannerProps {
   execution: Execution;
   workflowName: string;
+  stackProfile?: StackProfile;
   onPrefill: (prompt: string, workflowName?: string) => void;
   onRun: (
     prompt: string,
@@ -31,7 +33,7 @@ export interface RunCompleteBannerProps {
 /** AF-UX-03 + AF-UX-09：Run 完成 / 失败态 Banner + 主 CTA */
 export function RunCompleteBanner(props: RunCompleteBannerProps) {
   const { execution, workflowName } = props;
-  const steps = nextStepsForRun(execution, workflowName);
+  const steps = nextStepsForRun(execution, workflowName, props.stackProfile);
   const [acting, setActing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 

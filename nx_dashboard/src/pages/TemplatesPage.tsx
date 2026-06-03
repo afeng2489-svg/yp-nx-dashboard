@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { X, Play, Loader2, CheckSquare, Trash2 } from 'lucide-react';
+import { Play, Loader2, CheckSquare, Trash2 } from 'lucide-react';
 import { TemplateCard, TemplateCardSkeleton } from '@/components/workflow/TemplateCard';
 import {
   useTemplateStore,
@@ -11,6 +11,10 @@ import {
   type Template,
 } from '@/stores/templateStore';
 import { useExecutionStore } from '@/stores/executionStore';
+import { LaunchModalShell } from '@/components/workflow/LaunchModalShell';
+import { LaunchModalFooter } from '@/components/workflow/LaunchModalFooter';
+import { fieldLabel } from '@/components/workflow/launchFormUtils';
+import { FormField, FormSection, formTextareaClass } from '@/components/ui/formStyles';
 import { cn } from '@/lib/utils';
 import { ConfirmModal } from '@/lib/ConfirmModal';
 import { Pagination } from '@/components/ui/Pagination';
@@ -48,79 +52,49 @@ function LaunchDialog({ template, onClose, onLaunch }: LaunchDialogProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-border/50 animate-scale-in">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-gradient-to-r from-indigo-500/5 to-purple-500/5">
-          <div>
-            <h2 className="text-lg font-semibold">{template.name}</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">{template.description}</p>
-          </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-accent transition-colors">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Inputs */}
-        <div className="px-6 py-5 space-y-4">
-          {requiredInputs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">该工作流无需额外输入，直接点击执行。</p>
-          ) : (
-            requiredInputs.map(([key]) => (
-              <div key={key} className="space-y-1.5">
-                <label className="text-sm font-medium capitalize">
-                  {key === 'target' ? '审查目标' : key}
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <textarea
-                  value={values[key] ?? ''}
-                  onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))}
-                  placeholder={
-                    key === 'target'
-                      ? '文件路径（如 nx_api/src/routes/teams.rs）或功能描述'
-                      : `请输入 ${key}`
-                  }
-                  className="w-full px-3 py-2.5 text-sm bg-muted/50 border border-border/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 resize-none"
-                  rows={3}
-                />
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="px-6 py-4 border-t border-border/50 flex gap-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-all"
-          >
-            取消
-          </button>
-          <button
-            onClick={handleLaunch}
-            disabled={!canLaunch || launching}
-            className={cn(
-              'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl transition-all',
-              canLaunch && !launching
-                ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40'
-                : 'bg-muted text-muted-foreground cursor-not-allowed',
-            )}
-          >
-            {launching ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>启动中...</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                <span>执行</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
+    <LaunchModalShell
+      onClose={onClose}
+      title={template.name}
+      subtitle={template.description}
+      icon={<Play />}
+      accent="indigo"
+      size="md"
+      footer={
+        <LaunchModalFooter
+          onCancel={onClose}
+          onSubmit={handleLaunch}
+          submitLabel="执行"
+          submitting={launching}
+          disabled={!canLaunch}
+          submitIcon={!launching ? <Play className="h-4 w-4" /> : undefined}
+          hint={requiredInputs.length > 0 ? '标有 * 的字段为必填' : undefined}
+        />
+      }
+    >
+      {requiredInputs.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          无需额外输入，点击下方按钮即可运行。
+        </p>
+      ) : (
+        <FormSection title="运行参数">
+          {requiredInputs.map(([key]) => (
+            <FormField key={key} label={fieldLabel(key)} required>
+              <textarea
+                value={values[key] ?? ''}
+                onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))}
+                placeholder={
+                  key === 'target'
+                    ? '文件路径（如 nx_api/src/routes/teams.rs）或功能描述'
+                    : `请输入${fieldLabel(key)}`
+                }
+                className={formTextareaClass}
+                rows={3}
+              />
+            </FormField>
+          ))}
+        </FormSection>
+      )}
+    </LaunchModalShell>
   );
 }
 

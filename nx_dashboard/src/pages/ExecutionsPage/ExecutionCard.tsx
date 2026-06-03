@@ -2,7 +2,8 @@ import { CheckCircle, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Execution } from '@/stores/executionStore';
 import { useTeamStore } from '@/stores/teamStore';
-import { useProjectStore } from '@/stores/projectStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { workspaceDisplayName } from '@/lib/workspaceTeam';
 import { ExecutionTokenBadge } from '@/components/dashboard';
 import { STATUS_CONFIG, STATUS_ACCENT_BORDER, STATUS_TEXT } from './constants';
 import { formatTime, formatDuration, useWorkflowName } from './utils';
@@ -30,13 +31,11 @@ export function ExecutionCard({
   const Icon = config.icon;
   const workflowName = useWorkflowName();
   const teams = useTeamStore((s) => s.teams);
-  const projects = useProjectStore((s) => s.projects);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
   const teamName = execution.team_id
     ? teams.find((t) => t.id === execution.team_id)?.name
     : undefined;
-  const projectName = execution.project_id
-    ? projects.find((p) => p.id === execution.project_id)?.name
-    : undefined;
+  const workspaceName = workspaceDisplayName(workspaces, execution.project_id);
 
   if (isStudio) {
     return (
@@ -61,7 +60,7 @@ export function ExecutionCard({
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
           {teamName && <span>{teamName}</span>}
-          {projectName && <span>{projectName}</span>}
+          {workspaceName && <span>{workspaceName}</span>}
           <span>{formatTime(execution.started_at)}</span>
           <span>{formatDuration(execution.started_at, execution.finished_at)}</span>
         </div>
@@ -152,13 +151,13 @@ export function ExecutionCard({
       </div>
 
       <div className="grid grid-cols-2 gap-4 text-sm pl-7">
-        {(teamName || projectName) && (
+        {(teamName || workspaceName) && (
           <div className="col-span-2 flex flex-wrap gap-2 text-xs">
             {teamName && (
               <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground">团队: {teamName}</span>
             )}
-            {projectName && (
-              <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground">项目: {projectName}</span>
+            {workspaceName && (
+              <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground">工作区: {workspaceName}</span>
             )}
           </div>
         )}

@@ -1,4 +1,5 @@
 import { detectQualityGateFailure } from '@/data/qualityGateRecovery';
+import type { StackProfile } from '@/data/stackProfile';
 import type { Execution } from '@/stores/executionStore';
 
 export interface RunNextStepAction {
@@ -102,6 +103,7 @@ function parseSummaryFromStages(execution: Execution): { summary?: string; files
 export function nextStepsForRun(
   execution: Execution,
   workflowName: string,
+  stack?: StackProfile,
 ): RunNextSteps | null {
   const prompt = extractRunPrompt(execution);
   const { summary, filesChanged } = parseSummaryFromStages(execution);
@@ -143,7 +145,7 @@ export function nextStepsForRun(
           retryFromStage: qgFail.stageName,
         },
         secondary: {
-          label: '打开终端',
+          label: stack?.testCmd ? `终端: ${stack.testCmd}` : '打开终端',
           kind: 'navigate',
           href: '/factory?tab=console&drawer=terminal',
         },

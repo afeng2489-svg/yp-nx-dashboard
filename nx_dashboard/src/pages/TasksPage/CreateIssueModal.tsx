@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { Bug, X, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { IssuePriority, issuePriorityLabels, issuePriorityColors } from '@/stores/issueStore';
 import { showError } from '@/lib/toast';
+import { LaunchModalShell } from '@/components/workflow/LaunchModalShell';
+import { LaunchModalFooter } from '@/components/workflow/LaunchModalFooter';
+import { FormField, FormSection, formControlClass, formTextareaClass } from '@/components/ui/formStyles';
 
 interface CreateIssueModalProps {
   isOpen: boolean;
@@ -23,8 +26,6 @@ export function CreateIssueModal({ isOpen, onClose, onSubmit }: CreateIssueModal
   const [priority, setPriority] = useState<IssuePriority>('medium');
   const [perspectives, setPerspectives] = useState<string[]>([]);
 
-  if (!isOpen) return null;
-
   const togglePerspective = (p: string) => {
     setPerspectives((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
   };
@@ -42,88 +43,85 @@ export function CreateIssueModal({ isOpen, onClose, onSubmit }: CreateIssueModal
     onClose();
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-card rounded-2xl shadow-2xl border border-border/50 p-6 animate-in fade-in zoom-in duration-200">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <Bug className="w-5 h-5 text-red-500" />
-            新建 Issue
-          </h2>
-          <button onClick={onClose} className="p-2 hover:bg-accent rounded-lg transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1.5">标题</label>
+    <LaunchModalShell
+      onClose={onClose}
+      title="新建 Issue"
+      subtitle="记录问题并选择审查视角"
+      size="lg"
+      footer={
+        <LaunchModalFooter
+          onCancel={onClose}
+          onSubmit={handleSubmit}
+          submitLabel="创建"
+          submitIcon={<Plus className="h-4 w-4" />}
+        />
+      }
+    >
+      <div className="space-y-8">
+        <FormSection title="问题描述">
+          <FormField label="标题" required>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-red-500/50 text-sm"
+              className={formControlClass}
               placeholder="简短描述问题"
             />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1.5">描述</label>
+          </FormField>
+          <FormField label="详细描述" required>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              className={formTextareaClass}
+              placeholder="影响范围、重现步骤等"
               rows={4}
-              className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-red-500/50 text-sm resize-none"
-              placeholder="详细描述问题、影响范围和重现步骤"
             />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1.5">优先级</label>
-            <div className="grid grid-cols-4 gap-2">
+          </FormField>
+        </FormSection>
+
+        <FormSection title="分类">
+          <FormField label="优先级">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {(['critical', 'high', 'medium', 'low'] as IssuePriority[]).map((p) => (
                 <button
                   key={p}
+                  type="button"
                   onClick={() => setPriority(p)}
                   className={cn(
-                    'px-3 py-1.5 rounded-lg border text-xs font-medium transition-all',
+                    'h-10 rounded-lg border text-xs font-medium transition-colors sm:text-sm',
                     priority === p
                       ? issuePriorityColors[p]
-                      : 'border-border/50 bg-card hover:bg-accent',
+                      : 'border-border bg-background text-muted-foreground hover:bg-muted/50',
                   )}
                 >
                   {issuePriorityLabels[p]}
                 </button>
               ))}
             </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1.5">视角标签</label>
+          </FormField>
+          <FormField label="视角标签">
             <div className="flex flex-wrap gap-2">
               {PERSPECTIVE_OPTIONS.map((p) => (
                 <button
                   key={p}
+                  type="button"
                   onClick={() => togglePerspective(p)}
                   className={cn(
-                    'px-3 py-1 rounded-full border text-xs font-medium transition-all',
+                    'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
                     perspectives.includes(p)
-                      ? 'bg-indigo-500/10 text-indigo-600 border-indigo-500/30'
-                      : 'border-border/50 bg-card hover:bg-accent',
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border bg-background text-muted-foreground hover:bg-muted/50',
                   )}
                 >
                   {p}
                 </button>
               ))}
             </div>
-          </div>
-        </div>
-        <div className="flex items-center justify-end gap-3 mt-6">
-          <button onClick={onClose} className="btn-secondary">
-            取消
-          </button>
-          <button onClick={handleSubmit} className="btn-primary">
-            <Plus className="w-4 h-4" />
-            创建
-          </button>
-        </div>
+          </FormField>
+        </FormSection>
       </div>
-    </div>
+    </LaunchModalShell>
   );
 }

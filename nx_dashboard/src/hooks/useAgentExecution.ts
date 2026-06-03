@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { WS_BASE_URL } from '@/api/constants';
+import { WS_BASE_URL, API_BASE_URL } from '@/api/constants';
 import { useTeamStore } from '@/stores/teamStore';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE = API_BASE_URL;
 
 /** Agent execution event from WebSocket */
 interface AgentExecutionEvent {
@@ -60,7 +60,12 @@ export interface UseAgentExecutionReturn {
   activeRoleId: string | null;
   activeSessionId: string | null;
   progress: ProgressItem[];
-  execute: (teamId: string, task: string, autoConfirm?: boolean) => Promise<string | null>;
+  execute: (
+    teamId: string,
+    task: string,
+    autoConfirm?: boolean,
+    targetRoleIds?: string[],
+  ) => Promise<string | null>;
   executeRoleTurn: (sessionId: string, roleId: string) => Promise<string | null>;
   sendConfirmation: (response: string) => void;
   cancel: () => void;
@@ -102,7 +107,12 @@ export function useAgentExecution(): UseAgentExecutionReturn {
   const reconnectCountRef = useRef(0);
   const MAX_RECONNECT = 5;
   const lastExecIdRef = useRef<string | null>(null);
-  const lastMonitorCtxRef = useRef<{ teamId: string; teamName: string; task: string } | null>(null);
+  const lastMonitorCtxRef = useRef<{
+    teamId: string;
+    teamName: string;
+    task: string;
+    executionId?: string;
+  } | null>(null);
 
   // Local elapsed timer (updates every second, independent of WS heartbeat)
   const startLocalTimer = useCallback(() => {
@@ -138,7 +148,12 @@ export function useAgentExecution(): UseAgentExecutionReturn {
   const connectWs = useCallback(
     (
       execId: string,
-      monitorCtx: { teamId: string; teamName: string; task: string } | null = null,
+      monitorCtx: {
+        teamId: string;
+        teamName: string;
+        task: string;
+        executionId?: string;
+      } | null = null,
     ) => {
       // Store for reconnect
       lastExecIdRef.current = execId;
@@ -329,7 +344,12 @@ export function useAgentExecution(): UseAgentExecutionReturn {
 
   /** Execute a team task */
   const execute = useCallback(
-    async (teamId: string, task: string, autoConfirm?: boolean): Promise<string | null> => {
+    async (
+      teamId: string,
+      task: string,
+      autoConfirm?: boolean,
+      targetRoleIds?: string[],
+    ): Promise<string | null> => {
       // Reset state
       setStatus('started');
       setElapsedSecs(0);
@@ -368,6 +388,7 @@ export function useAgentExecution(): UseAgentExecutionReturn {
             task,
             context: {},
             auto_confirm: shouldAutoConfirm,
+            target_role_ids: targetRoleIds && targetRoleIds.length > 0 ? targetRoleIds : null,
           }),
         });
 
@@ -422,7 +443,12 @@ export function useAgentExecution(): UseAgentExecutionReturn {
           connectWs(
             execId,
             isMonitor
-              ? { teamId, teamName: teams.find((t) => t.id === teamId)?.name ?? '团队', task }
+              ? {
+                  teamId,
+                  teamName: teams.find((t) => t.id === teamId)?.name ?? '团队',
+                  task,
+                  executionId: execId,
+                }
               : null,
           );
           return execId;

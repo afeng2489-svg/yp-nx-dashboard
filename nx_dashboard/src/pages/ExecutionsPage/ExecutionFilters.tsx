@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Execution } from '@/stores/executionStore';
 import { useTeamStore } from '@/stores/teamStore';
-import { useProjectStore } from '@/stores/projectStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useWorkflowStore } from '@/stores/workflowStore';
 
 export interface ExecutionFilterState {
@@ -25,7 +25,7 @@ const DEFAULT: ExecutionFilterState = {
 export function useExecutionFilters(executions: Execution[]) {
   const [filters, setFilters] = useState<ExecutionFilterState>(DEFAULT);
   const teams = useTeamStore((s) => s.teams);
-  const projects = useProjectStore((s) => s.projects);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
   const workflows = useWorkflowStore((s) => s.workflows);
 
   const filtered = useMemo(() => {
@@ -48,7 +48,7 @@ export function useExecutionFilters(executions: Execution[]) {
     });
   }, [executions, filters]);
 
-  return { filters, setFilters, filtered, teams, projects, workflows, reset: () => setFilters(DEFAULT) };
+  return { filters, setFilters, filtered, teams, workspaces, workflows, reset: () => setFilters(DEFAULT) };
 }
 
 interface ExecutionFiltersProps {
@@ -56,7 +56,7 @@ interface ExecutionFiltersProps {
   onChange: (next: ExecutionFilterState) => void;
   onReset: () => void;
   teams: { id: string; name: string }[];
-  projects: { id: string; name: string }[];
+  workspaces: { id: string; name: string }[];
   workflows: { id: string; name: string }[];
 }
 
@@ -65,7 +65,7 @@ export function ExecutionFiltersBar({
   onChange,
   onReset,
   teams,
-  projects,
+  workspaces,
   workflows,
 }: ExecutionFiltersProps) {
   const set = (patch: Partial<ExecutionFilterState>) => onChange({ ...filters, ...patch });
@@ -88,16 +88,16 @@ export function ExecutionFiltersBar({
         </select>
       </label>
       <label className="flex flex-col gap-1">
-        <span className="text-muted-foreground">项目</span>
+        <span className="text-muted-foreground">工作区</span>
         <select
           className="rounded-md border border-border/50 bg-background px-2 py-1.5 min-w-[120px]"
           value={filters.projectId}
           onChange={(e) => set({ projectId: e.target.value })}
         >
           <option value="">全部</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
+          {workspaces.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
             </option>
           ))}
         </select>

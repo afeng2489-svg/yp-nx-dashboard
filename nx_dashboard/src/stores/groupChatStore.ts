@@ -137,7 +137,8 @@ interface GroupChatStore {
   sendMessage: (id: string, request: SendMessageRequest) => Promise<GroupMessage>;
   getNextSpeaker: (id: string) => Promise<{ role_id: string; role_name: string } | null>;
   advanceSpeaker: (id: string) => Promise<void>;
-  executeRoleTurn: (id: string, roleId: string) => Promise<GroupMessage>;
+  // 注：角色轮次执行走 useAgentExecution.executeRoleTurn（异步 + WebSocket 流式），
+  // 不在此 store 内实现，避免把 { execution_id, status } 误当成 GroupMessage。
   concludeDiscussion: (id: string, request?: ConcludeDiscussionRequest) => Promise<GroupConclusion>;
 
   // Message actions
@@ -366,29 +367,6 @@ export const useGroupChatStore = create<GroupChatStore>((set, get) => ({
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       set({ error: `Failed to advance speaker: ${message}` });
-      throw error;
-    }
-  },
-
-  executeRoleTurn: async (id: string, roleId: string) => {
-    set({ error: null });
-    try {
-      const response = await fetchWithTimeout(
-        `${API_BASE_URL}/api/v1/group-sessions/${id}/execute-turn/${encodeURIComponent(roleId)}`,
-        { method: 'POST' },
-      );
-
-      if (!response.ok) {
-        throw new ApiError(`Failed to execute role turn: ${response.status}`, response.status);
-      }
-
-      // Backend returns { execution_id, status } — not a GroupMessage.
-      // Actual message arrives via WebSocket. Return the execution metadata.
-      const data: { execution_id: string; status: string } = unwrapEnvelope(await response.json());
-      return data as unknown as GroupMessage;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      set({ error: `Failed to execute role turn: ${message}` });
       throw error;
     }
   },

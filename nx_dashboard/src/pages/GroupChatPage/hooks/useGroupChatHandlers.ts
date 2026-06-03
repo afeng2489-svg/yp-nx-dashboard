@@ -209,7 +209,12 @@ export function useGroupChatHandlers(deps: GroupChatHandlerDeps) {
   };
 
   const handleCancelExecution = () => {
+    // 单角色轮次：WS cancel（终止子进程）
     agentExec.cancel();
+    // 并行轮次：按 execution_id 真正取消所有仍在运行的执行
+    if (parallelRound.isRunning) {
+      parallelRound.cancel();
+    }
     setExecutingRole(null);
   };
 

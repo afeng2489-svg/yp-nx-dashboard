@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { API_BASE_URL } from '../api/constants';
 import { unwrapEnvelope } from '../api/response';
+import { workspaceScopePath } from '../lib/workspaceScope';
 
 // --- Types ---
 
@@ -49,14 +50,14 @@ interface PipelineState {
   error: string | null;
   polling: boolean;
 
-  fetchPipeline: (projectId: string) => Promise<void>;
-  createPipeline: (projectId: string, teamId: string) => Promise<void>;
+  fetchPipeline: (workspaceId: string) => Promise<void>;
+  createPipeline: (workspaceId: string, teamId?: string) => Promise<void>;
   startPipeline: (pipelineId: string) => Promise<void>;
   pausePipeline: (pipelineId: string) => Promise<void>;
   resumePipeline: (pipelineId: string) => Promise<void>;
   dispatchSteps: (pipelineId: string) => Promise<void>;
   retryStep: (pipelineId: string, stepId: string) => Promise<void>;
-  startPolling: (projectId: string) => void;
+  startPolling: (workspaceId: string) => void;
   stopPolling: () => void;
   clearError: () => void;
   reset: () => void;
@@ -72,10 +73,10 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   error: null,
   polling: false,
 
-  fetchPipeline: async (projectId: string) => {
+  fetchPipeline: async (workspaceId: string) => {
     set({ loading: true, error: null });
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/projects/${projectId}/pipeline`);
+      const res = await fetch(`${API_BASE_URL}${workspaceScopePath(workspaceId, 'pipeline')}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
@@ -87,10 +88,10 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
     }
   },
 
-  createPipeline: async (projectId: string, teamId: string) => {
+  createPipeline: async (workspaceId: string, teamId = '') => {
     set({ loading: true, error: null });
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/projects/${projectId}/pipeline`, {
+      const res = await fetch(`${API_BASE_URL}${workspaceScopePath(workspaceId, 'pipeline')}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ team_id: teamId }),
@@ -203,11 +204,11 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
     }
   },
 
-  startPolling: (projectId: string) => {
+  startPolling: (workspaceId: string) => {
     if (pollingTimer) return;
     set({ polling: true });
     pollingTimer = setInterval(() => {
-      get().fetchPipeline(projectId);
+      get().fetchPipeline(workspaceId);
     }, 3000);
   },
 

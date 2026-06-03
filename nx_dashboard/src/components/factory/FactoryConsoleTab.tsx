@@ -22,14 +22,15 @@ import {
 import {
   inferWorkspaceSignals,
   suggestWorkflowWithContext,
+  filterFactoryQuickCards,
 } from '@/data/workspaceSignals';
 import { useAIConfigStore } from '@/stores/aiConfigStore';
 import { useTeamStore } from '@/stores/teamStore';
-import { useProjectStore } from '@/stores/projectStore';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { useExecutionStore } from '@/stores/executionStore';
 import { useContextPanelStore } from '@/stores/contextPanelStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { useFactoryDrawerStore } from '@/stores/factoryDrawerStore';
 import { ActiveExecutionsPanel } from '@/components/dashboard';
 import { WorkflowLaunchModal } from '@/components/workflow/WorkflowLaunchModal';
@@ -57,6 +58,8 @@ import {
 } from '@/services/factoryAttachment';
 import { Button } from '@/components/ui/button';
 import type { Workflow } from '@/stores/workflowStore';
+import { WorkspaceContextBar } from '@/components/factory/WorkspaceContextBar';
+import { EditModeToggle, HumanEditHint } from '@/components/factory/EditModeToggle';
 
 interface FactoryConsoleTabProps {
   onRunStarted?: () => void;
@@ -87,9 +90,9 @@ export function FactoryConsoleTab({
   const browseFiles = useWorkspaceStore((s) => s.browseFiles);
   const fetchProvidersV2 = useAIConfigStore((s) => s.fetchProvidersV2);
   const openFactoryDrawer = useFactoryDrawerStore((s) => s.open);
+  const factoryEditMode = useSettingsStore((s) => s.factoryEditMode);
   const recentOutcome = useRecentFactoryOutcome();
   const { teams, currentTeam, fetchTeams, setCurrentTeam } = useTeamStore();
-  const { projects, currentProject } = useProjectStore();
 
   const [intent, setIntent] = useState('');
   const [loading, setLoading] = useState(false);
@@ -144,10 +147,17 @@ export function FactoryConsoleTab({
     }
   }, [initialIntent]);
 
-  const quickCards = FACTORY_QUICK_LINES.map((item) => ({
-    ...item,
-    workflow: workflows.find((w) => w.name === item.workflowName) ?? null,
-  }));
+  const quickCards = filterFactoryQuickCards(
+    FACTORY_QUICK_LINES.map((item) => ({
+      ...item,
+      workflow: workflows.find((w) => w.name === item.workflowName) ?? null,
+    })),
+    workspaceSignals,
+  );
+
+  const hasActiveRun = useExecutionStore((s) =>
+    s.executions.some((e) => e.status === 'running' || e.status === 'paused'),
+  );
 
   const buildPrompt = (base: string) => {
     const parts = [base.trim()];
@@ -207,6 +217,11 @@ export function FactoryConsoleTab({
       setError(msg);
       return { ok: false, error: msg };
     }
+    if (factoryEditMode === 'human' && hasActiveRun && !opts?.retryExecutionId) {
+      const msg = '当前为「我来改」模式：请先在文件树手工编辑，或切回 Agent 改后再启动';
+      setError(msg);
+      return { ok: false, error: msg };
+    }
     setLoading(true);
     setError(null);
     try {
@@ -215,7 +230,7 @@ export function FactoryConsoleTab({
       const result = await runFactoryQuickPrompt({
         prompt: isRetry ? prompt.trim() || '继续完成上次失败的任务' : fullPrompt,
         teamId,
-        projectId: currentProject?.id,
+        projectId: currentWorkspace?.id,
         workflowName: resolvedWorkflow,
         retryExecutionId: opts?.retryExecutionId,
         retryFromStage: opts?.retryFromStage,
@@ -314,6 +329,12 @@ export function FactoryConsoleTab({
 
   return (
     <div className="space-y-8">
+      <WorkspaceContextBar />
+      <div className="flex flex-wrap items-center gap-3">
+        <EditModeToggle active={hasActiveRun} />
+      </div>
+      <HumanEditHint />
+
       {(failureRecoveryEnabled || intentConsoleEnabled) && <FactoryTodoStrip />}
 
       {!failureRecoveryEnabled && cliReady === false && (
@@ -351,11 +372,12 @@ export function FactoryConsoleTab({
             uploadingAttachment={uploadingAttachment}
             onAttachmentPick={(file) => void handleAttachment(file)}
             onRemoveAttachment={removeAttachment}
-            currentProjectName={currentProject?.name}
+            currentProjectName={currentWorkspace?.name}
             onRun={(prompt, wf, retryOpts) => runQuickPrompt(prompt, wf, retryOpts)}
             onQuickLineLegacy={handleQuickLine}
             quickCards={quickCards}
             routingHint={routing.hint}
+            stackProfile={workspaceSignals.stack}
             onOpenNewProject={() => setShowNewProjectWizard(true)}
             teamId={overrideTeamId || currentTeam?.id}
             teamOpinions={teamOpinions}
@@ -434,9 +456,9 @@ export function FactoryConsoleTab({
                 }}
               />
             </label>
-            {currentProject && (
-              <span className="text-muted-foreground truncate max-w-[120px]" title={currentProject.name}>
-                项目: {currentProject.name}
+            {currentWorkspace && (
+              <span className="text-muted-foreground truncate max-w-[120px]" title={currentWorkspace.name}>
+                工作区: {currentWorkspace.name}
               </span>
             )}
           </div>
@@ -499,6 +521,7 @@ export function FactoryConsoleTab({
         <RunCompleteBanner
           execution={recentOutcome.execution}
           workflowName={recentOutcome.workflowName}
+          stackProfile={workspaceSignals.stack}
           onPrefill={(prompt, wf) => {
             setIntent(prompt);
             if (wf) setSelectedWorkflowName(wf);

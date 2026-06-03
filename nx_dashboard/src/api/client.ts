@@ -186,6 +186,10 @@ class ApiClient {
     });
   }
 
+  async diagnoseClaudeCli() {
+    return this.request<ClaudeCliDiagnosticsResponse>('/api/v1/ai/claude-cli-diagnostics');
+  }
+
   async setSelectedModel(modelId: string) {
     return this.request<{ success: boolean; model_id: string }>('/api/v1/ai/selected', {
       method: 'PUT',
@@ -494,6 +498,23 @@ export interface ClaudeCliConfigResponse {
   source: ClaudeCliSource;
   /** 安装提示，仅 source=none 时有值 */
   install_hint: string | null;
+}
+
+export interface ClaudeCliDiagnosticsResponse {
+  healthy: boolean;
+  status: string;
+  message: string;
+  path: string | null;
+  source: ClaudeCliSource;
+  executable: string | null;
+  prefix_args: string[];
+  version: string | null;
+  base_url: string | null;
+  model: string | null;
+  has_auth_token: boolean;
+  has_api_key: boolean;
+  suggestion: string;
+  stderr_preview: string | null;
 }
 
 export interface ProviderInfo {
