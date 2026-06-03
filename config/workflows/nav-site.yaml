@@ -1,5 +1,5 @@
 name: nav-site
-version: "1.0"
+version: "1.1"
 description: "导航站生成 — 基于 web-starter 底座：信息架构+选主题 → 脚手架 → 内容组装 → build门 → 预览 → 审批 → 摘要"
 
 triggers:
@@ -32,6 +32,28 @@ triggers:
           - { value: "brutalist-mono",       label: "粗野等宽 · 设计/作品集（浅）" }
           - { value: "botanical-calm",       label: "自然草本 · 健康/可持续（浅）" }
           - { value: "midnight-aurora",      label: "午夜极光 · AI/创意工具（暗）" }
+          - { value: "minimal-slate",        label: "极简白 SaaS · 工具产品（浅）" }
+          - { value: "warm-commerce",        label: "电商零售 · 促销消费（浅）" }
+          - { value: "news-editorial",       label: "新闻媒体 · 杂志门户（浅）" }
+          - { value: "glass-frost",          label: "玻璃拟态 · 云 SaaS（浅）" }
+          - { value: "retro-print",          label: "复古印刷 · 文艺品牌（浅）" }
+          - { value: "neon-arcade",          label: "游戏电竞 · 直播娱乐（暗）" }
+          - { value: "medical-clean",        label: "医疗健康 · 诊所健康（浅）" }
+          - { value: "legal-trust",          label: "法律政务 · 合规庄重（浅）" }
+          - { value: "food-warm",            label: "餐饮美食 · 餐厅烘焙（浅）" }
+          - { value: "travel-sky",           label: "旅行出行 · 航空酒店（浅）" }
+          - { value: "finance-gold",         label: "金融财富 · 投资黑金（暗）" }
+          - { value: "edu-campus",           label: "教育培训 · 学院课程（浅）" }
+      layout:
+        type: string
+        required: false
+        description: "布局变体（留空=按描述自动选）"
+        options:
+          - { value: "",         label: "自动选择（推荐）" }
+          - { value: "standard", label: "搜索分类 · 经典导航站" }
+          - { value: "sidebar",  label: "侧边栏 · 分类多/需筛选" }
+          - { value: "compact",  label: "紧凑密集 · 一屏展示更多" }
+          - { value: "featured", label: "精选推荐 · 突出优质站点" }
       links:
         type: string
         required: false
@@ -49,6 +71,7 @@ variables:
   brand: ""
   description: ""
   theme: "auto"
+  layout: "auto"
   links: ""
   task: ""
   target: "."
@@ -64,10 +87,11 @@ agents:
       你要设计一个导航站「{{brand}}」。
       定位：{{description}}
       指定风格：{{theme}}（auto 则你来选）
+      指定布局：{{layout}}（auto 则你来选）
       已有清单：{{links}}
       附加：{{task}}
 
-      ## 可选主题（必选其一，禁止自创）
+      ## 可选主题（必选其一，禁止自创，共 20 个）
       - terracotta-editorial：暖色编辑感（暗）
       - cyber-noir：赛博暗黑 / 科技·开发者·AI（暗）
       - corporate-navy：专业商务 / 企业·金融（浅）
@@ -76,11 +100,31 @@ agents:
       - brutalist-mono：粗野等宽 / 设计·作品集（浅）
       - botanical-calm：自然草本 / 健康·可持续（浅）
       - midnight-aurora：午夜极光 / AI·创意工具（暗）
+      - minimal-slate：极简白 SaaS / 工具产品（浅）
+      - warm-commerce：电商零售 / 促销消费（浅）
+      - news-editorial：新闻媒体 / 杂志门户（浅）
+      - glass-frost：玻璃拟态 / 云 SaaS（浅）
+      - retro-print：复古印刷 / 文艺品牌（浅）
+      - neon-arcade：游戏电竞 / 直播娱乐（暗）
+      - medical-clean：医疗健康 / 诊所（浅）
+      - legal-trust：法律政务 / 合规（浅）
+      - food-warm：餐饮美食 / 餐厅烘焙（浅）
+      - travel-sky：旅行出行 / 航空酒店（浅）
+      - finance-gold：金融财富 / 投资黑金（暗）
+      - edu-campus：教育培训 / 学院课程（浅）
+
+      ## 可选布局（必选其一，禁止自创，共 4 个）
+      - standard：搜索头 + 分类卡片网格（NavSiteDemo.tsx）— 经典默认
+      - sidebar：左侧分类导航 + 右侧内容（NavSiteSidebar.tsx）— 分类多
+      - compact：顶栏搜索 + 密集卡片（NavSiteCompact.tsx）— 站点多/要一屏多看
+      - featured：编辑精选 + 搜索 + 分类（NavSiteFeatured.tsx）— 突出优质推荐
 
       输出 JSON（不写代码）：
       ```json
       {
-        "theme_id": "选定 id",
+        "theme_id": "选定主题 id",
+        "layout_id": "选定布局 id",
+        "layout_file": "对应页面文件名，如 NavSiteDemo.tsx",
         "brand": "站名",
         "hero_title": "搜索头主标题前半句",
         "hero_highlight": "高亮后半句",
@@ -105,8 +149,8 @@ agents:
       用 Bash 在当前目录 {{target}} 搭好底座：
       1. `cp -R {{starter_path}}/. .`（排除已存在的 .git）
       2. 删除底座自带的 node_modules、dist
-      3. 把 theme_id 写进 index.html 的 <html data-theme="...">；暗色主题保留 class="dark"，浅色去掉
-      4. 瘦身 src/themes/index.css：只保留选中主题那一行 @import
+      3. 把 theme_id 写进 index.html 的 <html data-theme="...">；暗色主题(terracotta-editorial/cyber-noir/luxury-serif/midnight-aurora/neon-arcade/finance-gold) 保留 class="dark"，浅色去掉
+      4. 瘦身 src/themes/index.css：只保留选中主题那一行 @import，删除其余 19 行
       5. `npm install`
       不要改组件结构。完成后 `ls src/components/blocks` 确认。
 
@@ -118,10 +162,10 @@ agents:
 
       把底座变成「{{brand}}」真实导航站，只改内容层与装配，不改组件样式：
       1. 用 Write 重写 src/data/links.ts：categories 全部换成信息架构里的真实分类与站点
-      2. 改 src/pages/NavSiteDemo.tsx：Navbar 的 brand 改掉、删 showThemeControls；
-         SearchHeader 的 title/highlight/subtitle/placeholder 用信息架构内容；Footer brand/tagline 换掉
-      3. 改 src/App.tsx：直接渲染 <NavSiteDemo />，删掉 ?p 演示分支与 LandingDemo 引用
-      4. 可删除 src/pages/LandingDemo.tsx、落地页专用 blocks(Hero/Stats/FeatureGrid/Pricing/CTA)、src/data/landing.ts、未使用的 ThemeControls/registry
+      2. 按信息架构的 layout_file 改对应页面（NavSiteDemo/NavSiteSidebar/NavSiteCompact/NavSiteFeatured）：
+         Navbar brand 改掉、删 showThemeControls；SearchHeader/FeaturedLinks 的文案用信息架构内容；Footer brand/tagline 换掉
+      3. 改 src/App.tsx：直接渲染选中的布局页面组件，删掉 ?p 演示分支与落地页引用
+      4. 删除未选中的其他 nav 布局页面、所有 Landing*.tsx、落地页专用 blocks(Hero/Stats/FeatureGrid/Pricing/CTA/HeroSplit/FeatureList)、src/data/landing.ts、未使用的 ThemeControls/registry
       保留底座的 Reveal 动效、间距、圆角、阴影质感——这些决定成品质量。
 
   - id: preview-launcher

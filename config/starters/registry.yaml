@@ -1,0 +1,46 @@
+# Starter registry — physical templates under config/starters/{id}/
+# Used by NewProjectWizard and greenfield routing.
+
+starters:
+  - id: web-starter
+    label: Web Starter (React + Vite)
+    description: 营销页 / 导航站基础模板
+    workflow: landing-page
+    stack: react-vite
+    path: web-starter
+
+  - id: react-vite
+    label: React + Vite
+    description: SPA · TypeScript · Vite 脚手架（agent 生成）
+    workflow: greenfield-mvp
+    stack: react-vite
+
+  - id: next
+    label: Next.js
+    description: 全栈 React App Router
+    workflow: greenfield-mvp
+    stack: next
+
+  - id: go-api
+    label: Go API
+    description: REST / 微服务
+    workflow: greenfield-mvp
+    stack: go-api
+
+  - id: tauri
+    label: Tauri 桌面
+    description: Rust + Web 前端
+    workflow: greenfield-mvp
+    stack: tauri
+
+  - id: python-fastapi
+    label: Python FastAPI
+    description: API 服务 · uvicorn
+    workflow: greenfield-mvp
+    stack: python-fastapi
+
+  - id: rust-cli
+    label: Rust CLI
+    description: 命令行工具 · cargo
+    workflow: greenfield-mvp
+    stack: rust-cli

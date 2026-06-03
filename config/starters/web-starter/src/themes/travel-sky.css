@@ -1,0 +1,48 @@
+/* Theme: travel-sky —— 旅行出行
+   vibe: 旅游、航空、酒店、户外（天蓝浅色） */
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Raleway:wght@500;600;700;800&display=swap');
+
+:root[data-theme='travel-sky'] {
+  --font-display: 'Raleway', 'PingFang SC', sans-serif;
+  --font-sans: 'Quicksand', 'PingFang SC', system-ui, sans-serif;
+
+  --bg: 200 60% 97%;
+  --surface: 0 0% 100%;
+  --elevated: 195 50% 99%;
+  --border: 200 30% 88%;
+  --ink: 210 40% 12%;
+  --muted: 210 15% 45%;
+  --primary: 199 89% 48%;
+  --primary-fg: 0 0% 100%;
+  --accent: 172 66% 42%;
+  --accent-fg: 0 0% 100%;
+
+  --radius-sm: 0.5rem;
+  --radius: 0.75rem;
+  --radius-lg: 1.125rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+
+  --shadow-soft: 0 4px 16px hsl(199 89% 48% / 0.08);
+  --shadow-lift: 0 12px 36px hsl(199 60% 40% / 0.14);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.2), 0 12px 40px hsl(var(--primary) / 0.15);
+
+  --content-width: 80rem;
+}
+
+:root[data-theme='travel-sky'].dark {
+  --bg: 210 40% 7%;
+  --surface: 210 35% 10%;
+  --elevated: 210 30% 13%;
+  --border: 210 25% 20%;
+  --ink: 195 40% 94%;
+  --muted: 210 14% 62%;
+  --primary: 199 89% 55%;
+  --primary-fg: 210 40% 7%;
+  --accent: 172 66% 50%;
+  --accent-fg: 210 40% 7%;
+
+  --shadow-soft: 0 4px 16px hsl(0 0% 0% / 0.35);
+  --shadow-lift: 0 12px 36px hsl(0 0% 0% / 0.48);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.35), 0 12px 40px hsl(var(--primary) / 0.2);
+}

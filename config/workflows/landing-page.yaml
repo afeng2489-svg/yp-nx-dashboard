@@ -1,5 +1,5 @@
 name: landing-page
-version: "1.0"
+version: "1.1"
 description: "落地页生成 — 基于 web-starter 底座：需求澄清+选主题 → 脚手架 → 内容组装 → build门 → 预览 → 审批 → 摘要"
 
 triggers:
@@ -32,6 +32,28 @@ triggers:
           - { value: "brutalist-mono",       label: "粗野等宽 · 设计/作品集（浅）" }
           - { value: "botanical-calm",       label: "自然草本 · 健康/可持续（浅）" }
           - { value: "midnight-aurora",      label: "午夜极光 · AI/创意工具（暗）" }
+          - { value: "minimal-slate",        label: "极简白 SaaS · 工具产品（浅）" }
+          - { value: "warm-commerce",        label: "电商零售 · 促销消费（浅）" }
+          - { value: "news-editorial",       label: "新闻媒体 · 杂志门户（浅）" }
+          - { value: "glass-frost",          label: "玻璃拟态 · 云 SaaS（浅）" }
+          - { value: "retro-print",          label: "复古印刷 · 文艺品牌（浅）" }
+          - { value: "neon-arcade",          label: "游戏电竞 · 直播娱乐（暗）" }
+          - { value: "medical-clean",        label: "医疗健康 · 诊所健康（浅）" }
+          - { value: "legal-trust",          label: "法律政务 · 合规庄重（浅）" }
+          - { value: "food-warm",            label: "餐饮美食 · 餐厅烘焙（浅）" }
+          - { value: "travel-sky",           label: "旅行出行 · 航空酒店（浅）" }
+          - { value: "finance-gold",         label: "金融财富 · 投资黑金（暗）" }
+          - { value: "edu-campus",           label: "教育培训 · 学院课程（浅）" }
+      layout:
+        type: string
+        required: false
+        description: "布局变体（留空=按描述自动选）"
+        options:
+          - { value: "",           label: "自动选择（推荐）" }
+          - { value: "standard",   label: "标准全套 · Hero+功能+定价+CTA" }
+          - { value: "minimal",    label: "极简转化 · 轻量快速上线" }
+          - { value: "conversion", label: "强转化 · 注册表单获客" }
+          - { value: "showcase",   label: "产品展示 · 分栏叙事" }
       sections:
         type: string
         required: false
@@ -53,6 +75,7 @@ variables:
   brand: ""
   description: ""
   theme: "auto"
+  layout: "auto"
   sections: ""
   task: ""
   target: "."
@@ -68,10 +91,11 @@ agents:
       你是品牌策略师。要为「{{brand}}」做一个落地页。
       产品描述：{{description}}
       指定风格：{{theme}}（若为 auto 则你来选）
+      指定布局：{{layout}}（若为 auto 则你来选）
       期望板块：{{sections}}
       附加：{{task}}
 
-      ## 可选主题（必须从中选一个，禁止自创）
+      ## 可选主题（必须从中选一个，禁止自创，共 20 个）
       - terracotta-editorial：暖色编辑感 / 博客·内容·精品工作室（暗）
       - cyber-noir：赛博暗黑 / 科技·开发者·AI·游戏（暗）
       - corporate-navy：专业商务 / 金融·B2B·SaaS·企业官网（浅）
@@ -80,11 +104,31 @@ agents:
       - brutalist-mono：粗野等宽 / 设计工作室·作品集·潮流（浅）
       - botanical-calm：自然草本 / 健康·护肤·有机·可持续（浅）
       - midnight-aurora：午夜极光 / AI·SaaS·创意工具·音乐（暗）
+      - minimal-slate：极简白 SaaS / 工具·软件·初创（浅）
+      - warm-commerce：电商零售 / 促销·商城·消费（浅）
+      - news-editorial：新闻媒体 / 杂志·门户·资讯（浅）
+      - glass-frost：玻璃拟态 / 云·SaaS·现代 UI（浅）
+      - retro-print：复古印刷 / 文艺·独立·vintage（浅）
+      - neon-arcade：游戏电竞 / 直播·娱乐·玩家（暗）
+      - medical-clean：医疗健康 / 医院·诊所·健康科技（浅）
+      - legal-trust：法律政务 / 律所·政府·合规（浅）
+      - food-warm：餐饮美食 / 餐厅·烘焙·食品（浅）
+      - travel-sky：旅行出行 / 旅游·航空·酒店（浅）
+      - finance-gold：金融财富 / 投资·银行·理财（暗）
+      - edu-campus：教育培训 / 学校·课程·在线学习（浅）
+
+      ## 可选布局（必须从中选一个，禁止自创，共 4 个）
+      - standard：Hero+Stats+FeatureGrid+Pricing+CTA（LandingDemo.tsx）— 完整 SaaS 介绍
+      - minimal：Hero+FeatureGrid+CTA（LandingMinimal.tsx）— 轻量 MVP
+      - conversion：HeroSplit 注册表单+精简功能+CTA（LandingConversion.tsx）— 强调获客
+      - showcase：HeroSplit 展示+Stats+FeatureList+Pricing（LandingShowcase.tsx）— 产品叙事
 
       输出一份 JSON 简报（不要写任何其它代码）：
       ```json
       {
         "theme_id": "从上表选定的 id（若用户已指定 theme 且非 auto，直接用它）",
+        "layout_id": "从上表选定的 id",
+        "layout_file": "对应页面文件名，如 LandingDemo.tsx",
         "brand": "品牌名",
         "tagline_main": "主标题前半句",
         "tagline_highlight": "主标题高亮后半句",
@@ -110,9 +154,9 @@ agents:
       1. 复制底座：`cp -R {{starter_path}}/. .`（包含 src、config、package.json 等，排除已存在的 .git）
       2. 删除底座自带的 node_modules（若有）与 dist，避免污染
       3. 读取简报里的 theme_id，写进 index.html 的 <html data-theme="...">，并按该主题默认明暗设置/去掉 class="dark"
-         - 暗色主题(terracotta-editorial/cyber-noir/luxury-serif/midnight-aurora) 保留 class="dark"
+         - 暗色主题(terracotta-editorial/cyber-noir/luxury-serif/midnight-aurora/neon-arcade/finance-gold) 保留 class="dark"
          - 浅色主题 去掉 class="dark"
-      4. 瘦身 src/themes/index.css：只保留选中主题那一行 @import，删除其余 7 行（成品站不需要多余字体）
+      4. 瘦身 src/themes/index.css：只保留选中主题那一行 @import，删除其余 19 行（成品站不需要多余字体）
       5. `npm install`
       不要改组件结构，只做上面的接线。完成后用 Bash 确认 `ls src/components/blocks` 正常。
 
@@ -124,10 +168,10 @@ agents:
 
       把底座变成「{{brand}}」真实落地页，只改内容层与页面装配，不要重写组件样式：
       1. 用 Write 重写 src/data/landing.ts：features/stats/plans 全部换成简报里的真实内容（图标从 lucide-react 里挑语义贴切的）
-      2. 改 src/pages/LandingDemo.tsx：把 Navbar 的 brand/links/cta、Hero 的 eyebrow/title/highlight/subtitle/cta、Footer 的 brand/tagline/columns 全换成简报内容；
-         删除 Navbar 的 showThemeControls（成品站不要主题切换器）
-      3. 改 src/App.tsx：直接渲染 <LandingDemo />，删掉 ?p=nav 演示分支与 NavSiteDemo 引用
-      4. 可删除 src/pages/NavSiteDemo.tsx、导航站专用 blocks(SearchHeader/CategoryGrid)、src/data/links.ts、未使用的 ThemeControls/registry（如不再引用）
+      2. 按简报的 layout_file 改对应页面（LandingDemo/LandingMinimal/LandingConversion/LandingShowcase）：
+         Navbar/Hero/HeroSplit 的 brand/links/cta/文案、Footer 的 brand/tagline/columns 全换成简报内容；删除 showThemeControls
+      3. 改 src/App.tsx：直接渲染选中的布局页面组件，删掉 ?p 演示分支与导航站引用
+      4. 删除未选中的其他 landing 布局页面、所有 NavSite*.tsx、导航站专用 blocks(SearchHeader/CategoryGrid/CategorySidebar/FeaturedLinks)、src/data/links.ts、未使用的 ThemeControls/registry（如不再引用）
       保持 Reveal 动效、间距、圆角、阴影等底座质感不动——这些决定成品质量，务必保留。
 
   - id: preview-launcher

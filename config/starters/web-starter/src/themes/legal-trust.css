@@ -1,0 +1,48 @@
+/* Theme: legal-trust —— 法律政务
+   vibe: 律所、政府、合规、庄重可信（深色/浅色均可） */
+@import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&family=Public+Sans:wght@400;500;600;700&display=swap');
+
+:root[data-theme='legal-trust'] {
+  --font-display: 'Crimson Pro', 'Songti SC', Georgia, serif;
+  --font-sans: 'Public Sans', 'PingFang SC', system-ui, sans-serif;
+
+  --bg: 220 20% 97%;
+  --surface: 0 0% 100%;
+  --elevated: 220 25% 99%;
+  --border: 220 15% 88%;
+  --ink: 222 47% 11%;
+  --muted: 220 10% 42%;
+  --primary: 350 45% 32%;
+  --primary-fg: 0 0% 100%;
+  --accent: 222 60% 28%;
+  --accent-fg: 0 0% 100%;
+
+  --radius-sm: 0.125rem;
+  --radius: 0.25rem;
+  --radius-lg: 0.375rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.625rem;
+
+  --shadow-soft: 0 1px 3px hsl(222 47% 11% / 0.06);
+  --shadow-lift: 0 6px 20px hsl(222 47% 11% / 0.1);
+  --shadow-glow: 0 0 0 1px hsl(var(--accent) / 0.25);
+
+  --content-width: 68rem;
+}
+
+:root[data-theme='legal-trust'].dark {
+  --bg: 222 40% 7%;
+  --surface: 222 35% 10%;
+  --elevated: 222 30% 13%;
+  --border: 220 22% 20%;
+  --ink: 220 20% 92%;
+  --muted: 220 12% 62%;
+  --primary: 350 50% 55%;
+  --primary-fg: 222 40% 7%;
+  --accent: 213 70% 55%;
+  --accent-fg: 222 40% 7%;
+
+  --shadow-soft: 0 1px 3px hsl(0 0% 0% / 0.4);
+  --shadow-lift: 0 6px 20px hsl(0 0% 0% / 0.5);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.35);
+}

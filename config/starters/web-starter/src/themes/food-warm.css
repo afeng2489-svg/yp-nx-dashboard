@@ -1,0 +1,48 @@
+/* Theme: food-warm —— 餐饮美食
+   vibe: 餐厅、美食、烘焙、食品品牌（暖调浅色） */
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Work+Sans:wght@400;500;600;700&display=swap');
+
+:root[data-theme='food-warm'] {
+  --font-display: 'Lora', 'Songti SC', Georgia, serif;
+  --font-sans: 'Work Sans', 'PingFang SC', system-ui, sans-serif;
+
+  --bg: 35 45% 96%;
+  --surface: 40 50% 99%;
+  --elevated: 38 40% 98%;
+  --border: 30 25% 86%;
+  --ink: 25 30% 14%;
+  --muted: 25 12% 44%;
+  --primary: 25 85% 48%;
+  --primary-fg: 0 0% 100%;
+  --accent: 45 90% 48%;
+  --accent-fg: 25 30% 14%;
+
+  --radius-sm: 0.5rem;
+  --radius: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+  --radius-2xl: 2.25rem;
+
+  --shadow-soft: 0 2px 8px hsl(25 85% 48% / 0.08), 0 4px 16px hsl(25 30% 14% / 0.05);
+  --shadow-lift: 0 12px 32px hsl(25 60% 35% / 0.14);
+  --shadow-glow: 0 0 0 2px hsl(var(--primary) / 0.2), 0 12px 36px hsl(var(--primary) / 0.15);
+
+  --content-width: 76rem;
+}
+
+:root[data-theme='food-warm'].dark {
+  --bg: 25 20% 9%;
+  --surface: 25 18% 12%;
+  --elevated: 25 16% 15%;
+  --border: 25 14% 22%;
+  --ink: 35 40% 92%;
+  --muted: 30 12% 60%;
+  --primary: 25 90% 55%;
+  --primary-fg: 25 20% 9%;
+  --accent: 45 95% 55%;
+  --accent-fg: 25 20% 9%;
+
+  --shadow-soft: 0 2px 8px hsl(0 0% 0% / 0.35);
+  --shadow-lift: 0 12px 32px hsl(0 0% 0% / 0.48);
+  --shadow-glow: 0 0 0 2px hsl(var(--primary) / 0.35), 0 12px 36px hsl(var(--primary) / 0.22);
+}

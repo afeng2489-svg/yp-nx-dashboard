@@ -1,0 +1,48 @@
+/* Theme: warm-commerce —— 电商零售
+   vibe: 电商、零售、促销、消费品牌（暖色浅色） */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap');
+
+:root[data-theme='warm-commerce'] {
+  --font-display: 'Playfair Display', 'Songti SC', Georgia, serif;
+  --font-sans: 'Outfit', 'PingFang SC', system-ui, sans-serif;
+
+  --bg: 30 50% 98%;
+  --surface: 0 0% 100%;
+  --elevated: 28 60% 99%;
+  --border: 25 30% 90%;
+  --ink: 20 25% 12%;
+  --muted: 20 10% 45%;
+  --primary: 14 90% 52%;
+  --primary-fg: 0 0% 100%;
+  --accent: 38 92% 50%;
+  --accent-fg: 20 25% 12%;
+
+  --radius-sm: 0.375rem;
+  --radius: 0.625rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.75rem;
+
+  --shadow-soft: 0 2px 4px hsl(14 90% 52% / 0.06), 0 8px 20px hsl(20 25% 12% / 0.06);
+  --shadow-lift: 0 12px 28px hsl(14 70% 40% / 0.14);
+  --shadow-glow: 0 0 0 2px hsl(var(--primary) / 0.2), 0 12px 36px hsl(var(--primary) / 0.18);
+
+  --content-width: 80rem;
+}
+
+:root[data-theme='warm-commerce'].dark {
+  --bg: 20 20% 8%;
+  --surface: 20 18% 11%;
+  --elevated: 20 16% 14%;
+  --border: 20 14% 22%;
+  --ink: 30 30% 94%;
+  --muted: 25 12% 62%;
+  --primary: 14 95% 58%;
+  --primary-fg: 20 20% 8%;
+  --accent: 38 95% 55%;
+  --accent-fg: 20 20% 8%;
+
+  --shadow-soft: 0 2px 4px hsl(0 0% 0% / 0.35), 0 8px 20px hsl(0 0% 0% / 0.35);
+  --shadow-lift: 0 12px 28px hsl(0 0% 0% / 0.48);
+  --shadow-glow: 0 0 0 2px hsl(var(--primary) / 0.35), 0 12px 36px hsl(var(--primary) / 0.25);
+}

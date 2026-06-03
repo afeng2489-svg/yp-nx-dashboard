@@ -1,0 +1,48 @@
+/* Theme: news-editorial —— 新闻媒体
+   vibe: 新闻门户、杂志、内容媒体（编辑感浅色） */
+@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;500;600;700&display=swap');
+
+:root[data-theme='news-editorial'] {
+  --font-display: 'Libre Baskerville', 'Songti SC', Georgia, serif;
+  --font-sans: 'Source Sans 3', 'PingFang SC', system-ui, sans-serif;
+
+  --bg: 40 20% 97%;
+  --surface: 40 30% 99%;
+  --elevated: 0 0% 100%;
+  --border: 30 15% 85%;
+  --ink: 0 0% 8%;
+  --muted: 0 0% 42%;
+  --primary: 0 72% 42%;
+  --primary-fg: 0 0% 100%;
+  --accent: 210 50% 35%;
+  --accent-fg: 0 0% 100%;
+
+  --radius-sm: 0.125rem;
+  --radius: 0.25rem;
+  --radius-lg: 0.375rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.625rem;
+
+  --shadow-soft: 0 1px 3px hsl(0 0% 8% / 0.06);
+  --shadow-lift: 0 6px 20px hsl(0 0% 8% / 0.1);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.25);
+
+  --content-width: 68rem;
+}
+
+:root[data-theme='news-editorial'].dark {
+  --bg: 0 0% 6%;
+  --surface: 0 0% 9%;
+  --elevated: 0 0% 12%;
+  --border: 0 0% 20%;
+  --ink: 40 20% 92%;
+  --muted: 0 0% 62%;
+  --primary: 0 80% 55%;
+  --primary-fg: 0 0% 6%;
+  --accent: 210 60% 55%;
+  --accent-fg: 0 0% 6%;
+
+  --shadow-soft: 0 1px 3px hsl(0 0% 0% / 0.4);
+  --shadow-lift: 0 6px 20px hsl(0 0% 0% / 0.5);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.35);
+}
