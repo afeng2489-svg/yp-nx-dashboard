@@ -9,11 +9,13 @@ use crate::models::pipeline::PipelinePhase;
 use crate::services::claude_cli::call_claude_cli_with_timeout;
 use crate::services::session_service::SessionService;
 use crate::services::team_service::TeamService;
+use crate::services::workspace_service::WorkspaceService;
 
 pub struct PipelineDispatcher {
     pipeline_service: Arc<PipelineService>,
     session_service: Arc<SessionService>,
     team_service: Arc<TeamService>,
+    workspace_service: Arc<WorkspaceService>,
 }
 
 impl PipelineDispatcher {
@@ -21,12 +23,28 @@ impl PipelineDispatcher {
         pipeline_service: Arc<PipelineService>,
         session_service: Arc<SessionService>,
         team_service: Arc<TeamService>,
+        workspace_service: Arc<WorkspaceService>,
     ) -> Self {
         Self {
             pipeline_service,
             session_service,
             team_service,
+            workspace_service,
         }
+    }
+
+    fn resolve_working_dir(&self, project_id: &str) -> Option<String> {
+        if let Ok(Some(ws)) = self.workspace_service.get_workspace(project_id) {
+            return ws.root_path.filter(|p| !p.is_empty());
+        }
+        if let Ok(projects) = self.workspace_service.list_workspaces() {
+            for ws in projects {
+                if ws.id == project_id {
+                    return ws.root_path.filter(|p| !p.is_empty());
+                }
+            }
+        }
+        None
     }
 
     pub fn start(self: Arc<Self>) {
@@ -48,6 +66,7 @@ impl PipelineDispatcher {
             .map_err(|e| e.to_string())?;
 
         for pipeline in pipelines {
+            let working_dir = self.resolve_working_dir(&pipeline.project_id);
             let steps = self
                 .pipeline_service
                 .get_dispatchable_steps(&pipeline.id)
@@ -60,8 +79,8 @@ impl PipelineDispatcher {
                 let step_id = step.id.clone();
                 let phase = format!("{:?}", step.phase);
                 let step_phase = step.phase.clone();
+                let wd = working_dir.clone();
 
-                // 查找角色 system_prompt，拼入 instruction 前
                 let prompt = self.build_prompt(&step.role_id, &step.instruction);
 
                 let _ = ps.mark_step_running(&step_id);
@@ -71,18 +90,21 @@ impl PipelineDispatcher {
                         .create_session(format!("pipeline-step:{}", step_id))
                         .await;
 
-                    tracing::info!("[Dispatcher] 执行 step {} ({})", step_id, phase);
+                    tracing::info!(
+                        "[Dispatcher] 执行 step {} ({}) cwd={:?}",
+                        step_id,
+                        phase,
+                        wd
+                    );
 
-                    let result = call_claude_cli_with_timeout(&prompt, 300, None).await;
+                    let result = call_claude_cli_with_timeout(&prompt, 300, wd.as_deref()).await;
 
                     match result {
                         Ok(output) => {
                             if let Ok(session) = &session {
                                 let _ = ss.delete_session(&session.id).await;
                             }
-                            // 质量门：step 完成后检测项目测试
-                            let working_dir = session.as_ref().ok().and_then(|_| None::<String>); // dispatcher 暂无 working_dir，预留接口
-                            let final_output = match run_quality_gate(working_dir.as_deref()) {
+                            let final_output = match run_quality_gate(wd.as_deref()) {
                                 Some(gate) if !gate.passed => {
                                     let failures: Vec<String> = gate
                                         .checks
@@ -107,7 +129,6 @@ impl PipelineDispatcher {
                             };
                             let _ = ps.on_step_completed(&pipeline_id, &step_id, &final_output);
                             tracing::info!("[Dispatcher] step {} 完成", step_id);
-                            // 架构设计完成后请求人工审批
                             if step_phase == PipelinePhase::ArchitectureDesign {
                                 let _ = ps.request_approval(&pipeline_id);
                                 tracing::info!(
@@ -127,15 +148,12 @@ impl PipelineDispatcher {
         Ok(())
     }
 
-    /// 用 role_id 查 system_prompt，拼到 instruction 前
     fn build_prompt(&self, role_id: &str, instruction: &str) -> String {
-        // 先尝试按 role_id 直接查
         if let Ok(role) = self.team_service.get_role(role_id) {
             if !role.system_prompt.is_empty() {
                 return format!("{}\n\n---\n\n{}", role.system_prompt, instruction);
             }
         }
-        // 找不到角色时直接用 instruction
         instruction.to_string()
     }
 }

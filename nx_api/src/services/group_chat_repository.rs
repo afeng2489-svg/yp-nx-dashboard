@@ -377,7 +377,7 @@ impl GroupChatRepository for SqliteGroupChatRepository {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT role_id, role_name, joined_at, last_spoke_at, message_count
-             FROM group_participants WHERE session_id = ?1",
+             FROM group_participants WHERE session_id = ?1 ORDER BY rowid",
         )?;
 
         let rows = stmt.query_map(params![session_id], |row| {

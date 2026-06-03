@@ -77,11 +77,15 @@ pub mod workspaces;
 /// Frontend often passes workspace.id where project.id is expected.
 /// This tries: 1) direct project lookup, 2) project linked to workspace, 3) fallback as-is.
 pub fn resolve_project_id(state: &AppState, id: &str) -> String {
-    // Try as project_id first
+    // Workspace is the canonical scope when id is a workspace
+    if let Ok(Some(_)) = state.workspace_service.get_workspace(id) {
+        return id.to_string();
+    }
+    // Try as project_id
     if let Ok(Some(_)) = state.project_service.get_project(id) {
         return id.to_string();
     }
-    // Try as workspace_id — find project linked to this workspace
+    // Legacy: workspace_id linked to a project row
     if let Ok(projects) = state.project_service.list_projects() {
         for p in &projects {
             if p.workspace_id.as_deref() == Some(id) {
@@ -89,7 +93,6 @@ pub fn resolve_project_id(state: &AppState, id: &str) -> String {
             }
         }
     }
-    // Fallback: use as-is (workspace_id becomes the de-facto project_id)
     id.to_string()
 }
 
@@ -191,7 +194,7 @@ pub(crate) fn persist_workspace(db_path: &str, path: Option<&str>) {
 }
 
 /// 将 config/workflows/**/*.yaml 种子文件 upsert 到数据库（递归扫描子目录）
-/// 规则：按 name 匹配；不存在则创建，已存在则跳过（避免覆盖用户修改）
+/// 规则：按 name 匹配；不存在则创建；已存在且 YAML version 更高则更新 definition
 fn seed_workflows_from_yaml(workflow_service: &WorkflowService) {
     let Some(dir) = resolve_workflows_dir() else {
         tracing::debug!("[WorkflowSeeder] config/workflows 目录未找到，跳过");
@@ -200,24 +203,35 @@ fn seed_workflows_from_yaml(workflow_service: &WorkflowService) {
 
     tracing::info!("[WorkflowSeeder] 扫描目录: {:?}", dir);
 
-    // 获取已有工作流名称集合
-    let existing_names: std::collections::HashSet<String> = match workflow_service.list_workflows()
-    {
-        Ok(list) => list.into_iter().map(|w| w.name).collect(),
-        Err(e) => {
-            tracing::warn!("[WorkflowSeeder] 无法读取已有工作流: {}", e);
-            return;
-        }
-    };
+    let existing_by_name: HashMap<String, crate::services::workflow_service::Workflow> =
+        match workflow_service.list_workflows() {
+            Ok(list) => list.into_iter().map(|w| (w.name.clone(), w)).collect(),
+            Err(e) => {
+                tracing::warn!("[WorkflowSeeder] 无法读取已有工作流: {}", e);
+                return;
+            }
+        };
 
-    seed_dir_recursive(workflow_service, &dir, &existing_names);
+    seed_dir_recursive(workflow_service, &dir, &existing_by_name);
+}
+
+fn version_is_newer(yaml_version: &str, db_version: &str) -> bool {
+    fn parts(v: &str) -> (u32, u32, u32) {
+        let mut it = v.split('.').map(|p| p.parse::<u32>().unwrap_or(0));
+        (
+            it.next().unwrap_or(0),
+            it.next().unwrap_or(0),
+            it.next().unwrap_or(0),
+        )
+    }
+    parts(yaml_version) > parts(db_version)
 }
 
 /// 递归扫描目录，导入所有 .yaml 工作流文件
 fn seed_dir_recursive(
     workflow_service: &WorkflowService,
     dir: &std::path::Path,
-    existing_names: &std::collections::HashSet<String>,
+    existing_by_name: &HashMap<String, crate::services::workflow_service::Workflow>,
 ) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         tracing::warn!("[WorkflowSeeder] 无法读取目录: {:?}", dir);
@@ -229,7 +243,7 @@ fn seed_dir_recursive(
 
         // 递归进入子目录
         if path.is_dir() {
-            seed_dir_recursive(workflow_service, &path, existing_names);
+            seed_dir_recursive(workflow_service, &path, existing_by_name);
             continue;
         }
 
@@ -262,11 +276,6 @@ fn seed_dir_recursive(
             continue;
         }
 
-        if existing_names.contains(&name) {
-            tracing::debug!("[WorkflowSeeder] 已存在，跳过: {}", name);
-            continue;
-        }
-
         let version = definition
             .get("version")
             .and_then(|v| v.as_str())
@@ -277,6 +286,29 @@ fn seed_dir_recursive(
             .get("description")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
+
+        if let Some(existing) = existing_by_name.get(&name) {
+            if version_is_newer(&version, &existing.version) {
+                match workflow_service.update_workflow(
+                    &existing.id,
+                    None,
+                    Some(version.clone()),
+                    description.clone(),
+                    Some(definition.clone()),
+                ) {
+                    Ok(_) => tracing::info!(
+                        "[WorkflowSeeder] 已更新: {} v{} -> v{}",
+                        name,
+                        existing.version,
+                        version
+                    ),
+                    Err(e) => tracing::warn!("[WorkflowSeeder] 更新失败 {}: {}", name, e),
+                }
+            } else {
+                tracing::debug!("[WorkflowSeeder] 已存在，跳过: {}", name);
+            }
+            continue;
+        }
 
         match workflow_service.create_workflow(name.clone(), Some(version), description, definition)
         {
@@ -1012,9 +1044,10 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         if let Some(ps) = app_state.pipeline_service.clone() {
             let ss = Arc::new(app_state.session_service.clone());
             let ts = Arc::new(app_state.teams_state.team_service.clone());
+            let ws = Arc::new(app_state.workspace_service.clone());
             let dispatcher = Arc::new(
                 crate::services::team_evolution::pipeline_dispatcher::PipelineDispatcher::new(
-                    ps, ss, ts,
+                    ps, ss, ts, ws,
                 ),
             );
             dispatcher.start();
@@ -1199,6 +1232,10 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
             post(executions::cancel_execution),
         )
         .route(
+            "/api/v1/agent-executions/:id/cancel",
+            post(executions::cancel_agent_execution),
+        )
+        .route(
             "/api/v1/executions/:id/resolve",
             post(executions::resolve_execution),
         )
@@ -1294,6 +1331,31 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
             get(workspaces::read_file)
                 .put(workspaces::write_file)
                 .delete(workspaces::delete_file),
+        )
+        // 工作区 · 团队进化 / Pipeline（scope id 为 workspace；start/pause 等仍走 /pipelines/:id）
+        .route(
+            "/api/v1/workspaces/:id/pipeline",
+            post(pipelines::create_pipeline).get(pipelines::get_project_pipeline),
+        )
+        .route(
+            "/api/v1/workspaces/:id/progress",
+            get(snapshots::get_project_progress),
+        )
+        .route(
+            "/api/v1/workspaces/:id/role-snapshots",
+            get(snapshots::get_role_snapshots),
+        )
+        .route(
+            "/api/v1/workspaces/:id/role-snapshots/:role_id",
+            get(snapshots::get_role_snapshot),
+        )
+        .route(
+            "/api/v1/workspaces/:id/role-snapshots/:role_id/history",
+            get(snapshots::get_role_snapshot_history),
+        )
+        .route(
+            "/api/v1/workspaces/:id/snapshot-all",
+            post(snapshots::snapshot_all_active),
         )
         // 测试生成路由
         .route("/api/v1/test-gen", post(test_gen::generate_tests))
@@ -1405,6 +1467,10 @@ pub fn create_router(config: ApiConfig) -> anyhow::Result<(Router, Arc<AppState>
         .route(
             "/api/v1/ai/claude-cli-config/detect",
             post(ai_config::redetect_claude_cli),
+        )
+        .route(
+            "/api/v1/ai/claude-cli-diagnostics",
+            get(ai_config::diagnose_claude_cli),
         )
         .route(
             "/api/v1/ai/security/permissions-mode",

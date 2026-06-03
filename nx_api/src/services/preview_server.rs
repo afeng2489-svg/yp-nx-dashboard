@@ -30,6 +30,8 @@ pub struct PreviewSession {
     pub port: u16,
     pub preview_url: String,
     pub status: PreviewStatus,
+    /// 人类可读的当前阶段说明（启动中 / 安装依赖 / 失败原因等）
+    pub message: Option<String>,
     started_at: Instant,
     last_request_at: Instant,
     child: Option<Child>,
@@ -39,7 +41,10 @@ pub struct PreviewSession {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PreviewStatus {
+    /// 已创建会话，正在准备 / 启动 dev server
     Starting,
+    /// 首次启动，正在执行 npm install
+    Installing,
     Running,
     Stopped,
     Failed,
@@ -72,37 +77,108 @@ impl PreviewServerManager {
         manager
     }
 
-    /// 启动预览服务器
+    /// 启动预览服务器（非阻塞）：立即建立会话并返回 session_id，真正的
+    /// npm install / dev server 启动在后台任务里进行，并实时更新会话状态，
+    /// 让前端可以通过 /status 轮询出「启动中 → 安装依赖 → 就绪」的分阶段反馈。
     pub async fn start(
         &self,
         project_id: &str,
         project_path: &str,
     ) -> Result<PreviewSessionInfo, PreviewError> {
-        let npm_path = detect_node().await?;
         let session_id = uuid::Uuid::new_v4().to_string();
 
+        let session = PreviewSession {
+            session_id: session_id.clone(),
+            project_id: project_id.to_string(),
+            project_path: project_path.to_string(),
+            port: 0,
+            preview_url: String::new(),
+            status: PreviewStatus::Starting,
+            message: Some("正在准备预览…".to_string()),
+            started_at: Instant::now(),
+            last_request_at: Instant::now(),
+            child: None,
+        };
+        let session = Arc::new(RwLock::new(session));
+        self.sessions
+            .write()
+            .insert(session_id.clone(), session.clone());
+
+        // 后台执行真正的启动流程
+        let sid = session_id.clone();
+        let path = project_path.to_string();
+        tokio::spawn(async move {
+            Self::run_startup(session, sid, path).await;
+        });
+
+        Ok(PreviewSessionInfo {
+            session_id,
+            project_id: project_id.to_string(),
+            port: 0,
+            preview_url: String::new(),
+            status: PreviewStatus::Starting,
+            message: Some("正在准备预览…".to_string()),
+        })
+    }
+
+    /// 后台启动流程：检测 node → 按需 npm install → 起 dev server → 健康探测，
+    /// 每个阶段都写回会话状态供前端轮询。
+    async fn run_startup(
+        session: Arc<RwLock<PreviewSession>>,
+        session_id: String,
+        project_path: String,
+    ) {
+        let set = |status: PreviewStatus, msg: Option<String>| {
+            let mut s = session.write();
+            s.status = status;
+            s.message = msg;
+        };
+
+        let npm_path = match detect_node().await {
+            Ok(p) => p,
+            Err(e) => {
+                tracing::error!(session_id = %session_id, error = %e, "未找到 node/npm");
+                set(PreviewStatus::Failed, Some(e.to_string()));
+                return;
+            }
+        };
+
         // npm install（如 node_modules 不存在）
-        let node_modules = std::path::Path::new(project_path).join("node_modules");
+        let node_modules = std::path::Path::new(&project_path).join("node_modules");
         if !node_modules.exists() {
             tracing::info!(session_id = %session_id, "安装依赖: npm install");
+            set(
+                PreviewStatus::Installing,
+                Some("首次启动，正在安装依赖（可能需要几十秒）…".to_string()),
+            );
             let install = Command::new(&npm_path)
                 .arg("install")
-                .current_dir(project_path)
+                .current_dir(&project_path)
                 .output()
                 .await;
             match install {
                 Ok(out) if !out.status.success() => {
                     let stderr = String::from_utf8_lossy(&out.stderr);
                     tracing::error!(session_id = %session_id, "npm install 失败: {}", stderr);
-                    return Err(PreviewError::InstallFailed(stderr.trim().to_string()));
+                    set(
+                        PreviewStatus::Failed,
+                        Some(format!("依赖安装失败: {}", stderr.trim())),
+                    );
+                    return;
                 }
                 Err(e) => {
                     tracing::error!(session_id = %session_id, error = %e, "npm install 失败");
-                    return Err(PreviewError::InstallFailed(e.to_string()));
+                    set(PreviewStatus::Failed, Some(format!("依赖安装失败: {}", e)));
+                    return;
                 }
                 _ => {}
             }
         }
+
+        set(
+            PreviewStatus::Starting,
+            Some("正在启动开发服务器…".to_string()),
+        );
 
         // 端口候选：优先随机空闲端口（避开用户常用的 3000/5173），再退回固定端口。
         // 每个候选都以 --strictPort 启动：端口被占时 vite 会立即退出而不是悄悄漂移到
@@ -122,7 +198,8 @@ impl PreviewServerManager {
             }
         }
         if candidates.is_empty() {
-            return Err(PreviewError::NoPortAvailable);
+            set(PreviewStatus::Failed, Some("无可用端口".to_string()));
+            return;
         }
 
         let mut last_err: Option<PreviewError> = None;
@@ -131,7 +208,7 @@ impl PreviewServerManager {
 
             // 启动 dev server（--strictPort：端口被占即退出，不漂移）
             // --host 0.0.0.0：绑定所有接口（IPv4+IPv6），避免 reqwest 无法连接纯 IPv6 localhost
-            let mut child = Command::new(&npm_path)
+            let spawn_result = Command::new(&npm_path)
                 .arg("run")
                 .arg("dev")
                 .arg("--")
@@ -140,38 +217,34 @@ impl PreviewServerManager {
                 .arg("--strictPort")
                 .arg("--host")
                 .arg("0.0.0.0")
-                .current_dir(project_path)
+                .current_dir(&project_path)
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
                 .kill_on_drop(true)
-                .spawn()
-                .map_err(|e| PreviewError::SpawnFailed(e.to_string()))?;
+                .spawn();
+
+            let mut child = match spawn_result {
+                Ok(c) => c,
+                Err(e) => {
+                    last_err = Some(PreviewError::SpawnFailed(e.to_string()));
+                    continue;
+                }
+            };
 
             tracing::info!(session_id = %session_id, port = port, "启动预览，等待健康探测...");
             match wait_ready_or_exit(&mut child, port, PROBE_TIMEOUT_SECS).await {
                 Ok(_) => {
-                    let session = PreviewSession {
-                        session_id: session_id.clone(),
-                        project_id: project_id.to_string(),
-                        project_path: project_path.to_string(),
-                        port,
-                        preview_url: preview_url.clone(),
-                        status: PreviewStatus::Running,
-                        started_at: Instant::now(),
-                        last_request_at: Instant::now(),
-                        child: Some(child),
-                    };
-                    self.sessions
-                        .write()
-                        .insert(session_id.clone(), Arc::new(RwLock::new(session)));
+                    {
+                        let mut s = session.write();
+                        s.port = port;
+                        s.preview_url = preview_url.clone();
+                        s.status = PreviewStatus::Running;
+                        s.message = None;
+                        s.child = Some(child);
+                        s.last_request_at = Instant::now();
+                    }
                     tracing::info!(session_id = %session_id, url = %preview_url, "预览就绪");
-                    return Ok(PreviewSessionInfo {
-                        session_id,
-                        project_id: project_id.to_string(),
-                        port,
-                        preview_url,
-                        status: PreviewStatus::Running,
-                    });
+                    return;
                 }
                 Err(e) => {
                     // 关键：失败时立即杀掉子进程，避免泄漏 vite 进程继续占用端口，
@@ -183,7 +256,10 @@ impl PreviewServerManager {
             }
         }
 
-        Err(last_err.unwrap_or(PreviewError::NoPortAvailable))
+        let msg = last_err
+            .map(|e| e.to_string())
+            .unwrap_or_else(|| "无可用端口".to_string());
+        set(PreviewStatus::Failed, Some(msg));
     }
 
     /// 停止预览服务器
@@ -234,6 +310,7 @@ impl PreviewServerManager {
                 port: s.port,
                 preview_url: s.preview_url.clone(),
                 status: s.status,
+                message: s.message.clone(),
             }
         })
     }
@@ -290,6 +367,7 @@ pub struct PreviewSessionInfo {
     pub port: u16,
     pub preview_url: String,
     pub status: PreviewStatus,
+    pub message: Option<String>,
 }
 
 fn port_is_available(port: u16) -> bool {

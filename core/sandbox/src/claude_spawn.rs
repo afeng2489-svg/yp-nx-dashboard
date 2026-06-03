@@ -54,14 +54,19 @@ fn spawn_spec_from_path(path: &str) -> Result<(String, Vec<String>), String> {
     Ok(resolve_claude_executable(path))
 }
 
-/// Windows `.js` 入口需 node 包装；Unix 直接执行（shebang / Mach-O）
-pub fn resolve_claude_executable(path: &str) -> (String, Vec<String>) {
+/// 旧版 Claude Code 可能暴露 .js/.cjs 入口；现代 npm 包通常是原生二进制，应直接执行。
+fn is_node_entry(path: &str) -> bool {
     let p = Path::new(path);
-    if cfg!(target_os = "windows") {
-        match p.extension().and_then(|e| e.to_str()) {
-            Some("js") => ("node".to_string(), vec![p.to_string_lossy().to_string()]),
-            _ => (path.to_string(), Vec::new()),
-        }
+    matches!(
+        p.extension().and_then(|e| e.to_str()),
+        Some("js") | Some("cjs") | Some("mjs")
+    )
+}
+
+/// `.js` 入口需 node 包装；普通命令/原生二进制直接执行。
+pub fn resolve_claude_executable(path: &str) -> (String, Vec<String>) {
+    if is_node_entry(path) {
+        ("node".to_string(), vec![path.to_string()])
     } else {
         (path.to_string(), Vec::new())
     }
@@ -92,5 +97,19 @@ mod tests {
             assert_eq!(exe, "node");
             assert_eq!(prefix, vec![r"C:\npm\claude.js"]);
         }
+    }
+
+    #[test]
+    fn native_or_wrapper_path_spawns_directly() {
+        let (exe, prefix) = resolve_claude_executable("/opt/homebrew/bin/claude");
+        assert_eq!(exe, "/opt/homebrew/bin/claude");
+        assert!(prefix.is_empty());
+    }
+
+    #[test]
+    fn js_entry_uses_node() {
+        let (exe, prefix) = resolve_claude_executable("/tmp/claude.js");
+        assert_eq!(exe, "node");
+        assert_eq!(prefix, vec!["/tmp/claude.js"]);
     }
 }

@@ -77,6 +77,7 @@ pub async fn quick_run(
     }
 
     apply_project_context(&state, req.project_id.as_deref(), &mut variables);
+    apply_stack_profile(&state, req.project_id.as_deref(), &mut variables);
     apply_knowledge_injection(&state, req.project_id.as_deref(), &prompt, &mut variables).await;
 
     if let Some(obj) = variables.as_object_mut() {
@@ -180,17 +181,124 @@ fn apply_project_context(
     let Some(pid) = project_id else {
         return;
     };
-    let Ok(Some(project)) = state.project_service.get_project(pid) else {
-        return;
-    };
     let Some(obj) = variables.as_object_mut() else {
         return;
     };
-    obj.insert("project_id".to_string(), serde_json::json!(project.id));
-    obj.insert("project_name".to_string(), serde_json::json!(project.name));
-    for (key, value) in &project.variables {
-        obj.entry(key.clone())
-            .or_insert_with(|| serde_json::json!(value));
+
+    // Legacy execution project
+    if let Ok(Some(project)) = state.project_service.get_project(pid) {
+        obj.insert("project_id".to_string(), serde_json::json!(project.id));
+        obj.insert("project_name".to_string(), serde_json::json!(project.name));
+        for (key, value) in &project.variables {
+            obj.entry(key.clone())
+                .or_insert_with(|| serde_json::json!(value));
+        }
+        return;
+    }
+
+    // Unified model: workspace id passed as project_id
+    if let Ok(Some(ws)) = state.workspace_service.get_workspace(pid) {
+        obj.insert("workspace_id".to_string(), serde_json::json!(ws.id));
+        obj.insert("project_id".to_string(), serde_json::json!(ws.id));
+        obj.insert("project_name".to_string(), serde_json::json!(ws.name));
+        if let Some(path) = &ws.root_path {
+            obj.insert("project_path".to_string(), serde_json::json!(path));
+            obj.insert("workspace_path".to_string(), serde_json::json!(path));
+        }
+        if let Some(team_id) = ws.settings.get("team_id").and_then(|v| v.as_str()) {
+            if !team_id.is_empty() {
+                obj.entry("team_id".to_string())
+                    .or_insert_with(|| serde_json::json!(team_id));
+            }
+        }
+        if let Some(settings) = ws.settings.as_object() {
+            for (key, value) in settings {
+                if key != "team_id" {
+                    obj.entry(key.clone()).or_insert_with(|| value.clone());
+                }
+            }
+        }
+    }
+}
+
+/// Phase B — detect stack from workspace root and inject lang / gate hints into variables
+fn apply_stack_profile(
+    state: &AppState,
+    project_id: Option<&str>,
+    variables: &mut serde_json::Value,
+) {
+    let Some(pid) = project_id else { return };
+    let Some(obj) = variables.as_object_mut() else { return };
+
+    let root_path = state
+        .workspace_service
+        .get_workspace(pid)
+        .ok()
+        .flatten()
+        .and_then(|ws| ws.root_path)
+        .filter(|p| !p.is_empty());
+
+    let Some(root) = root_path else { return };
+    let root = std::path::Path::new(&root);
+
+    let profile = detect_stack_at_root(root);
+    if profile.lang != "auto" {
+        obj.entry("lang".to_string())
+            .or_insert_with(|| serde_json::json!(profile.lang));
+    }
+    if let Some(test_cmd) = profile.test_cmd {
+        obj.insert("stack_test_cmd".to_string(), serde_json::json!(test_cmd));
+    }
+    if let Some(build_cmd) = profile.build_cmd {
+        obj.insert("stack_build_cmd".to_string(), serde_json::json!(build_cmd));
+    }
+    obj.insert("stack_profile".to_string(), serde_json::json!(profile.lang));
+}
+
+struct StackProfileHint {
+    lang: &'static str,
+    test_cmd: Option<&'static str>,
+    build_cmd: Option<&'static str>,
+}
+
+fn detect_stack_at_root(root: &std::path::Path) -> StackProfileHint {
+    if root.join("Cargo.toml").exists() {
+        return StackProfileHint {
+            lang: "rust",
+            test_cmd: Some("cargo test"),
+            build_cmd: Some("cargo build"),
+        };
+    }
+    if root.join("go.mod").exists() {
+        return StackProfileHint {
+            lang: "go",
+            test_cmd: Some("go test ./..."),
+            build_cmd: Some("go build ./..."),
+        };
+    }
+    if root.join("pyproject.toml").exists() || root.join("requirements.txt").exists() {
+        return StackProfileHint {
+            lang: "python",
+            test_cmd: Some("pytest"),
+            build_cmd: None,
+        };
+    }
+    if root.join("package.json").exists() {
+        let lang = if root.join("tsconfig.json").exists() {
+            "typescript"
+        } else {
+            "typescript"
+        };
+        return StackProfileHint {
+            lang,
+            test_cmd: Some("npm test"),
+            build_cmd: Some("npm run build"),
+        };
+    }
+    StackProfileHint {
+        lang: "auto",
+        test_cmd: None,
+        build_cmd: None,
     }
 }
 
@@ -256,6 +364,15 @@ fn resolve_kb_id(state: &AppState, project_id: Option<&str>) -> Option<String> {
                 if let Some(v) = project.variables.get(key) {
                     if !v.trim().is_empty() {
                         return Some(v.clone());
+                    }
+                }
+            }
+        }
+        if let Ok(Some(ws)) = state.workspace_service.get_workspace(pid) {
+            for key in ["project_kb_id", "knowledge_base_id", "kb_id"] {
+                if let Some(v) = ws.settings.get(key).and_then(|v| v.as_str()) {
+                    if !v.trim().is_empty() {
+                        return Some(v.to_string());
                     }
                 }
             }

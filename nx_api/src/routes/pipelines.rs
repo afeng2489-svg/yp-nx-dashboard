@@ -46,6 +46,7 @@ pub struct ProgressSummary {
 
 #[derive(Deserialize)]
 pub struct CreatePipelineRequest {
+    #[serde(default)]
     pub team_id: String,
 }
 
@@ -94,6 +95,25 @@ fn build_response(pipeline: Pipeline, steps: Vec<PipelineStep>) -> PipelineRespo
     }
 }
 
+fn resolve_pipeline_team_id(state: &AppState, scope_id: &str, requested: &str) -> String {
+    if !requested.trim().is_empty() {
+        return requested.to_string();
+    }
+    if let Ok(Some(ws)) = state.workspace_service.get_workspace(scope_id) {
+        if let Some(tid) = ws.settings.get("team_id").and_then(|v| v.as_str()) {
+            if !tid.is_empty() {
+                return tid.to_string();
+            }
+        }
+    }
+    if let Ok(Some(project)) = state.project_service.get_project(scope_id) {
+        if !project.team_id.is_empty() {
+            return project.team_id;
+        }
+    }
+    requested.to_string()
+}
+
 fn map_tev_error(err: TeamEvolutionError) -> (StatusCode, Json<serde_json::Value>) {
     let msg = err.to_string();
     let status = match &err {
@@ -122,8 +142,9 @@ pub async fn create_pipeline(
     })?;
 
     let resolved_id = resolve_project_id(&state, &project_id);
+    let team_id = resolve_pipeline_team_id(&state, &resolved_id, &body.team_id);
     let pipeline = service
-        .create_pipeline(&resolved_id, &body.team_id)
+        .create_pipeline(&resolved_id, &team_id)
         .map_err(map_tev_error)?;
     let resp = build_response(pipeline, vec![]);
     Ok((StatusCode::CREATED, Json(resp)))

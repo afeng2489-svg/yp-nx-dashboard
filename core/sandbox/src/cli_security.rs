@@ -89,9 +89,8 @@ pub fn push_prompt_args_with_mode(
     if mode.allows_skip_permissions() {
         args.push("--dangerously-skip-permissions".to_string());
     }
-    if no_session_persistence {
-        args.push("--no-session-persistence".to_string());
-    }
+    // Claude Code 1.0.x 已移除 --no-session-persistence；`-p` 即为非交互/无 TUI 模式
+    let _ = no_session_persistence;
 }
 
 /// 向 Command 追加 prompt 模式参数（不含 prompt 正文）
@@ -235,7 +234,6 @@ mod tests {
         let mut args = Vec::new();
         push_prompt_args_with_mode(&mut args, true, PermissionsMode::Trusted);
         assert!(args.contains(&"--dangerously-skip-permissions".to_string()));
-        assert!(args.contains(&"--no-session-persistence".to_string()));
     }
 
     #[test]

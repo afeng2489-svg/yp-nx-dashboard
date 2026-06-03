@@ -126,7 +126,7 @@ fn run_pty_session(
         }
     };
 
-    let cli_path = match crate::services::claude_cli::get_claude_cli_path() {
+    let (cli_exe, cli_prefix) = match crate::services::claude_cli::get_claude_cli_executable() {
         Some(p) => p,
         None => {
             tracing::error!("[PTY] 未找到 Claude Code CLI");
@@ -135,9 +135,22 @@ fn run_pty_session(
             return;
         }
     };
-    tracing::info!("[PTY] 使用 Claude CLI: {}", cli_path);
+    tracing::info!(
+        "[PTY] 使用 Claude CLI: {} {}",
+        cli_exe,
+        cli_prefix.join(" ")
+    );
 
-    let mut cmd = CommandBuilder::new(&cli_path);
+    let mut cmd = CommandBuilder::new(&cli_exe);
+    // portable_pty 的 CommandBuilder 不会自动继承当前进程环境，必须显式传入，
+    // 否则启动时注入的 MiniMax ANTHROPIC_*（以及 PATH/HOME）拿不到，
+    // 交互式 claude 会回落到官方模式（Not logged in）。
+    for (key, value) in std::env::vars() {
+        cmd.env(key, value);
+    }
+    for arg in &cli_prefix {
+        cmd.arg(arg);
+    }
     if nexus_sandbox::PermissionsMode::from_env().allows_skip_permissions() {
         cmd.args(["--dangerously-skip-permissions"]);
     }
@@ -154,7 +167,7 @@ fn run_pty_session(
     let _child = match pair.slave.spawn_command(cmd) {
         Ok(c) => c,
         Err(e) => {
-            tracing::error!("[PTY] 启动 claude 失败: {} (path: {})", e, cli_path);
+            tracing::error!("[PTY] 启动 claude 失败: {} (exe: {})", e, cli_exe);
             let msg = format!("\r\n[错误] 无法启动 claude: {}\r\n", e);
             let _ = output_tx.send(msg.into_bytes());
             return;

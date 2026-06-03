@@ -643,6 +643,7 @@ pub async fn execute_team_task(
             ctx
         },
         auto_confirm: request.auto_confirm,
+        target_role_ids: request.target_role_ids.clone(),
     };
 
     // 后台异步执行团队任务

@@ -321,11 +321,28 @@ pub async fn execute_team_task(
         request.task.clone()
     };
 
-    // Resolve role for event metadata
-    let fallback_role_id = {
-        let roles = state.teams_state.team_service.list_roles(&team_id).ok();
-        roles.and_then(|r| r.first().map(|r| r.id.clone()))
-    };
+    // Resolve targeted roles (@mention) and a role for event metadata.
+    let team_roles = state
+        .teams_state
+        .team_service
+        .list_roles(&team_id)
+        .unwrap_or_default();
+    let target_role_ids = request.target_role_ids.clone().unwrap_or_default();
+    let target_role_names: Vec<String> = target_role_ids
+        .iter()
+        .filter_map(|id| {
+            team_roles
+                .iter()
+                .find(|r| &r.id == id)
+                .map(|r| r.name.clone())
+        })
+        .collect();
+    // Bind the terminal/UI to the first explicitly-mentioned role when present,
+    // otherwise fall back to the first team member.
+    let fallback_role_id = target_role_ids
+        .first()
+        .cloned()
+        .or_else(|| team_roles.first().map(|r| r.id.clone()));
 
     // Emit Started event
     let _ = event_tx.send(crate::ws::agent_execution::AgentExecutionEvent::Started {
@@ -348,9 +365,13 @@ pub async fn execute_team_task(
             if !memory_context.is_empty() {
                 ctx.insert("memory_context".to_string(), memory_context);
             }
+            if !target_role_names.is_empty() {
+                ctx.insert("target_roles".to_string(), target_role_names.join("、"));
+            }
             ctx
         },
         auto_confirm: request.auto_confirm,
+        target_role_ids: request.target_role_ids.clone(),
     };
 
     // Background async execution via CLI path

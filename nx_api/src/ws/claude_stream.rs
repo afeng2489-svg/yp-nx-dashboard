@@ -179,7 +179,7 @@ impl ClaudeStreamWsHandler {
         for arg in &prefix_args {
             cmd.arg(arg);
         }
-        cmd.args(["-p", "--no-session-persistence", &prompt])
+        cmd.args(["-p", &prompt])
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
 

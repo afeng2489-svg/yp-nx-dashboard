@@ -144,14 +144,8 @@ pub async fn send_message(
         .await
         .map_err(ApiError::from)?;
 
-    // 检测需求关键词并自动创建 Pipeline
-    if let Some(pipeline_service) = &state.pipeline_service {
-        if is_requirement_message(&request.content) {
-            if let Err(e) = auto_create_pipeline(&state, &id, &request.content).await {
-                tracing::warn!("自动创建 Pipeline 失败: {}", e);
-            }
-        }
-    }
+    // Pipeline 仅通过显式 API 创建（POST /auto-pipeline），日常群聊消息不再自动创建
+    // 见 Phase D：Factory = 日常迭代；Pipeline = 长周期完整产品
 
     Ok(Json(message))
 }

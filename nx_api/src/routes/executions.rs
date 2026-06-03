@@ -180,6 +180,27 @@ pub async fn cancel_execution(
     })
 }
 
+/// 取消 agent 执行（团队派活 / 群聊轮次等通过 agent_execution_manager 注册的执行）
+///
+/// 触发与 WebSocket `{type:"cancel"}` 完全相同的取消路径：cancel 对应的
+/// `CancellationToken`，后台任务的 select 分支随即发出 Cancelled 事件并终止子进程。
+/// 提供 HTTP 入口，便于全局悬浮任务卡等没有持有 WS 句柄的组件直接按 id 取消。
+pub async fn cancel_agent_execution(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Json<CancelResponse> {
+    tracing::info!("取消 agent 执行: {}", id);
+    let success = state.agent_execution_manager.cancel_execution(&id);
+    Json(CancelResponse {
+        success,
+        message: if success {
+            format!("执行 {} 已取消", id)
+        } else {
+            format!("执行 {} 不存在或已结束", id)
+        },
+    })
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct ResolveExecutionRequest {
     pub approved: bool,
@@ -402,6 +423,22 @@ pub async fn start_execution(
     // 4. 获取当前工作区路径
     let current_workspace = state.current_workspace_path.read().clone();
 
+    // 闸：web 生成类工作流（脚手架会把 web-starter 铺到工作区）若目标文件夹已非空，
+    // 容易与历史文件打架（如旧项目的 src/*.ts 让 tsc 构建失败，即 chufengtest 那次的根因）。
+    // 非空则返回 409 要求用户显式确认，而不是默默覆盖。
+    // 判定「web 生成类」：工作流定义引用了 starter_path 变量（landing-page / nav-site 等）。
+    if !req.confirm_overwrite && workflow_yaml.contains("starter_path") {
+        if let Some(ref ws) = current_workspace {
+            if let Some(conflicts) = scan_workspace_conflicts(ws) {
+                return Err(ExecutionAppError::Conflict(serde_json::json!({
+                    "error": "目标文件夹非空，铺设站点模板可能与现有文件冲突（旧项目文件可能导致构建失败）。确认要继续吗？",
+                    "code": "WORKSPACE_NOT_EMPTY",
+                    "files": conflicts,
+                })));
+            }
+        }
+    }
+
     // 5. 启动真实执行（异步，不等待完成）
     let execution_id = state
         .execution_service
@@ -608,6 +645,9 @@ pub struct StartExecutionRequest {
     pub workflow_id: String,
     #[serde(default = "default_variables")]
     pub variables: serde_json::Value,
+    /// 用户已确认「目标工作区非空仍要继续」，跳过冲突闸
+    #[serde(default)]
+    pub confirm_overwrite: bool,
 }
 
 fn default_variables() -> serde_json::Value {
@@ -692,11 +732,18 @@ pub struct CancelResponse {
 pub enum ExecutionAppError {
     NotFound(String),
     BadRequest(String),
+    /// 需要用户确认（如目标工作区非空）。携带结构化 body（含 code/files）。
+    Conflict(serde_json::Value),
     Internal(String),
 }
 
 impl IntoResponse for ExecutionAppError {
     fn into_response(self) -> Response {
+        // Conflict 需要返回结构化 body（前端据 code 决定是否弹确认）
+        if let ExecutionAppError::Conflict(body) = &self {
+            return (StatusCode::CONFLICT, Json(body.clone())).into_response();
+        }
+
         let (status, message) = match &self {
             ExecutionAppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             ExecutionAppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
@@ -707,6 +754,7 @@ impl IntoResponse for ExecutionAppError {
                     "内部服务器错误".to_string(),
                 )
             }
+            ExecutionAppError::Conflict(_) => unreachable!(),
         };
 
         let body = serde_json::json!({
@@ -715,6 +763,41 @@ impl IntoResponse for ExecutionAppError {
 
         (status, Json(body)).into_response()
     }
+}
+
+/// 扫描目标工作区，返回会与脚手架冲突的「有意义」文件/目录样本。
+/// 忽略 VCS / IDE / 依赖目录等噪声；全为噪声则视为空，返回 None。
+fn scan_workspace_conflicts(path: &str) -> Option<Vec<String>> {
+    const IGNORE: &[&str] = &[
+        ".git",
+        ".gitignore",
+        ".gitattributes",
+        ".DS_Store",
+        "node_modules",
+        ".vscode",
+        ".idea",
+        "README.md",
+        ".legacy-todo-backup",
+    ];
+    let dir = std::fs::read_dir(path).ok()?;
+    let mut hits: Vec<String> = Vec::new();
+    for entry in dir.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if IGNORE.contains(&name.as_str()) {
+            continue;
+        }
+        // 忽略本应用写入的内部状态文件（.nexus-*）
+        if name.starts_with(".nexus") {
+            continue;
+        }
+        hits.push(name);
+    }
+    if hits.is_empty() {
+        return None;
+    }
+    hits.sort();
+    hits.truncate(12);
+    Some(hits)
 }
 
 // ============ Git 回滚 + PR 描述 ============

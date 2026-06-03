@@ -25,6 +25,7 @@ pub async fn list_workspaces(
                     description: w.description,
                     root_path: w.root_path,
                     owner_id: w.owner_id,
+                    team_id: team_id_from_settings(&w.settings),
                     created_at: w.created_at.to_rfc3339(),
                     updated_at: w.updated_at.to_rfc3339(),
                 })
@@ -61,7 +62,25 @@ pub async fn create_workspace(
         payload.description,
         payload.root_path,
     ) {
-        Ok(workspace) => Ok((StatusCode::CREATED, Json(workspace))),
+        Ok(mut workspace) => {
+            if let Some(ref team_id) = payload.team_id {
+                if !team_id.is_empty() {
+                    workspace.settings["team_id"] = serde_json::json!(team_id);
+                    workspace.updated_at = chrono::Utc::now();
+                    workspace = state
+                        .workspace_service
+                        .update_workspace(
+                            &workspace.id,
+                            None,
+                            None,
+                            None,
+                            Some(workspace.settings.clone()),
+                        )
+                        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+                }
+            }
+            Ok((StatusCode::CREATED, Json(workspace)))
+        }
         Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
     }
 }
@@ -72,12 +91,34 @@ pub async fn update_workspace(
     Path(id): Path<String>,
     Json(payload): Json<UpdateWorkspaceRequest>,
 ) -> Result<Json<Workspace>, (StatusCode, String)> {
+    let mut settings = payload.settings;
+    if payload.team_id.is_some() {
+        let existing = state
+            .workspace_service
+            .get_workspace(&id)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+            .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Workspace not found: {}", id)))?;
+        let mut merged = existing.settings;
+        match payload.team_id.as_deref() {
+            None => {}
+            Some("") => {
+                if let Some(obj) = merged.as_object_mut() {
+                    obj.remove("team_id");
+                }
+            }
+            Some(team_id) => {
+                merged["team_id"] = serde_json::json!(team_id);
+            }
+        }
+        settings = Some(merged);
+    }
+
     match state.workspace_service.update_workspace(
         &id,
         payload.name,
         payload.description,
         payload.root_path,
-        payload.settings,
+        settings,
     ) {
         Ok(workspace) => Ok(Json(workspace)),
         Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
@@ -656,6 +697,14 @@ pub async fn delete_file(
 
 // ============ 请求/响应类型 ============
 
+fn team_id_from_settings(settings: &serde_json::Value) -> Option<String> {
+    settings
+        .get("team_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CreateWorkspaceRequest {
     pub name: String,
@@ -663,6 +712,8 @@ pub struct CreateWorkspaceRequest {
     pub owner_id: String,
     pub description: Option<String>,
     pub root_path: Option<String>,
+    /// 绑定团队（存入 settings.team_id）
+    pub team_id: Option<String>,
 }
 
 fn default_owner_id() -> String {
@@ -675,6 +726,8 @@ pub struct UpdateWorkspaceRequest {
     pub description: Option<String>,
     pub root_path: Option<String>,
     pub settings: Option<serde_json::Value>,
+    /// 绑定/解绑团队（空字符串表示解绑）
+    pub team_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -689,6 +742,7 @@ pub struct WorkspaceSummary {
     pub description: Option<String>,
     pub root_path: Option<String>,
     pub owner_id: String,
+    pub team_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }

@@ -822,13 +822,23 @@ impl AgentTeamService {
         let project_state = self.build_project_state_summary(&request.context);
 
         // Build the full prompt using shared function
-        let full_prompt = build_team_prompt(
+        let mut full_prompt = build_team_prompt(
             &team_context,
             &memory_context,
             &request.task,
             self.current_workspace_path.read().as_deref(),
             &project_state,
         );
+
+        // @mention 定向派活：用户显式 @了某些成员时，指示调度器把任务交给他们处理。
+        if let Some(target_roles) = request.context.get("target_roles") {
+            if !target_roles.trim().is_empty() {
+                full_prompt = format!(
+                    "## 定向派活（用户指定）\n用户通过 @ 显式指派以下成员负责本次任务：{}。\n请优先以这些成员的角色定位、技能和职责来处理，必要时由他们协作完成，不要交给未被指派的成员。\n\n{}",
+                    target_roles, full_prompt
+                );
+            }
+        }
 
         // 获取当前工作区路径
         let working_dir = self.current_workspace_path.read().clone();
@@ -853,7 +863,7 @@ impl AgentTeamService {
             cli_arg_refs
         } else {
             // 非 auto_confirm 时不传 skip-permissions（即使用户为 trusted，此处保留交互确认路径）
-            vec!["-p", "--no-session-persistence", &full_prompt]
+            vec!["-p", &full_prompt]
         };
 
         let cli_result = if auto_confirm {
@@ -1424,10 +1434,18 @@ impl AgentTeamService {
         })?;
 
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(AgentTeamServiceError::AiError(format!(
-                "Claude CLI error: {}",
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let detail = if !stderr.is_empty() {
                 stderr
+            } else if !stdout.is_empty() {
+                stdout
+            } else {
+                "no stderr/stdout captured".to_string()
+            };
+            return Err(AgentTeamServiceError::AiError(format!(
+                "Claude CLI error ({}): {}",
+                output.status, detail
             )));
         }
 

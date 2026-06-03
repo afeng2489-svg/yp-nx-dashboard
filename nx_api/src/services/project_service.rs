@@ -154,6 +154,7 @@ impl ProjectService {
             task: req.task.clone(),
             context,
             auto_confirm: false,
+            target_role_ids: None,
         };
 
         let result = self

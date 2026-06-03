@@ -205,6 +205,93 @@ impl GroupChatService {
         }
     }
 
+    /// 根据发言策略 + 参与者顺序计算发言顺序。
+    /// 纯确定性函数：start_discussion 与重启后重建共用，保证顺序一致。
+    fn compute_speaking_order(
+        strategy: &SpeakingStrategy,
+        moderator_role_id: Option<&str>,
+        participant_ids: &[String],
+    ) -> Vec<String> {
+        match strategy {
+            SpeakingStrategy::RoundRobin | SpeakingStrategy::Free => participant_ids.to_vec(),
+            SpeakingStrategy::Moderator => {
+                // Moderator speaks first
+                if let Some(mod_id) = moderator_role_id {
+                    let mut order = vec![mod_id.to_string()];
+                    for id in participant_ids {
+                        if id != mod_id {
+                            order.push(id.clone());
+                        }
+                    }
+                    order
+                } else {
+                    participant_ids.to_vec()
+                }
+            }
+            SpeakingStrategy::Debate => {
+                // Two sides alternate — side B first, then side A
+                let ids = participant_ids;
+                let mid = ids.len().div_ceil(2);
+                let mut order = Vec::with_capacity(ids.len());
+                let mut i = 0;
+                let mut j = mid;
+                while i < mid || j < ids.len() {
+                    if j < ids.len() {
+                        order.push(ids[j].clone());
+                        j += 1;
+                    }
+                    if i < mid {
+                        order.push(ids[i].clone());
+                        i += 1;
+                    }
+                }
+                order
+            }
+        }
+    }
+
+    /// 重启后惰性重建内存发言状态。
+    ///
+    /// `active_sessions`（发言顺序 + 当前发言指针）仅存在于内存，进程重启后丢失，
+    /// 导致 DB 里仍为 active 的讨论拿不到 next-speaker 而卡死。这里在缺失时按
+    /// 参与者 + 策略重建发言顺序，并用已持久化的 `current_turn` 推导发言指针
+    /// （顺序模式下二者同步递增；并行轮次模式不依赖该指针）。
+    async fn ensure_active_state(&self, session: &GroupSession) {
+        if session.status != GroupStatus::Active {
+            return;
+        }
+        {
+            let active = self.active_sessions.read().await;
+            if active.contains_key(&session.id) {
+                return;
+            }
+        }
+        let participants = match self.repo.get_participants(&session.id) {
+            Ok(p) if !p.is_empty() => p,
+            _ => return,
+        };
+        let participant_ids: Vec<String> = participants.iter().map(|p| p.role_id.clone()).collect();
+        let speaking_order = Self::compute_speaking_order(
+            &session.speaking_strategy,
+            session.moderator_role_id.as_deref(),
+            &participant_ids,
+        );
+        if speaking_order.is_empty() {
+            return;
+        }
+        let current_speaker_index = (session.current_turn as usize) % speaking_order.len();
+        let mut active = self.active_sessions.write().await;
+        // 二次确认，避免与 start_discussion 并发写入竞争
+        active
+            .entry(session.id.clone())
+            .or_insert(ActiveSessionState {
+                session_id: session.id.clone(),
+                speaking_order,
+                current_speaker_index,
+                last_turn: session.current_turn,
+            });
+    }
+
     /// Create a new group session
     pub async fn create_session(
         &self,
@@ -336,44 +423,12 @@ impl GroupChatService {
         session.status = GroupStatus::Active;
         self.repo.update_session(&session)?;
 
-        // Initialize speaking order
-        let speaking_order = match session.speaking_strategy {
-            SpeakingStrategy::RoundRobin => request.participant_role_ids.clone(),
-            SpeakingStrategy::Moderator => {
-                // Moderator speaks first
-                if let Some(ref mod_id) = session.moderator_role_id {
-                    let mut order = vec![mod_id.clone()];
-                    for id in &request.participant_role_ids {
-                        if id != mod_id {
-                            order.push(id.clone());
-                        }
-                    }
-                    order
-                } else {
-                    request.participant_role_ids.clone()
-                }
-            }
-            SpeakingStrategy::Debate => {
-                // Two sides alternate — side B first, then side A
-                let ids = &request.participant_role_ids;
-                let mid = ids.len().div_ceil(2);
-                let mut order = Vec::with_capacity(ids.len());
-                let mut i = 0;
-                let mut j = mid;
-                while i < mid || j < ids.len() {
-                    if j < ids.len() {
-                        order.push(ids[j].clone());
-                        j += 1;
-                    }
-                    if i < mid {
-                        order.push(ids[i].clone());
-                        i += 1;
-                    }
-                }
-                order
-            }
-            SpeakingStrategy::Free => request.participant_role_ids.clone(),
-        };
+        // Initialize speaking order (deterministic — also used to rebuild after restart)
+        let speaking_order = Self::compute_speaking_order(
+            &session.speaking_strategy,
+            session.moderator_role_id.as_deref(),
+            &request.participant_role_ids,
+        );
 
         let state = ActiveSessionState {
             session_id: session_id.to_string(),
@@ -531,6 +586,9 @@ impl GroupChatService {
             return Ok(None);
         }
 
+        // 重启后内存态可能丢失 → 按 DB 重建，避免讨论卡死
+        self.ensure_active_state(&session).await;
+
         let active = self.active_sessions.read().await;
         let state = match active.get(session_id) {
             Some(s) => s,
@@ -556,11 +614,19 @@ impl GroupChatService {
 
     /// Advance to next speaker
     pub async fn advance_speaker(&self, session_id: &str) -> Result<(), GroupChatServiceError> {
-        let mut active = self.active_sessions.write().await;
-        if let Some(state) = active.get_mut(session_id) {
-            if state.current_speaker_index < state.speaking_order.len() {
-                state.current_speaker_index += 1;
+        {
+            let mut active = self.active_sessions.write().await;
+            if let Some(state) = active.get_mut(session_id) {
+                if state.current_speaker_index < state.speaking_order.len() {
+                    state.current_speaker_index += 1;
+                }
+                return Ok(());
             }
+        }
+        // 内存态丢失（重启）→ 按 DB 重建到当前指针即可。
+        // 不再额外 +1：current_turn 已反映已完成的发言进度。
+        if let Ok(session) = self.get_session(session_id).await {
+            self.ensure_active_state(&session).await;
         }
         Ok(())
     }

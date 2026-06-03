@@ -51,6 +51,8 @@ async fn start_preview(
             "session_id": info.session_id,
             "port": info.port,
             "url": info.preview_url,
+            "status": info.status,
+            "message": info.message,
         })),
         Err(e) => Json(serde_json::json!({
             "error": e.to_string(),
@@ -78,6 +80,7 @@ async fn preview_status(
             "port": info.port,
             "url": info.preview_url,
             "session_id": info.session_id,
+            "message": info.message,
         })),
         None => Json(serde_json::json!({
             "status": "not_found",

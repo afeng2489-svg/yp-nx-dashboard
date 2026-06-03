@@ -390,6 +390,10 @@ pub struct ExecuteTeamTaskRequest {
     pub context: HashMap<String, String>,
     /// If true, automatically confirm without waiting for user input
     pub auto_confirm: bool,
+    /// Roles explicitly targeted via @mention. When set, the dispatcher is
+    /// instructed to route the task to these specific members.
+    #[serde(default)]
+    pub target_role_ids: Option<Vec<String>>,
 }
 
 /// Team execution result
