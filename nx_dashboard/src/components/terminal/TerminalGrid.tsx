@@ -23,6 +23,7 @@ type GridLayoutType = keyof typeof GRID_LAYOUTS;
 
 // 单个终端面板 — 原生 PTY raw 模式（Tauri 本地 / 浏览器 WS 二进制）
 function TerminalPane({
+  terminalId,
   title,
   onClose,
   initialCwd,
@@ -312,7 +313,7 @@ export function TerminalGrid({
   panelHeight?: number;
   visible?: boolean;
 } = {}) {
-  const { gridLayout, setGridLayout, terminals, activeTabId, isFullscreen, setFullscreen } =
+  const { tabs, gridLayout, setGridLayout, terminals, activeTabId, isFullscreen, setFullscreen } =
     useTerminalStore();
 
   // 根据活动标签页筛选终端
@@ -364,21 +365,36 @@ export function TerminalGrid({
       )}
 
       {/* 终端网格 */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden relative">
         {shellCompact ? (
-          activeTerminals[0] ? (
-            <TerminalPane
-              terminalId={activeTerminals[0].id}
-              title={activeTerminals[0].title}
-              initialCwd={initialCwd}
-              compact
-              panelHeight={panelHeight}
-              visible={visible}
-            />
-          ) : (
+          tabs.length === 0 || terminals.length === 0 ? (
             <div className="h-full flex items-center justify-center bg-background">
               <div className="text-muted-foreground text-sm">暂无终端 — 点击 + 新建</div>
             </div>
+          ) : (
+            /* 每个标签独立 PTY：全部挂载，非活动标签 hidden，避免复用同一 Shell */
+            tabs.map((tab) => {
+              const term = terminals.find((t) => t.tabId === tab.id);
+              if (!term) return null;
+              const isActive = tab.id === activeTabId;
+              return (
+                <div
+                  key={tab.id}
+                  className={cn('absolute inset-0 min-h-0', !isActive && 'hidden')}
+                  aria-hidden={!isActive}
+                >
+                  <TerminalPane
+                    key={term.id}
+                    terminalId={term.id}
+                    title={term.title}
+                    initialCwd={initialCwd}
+                    compact
+                    panelHeight={panelHeight}
+                    visible={visible && isActive}
+                  />
+                </div>
+              );
+            })
           )
         ) : (
           <Allotment>
@@ -388,6 +404,7 @@ export function TerminalGrid({
                 <Allotment.Pane key={terminal?.id || `empty-${index}`} minSize={100}>
                   {terminal ? (
                     <TerminalPane
+                      key={terminal.id}
                       terminalId={terminal.id}
                       title={terminal.title}
                       initialCwd={initialCwd}
