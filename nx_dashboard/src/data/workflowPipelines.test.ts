@@ -11,8 +11,14 @@ import {
 } from '@/data/workflowPipelines';
 
 describe('workflowPipelines', () => {
-  it('solo-dev has six stages including approval', () => {
-    expect(SOLO_DEV_PIPELINE).toHaveLength(6);
+  it('solo-dev has four stages including approval', () => {
+    expect(SOLO_DEV_PIPELINE).toHaveLength(4);
+    expect(SOLO_DEV_PIPELINE.map((s) => s.name)).toEqual([
+      '开发',
+      '交付审批',
+      '审查',
+      '交付摘要',
+    ]);
     expect(SOLO_DEV_PIPELINE.some((s) => s.name === '交付审批' && s.kind === 'approval')).toBe(true);
   });
 
@@ -48,8 +54,8 @@ describe('workflowPipelines', () => {
   it('resolveStageStates marks completed and active', () => {
     const states = resolveStageStates(
       SOLO_DEV_PIPELINE,
-      ['规划'],
-      '实现',
+      ['开发'],
+      '交付审批',
       'running',
     );
     expect(states[0]).toBe('done');
@@ -60,23 +66,23 @@ describe('workflowPipelines', () => {
   it('resolveStageStates shows waiting on paused approval', () => {
     const states = resolveStageStates(
       SOLO_DEV_PIPELINE,
-      ['规划', '实现', '自测'],
+      ['开发'],
       '交付审批',
       'paused',
     );
-    expect(states[3]).toBe('waiting');
+    expect(states[1]).toBe('waiting');
   });
 
   it('inferCurrentStageName prefers pending pause', () => {
     expect(
-      inferCurrentStageName('实现', '交付审批', [{ stage_name: '规划' }]),
+      inferCurrentStageName('开发', '交付审批', [{ stage_name: '开发' }]),
     ).toBe('交付审批');
   });
 
   it('nextGateHint for approval pause', () => {
     const states = resolveStageStates(
       SOLO_DEV_PIPELINE,
-      ['规划', '实现', '自测'],
+      ['开发'],
       '交付审批',
       'paused',
     );

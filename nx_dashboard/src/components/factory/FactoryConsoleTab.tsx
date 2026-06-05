@@ -397,7 +397,7 @@ export function FactoryConsoleTab({
         >
           <h2 className="text-lg font-semibold mb-1">一句话启动</h2>
           <p className="text-sm text-muted-foreground mb-4">
-            你当厂长，虚拟团队按产线推进：规划 → 实现 → 自测 → 审批 → 审查
+            你当厂长，虚拟团队按产线推进：开发 → 审批 → 审查 → 摘要
             {effectiveWorkflow && (
               <span className="ml-2 text-primary">→ 推荐: {effectiveWorkflow}</span>
             )}

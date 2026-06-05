@@ -334,7 +334,7 @@ impl WorkflowEngine {
                                 }
                             };
                             let body_outputs = self
-                                .execute_stage(&state, &body_stage, &workflow.agents)
+                                .execute_stage(&state, &body_stage, &workflow.agents, false)
                                 .await?;
                             loop_outputs.extend(body_outputs);
                         }
@@ -379,7 +379,7 @@ impl WorkflowEngine {
                         ..Default::default()
                     };
                     let _analyst_outputs = self
-                        .execute_stage(&state, &analyst_stage, &workflow.agents)
+                        .execute_stage(&state, &analyst_stage, &workflow.agents, false)
                         .await?;
 
                     // 2. 提取 manifest JSON (从 agent output state variable)
@@ -411,7 +411,7 @@ impl WorkflowEngine {
                         parallel: true,
                         ..Default::default()
                     };
-                    self.execute_stage(&state, &parallel_stage, &workflow.agents)
+                    self.execute_stage(&state, &parallel_stage, &workflow.agents, false)
                         .await?;
 
                     // 4. 本机 StageWatcher 执行 R1-R9 验证
@@ -428,7 +428,7 @@ impl WorkflowEngine {
                             stage_type: StageType::Agent,
                             ..Default::default()
                         };
-                        self.execute_stage(&state, &review_stage, &workflow.agents)
+                        self.execute_stage(&state, &review_stage, &workflow.agents, false)
                             .await?;
                         review = PageGenerateWatcher::validate(&staging_dir, &manifest);
                         review_attempts += 1;
@@ -460,7 +460,8 @@ impl WorkflowEngine {
 
                 StageType::Agent => {
                     // 首次执行 stage
-                    let initial_result = self.execute_stage(&state, &stage, &workflow.agents).await;
+                    let initial_result =
+                        self.execute_stage(&state, &stage, &workflow.agents, false).await;
 
                     let (outputs, quality_gate_result) = match initial_result {
                         Ok(out) => {
@@ -775,11 +776,13 @@ impl WorkflowEngine {
                 )));
             }
 
-            // 构建错误反馈并重新执行 stage
+            // 构建错误反馈并轻量重试（仅修质量门失败，不重跑完整 stage prompt）
             let error_summary = self.format_gate_errors(&gate_result);
             self.inject_gate_error_to_state(state, &stage.name, &error_summary);
 
-            current_outputs = self.execute_stage(state, stage, agents).await?;
+            current_outputs = self
+                .execute_stage(state, stage, agents, true)
+                .await?;
         }
     }
 
@@ -1053,7 +1056,7 @@ impl WorkflowEngine {
                     policy.retry
                 );
                 self.emit_model_escalation(state, &stage.name, None, attempt, policy.retry);
-                match self.execute_stage(state, stage, &workflow.agents).await {
+                match self.execute_stage(state, stage, &workflow.agents, false).await {
                     Ok(out) => {
                         return self
                             .run_quality_gate_loop(state, stage, &workflow.agents, out)
@@ -1084,7 +1087,7 @@ impl WorkflowEngine {
                         policy.escalate_retries,
                     );
                     match self
-                        .execute_stage(state, &escalated_stage, &workflow.agents)
+                        .execute_stage(state, &escalated_stage, &workflow.agents, false)
                         .await
                     {
                         Ok(out) => {
@@ -1124,7 +1127,7 @@ impl WorkflowEngine {
                         attempt,
                         error_handler.max_retries
                     );
-                    match self.execute_stage(state, stage, &workflow.agents).await {
+                    match self.execute_stage(state, stage, &workflow.agents, false).await {
                         Ok(out) => {
                             return self
                                 .run_quality_gate_loop(state, stage, &workflow.agents, out)
@@ -1168,7 +1171,13 @@ impl WorkflowEngine {
         state: &SharedState,
         stage: &crate::parser::StageDefinition,
         agents: &[crate::parser::AgentDefinition],
+        gate_fixup: bool,
     ) -> Result<Vec<StageOutput>, WorkflowError> {
+        state.write().set_var(
+            "current_stage",
+            serde_json::Value::String(stage.name.clone()),
+        );
+
         if stage.parallel {
             // 并行执行智能体
             let mut handles = Vec::new();
@@ -1197,6 +1206,7 @@ impl WorkflowEngine {
                             &agent_clone,
                             rag_config.as_ref(),
                             model.as_deref(),
+                            gate_fixup,
                         )
                         .await
                 }));
@@ -1231,7 +1241,14 @@ impl WorkflowEngine {
                 }
 
                 match self
-                    .execute_agent(state, stage, agent, stage.rag.as_ref(), stage.model.as_deref())
+                    .execute_agent(
+                        state,
+                        stage,
+                        agent,
+                        stage.rag.as_ref(),
+                        stage.model.as_deref(),
+                        gate_fixup,
+                    )
                     .await
                 {
                     Ok(agent_outputs) => outputs.extend(agent_outputs),
@@ -1306,6 +1323,7 @@ impl WorkflowEngine {
         agent: &crate::parser::AgentDefinition,
         rag_config: Option<&crate::parser::RagConfig>,
         model_override: Option<&str>,
+        gate_fixup: bool,
     ) -> Result<Vec<StageOutput>, WorkflowError> {
         let execution_id = state.read().execution_id;
 
@@ -1326,8 +1344,43 @@ impl WorkflowEngine {
             role: agent.role.clone(),
         });
 
-        // 使用解析后的变量构建提示词
-        let resolved_prompt = state.read().resolve_template(&agent.prompt);
+        // 使用解析后的变量构建提示词（质量门重试时用轻量 fix prompt）
+        let resolved_prompt = if gate_fixup {
+            let (gate_error, prior) = {
+                let s = state.read();
+                let err_key = format!("{}_quality_gate_error", stage.name);
+                let gate_error = s
+                    .get_var(&err_key)
+                    .and_then(|v| v.as_str())
+                    .map(String::from)
+                    .unwrap_or_else(|| {
+                        "质量门检查失败，请根据工作区现状修复。".to_string()
+                    });
+                let stage_out_key = format!("{}_output", stage.name);
+                let agent_out_key = format!("{}_output", agent.id);
+                let prior = s
+                    .get_var(&stage_out_key)
+                    .or_else(|| s.get_var(&agent_out_key))
+                    .and_then(|v| v.as_str())
+                    .map(String::from)
+                    .unwrap_or_default();
+                (gate_error, prior)
+            };
+            let fix_prompt = format!(
+                "【质量门修复 — 仅修错，勿重做无关工作】\n\
+                阶段：{}\n\
+                任务：{{task}}\n\n\
+                失败日志：\n{}\n\n\
+                上一轮产出（参考，可截断）：\n{}\n\n\
+                请用 Read/Edit/Bash 最小化修复使质量门通过，不要重新规划或大范围重构。",
+                stage.name,
+                gate_error,
+                truncate_str(&prior, 4000),
+            );
+            state.read().resolve_template(&fix_prompt)
+        } else {
+            state.read().resolve_template(&agent.prompt)
+        };
 
         // RAG 注入：检索相关知识并追加到 prompt
         let rag_context = if let (Some(rag), Some(provider)) = (rag_config, &self.rag_provider) {
@@ -1467,9 +1520,13 @@ impl WorkflowEngine {
                 agent_state.last_message = Some(response.clone());
                 agent_state.updated_at = chrono::Utc::now();
 
-                // ── 自动注入：将 agent 输出写入 {agent_id}_output 变量，供后续 agent 引用 ──
+                // ── 自动注入：将 agent 输出写入 {agent_id}_output / {stage}_output ──
                 state.write().set_var(
                     &format!("{}_output", agent.id),
+                    serde_json::Value::String(response.clone()),
+                );
+                state.write().set_var(
+                    &format!("{}_output", stage.name),
                     serde_json::Value::String(response.clone()),
                 );
 
@@ -1606,10 +1663,23 @@ impl WorkflowEngine {
             }
         })?;
 
-        let output = child
-            .wait_with_output()
-            .await
-            .map_err(|e| WorkflowError::Execution(format!("Claude CLI error: {}", e)))?;
+        let timeout_secs = std::env::var("NEXUS_CLI_TIMEOUT_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(3600);
+
+        let output = tokio::time::timeout(
+            std::time::Duration::from_secs(timeout_secs),
+            child.wait_with_output(),
+        )
+        .await
+        .map_err(|_| {
+            WorkflowError::Execution(format!(
+                "Claude CLI 超时（{}s）。可设 NEXUS_CLI_TIMEOUT_SECS 调整上限。",
+                timeout_secs
+            ))
+        })?
+        .map_err(|e| WorkflowError::Execution(format!("Claude CLI error: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);

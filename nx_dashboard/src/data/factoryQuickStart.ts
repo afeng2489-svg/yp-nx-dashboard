@@ -6,7 +6,7 @@ export const FACTORY_QUICK_LINES = [
     id: 'solo-dev',
     workflowName: 'solo-dev',
     title: '一人全栈',
-    description: '规划 → 实现 → 自测 → 审查',
+    description: '开发 → 审批 → 审查 → 摘要',
     icon: Rocket,
     gradient: 'from-indigo-500 to-violet-600',
   },

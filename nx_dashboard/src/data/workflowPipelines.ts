@@ -10,11 +10,9 @@ export interface PipelineStageDef {
 }
 
 export const SOLO_DEV_PIPELINE: PipelineStageDef[] = [
-  { name: '规划', role: '全栈工程师', kind: 'agent' },
-  { name: '实现', role: '全栈工程师', kind: 'gate', gateLabel: '编译通过' },
-  { name: '自测', role: '全栈工程师', kind: 'gate', gateLabel: '测试通过' },
+  { name: '开发', role: '全栈工程师', kind: 'gate', gateLabel: '编译+测试' },
   { name: '交付审批', role: '你 · 厂长', kind: 'approval', gateLabel: '人工批准' },
-  { name: '审查', role: '全栈工程师', kind: 'agent' },
+  { name: '审查', role: '代码审查员', kind: 'agent' },
   { name: '交付摘要', role: '交付摘要员', kind: 'agent' },
 ];
 
@@ -148,7 +146,7 @@ export function pipelineLabelForWorkflow(workflowName?: string): string {
 export function pipelineDurationHint(workflowName?: string): string {
   const n = pipelineForWorkflow(workflowName).length;
   if (n <= 3) return '约 5–15 分钟';
-  if (n <= 5) return '约 10–20 分钟';
+  if (n <= 5) return '约 8–15 分钟';
   return '约 15–30 分钟';
 }
 
