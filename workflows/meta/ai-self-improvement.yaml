@@ -241,7 +241,7 @@ stages:
       最终更新：
       - docs/progress.json: tasks[{{sprint_id}}].status = "completed", summary 更新
       - docs/PROGRESS.md: sprint 状态 → completed
-      - AI_FACTORY_ROADMAP.md: 对应 sprint → ✅
+      - docs/PROGRESS.md: 对应 sprint → ✅
 
 # ============================================================
 # 全局质量门

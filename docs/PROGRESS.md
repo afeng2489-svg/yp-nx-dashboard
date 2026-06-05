@@ -1,5 +1,6 @@
 # NexusFlow — AI 软件工厂 开发进度
 
+> 文档地图：[README.md](README.md)  
 > **AI 恢复指令**：读 [`docs/sprints/MASTER-PLAN.yaml`](sprints/MASTER-PLAN.yaml) + [`docs/progress.json`](progress.json) → 找 `current_sprint` → 读对应 sprint yaml。
 
 ---

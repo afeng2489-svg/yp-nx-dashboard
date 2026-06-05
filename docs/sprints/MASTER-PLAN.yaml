@@ -197,7 +197,7 @@ deferred_after_300:
   - 模板市场
   - Windows/Linux 安装包
   - 多租户 SaaS
-  - v4.8 画布原生节点执行（见 docs/v4.8-iteration-plan.md）
+  - v4.8 画布原生节点执行（已归档 defer，见 sprints/_archive/v4.3-visual-canvas.yaml）
 
 top_risks:
   - id: R1

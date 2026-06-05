@@ -171,7 +171,7 @@ nexusflow/
 ├── api/             # HTTP API 服务器
 ├── dashboard/       # Web 仪表板
 ├── config/          # 配置和工作流
-└── docs/            # 文档
+└── docs/            # 文档（入口见 docs/README.md）
 ```
 
 ## 性能
