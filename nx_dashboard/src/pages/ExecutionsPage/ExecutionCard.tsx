@@ -42,12 +42,30 @@ export function ExecutionCard({
       <div
         onClick={onClick}
         className={cn(
-          'rounded-lg border border-zinc-800 border-l-[3px] p-4 cursor-pointer transition-colors',
+          'rounded-lg border border-zinc-800 border-l-[3px] p-4 cursor-pointer transition-colors relative',
           STATUS_ACCENT_BORDER[execution.status],
           selected ? 'bg-zinc-800/80 ring-1 ring-zinc-600' : 'bg-zinc-900/40 hover:bg-zinc-800/50',
         )}
       >
-        <div className="flex items-start justify-between gap-3 mb-3">
+        <div
+          className="absolute top-3 left-3 z-10"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(execution.id);
+          }}
+        >
+          <div
+            className={cn(
+              'w-4 h-4 rounded border flex items-center justify-center transition-colors',
+              selected
+                ? 'bg-zinc-200 border-zinc-200'
+                : 'border-zinc-600 hover:border-zinc-400 bg-zinc-900/80',
+            )}
+          >
+            {selected && <CheckCircle className="w-3 h-3 text-zinc-900" />}
+          </div>
+        </div>
+        <div className="flex items-start justify-between gap-3 mb-3 pl-6">
           <div className="min-w-0 flex-1">
             <h3 className="font-medium text-zinc-100 truncate" title={execution.workflow_id}>
               {workflowName(execution.workflow_id)}

@@ -151,11 +151,15 @@ export function ExecutionsPage({
     });
   }, []);
 
+  const selectScope = embedded ? filtered : executions;
+
   const toggleSelectAll = useCallback(() => {
     setSelectedIds((prev) =>
-      prev.size === executions.length ? new Set() : new Set(executions.map((e) => e.id)),
+      prev.size === selectScope.length
+        ? new Set()
+        : new Set(selectScope.map((e) => e.id)),
     );
-  }, [executions]);
+  }, [selectScope]);
 
   const handleDeleteSelected = useCallback(() => {
     const ids = [...selectedIds];
@@ -226,6 +230,35 @@ export function ExecutionsPage({
           workspaces={workspaces}
           workflows={workflows}
         />
+      )}
+
+      {embedded && sourceExecutions.length > 0 && (
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs text-muted-foreground">
+            共 {filtered.length} 条{selectedIds.size > 0 ? ` · 已选 ${selectedIds.size}` : ''}
+          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            {selectedIds.size > 0 && (
+              <button
+                type="button"
+                onClick={handleDeleteSelected}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-destructive text-destructive-foreground hover:opacity-90 transition-opacity"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                删除 ({selectedIds.size})
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              className="px-3 py-1.5 rounded-md text-xs border border-border/50 hover:bg-accent transition-colors"
+            >
+              {selectedIds.size === selectScope.length && selectScope.length > 0
+                ? '取消全选'
+                : '全选'}
+            </button>
+          </div>
+        </div>
       )}
 
       {sourceExecutions.length === 0 ? (
