@@ -2,6 +2,7 @@ import { ArrowUpRight } from 'lucide-react';
 import { Container } from '@/components/ui/Container';
 import { Reveal } from '@/components/ui/Reveal';
 import type { NavCategory, NavLinkItem } from '@/data/links';
+import { CategoryIcon } from '@/icons';
 
 function LinkCard({ item, compact }: { item: NavLinkItem; compact?: boolean }) {
   return (
@@ -44,7 +45,7 @@ export function CategoryGrid({
           <section key={cat.id} id={cat.id} className="scroll-mt-20">
             <Reveal>
               <div className="mb-5 flex items-center gap-3">
-                {cat.emoji && <span className={compact ? 'text-xl' : 'text-2xl'}>{cat.emoji}</span>}
+                <CategoryIcon category={cat} size={compact ? 'md' : 'lg'} />
                 <h2 className={compact ? 'text-xl font-semibold' : 'text-2xl font-semibold'}>
                   {cat.name}
                 </h2>

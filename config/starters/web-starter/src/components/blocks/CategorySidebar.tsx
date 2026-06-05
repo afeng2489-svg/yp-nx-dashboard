@@ -1,4 +1,5 @@
 import type { NavCategory } from '@/data/links';
+import { CategoryIcon } from '@/icons';
 import { cn } from '@/lib/cn';
 
 export function CategorySidebar({
@@ -38,7 +39,7 @@ export function CategorySidebar({
               : 'text-muted hover:bg-ink/5 hover:text-ink',
           )}
         >
-          {cat.emoji && <span>{cat.emoji}</span>}
+          <CategoryIcon category={cat} size="sm" />
           <span className="flex-1 truncate">{cat.name}</span>
           <span className="text-xs text-muted">{cat.items.length}</span>
         </button>

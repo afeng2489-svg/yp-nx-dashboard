@@ -131,7 +131,7 @@ agents:
         "hero_subtitle": "副标题",
         "search_placeholder": "搜索框占位文案",
         "categories": [
-          {"id":"英文短id","name":"分类名","emoji":"一个emoji","items":[
+          {"id":"英文短id","name":"分类名","semantic":"语义键(如 fashion/watch/jewelry/travel/design/dev/ai/learn/hotel/beauty/art/automotive 等)","items":[
             {"title":"站点名","url":"https://…","desc":"一句话简介"}
           ]}
         ],
@@ -161,7 +161,7 @@ agents:
       信息架构：{{ia_信息架构_output}}
 
       把底座变成「{{brand}}」真实导航站，只改内容层与装配，不改组件样式：
-      1. 用 Write 重写 src/data/links.ts：categories 全部换成信息架构里的真实分类与站点
+      1. 用 Write 重写 src/data/links.ts：categories 全部换成信息架构里的真实分类与站点；每项必须有 semantic（禁止 emoji），图标由主题+src/icons/catalog.ts 自动解析
       2. 按信息架构的 layout_file 改对应页面（NavSiteDemo/NavSiteSidebar/NavSiteCompact/NavSiteFeatured）：
          Navbar brand 改掉、删 showThemeControls；SearchHeader/FeaturedLinks 的文案用信息架构内容；Footer brand/tagline 换掉
       3. 改 src/App.tsx：直接渲染选中的布局页面组件，删掉 ?p 演示分支与落地页引用

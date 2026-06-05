@@ -6,9 +6,19 @@ export interface NavLinkItem {
   desc?: string;
 }
 
+/** Lucide 图标名（PascalCase），可被工作区 API / site-config 覆盖 */
+export interface CategoryIcon {
+  library?: 'lucide';
+  name: string;
+}
+
 export interface NavCategory {
   id: string;
   name: string;
+  /** 语义键，用于按 data-theme 从 icons/catalog 解析不同风格的图标 */
+  semantic?: string;
+  icon?: CategoryIcon;
+  /** @deprecated 使用 semantic + 主题目录，或显式 icon */
   emoji?: string;
   items: NavLinkItem[];
 }
@@ -17,7 +27,7 @@ export const categories: NavCategory[] = [
   {
     id: 'design',
     name: '设计资源',
-    emoji: '🎨',
+    semantic: 'design',
     items: [
       { title: 'Dribbble', url: 'https://dribbble.com', desc: '设计灵感社区' },
       { title: 'Figma', url: 'https://figma.com', desc: '协作设计工具' },
@@ -28,7 +38,7 @@ export const categories: NavCategory[] = [
   {
     id: 'dev',
     name: '开发工具',
-    emoji: '⚙️',
+    semantic: 'dev',
     items: [
       { title: 'GitHub', url: 'https://github.com', desc: '代码托管协作' },
       { title: 'MDN', url: 'https://developer.mozilla.org', desc: 'Web 开发文档' },
@@ -39,7 +49,7 @@ export const categories: NavCategory[] = [
   {
     id: 'ai',
     name: 'AI 工具',
-    emoji: '🤖',
+    semantic: 'ai',
     items: [
       { title: 'Claude', url: 'https://claude.ai', desc: '智能写作与编程' },
       { title: 'Hugging Face', url: 'https://huggingface.co', desc: '开源模型社区' },
@@ -49,7 +59,7 @@ export const categories: NavCategory[] = [
   {
     id: 'learn',
     name: '学习成长',
-    emoji: '📚',
+    semantic: 'learn',
     items: [
       { title: 'freeCodeCamp', url: 'https://freecodecamp.org', desc: '免费编程课程' },
       { title: 'Coursera', url: 'https://coursera.org', desc: '名校在线课程' },
